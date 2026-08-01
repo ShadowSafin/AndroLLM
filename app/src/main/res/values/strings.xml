@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">AndroLLM</string>
+    <string name="app_short_name">AndroLLM</string>
+    <string name="app_tagline">Private AI. Offline. On your device.</string>
+    <string name="app_description">Run powerful AI models locally on Android.</string>
+
+    <!-- Common -->
+    <string name="error_generic">Something went wrong</string>
+    <string name="error_network">Network error</string>
+    <string name="error_permission">Permission denied</string>
+    <string name="error_storage">Storage error</string>
+    <string name="retry">Retry</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="loading">Loading…</string>
+    <string name="empty_state">No data</string>
+</resources>

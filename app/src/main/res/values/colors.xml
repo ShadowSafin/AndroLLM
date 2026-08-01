@@ -1,0 +1,15 @@
+<resources>
+    <color name="brand_primary">#4F8CFF</color>
+    <color name="brand_accent">#6EA8FE</color>
+    <color name="brand_background">#0B0F19</color>
+    <color name="brand_surface">#141A26</color>
+    <color name="brand_surface_variant">#1E2633</color>
+    <color name="brand_on_surface">#E6E1E5</color>
+    <color name="brand_on_surface_variant">#C4C6D0</color>
+    <color name="brand_outline">#8F9099</color>
+    <color name="brand_outline_variant">#44474D</color>
+    <color name="brand_error">#FFB4AB</color>
+    <color name="brand_on_error">#690005</color>
+    <color name="brand_error_container">#93000A</color>
+    <color name="brand_on_error_container">#FFDAD6</color>
+</resources>

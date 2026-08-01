@@ -1,0 +1,14 @@
+<resources>
+    <style name="Theme.AndroLLM" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/brand_background</item>
+        <item name="android:navigationBarColor">@color/brand_background</item>
+        <item name="android:statusBarColor">@color/brand_background</item>
+    </style>
+
+    <style name="Theme.AndroLLM.Splash" parent="Theme.AndroLLM">
+        <item name="android:windowBackground">@color/brand_background</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+    </style>
+</resources>

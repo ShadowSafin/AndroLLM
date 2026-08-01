@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_title">Chat</string>
+    <string name="chat_new_title">New Chat</string>
+    <string name="chat_placeholder">Message…</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_cancel">Stop</string>
+    <string name="chat_back">Back</string>
+    <string name="chat_no_messages">No messages yet</string>
+    <string name="chat_start_conversation">Start a conversation!</string>
+    <string name="chat_model_disabled">Model not loaded</string>
+    <string name="chat_model_loading">Loading model…</string>
+    <string name="chat_model_error_prefix">Engine error: </string>
+    <string name="chat_error_prefix">Error: </string>
+</resources>

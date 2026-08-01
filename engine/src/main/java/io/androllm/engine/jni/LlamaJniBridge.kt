@@ -1,0 +1,143 @@
+package io.androllm.engine.jni
+
+/**
+ * Thrown when the native library cannot be loaded.
+ */
+class NativeLibraryException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+/**
+ * Kotlin bridge to the native llama.cpp engine (`libandrollm_llama.so`).
+ *
+ * All native calls are blocking; the caller must never invoke them on the
+ * main thread.
+ */
+object LlamaJniBridge {
+
+    /**
+     * Receives streamed tokens from native code.
+     */
+    fun interface TokenCallback {
+        /**
+         * Called once per decoded token. [delta] is the new text,
+         * [finished] is true on the last token.
+         */
+        fun onToken(delta: String, finished: Boolean)
+    }
+
+    private const val LIBRARY_NAME = "androllm_llama"
+
+    private var libraryLoaded = false
+
+    @Synchronized
+    fun ensureLoaded() {
+        if (libraryLoaded) return
+        try {
+            System.loadLibrary(LIBRARY_NAME)
+            libraryLoaded = true
+        } catch (e: Throwable) {
+            throw NativeLibraryException(
+                "Failed to load native library $LIBRARY_NAME",
+                e
+            )
+        }
+    }
+
+    /**
+     * Creates the native engine and returns its handle.
+     * @return engine handle (0 on failure, throws on fatal errors)
+     */
+    external fun nativeCreate(configJson: String): Long
+
+    /**
+     * Loads a GGUF model into the engine.
+     * @throws java.lang.RuntimeException when the model cannot be loaded
+     */
+    external fun nativeLoadModel(engineHandle: Long, modelPath: String, loadConfigJson: String)
+
+    /**
+     * True when a model is currently loaded in the engine.
+     */
+    external fun nativeIsLoaded(engineHandle: Long): Boolean
+
+    /**
+     * Returns JSON metadata of the loaded model, or "null".
+     */
+    external fun nativeModelInfo(engineHandle: Long): String
+
+    /**
+     * Renders [messageHistoryJson] (a JSON array of {"role", "content"}
+     * objects) with the loaded model's GGUF chat template.
+     * Returns the rendered prompt, or an empty string when the model has no
+     * supported chat template.
+     */
+    external fun nativeApplyChatTemplate(
+        engineHandle: Long,
+        messageHistoryJson: String,
+        addAssistant: Boolean
+    ): String
+
+    /**
+     * Runs generation synchronously. [callback] is invoked per token on the
+     * calling thread. Returns a JSON string with performance stats.
+     */
+    external fun nativeGenerate(
+        engineHandle: Long,
+        prompt: String,
+        genConfigJson: String,
+        callback: TokenCallback
+    ): String
+
+    /**
+     * Requests cancellation of an in-flight generation.
+     */
+    external fun nativeCancel(engineHandle: Long)
+
+    /**
+     * Unloads the model, keeping the engine alive.
+     */
+    external fun nativeUnload(engineHandle: Long)
+
+    /**
+     * Destroys the engine and frees all native resources.
+     */
+    external fun nativeRelease(engineHandle: Long)
+
+    /**
+     * Runs [iterations] benchmark passes against the loaded model.
+     * Returns a JSON string with benchmark results.
+     */
+    external fun nativeBenchmark(
+        engineHandle: Long,
+        iterations: Int,
+        callback: TokenCallback
+    ): String
+
+    /**
+     * Peak native memory used by the engine, in bytes.
+     */
+    external fun nativeMemoryPeak(engineHandle: Long): Long
+
+    /**
+     * Returns true when the Vulkan GPU backend is available on this device.
+     */
+    external fun nativeVulkanAvailable(): Boolean
+
+    /**
+     * Runs a warm-up inference to pre-compile GPU shaders and initialize
+     * command pools. Returns a JSON string with warm-up statistics.
+     */
+    external fun nativeWarmUp(engineHandle: Long): String
+
+    /**
+     * Returns a JSON string with current memory usage statistics:
+     * modelSizeBytes, contextSizeBytes, gpuLayersOffloaded, backend, peakMemoryBytes.
+     */
+    external fun nativeGetMemoryStats(engineHandle: Long): String
+
+    /**
+     * Returns a JSON string with full diagnostics of the loaded model and the
+     * last generation (chat template, tokenizer framing, prompt/generated
+     * token IDs, first-token latency). Consumed by the hidden debug panel.
+     */
+    external fun nativeGetDebugInfo(engineHandle: Long): String
+}

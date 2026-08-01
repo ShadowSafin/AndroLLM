@@ -1,0 +1,141 @@
+# ===========================================================================
+# AndroLLM - comprehensive .gitignore
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Gradle / Android build outputs
+# ---------------------------------------------------------------------------
+.gradle/
+build/
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.jar
+*.war
+*.ear
+*.m4a
+*.mtl
+
+# Keep the Gradle wrapper jar tracked (required to build)
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio generated native build dirs (per module)
+.cxx/
+.externalNativeBuild/
+CMakeUserPresets.json
+
+# Android test/report output
+reports/
+outputs/
+.android/
+.native-session.json
+
+# ---------------------------------------------------------------------------
+# Local / machine-specific configuration (never commit)
+# ---------------------------------------------------------------------------
+local.properties
+*.properties.orig
+keystore.properties
+gradle.properties.bak
+
+# ---------------------------------------------------------------------------
+# Native / C / C++ build artifacts
+# ---------------------------------------------------------------------------
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.dSYM/
+*.lib
+*.exe
+*.out
+*.pyc
+*.pyo
+
+# ---------------------------------------------------------------------------
+# Vendored llama.cpp repo (pinned source, tracked as plain files)
+# The nested git clone was removed so the source is included in this repo;
+# only ignore any standalone llama.cpp build it may produce.
+# ---------------------------------------------------------------------------
+engine/src/main/cpp/llama.cpp/build/
+
+# ---------------------------------------------------------------------------
+# IDE / editor files
+# ---------------------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+*.sublime-project
+*.sublime-workspace
+.vscode/
+*.swp
+*.swo
+*~
+.ntfs_metadata
+
+# Kotlin / IntelliJ project caches
+.kotlin/
+.harness/
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# OS junk
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+*.lnk
+
+# ---------------------------------------------------------------------------
+# Logs, local helper scripts, temp files
+# ---------------------------------------------------------------------------
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+_gradle_out.txt
+_run_gradle.bat
+
+# ---------------------------------------------------------------------------
+# Secrets / credentials (never commit)
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+secrets/
+credentials/
+
+# ---------------------------------------------------------------------------
+# Runtime artifacts / model weights / memory dumps
+# ---------------------------------------------------------------------------
+*.hprof
+*.jfr
+*.heapsnapshot
+*.gguf
+*.safetensors
+*.ckpt
+*.onnx
+*.tflite
+.venv/
+venv/
+
+# ---------------------------------------------------------------------------
+# Test / coverage output
+# ---------------------------------------------------------------------------
+.coverage/
+coverage/
+*.ec
+*.exec
+*.lcov

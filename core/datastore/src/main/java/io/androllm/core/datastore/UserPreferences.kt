@@ -1,0 +1,21 @@
+package io.androllm.core.datastore
+
+import io.androllm.core.models.ThemeMode
+
+/**
+ * Snapshot of all user preferences stored in DataStore.
+ */
+data class UserPreferences(
+    val theme: ThemeMode = ThemeMode.SYSTEM,
+    val language: String = "en",
+    val developerMode: Boolean = false,
+    val storagePath: String = "",
+    val firstLaunch: Boolean = true,
+    val modelPath: String? = null,
+    val fontSize: io.androllm.core.models.ChatFontSize = io.androllm.core.models.ChatFontSize.MEDIUM,
+    val markdownEnabled: Boolean = true,
+    val codeWrapping: Boolean = false,
+    val messageAnimations: Boolean = true,
+    val autoScroll: Boolean = true,
+    val typingIndicator: Boolean = true
+)

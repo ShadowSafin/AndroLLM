@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="models_title">Models</string>
+    <string name="models_no_models">No models found</string>
+    <string name="models_import">Import Model</string>
+    <string name="models_load">Load</string>
+    <string name="models_unload">Unload</string>
+    <string name="models_import_error">Import failed</string>
+    <string name="models_ram_estimate">~%1$s RAM</string>
+    <string name="models_download">Download Models</string>
+    <string name="models_storage">Storage</string>
+    <string name="models_available">Available</string>
+    <string name="models_used">Used</string>
+    <string name="models_count">Models</string>
+    <string name="model_size">Size</string>
+    <string name="model_format">Format</string>
+    <string name="model_parameters">Parameters</string>
+    <string name="model_quantization">Quantization</string>
+    <string name="model_loaded">Loaded</string>
+    <string name="model_not_loaded">Not loaded</string>
+    <string name="start_new_conversation">Start new conversation</string>
+</resources>

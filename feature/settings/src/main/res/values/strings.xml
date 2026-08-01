@@ -1,0 +1,20 @@
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_storage">Storage</string>
+    <string name="settings_storage_path">Storage Path</string>
+    <string name="settings_clear_cache">Clear Cache</string>
+    <string name="settings_developer">Developer</string>
+    <string name="settings_developer_mode">Developer Mode</string>
+    <string name="settings_logs">Logs</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_licenses">Licenses</string>
+    <string name="settings_privacy">Privacy Policy</string>
+    <string name="settings_ai">AI Settings (Coming Soon)</string>
+    <string name="settings_model_params">Model Parameters</string>
+    <string name="settings_inference">Inference Settings</string>
+    <string name="settings_gpu_acceleration">GPU Acceleration</string>
+</resources>
