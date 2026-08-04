@@ -1,7 +1,6 @@
-package io.androllm.feature.chat.ui.components
+package io.androllm.core.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +22,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Functions
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,20 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudGlassBorderHighlight
 import io.androllm.core.ui.theme.CloudWhite
 import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.RevolutCyberCyan
-import io.androllm.core.ui.theme.RevolutGoldTier
-import io.androllm.core.ui.theme.RevolutNeonEmerald
 import io.androllm.core.ui.theme.SkyBlue
 import io.androllm.core.ui.theme.SunsetCloudOrange
 import io.androllm.core.ui.theme.SunsetCloudPeach
@@ -64,8 +55,7 @@ data class PromptTemplate(
 )
 
 /**
- * Revolut-Inspired Prompt Studio Library & Carousel.
- * Interactive category filter pills with floating glass cards for instant prompt injection.
+ * Revolut-Inspired Prompt Studio Library & Carousel in core:ui.
  */
 @Composable
 fun PromptStudioCarousel(
@@ -135,11 +125,7 @@ fun PromptStudioCarousel(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            if (isSelected) {
-                                Brush.horizontalGradient(listOf(SunsetCloudOrange, SunsetCloudPeach))
-                            } else Color(0x33E2E8F0)
-                        )
+                        .background(if (isSelected) SunsetCloudOrange else Color(0x33E2E8F0))
                         .clickable { selectedCategory = cat }
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {

@@ -56,7 +56,7 @@ import io.androllm.core.ui.theme.MoonSilver
 import io.androllm.core.ui.theme.SkyBlue
 import io.androllm.core.ui.theme.SoftCyan
 import io.androllm.core.ui.theme.SunsetCloudPeach
-import io.androllm.feature.chat.ui.components.PromptStudioCarousel
+import io.androllm.core.ui.components.PromptStudioCarousel
 import io.androllm.feature.home.R
 import io.androllm.feature.home.ui.components.ChatActivityCard
 

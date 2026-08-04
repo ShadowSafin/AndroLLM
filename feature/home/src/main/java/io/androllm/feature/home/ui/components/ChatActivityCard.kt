@@ -124,7 +124,7 @@ fun ChatActivityCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = conversation.modelId.ifBlank { "On-Device AI" },
+                            text = conversation.lastMessagePreview?.take(16) ?: "On-Device AI",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = RevolutCyberCyan
