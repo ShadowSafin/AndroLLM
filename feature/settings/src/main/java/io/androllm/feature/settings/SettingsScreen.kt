@@ -1,6 +1,5 @@
 package io.androllm.feature.settings
 
-import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,6 +53,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val logPreview by viewModel.logPreview.collectAsStateWithLifecycle()
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
     Scaffold(
@@ -121,6 +122,40 @@ fun SettingsScreen(
                             title = stringResource(R.string.settings_developer_mode),
                             value = settings.developerMode.displayYesNo(),
                             onClick = { viewModel.toggleDeveloperMode() }
+                        )
+                    }
+                }
+            }
+
+            item {
+                SectionHeader(title = stringResource(R.string.settings_logs))
+                SectionCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        SettingRow(
+                            icon = Icons.Filled.Settings,
+                            title = stringResource(R.string.settings_export_logs),
+                            onClick = { viewModel.exportLogs() }
+                        )
+                        SettingRow(
+                            icon = Icons.Filled.Refresh,
+                            title = stringResource(R.string.settings_refresh_logs),
+                            onClick = { viewModel.refreshLogPreview() }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.settings_logs_preview_label),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = logPreview.ifBlank { stringResource(R.string.settings_logs_empty) },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
                         )
                     }
                 }

@@ -9,6 +9,10 @@
     <string name="settings_developer">Developer</string>
     <string name="settings_developer_mode">Developer Mode</string>
     <string name="settings_logs">Logs</string>
+    <string name="settings_export_logs">Export Logs</string>
+    <string name="settings_refresh_logs">Refresh Logs</string>
+    <string name="settings_logs_preview_label">Recent logs</string>
+    <string name="settings_logs_empty">No logs available yet.</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version</string>
     <string name="settings_licenses">Licenses</string>

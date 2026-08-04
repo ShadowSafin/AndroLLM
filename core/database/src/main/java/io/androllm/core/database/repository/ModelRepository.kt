@@ -84,6 +84,19 @@ class ModelRepository @Inject constructor(
         modelDao.updateDownloadState(id, isDownloaded, downloadStatus.name, filePath, System.currentTimeMillis())
     }
 
+    /**
+     * Enriches a downloaded model with GGUF header metadata.
+     */
+    suspend fun updateDownloadMetadata(
+        id: String,
+        architecture: String,
+        quantization: String,
+        contextLength: Int,
+        license: String
+    ): Result<Unit> = io.androllm.core.common.runCatching {
+        modelDao.updateDownloadMetadata(id, architecture, quantization, contextLength, license, System.currentTimeMillis())
+    }
+
     suspend fun setFavorite(id: String, isFavorite: Boolean): Result<Unit> = io.androllm.core.common.runCatching {
         modelDao.updateFavorite(id, isFavorite)
     }

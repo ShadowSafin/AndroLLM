@@ -1,7 +1,5 @@
 package io.androllm.feature.models
 
-import io.androllm.core.models.ModelCategory
-
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -23,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -54,6 +53,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,6 +83,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -95,6 +96,10 @@ import io.androllm.core.models.Model
 import io.androllm.core.models.RemoteGgufFile
 import io.androllm.core.models.RemoteModelDetails
 import io.androllm.core.models.RemoteModelSummary
+import io.androllm.core.models.catalog.CatalogCategory
+import io.androllm.core.models.catalog.CatalogModel
+import io.androllm.core.models.catalog.CatalogSortOption
+import io.androllm.core.models.catalog.CatalogState
 import io.androllm.core.utils.DeviceHardwareInfo
 import io.androllm.core.utils.DeviceInfoCollector
 import io.androllm.feature.models.benchmark.BenchmarkReport
@@ -209,7 +214,7 @@ fun ModelsScreen(
                 Tab(
                     selected = data.selectedTab == ModelsTab.CATALOG,
                     onClick = { viewModel.selectTab(ModelsTab.CATALOG) },
-                    text = { Text("Catalog (${data.catalogModels.size})") }
+                    text = { Text("Catalog (${data.catalogCount})") }
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.HUGGINGFACE,
@@ -249,10 +254,10 @@ fun ModelsScreen(
                     activeDownloads = activeDownloads,
                     viewModel = viewModel
                 )
-                ModelsTab.CATALOG -> OfficialCatalogTab(
-                    catalogModels = data.catalogModels,
-                    installedModels = data.installedModels,
-                    onDownload = { viewModel.downloadModel(it) }
+                ModelsTab.CATALOG -> CatalogTab(
+                    data = data,
+                    viewModel = viewModel,
+                    installedModels = data.installedModels
                 )
                 ModelsTab.HUGGINGFACE -> HuggingFaceTab(
                     remoteModels = data.remoteModels,
@@ -739,117 +744,371 @@ private fun InstalledModelCard(
 }
 
 @Composable
-private fun OfficialCatalogTab(
-    catalogModels: List<Model>,
-    installedModels: List<Model>,
-    onDownload: (Model) -> Unit
+private fun CatalogTab(
+    data: ModelsData,
+    viewModel: ModelsViewModel,
+    installedModels: List<Model>
 ) {
-    val categories: List<Pair<ModelCategory, String>> = listOf(
-        ModelCategory.RECOMMENDED to "⭐ Recommended",
-        ModelCategory.CHAT to "💬 General Chat",
-        ModelCategory.REASONING to "🧠 Reasoning",
-        ModelCategory.MOBILE_OPTIMIZED to "⚡ Mobile Optimized"
-    )
+    when (val state = data.catalogState) {
+        is CatalogState.Loading -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is CatalogState.Failed -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Catalog unavailable",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = state.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { viewModel.refreshCatalog() }) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Retry")
+                }
+            }
+        }
+        is CatalogState.Ready -> CatalogList(
+            data = data,
+            viewModel = viewModel,
+            installedModels = installedModels
+        )
+    }
+}
 
+@Composable
+private fun CatalogList(
+    data: ModelsData,
+    viewModel: ModelsViewModel,
+    installedModels: List<Model>
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        categories.forEach { (cat, title) ->
-            val sectionModels = catalogModels.filter { it.category == cat }
-            if (sectionModels.isNotEmpty()) {
-                item(key = "header_${cat.name}") {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(vertical = 4.dp)
+        item(key = "catalog_header") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Model Catalog (${data.catalogCount})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                TextButton(
+                    onClick = { viewModel.refreshCatalog() },
+                    enabled = !data.isCatalogRefreshing
+                ) {
+                    if (data.isCatalogRefreshing) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Updating...")
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Update")
+                    }
+                }
+            }
+        }
+
+        data.catalogRefreshError?.let { error ->
+            item(key = "catalog_error") {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { viewModel.dismissCatalogRefreshError() }) {
+                            Icon(
+                                Icons.Default.Cancel,
+                                contentDescription = "Dismiss",
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (data.recommendedCatalogModels.isNotEmpty()) {
+            item(key = "rec_header") {
+                Text(
+                    text = "⭐ Recommended for your device",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            items(data.recommendedCatalogModels.take(4), key = { "rec_${it.id}" }) { model ->
+                CatalogModelCard(
+                    model = model,
+                    installedModels = installedModels,
+                    recommended = true,
+                    onDownload = { viewModel.downloadModel(it) }
+                )
+            }
+            item(key = "divider") {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+        }
+
+        item(key = "sort_chips") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SORT_OPTIONS.forEach { option ->
+                    FilterChip(
+                        selected = data.catalogSort == option,
+                        onClick = { viewModel.updateCatalogSort(option) },
+                        label = { Text(option.label) }
                     )
                 }
+            }
+        }
 
-                items(sectionModels, key = { it.id }) { model ->
-                    val installed = installedModels.find { it.id == model.id }
-                    val isDownloaded = installed?.isDownloaded == true
-                    val isDownloading = installed != null && !installed.isDownloaded && installed.downloadStatus != DownloadStatus.ERROR
+        item(key = "category_chips") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = data.catalogFilters.categories.isEmpty(),
+                    onClick = { viewModel.updateCatalogFilters(data.catalogFilters.copy(categories = emptySet())) },
+                    label = { Text("All") }
+                )
+                CATEGORY_FILTERS.forEach { category ->
+                    FilterChip(
+                        selected = category in data.catalogFilters.categories,
+                        onClick = {
+                            val current = data.catalogFilters.categories.toMutableSet()
+                            if (!current.add(category)) current.remove(category)
+                            viewModel.updateCatalogFilters(data.catalogFilters.copy(categories = current))
+                        },
+                        label = { Text(category.label) }
+                    )
+                }
+            }
+        }
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = model.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+        item(key = "results_header") {
+            Text(
+                text = "${data.catalogModels.size} models",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
 
-                                if (isDownloaded) {
-                                    StatusBadge(status = DownloadStatus.DOWNLOADED)
-                                } else if (isDownloading) {
-                                    StatusBadge(status = DownloadStatus.DOWNLOADING)
-                                }
-                            }
+        if (data.catalogModels.isEmpty()) {
+            item(key = "empty") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No models match your search.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        }
 
-                            if (model.badges.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    model.badges.take(3).forEach { badge ->
-                                        AssistChip(
-                                            onClick = {},
-                                            label = { Text(badge, style = MaterialTheme.typography.labelSmall) },
-                                            modifier = Modifier.height(24.dp)
-                                        )
-                                    }
-                                }
-                            }
+        items(data.catalogModels, key = { it.id }) { model ->
+            CatalogModelCard(
+                model = model,
+                installedModels = installedModels,
+                recommended = false,
+                onDownload = { viewModel.downloadModel(it) }
+            )
+        }
+    }
+}
 
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = model.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+@Composable
+private fun CatalogModelCard(
+    model: CatalogModel,
+    installedModels: List<Model>,
+    recommended: Boolean,
+    onDownload: (CatalogModel) -> Unit
+) {
+    val installed = installedModels.find { it.id == model.id }
+    val isDownloaded = installed?.isDownloaded == true
+    val isDownloading = installed != null && !installed.isDownloaded &&
+        installed.downloadStatus != DownloadStatus.ERROR
+    val isGated = model.isGated
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Size: ${model.fileSize.formatSize()} | RAM: ${"%.0f".format(model.minRamGb)} GB+",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (recommended) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            }
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (recommended) "⭐ ${model.name}" else model.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                AssistChip(onClick = {}, label = { Text(model.quantization) })
+            }
 
-                                if (isDownloaded) {
-                                    OutlinedButton(onClick = {}, enabled = false) {
-                                        Text("Installed")
-                                    }
-                                } else if (isDownloading) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Downloading...", style = MaterialTheme.typography.labelMedium)
-                                    }
-                                } else {
-                                    Button(onClick = { onDownload(model) }) {
-                                        Icon(Icons.Default.CloudDownload, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Download")
-                                    }
-                                }
-                            }
+            if (model.family.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${model.family} • ${model.architecture} • ${model.license}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = model.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            if (model.tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    model.tags.take(3).forEach { tag ->
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.height(24.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = buildString {
+                        if (model.parameters.isNotBlank()) append("${model.parameters} params")
+                        append(" • ${model.sizeBytes.formatSize()}")
+                        append(" • ${model.contextLength.coerceAtLeast(1) / 1000}K ctx")
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Text(
+                    text = "RAM ${"%.0f".format(model.minRamGb)}+ GB",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = model.downloads.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = Color(0xFFF38BA8)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = model.likes.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+
+                when {
+                    isGated -> {
+                        AssistChip(onClick = {}, label = { Text("Gated") })
+                    }
+                    isDownloaded -> {
+                        OutlinedButton(onClick = {}, enabled = false) {
+                            Text("Installed")
+                        }
+                    }
+                    isDownloading -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Downloading...", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    else -> {
+                        Button(onClick = { onDownload(model) }) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Download")
                         }
                     }
                 }
@@ -857,6 +1116,27 @@ private fun OfficialCatalogTab(
         }
     }
 }
+
+private val SORT_OPTIONS = listOf(
+    CatalogSortOption.TRENDING,
+    CatalogSortOption.DOWNLOADS,
+    CatalogSortOption.LIKES,
+    CatalogSortOption.NEWEST,
+    CatalogSortOption.SIZE_DESC,
+    CatalogSortOption.LEAST_RAM
+)
+
+private val CATEGORY_FILTERS = listOf(
+    CatalogCategory.CHAT,
+    CatalogCategory.REASONING,
+    CatalogCategory.CODE,
+    CatalogCategory.MATH,
+    CatalogCategory.VISION,
+    CatalogCategory.EMBEDDING,
+    CatalogCategory.MULTILINGUAL,
+    CatalogCategory.FUNCTION_CALLING,
+    CatalogCategory.LIGHTWEIGHT
+)
 
 @Composable
 private fun HuggingFaceTab(

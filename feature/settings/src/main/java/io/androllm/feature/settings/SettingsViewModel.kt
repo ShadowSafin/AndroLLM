@@ -8,6 +8,8 @@ import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.UiState
 import io.androllm.core.database.repository.SettingsRepository
 import io.androllm.core.models.ThemeMode
+import io.androllm.core.utils.LogUtils
+import io.androllm.core.utils.ShareUtils
 import io.androllm.core.utils.StorageUtils
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,8 +30,12 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<UiState<SettingsData>>(UiState.Loading())
     val uiState: StateFlow<UiState<SettingsData>> = _uiState
 
+    private val _logPreview = MutableStateFlow("")
+    val logPreview: StateFlow<String> = _logPreview
+
     init {
         observeSettings()
+        refreshLogPreview()
     }
 
     private fun observeSettings() {
@@ -84,6 +90,19 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             StorageUtils.clearCache(context)
         }
+    }
+
+    fun exportLogs() {
+        viewModelScope.launch {
+            val logFile = LogUtils.getLogFile(context)
+            if (logFile.exists()) {
+                ShareUtils.shareFile(context, logFile, "AndroLLM Logs")
+            }
+        }
+    }
+
+    fun refreshLogPreview() {
+        _logPreview.value = LogUtils.readRecentLogs(context)
     }
 
     fun toggleMarkdownEnabled() {

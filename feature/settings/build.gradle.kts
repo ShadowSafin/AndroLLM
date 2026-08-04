@@ -11,7 +11,7 @@ android {
     namespace = "io.androllm.feature.settings"
     compileSdk = 35
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")

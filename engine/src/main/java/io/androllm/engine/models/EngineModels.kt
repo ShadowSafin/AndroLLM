@@ -51,6 +51,10 @@ data class ModelLoadConfig(
 
 /**
  * Token generation parameters.
+ *
+ * Field names map 1:1 to the JSON config consumed by the native bridge;
+ * default values match the llama.cpp defaults so omitted fields need no
+ * explicit transmission.
  */
 @Serializable
 data class GenerationConfig(
@@ -59,7 +63,20 @@ data class GenerationConfig(
     val topP: Float = 0.95f,
     val topK: Int = 40,
     val minP: Float = 0.05f,
+    val typicalP: Float = 1.0f,
     val repetitionPenalty: Float = 1.0f,
+    val presencePenalty: Float = 0.0f,
+    val frequencyPenalty: Float = 0.0f,
+    val dryMultiplier: Float = 0.0f,
+    val dryBase: Float = 1.75f,
+    val dryAllowedLength: Int = 2,
+    val dryPenaltyLastN: Int = -1,
+    val mirostat: Int = 0,
+    val mirostatTau: Float = 5.0f,
+    val mirostatEta: Float = 0.1f,
+    val grammar: String = "",
+    val jsonSchema: String = "",
+    val reuseKvCache: Boolean = true,
     val seed: Long = -1,
     val stopSequences: List<String> = emptyList()
 )
@@ -131,6 +148,8 @@ data class EngineDebugInfo(
     val nVocab: Int = 0,
     val kvType: String = "",
     val flashAttn: String = "",
+    val quantization: String = "",
+    val sampler: String = "",
     val templateReady: Boolean = false,
     val templateError: String = "",
     val templateSource: String = "",
@@ -143,6 +162,7 @@ data class EngineDebugInfo(
     val generatedTokens: Long = 0,
     val generatedTokenIds: List<Int> = emptyList(),
     val firstTokenMs: Long = 0,
+    val stopReason: String = "",
     val promptText: String = "",
     val modelSizeBytes: Long = 0,
     val contextSizeBytes: Long = 0,
@@ -162,7 +182,9 @@ data class EngineStats(
     val generationTimeMs: Long = 0,
     val totalTimeMs: Long = 0,
     val tokensPerSecond: Float = 0f,
-    val memoryPeakBytes: Long = 0
+    val memoryPeakBytes: Long = 0,
+    val firstTokenMs: Long = 0,
+    val stopReason: String = ""
 )
 
 /**

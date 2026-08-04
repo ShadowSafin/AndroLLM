@@ -17,6 +17,7 @@ import io.androllm.engine.api.GenerationState
 import io.androllm.engine.models.ChatPromptMessage
 import io.androllm.engine.models.EngineDebugInfo
 import io.androllm.engine.models.EngineStats
+import io.androllm.engine.models.GenerationConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,8 +45,14 @@ class ChatViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow<String>("")
     private val _isSearchOpen = MutableStateFlow<Boolean>(false)
     private val _debugInfo = MutableStateFlow<EngineDebugInfo?>(null)
+    private val _genConfig = MutableStateFlow(GenerationConfig())
 
     val debugInfo: StateFlow<EngineDebugInfo?> = _debugInfo
+    val genConfig: StateFlow<GenerationConfig> = _genConfig
+
+    fun updateGenConfig(config: GenerationConfig) {
+        _genConfig.value = config
+    }
 
     val uiState: StateFlow<ChatUiState> = combine(
         combine(
@@ -173,11 +180,16 @@ class ChatViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            val prompt = engineRepository.buildChatPrompt(messages)
-                .getOrNull()
-                ?.takeIf { it.isNotBlank() }
-                ?: fallbackRawPrompt(messages)
-            engineRepository.generate(prompt = prompt)
+            val promptResult = engineRepository.buildChatPrompt(messages)
+            val prompt = promptResult.getOrNull()
+            if (prompt.isNullOrBlank()) {
+                val err = (promptResult as? io.androllm.core.common.Result.Error)?.exception?.message
+                    ?: "Chat template returned empty prompt"
+                android.util.Log.e("ChatViewModel", "Chat template failed: $err")
+                appendErrorMessage("Model chat template unavailable: $err")
+                return@launch
+            }
+            engineRepository.generate(prompt = prompt, config = _genConfig.value)
         }
     }
 
@@ -347,19 +359,6 @@ class ChatViewModel @Inject constructor(
 
     private fun generateTitleFromMessage(firstMessageText: String): String {
         return if (firstMessageText.length > 25) firstMessageText.take(25) + "..." else firstMessageText
-    }
-
-    private fun fallbackRawPrompt(messages: List<ChatPromptMessage>): String = buildString {
-        for (message in messages) {
-            val name = when (message.role) {
-                "user" -> "User"
-                "assistant" -> "Assistant"
-                "system" -> "System"
-                else -> message.role.replaceFirstChar { it.uppercase() }
-            }
-            append(name).append(": ").append(message.content).append("\n\n")
-        }
-        append("Assistant: ")
     }
 }
 

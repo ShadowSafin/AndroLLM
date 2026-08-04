@@ -32,6 +32,8 @@ class SettingsViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
+        every { context.getExternalFilesDir(any()) } returns
+            java.io.File(System.getProperty("java.io.tmpdir"), "androllm_test_logs")
     }
 
     @After

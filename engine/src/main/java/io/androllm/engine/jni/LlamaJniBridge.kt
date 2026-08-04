@@ -77,6 +77,18 @@ object LlamaJniBridge {
     ): String
 
     /**
+     * Extended variant of [nativeApplyChatTemplate] with explicit control over
+     * the Jinja `enable_thinking` flag. Models like Qwen2.5/Qwen3 emit
+     *  tokens when this is true. Default is false for non-thinking models.
+     */
+    external fun nativeApplyChatTemplateEx(
+        engineHandle: Long,
+        messageHistoryJson: String,
+        addAssistant: Boolean,
+        enableThinking: Boolean
+    ): String
+
+    /**
      * Runs generation synchronously. [callback] is invoked per token on the
      * calling thread. Returns a JSON string with performance stats.
      */
@@ -101,6 +113,12 @@ object LlamaJniBridge {
      * Destroys the engine and frees all native resources.
      */
     external fun nativeRelease(engineHandle: Long)
+
+    /**
+     * Resets chat state between conversations: clears accumulated messages,
+     * chat position, and the KV cache.
+     */
+    external fun nativeResetChat(engineHandle: Long)
 
     /**
      * Runs [iterations] benchmark passes against the loaded model.

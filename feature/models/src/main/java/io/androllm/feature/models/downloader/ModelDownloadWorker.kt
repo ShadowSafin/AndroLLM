@@ -152,6 +152,16 @@ class ModelDownloadWorker(
                 updatedAt = System.currentTimeMillis()
             )
 
+            // Enrich the model record with GGUF header metadata
+            AppDatabase.getInstance(applicationContext).modelDao().updateDownloadMetadata(
+                id = modelId,
+                architecture = validation.architecture,
+                quantization = validation.fileType,
+                contextLength = validation.contextLength.toInt().coerceAtLeast(1024),
+                license = validation.license.ifBlank { "Apache-2.0" },
+                updatedAt = System.currentTimeMillis()
+            )
+
             showSuccessNotification(modelName)
 
             Result.success(

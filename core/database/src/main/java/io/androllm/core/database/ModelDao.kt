@@ -68,6 +68,16 @@ interface ModelDao {
         updatedAt: Long
     )
 
+    @Query("UPDATE models SET architecture = :architecture, quantization = :quantization, context_length = :contextLength, license = :license, updated_at = :updatedAt WHERE id = :id")
+    suspend fun updateDownloadMetadata(
+        id: String,
+        architecture: String,
+        quantization: String,
+        contextLength: Int,
+        license: String,
+        updatedAt: Long
+    )
+
     @Query("UPDATE models SET is_favorite = :isFavorite WHERE id = :id")
     suspend fun updateFavorite(id: String, isFavorite: Boolean)
 

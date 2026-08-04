@@ -212,6 +212,7 @@ struct server_slot {
     llama_tokens spec_prompt;
     std::vector<int32_t> spec_i_batch;
     common_prompt_checkpoint spec_ckpt;
+    bool spec_is_replay = false;
 
     // TODO: move members that belong to the task (such as `generated_text`, `has_new_line`) to task_results_state
     //       see https://github.com/ggml-org/llama.cpp/pull/18283#issuecomment-3710175837
@@ -331,6 +332,8 @@ struct server_slot {
 
     void reset() {
         SLT_DBG(*this, "%s", "\n");
+
+        spec_is_replay = false;
 
         n_prompt_tokens_cache = 0;
 
@@ -1804,7 +1807,8 @@ private:
         // initialize samplers
         if (task.need_sampling()) {
             try {
-                slot.smpl.reset(common_sampler_init(model_tgt, task.params.sampling));
+                slot.smpl.reset(common_sampler_init(
+                        model_tgt, task.params.sampling, (int32_t) llama_n_ctx(ctx_tgt)));
             } catch (std::exception & e) {
                 std::string err_msg = std::string("Failed to initialize samplers: ") + e.what();
                 send_error(task, err_msg, ERROR_TYPE_INVALID_REQUEST);
@@ -3875,6 +3879,7 @@ private:
                         }
 
                         // partial acceptance is not supported by the context -> truncate the draft and restore the state
+                        slot.spec_is_replay = true;
                         slot.spec_draft = std::move(accepted);
 
                         const auto & ckpt = slot.spec_ckpt;
@@ -3909,16 +3914,22 @@ private:
 
             const auto ids = std::move(slot.spec_draft);
 
+            size_t n_accepted = ids.size() - 1;
+            if (slot.spec_is_replay && n_accepted > 0) {
+                n_accepted--;
+            }
+            slot.spec_is_replay = false;
+
             slot.t_token_generation = std::max<int64_t>(1, t_now - slot.t_start_generation) / 1e3;
 
             // update how many tokens out of those tested were accepted
-            slot.n_draft_accepted += ids.size() - 1;
+            slot.n_draft_accepted += n_accepted;
             slot.n_draft_verif_steps += 1;
 
             if (slot.n_accepted_per_pos.empty()) {
                 slot.n_accepted_per_pos.resize(common_speculative_n_max(&params_base.speculative), 0);
             }
-            for (size_t i = 0; i < ids.size() - 1 && i < slot.n_accepted_per_pos.size(); ++i) {
+            for (size_t i = 0; i < n_accepted && i < slot.n_accepted_per_pos.size(); ++i) {
                 slot.n_accepted_per_pos[i]++;
             }
 
@@ -3954,7 +3965,7 @@ private:
 
             slot.print_timings_tg();
 
-            SLT_DBG(slot, "accepted %d/%d draft tokens, new n_tokens = %d\n", (int) ids.size() - 1, (int) n_draft, slot.prompt.n_tokens());
+            SLT_DBG(slot, "accepted %d/%d draft tokens, new n_tokens = %d\n", (int) n_accepted, (int) n_draft, slot.prompt.n_tokens());
         });
     }
 

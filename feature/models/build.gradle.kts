@@ -3,7 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("kotlin-android")
-    id("kotlin-kapt")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
@@ -12,7 +11,7 @@ android {
     namespace = "io.androllm.feature.models"
     compileSdk = 35
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
@@ -56,7 +55,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation("com.google.dagger:hilt-android:2.52")
-    kapt("com.google.dagger:hilt-compiler:2.52")
+    ksp("com.google.dagger:hilt-android-compiler:2.52")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("androidx.work:work-runtime-ktx:2.9.1")

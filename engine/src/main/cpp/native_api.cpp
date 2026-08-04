@@ -35,6 +35,8 @@
 #include "common.h"
 #include "chat.h"
 #include "sampling.h"
+#include "json-schema-to-grammar.h"
+#include <nlohmann/json.hpp>
 
 #ifdef GGML_USE_VULKAN
 #include <vulkan/vulkan.h>
@@ -312,7 +314,20 @@ struct GenConfig {
     float topP = 0.95f;
     int topK = 40;
     float minP = 0.05f;
-    float repetitionPenalty = 1.0f;
+    float typicalP = 1.0f;          // 1.0 = disabled
+    float repetitionPenalty = 1.0f; // 1.0 = disabled
+    float presencePenalty = 0.0f;
+    float frequencyPenalty = 0.0f;
+    float dryMultiplier = 0.0f;     // 0.0 = disabled
+    float dryBase = 1.75f;
+    int dryAllowedLength = 2;
+    int dryPenaltyLastN = -1;       // -1 = context size
+    int mirostat = 0;               // 0 = disabled, 1 = v1, 2 = v2
+    float mirostatTau = 5.0f;
+    float mirostatEta = 0.1f;
+    std::string grammar;            // GBNF grammar, empty = none
+    std::string jsonSchema;         // JSON schema, empty = none
+    bool enableThinking = false;    // enable thinking mode in chat templates (Qwen2.5/Qwen3)
     int64_t seed = -1;
     std::vector<std::string> stopSequences;
 };
@@ -329,11 +344,61 @@ static GenConfig parseGenConfig(const std::string &json) {
     if (auto *n = get("topP"))               c.topP = (float)n->num;
     if (auto *n = get("topK"))               c.topK = (int)n->num;
     if (auto *n = get("minP"))               c.minP = (float)n->num;
+    if (auto *n = get("typicalP"))           c.typicalP = (float)n->num;
     if (auto *n = get("repetitionPenalty"))  c.repetitionPenalty = (float)n->num;
+    if (auto *n = get("presencePenalty"))    c.presencePenalty = (float)n->num;
+    if (auto *n = get("frequencyPenalty"))   c.frequencyPenalty = (float)n->num;
+    if (auto *n = get("dryMultiplier"))      c.dryMultiplier = (float)n->num;
+    if (auto *n = get("dryBase"))            c.dryBase = (float)n->num;
+    if (auto *n = get("dryAllowedLength"))   c.dryAllowedLength = (int)n->num;
+    if (auto *n = get("dryPenaltyLastN"))    c.dryPenaltyLastN = (int)n->num;
+    if (auto *n = get("mirostat"))           c.mirostat = (int)n->num;
+    if (auto *n = get("mirostatTau"))        c.mirostatTau = (float)n->num;
+    if (auto *n = get("mirostatEta"))        c.mirostatEta = (float)n->num;
+    if (auto *n = get("grammar"); n && n->type == mini_json::Node::String)
+        c.grammar = n->str;
+    if (auto *n = get("jsonSchema"); n && n->type == mini_json::Node::String)
+        c.jsonSchema = n->str;
+    if (auto *n = get("enableThinking"))     c.enableThinking = n->boolean;
     if (auto *n = get("seed"))               c.seed = (int64_t)n->num;
     if (auto *n = get("stopSequences"); n && n->type == mini_json::Node::Array)
         c.stopSequences = n->array;
     return c;
+}
+
+// Maps a GenConfig onto llama.cpp's sampler parameters. The sampler chain
+// matches the llama-cli defaults; the common sampler library handles mirostat
+// and grammar internally when their fields are set.
+static common_params_sampling buildSamplingParams(const GenConfig &cfg) {
+    common_params_sampling sp;
+
+    sp.seed              = cfg.seed >= 0 ? (uint32_t)cfg.seed : LLAMA_DEFAULT_SEED;
+    sp.temp              = cfg.temperature;
+    sp.top_k             = cfg.topK;
+    sp.top_p             = cfg.topP;
+    sp.min_p             = cfg.minP;
+    sp.typ_p             = cfg.typicalP;
+    sp.penalty_last_n    = 64;
+    sp.penalty_repeat    = cfg.repetitionPenalty;
+    sp.penalty_freq      = cfg.frequencyPenalty;
+    sp.penalty_present   = cfg.presencePenalty;
+    sp.dry_multiplier     = cfg.dryMultiplier;
+    sp.dry_base           = cfg.dryBase;
+    sp.dry_allowed_length = cfg.dryAllowedLength;
+    sp.dry_penalty_last_n = cfg.dryPenaltyLastN;
+    sp.mirostat           = cfg.mirostat;
+    sp.mirostat_tau       = cfg.mirostatTau;
+    sp.mirostat_eta       = cfg.mirostatEta;
+    sp.n_prev             = 64;
+
+    if (!cfg.jsonSchema.empty()) {
+        nlohmann::ordered_json schema = nlohmann::ordered_json::parse(cfg.jsonSchema);
+        sp.grammar = { COMMON_GRAMMAR_TYPE_OUTPUT_FORMAT, json_schema_to_grammar(schema) };
+    } else if (!cfg.grammar.empty()) {
+        sp.grammar = { COMMON_GRAMMAR_TYPE_USER, cfg.grammar };
+    }
+
+    return sp;
 }
 
 // ---------------------------------------------------------------------------
@@ -374,11 +439,17 @@ struct LlamaEngine {
     int promptCount = 0;
     size_t peakMemoryBytes = 0;
 
+    // ── upstream state (matches ai_chat.cpp) ──
+    std::vector<common_chat_msg> chatMsgs;   // accumulated messages
+    llama_pos chatPosition = 0;              // current position in KV cache
+    llama_pos systemPromptEnd = 0;           // position after system prompt
+
     // ── diagnostics ──
     std::vector<llama_token> lastPromptTokens;
     std::vector<llama_token> lastGeneratedTokens;
     std::string lastPromptText;
     int64_t lastFirstTokenMs = 0;
+    std::string lastStopReason;
 
     LlamaEngine() : sampler(nullptr), model(nullptr), ctx(nullptr) {}
 
@@ -399,10 +470,14 @@ struct LlamaEngine {
         gpuBufferCount = 0;
         gpuInferenceVerified = false;
         backendReason.clear();
+        chatMsgs.clear();
+        chatPosition = 0;
+        systemPromptEnd = 0;
         lastPromptTokens.clear();
         lastGeneratedTokens.clear();
         lastPromptText.clear();
         lastFirstTokenMs = 0;
+        lastStopReason.clear();
         peakMemoryBytes = 0;
     }
 
@@ -503,34 +578,47 @@ static VulkanInfo checkVulkan() {
 static std::string renderChat(
     const common_chat_templates *tmpls,
     const std::string &msgsJson,
-    bool addAssistant) {
+    bool addAssistant,
+    std::vector<common_chat_msg> &chatMsgs) {
 
     std::vector<std::map<std::string, mini_json::Node>> msgs;
     if (!mini_json::parseObjectArray(msgsJson, msgs) || msgs.empty()) {
         LOGE("[Template] bad message JSON"); return "";
     }
 
-    std::vector<common_chat_msg> chatMsgs;
-    chatMsgs.reserve(msgs.size());
-    for (auto &m : msgs) {
+    // Clear previous messages for fresh conversation
+    chatMsgs.clear();
+
+    // Format each message incrementally using upstream's common_chat_format_single().
+    // Each call returns ONLY the newly formatted message, not the full conversation.
+    // We must concatenate all results to produce the complete prompt.
+    std::string fullPrompt;
+    for (size_t i = 0; i < msgs.size(); ++i) {
+        auto &m = msgs[i];
         auto r = m.find("role"), c = m.find("content");
         if (r == m.end() || c == m.end() || r->second.str.empty()) {
             LOGE("[Template] msg missing role/content"); return "";
         }
-        chatMsgs.push_back({r->second.str, c->second.str});
+        common_chat_msg newMsg{r->second.str, c->second.str};
+        bool isLast = (i + 1 == msgs.size());
+        bool addGen = isLast && addAssistant;
+        std::string formatted = common_chat_format_single(tmpls, chatMsgs, newMsg, addGen, /*use_jinja=*/false);
+        if (formatted.empty()) {
+            LOGE("[Template] format_single returned empty for msg %zu role=%s", i, newMsg.role.c_str());
+            return "";
+        }
+        fullPrompt += formatted;
+        LOGI("[Template] msg %zu role=%s formatted %zu chars", i, newMsg.role.c_str(), formatted.size());
+        chatMsgs.push_back(std::move(newMsg));
     }
 
-    common_chat_templates_inputs inputs;
-    inputs.messages = chatMsgs;
-    inputs.add_generation_prompt = addAssistant;
-    inputs.use_jinja = true;
-    inputs.enable_thinking = true;
-
-    try {
-        return common_chat_templates_apply(tmpls, inputs).prompt;
-    } catch (const std::exception &e) {
-        LOGE("[Template] apply failed: %s", e.what()); return "";
+    if (fullPrompt.empty()) {
+        LOGE("[Template] render returned empty prompt");
+        return "";
     }
+    LOGI("[Template] rendered prompt (%zu chars): %.80s...",
+         fullPrompt.size(), fullPrompt.c_str());
+    return fullPrompt;
 }
 
 // ---------------------------------------------------------------------------
@@ -540,7 +628,8 @@ static std::string renderChat(
 static std::string statsJson(
     int64_t promptToks, int64_t genToks,
     int64_t promptMs, int64_t genMs,
-    float tps, size_t peakMem, int64_t firstMs) {
+    float tps, size_t peakMem, int64_t firstMs,
+    const std::string &stopReason) {
 
     std::ostringstream o;
     o << "{\"promptTokens\":" << promptToks
@@ -550,7 +639,8 @@ static std::string statsJson(
       << ",\"totalTimeMs\":" << (promptMs + genMs)
       << ",\"tokensPerSecond\":" << tps
       << ",\"memoryPeakBytes\":" << peakMem
-      << ",\"firstTokenMs\":" << firstMs << "}";
+      << ",\"firstTokenMs\":" << firstMs
+      << ",\"stopReason\":\"" << json_escape(stopReason) << "\"}";
     return o.str();
 }
 
@@ -590,6 +680,7 @@ static std::string doGenerate(
     eng->lastPromptText = prompt;
     eng->lastGeneratedTokens.clear();
     eng->lastFirstTokenMs = 0;
+    eng->lastStopReason = "max_tokens";
 
     // Log token IDs for validation
     {
@@ -601,13 +692,19 @@ static std::string doGenerate(
         LOGI("[Tok] n=%zu ids=[%s]", tokens.size(), ids.str().c_str());
     }
 
-    // ── Reset KV cache ──
+    // ── Always clear KV cache before prefill ──
+    // Our architecture re-renders the full conversation each time via renderChat(),
+    // so we must start fresh. This matches upstream's pattern of processing system
+    // prompt, user prompt, and assistant header as separate decode steps.
     llama_memory_clear(llama_get_memory(eng->ctx), true);
 
-    // ── Prefill prompt ──
+    const uint32_t nCtx = llama_n_ctx(eng->ctx);
+
+    // ── Prefill ──
     const int n_batch = llama_n_batch(eng->ctx);
     llama_batch batch = llama_batch_init(n_batch, 0, 1);
 
+    bool prefillOk = true;
     for (size_t i = 0; i < tokens.size(); i += n_batch) {
         size_t n = std::min<size_t>(n_batch, tokens.size() - i);
         common_batch_clear(batch);
@@ -616,12 +713,17 @@ static std::string doGenerate(
             common_batch_add(batch, tokens[i + j], (llama_pos)(i + j), {0}, last);
         }
         if (llama_decode(eng->ctx, batch) != 0) {
-            llama_batch_free(batch);
-            throw_java(env, "Prompt decode failed");
-            return "{}";
+            prefillOk = false;
+            break;
         }
     }
     llama_batch_free(batch);
+
+    if (!prefillOk) {
+        eng->lastStopReason = "decode_error";
+        throw_java(env, "Prompt decode failed");
+        return "{}";
+    }
 
     auto t1 = clock::now();
     int64_t promptMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
@@ -629,12 +731,20 @@ static std::string doGenerate(
     // ── Reset sampler ──
     common_sampler_reset(eng->sampler);
 
-    // ── Decode loop ──
+    // ── Decode loop (upstream pattern) ──
     std::string output;
     int64_t generated = 0;
 
     for (int i = 0; i < cfg.maxTokens; i++) {
-        if (eng->cancel.load()) break;
+        if (eng->cancel.load()) { eng->lastStopReason = "cancelled"; break; }
+
+        // Context full: shift (keep half the context after system prompt)
+        if (llama_memory_seq_pos_max(llama_get_memory(eng->ctx), 0) >= (llama_pos)nCtx - 4) {
+            const llama_pos n_discard = (llama_pos)nCtx / 4;
+            llama_memory_seq_rm(llama_get_memory(eng->ctx), 0, 0, n_discard);
+            llama_memory_seq_add(llama_get_memory(eng->ctx), 0, n_discard, -1, -n_discard);
+            LOGI("[Shift] discarded %d tokens from KV cache", n_discard);
+        }
 
         // Sample
         llama_token id = common_sampler_sample(eng->sampler, eng->ctx, -1);
@@ -643,6 +753,7 @@ static std::string doGenerate(
 
         // EOS check
         if (llama_vocab_is_eog(vocab, id)) {
+            eng->lastStopReason = "eos";
             LOGI("[Gen] EOS at step=%lld", (long long)generated);
             break;
         }
@@ -653,8 +764,8 @@ static std::string doGenerate(
             eng->lastFirstTokenMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - t1).count();
         }
 
-        // Detokenize
-        std::string piece = common_token_to_piece(eng->ctx, id, false);
+        // Detokenize with special=true (upstream default)
+        std::string piece = common_token_to_piece(eng->ctx, id);
         output += piece;
 
         // Stop sequences
@@ -666,7 +777,7 @@ static std::string doGenerate(
                 stopped = true; break;
             }
         }
-        if (stopped) break;
+        if (stopped) { eng->lastStopReason = "stop_sequence"; break; }
 
         if (!piece.empty()) {
             jstring jpiece = to_jstring(env, piece);
@@ -675,9 +786,10 @@ static std::string doGenerate(
         }
         generated++;
 
-        // Feed token back for next step
+        // Feed token back for next step (upstream pattern: llama_batch_get_one)
         llama_batch next = llama_batch_get_one(&id, 1);
         if (llama_decode(eng->ctx, next) != 0) {
+            eng->lastStopReason = "decode_error";
             LOGW("[Gen] decode failed at step=%lld", (long long)generated);
             break;
         }
@@ -700,7 +812,8 @@ static std::string doGenerate(
     env->DeleteLocalRef(empty);
 
     return statsJson(tokens.size(), generated, promptMs, genMs, tps,
-                     eng->peakMemoryBytes, eng->lastFirstTokenMs);
+                     eng->peakMemoryBytes, eng->lastFirstTokenMs,
+                     eng->lastStopReason);
 }
 
 // ---------------------------------------------------------------------------
@@ -1019,6 +1132,7 @@ extern "C" {
 JNIEXPORT jlong JNICALL
 Java_io_androllm_engine_jni_LlamaJniBridge_nativeCreate(
     JNIEnv *env, jobject, jstring configJson) {
+try {
 
     int threads = 4, ctxLen = 4096;
     bool flash = true;
@@ -1052,6 +1166,16 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeCreate(
     eng->ctxParams = p;
 
     return reinterpret_cast<jlong>(eng);
+
+} catch (const std::exception &e) {
+    LOGE("[Create] exception: %s", e.what());
+    throw_java(env, std::string("Engine creation failed: ") + e.what());
+    return 0;
+} catch (...) {
+    LOGE("[Create] unknown exception");
+    throw_java(env, "Engine creation failed (unknown)");
+    return 0;
+}
 }
 
 // ── nativeLoadModel ────────────────────────────────────────────────────────
@@ -1160,8 +1284,18 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeLoadModel(
             return false;
         }
         eng->initResult = std::move(r);
-        try { eng->chatTmpls = common_chat_templates_init(eng->model, ""); }
-        catch (...) { LOGW("[Template] init failed"); }
+        try {
+            eng->chatTmpls = common_chat_templates_init(eng->model, "");
+            if (!eng->chatTmpls) {
+                LOGW("[Template] init returned null - model has no embedded chat template");
+            } else {
+                LOGI("[Template] init succeeded");
+            }
+        } catch (const std::exception &e) {
+            LOGE("[Template] init failed: %s", e.what());
+        } catch (...) {
+            LOGE("[Template] init failed (unknown exception)");
+        }
         const int nL = llama_model_n_layer(eng->model);
         eng->totalLayers = nL;
         eng->gpuLayersUsed = selectedGpuLayers < 0 ? nL : std::min(selectedGpuLayers, nL);
@@ -1309,15 +1443,67 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeModelInfo(
 JNIEXPORT jstring JNICALL
 Java_io_androllm_engine_jni_LlamaJniBridge_nativeApplyChatTemplate(
     JNIEnv *env, jobject, jlong handle, jstring msgJson, jboolean addAssistant) {
+try {
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
     if (!eng || !eng->chatTmpls) {
         throw_java(env, "Chat templates not available");
         return to_jstring(env, "");
     }
     std::string rendered = renderChat(
-        eng->chatTmpls.get(), from_jstring(env, msgJson), addAssistant == JNI_TRUE);
+        eng->chatTmpls.get(), from_jstring(env, msgJson),
+        addAssistant == JNI_TRUE, eng->chatMsgs);
     LOGI("[Template] rendered %zu bytes", rendered.size());
     return to_jstring(env, rendered);
+} catch (const std::exception &e) {
+    LOGE("[Template] exception: %s", e.what());
+    throw_java(env, std::string("Chat template failed: ") + e.what());
+    return to_jstring(env, "");
+} catch (...) {
+    LOGE("[Template] unknown exception");
+    throw_java(env, "Chat template failed (unknown)");
+    return to_jstring(env, "");
+}
+}
+
+JNIEXPORT jstring JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeApplyChatTemplateEx(
+    JNIEnv *env, jobject, jlong handle, jstring msgJson, jboolean addAssistant, jboolean /*enableThinking*/) {
+try {
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    if (!eng || !eng->chatTmpls) {
+        throw_java(env, "Chat templates not available");
+        return to_jstring(env, "");
+    }
+    std::string rendered = renderChat(
+        eng->chatTmpls.get(), from_jstring(env, msgJson),
+        addAssistant == JNI_TRUE, eng->chatMsgs);
+    LOGI("[Template] rendered %zu bytes", rendered.size());
+    return to_jstring(env, rendered);
+} catch (const std::exception &e) {
+    LOGE("[Template] exception: %s", e.what());
+    throw_java(env, std::string("Chat template failed: ") + e.what());
+    return to_jstring(env, "");
+} catch (...) {
+    LOGE("[Template] unknown exception");
+    throw_java(env, "Chat template failed (unknown)");
+    return to_jstring(env, "");
+}
+}
+
+// ── nativeResetChat ──────────────────────────────────────────────────────────
+
+JNIEXPORT void JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeResetChat(
+    JNIEnv *, jobject, jlong handle) {
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    if (!eng) return;
+    eng->chatMsgs.clear();
+    eng->chatPosition = 0;
+    eng->systemPromptEnd = 0;
+    if (eng->ctx) {
+        llama_memory_clear(llama_get_memory(eng->ctx), true);
+    }
+    LOGI("[Chat] reset: cleared messages, position, and KV cache");
 }
 
 // ── nativeGenerate ─────────────────────────────────────────────────────────
@@ -1326,6 +1512,7 @@ JNIEXPORT jstring JNICALL
 Java_io_androllm_engine_jni_LlamaJniBridge_nativeGenerate(
     JNIEnv *env, jobject, jlong handle,
     jstring prompt, jstring cfgJson, jobject callback) {
+try {
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
     if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
@@ -1336,15 +1523,7 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGenerate(
 
     // Reconfigure sampler for this request
     {
-        common_params_sampling sp;
-        sp.temp            = cfg.temperature;
-        sp.top_k           = cfg.topK;
-        sp.top_p           = cfg.topP;
-        sp.min_p           = cfg.minP;
-        sp.penalty_repeat  = cfg.repetitionPenalty;
-        sp.penalty_last_n  = 64;
-        sp.seed            = cfg.seed >= 0 ? (uint32_t)cfg.seed : LLAMA_DEFAULT_SEED;
-        sp.n_prev          = 64;
+        common_params_sampling sp = buildSamplingParams(cfg);
 
         common_sampler_free(eng->sampler);
         eng->sampler = common_sampler_init(eng->model, sp);
@@ -1367,6 +1546,16 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGenerate(
 
     env->DeleteLocalRef(cls);
     return to_jstring(env, result);
+
+} catch (const std::exception &e) {
+    LOGE("[Generate] exception: %s", e.what());
+    throw_java(env, std::string("Generation failed: ") + e.what());
+    return to_jstring(env, "{}");
+} catch (...) {
+    LOGE("[Generate] unknown exception");
+    throw_java(env, "Generation failed (unknown)");
+    return to_jstring(env, "{}");
+}
 }
 
 // ── nativeCancel ───────────────────────────────────────────────────────────
@@ -1401,6 +1590,7 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeRelease(
 JNIEXPORT jstring JNICALL
 Java_io_androllm_engine_jni_LlamaJniBridge_nativeBenchmark(
     JNIEnv *env, jobject, jlong handle, jint iters, jobject callback) {
+try {
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
     if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
@@ -1440,6 +1630,16 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeBenchmark(
       << ",\"bestTokensPerSecond\":" << bestTps
       << ",\"averagePromptTokensPerSecond\":0}";
     return to_jstring(env, o.str());
+
+} catch (const std::exception &e) {
+    LOGE("[Benchmark] exception: %s", e.what());
+    throw_java(env, std::string("Benchmark failed: ") + e.what());
+    return to_jstring(env, "{}");
+} catch (...) {
+    LOGE("[Benchmark] unknown exception");
+    throw_java(env, "Benchmark failed (unknown)");
+    return to_jstring(env, "{}");
+}
 }
 
 // ── nativeMemoryPeak ───────────────────────────────────────────────────────
@@ -1464,6 +1664,7 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeVulkanAvailable(
 JNIEXPORT jstring JNICALL
 Java_io_androllm_engine_jni_LlamaJniBridge_nativeWarmUp(
     JNIEnv *env, jobject, jlong handle) {
+try {
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
     if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
@@ -1504,6 +1705,16 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeWarmUp(
     std::ostringstream o;
     o << "{\"warmUpTimeMs\":" << ms << ",\"tokensPerSecond\":" << tps << "}";
     return to_jstring(env, o.str());
+
+} catch (const std::exception &e) {
+    LOGE("[WarmUp] exception: %s", e.what());
+    throw_java(env, std::string("Warm-up failed: ") + e.what());
+    return to_jstring(env, "{}");
+} catch (...) {
+    LOGE("[WarmUp] unknown exception");
+    throw_java(env, "Warm-up failed (unknown)");
+    return to_jstring(env, "{}");
+}
 }
 
 // ── nativeGetMemoryStats ───────────────────────────────────────────────────
@@ -1592,12 +1803,15 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetDebugInfo(
       << ",\"nThreads\":" << eng->ctxParams.n_threads
       << ",\"nVocab\":" << (v ? llama_vocab_n_tokens(v) : 0)
       << ",\"kvType\":\"F16\",\"flashAttn\":\"" << (eng->useFlashAttention ? "AUTO" : "OFF") << "\""
+      << ",\"quantization\":\"" << json_escape(llama_ftype_name(llama_model_ftype(m))) << "\""
+      << ",\"sampler\":\"" << json_escape(eng->sampler ? common_sampler_print(eng->sampler) : "") << "\""
       << ",\"promptTokens\":" << eng->lastPromptTokens.size()
       << ",\"promptTokenIds\":" << tokJson(eng->lastPromptTokens)
       << ",\"generatedTokens\":" << eng->lastGeneratedTokens.size()
       << ",\"generatedTokenIds\":" << tokJson(eng->lastGeneratedTokens)
       << ",\"firstTokenMs\":" << eng->lastFirstTokenMs
-      << ",\"promptText\":\"" << json_escape(eng->lastPromptText)
+      << ",\"stopReason\":\"" << json_escape(eng->lastStopReason)
+      << "\",\"promptText\":\"" << json_escape(eng->lastPromptText)
       << "\",\"modelSizeBytes\":" << llama_model_size(m)
       << ",\"contextSizeBytes\":" << (c ? llama_state_get_size(c) : 0)
       << ",\"peakMemoryBytes\":" << eng->peakMemoryBytes

@@ -41,6 +41,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE models ADD COLUMN license TEXT NOT NULL DEFAULT 'Apache-2.0'")
+            }
+        }
+
         /**
          * Returns the singleton database instance, creating it if necessary.
          */
@@ -51,7 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     AppConstants.DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

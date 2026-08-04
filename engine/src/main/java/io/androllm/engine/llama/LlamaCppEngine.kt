@@ -302,6 +302,28 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
         }
     }
 
+    /**
+     * Renders the chat prompt with explicit control over the template's
+     * `enable_thinking` flag. Pass `true` only for Qwen2.5/Qwen3 (or other
+     * thinking-capable models); `false` is the safe default.
+     */
+    suspend fun buildChatPromptEx(
+        messages: List<ChatPromptMessage>,
+        addAssistant: Boolean,
+        enableThinking: Boolean
+    ): Result<String> = io.androllm.core.common.runCatching {
+        if (!isNativeAvailable) return Result.error("Native engine unavailable")
+        check(isLoaded()) { "Model not loaded" }
+        withContext(Dispatchers.Default) {
+            LlamaJniBridge.nativeApplyChatTemplateEx(
+                engineHandle,
+                json.encodeToString(ListSerializer(ChatPromptMessage.serializer()), messages),
+                addAssistant,
+                enableThinking
+            )
+        }
+    }
+
     override suspend fun generate(prompt: String, config: GenerationConfig): Result<String> =
         io.androllm.core.common.runCatching {
             if (!isNativeAvailable) return Result.error("Native engine unavailable")

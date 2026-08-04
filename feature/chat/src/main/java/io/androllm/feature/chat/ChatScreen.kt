@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -41,14 +44,18 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -70,6 +77,7 @@ import androidx.navigation.NavController
 import io.androllm.core.models.Conversation
 import io.androllm.core.models.MessageRole
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.models.GenerationConfig
 import io.androllm.feature.chat.export.ConversationExporter
 import io.androllm.feature.chat.export.ConversationSharer
 import io.androllm.feature.chat.export.ExportFormat
@@ -81,6 +89,7 @@ import io.androllm.feature.chat.ui.components.SearchOverlay
 import io.androllm.feature.chat.ui.components.TypingAndThinkingIndicator
 import io.androllm.feature.chat.ui.drawer.ConversationDrawerContent
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * Production-quality Chat Screen with Material 3 Drawer, streaming intelligent auto-scroll,
@@ -105,8 +114,10 @@ fun ChatScreen(
     var editPromptText by remember { mutableStateOf("") }
     var exportDialogOpen by remember { mutableStateOf(false) }
     var debugDialogOpen by remember { mutableStateOf(false) }
+    var samplerSheetOpen by remember { mutableStateOf(false) }
 
     val debugInfo by viewModel.debugInfo.collectAsStateWithLifecycle()
+    val genConfig by viewModel.genConfig.collectAsStateWithLifecycle()
 
     val successState = uiState as? ChatUiState.Success
 
@@ -178,6 +189,7 @@ fun ChatScreen(
                         viewModel.refreshDebugInfo()
                         debugDialogOpen = true
                     },
+                    onOpenSampler = { samplerSheetOpen = true },
                     onDelete = {
                         successState?.conversationId?.let { viewModel.deleteConversation(it) }
                     }
@@ -452,10 +464,13 @@ fun ChatScreen(
                         DebugRow("Vocab", info.nVocab.toString())
                         DebugRow("KV Cache", info.kvType)
                         DebugRow("Flash Attn", info.flashAttn)
+                        DebugRow("Quantization", info.quantization)
+                        DebugRow("Sampler", info.sampler)
                         DebugRow("Template", if (info.templateReady) "ready" else "FAILED: ${info.templateError}")
                         DebugRow("BOS/EOS", "${info.bosToken.replace("\n", "\\n")} / ${info.eosToken.replace("\n", "\\n")}")
                         DebugRow("add_bos/add_eos", "${info.addBos}/${info.addEos}")
                         DebugRow("First token", "${info.firstTokenMs} ms")
+                        DebugRow("Stop reason", info.stopReason)
                         DebugRow("Prompt tokens", info.promptTokenIds.joinToString(" "))
                         DebugRow("Generated tokens", info.generatedTokenIds.joinToString(" "))
                         DebugRow("GPU verified", info.gpuInferenceVerified.toString())
@@ -484,6 +499,15 @@ fun ChatScreen(
             }
         )
     }
+
+    // Sampler settings sheet (v3: full llama.cpp sampling parameter set)
+    if (samplerSheetOpen) {
+        SamplerSettingsSheet(
+            config = genConfig,
+            onConfigChange = viewModel::updateGenConfig,
+            onDismiss = { samplerSheetOpen = false }
+        )
+    }
 }
 
 @Composable
@@ -504,6 +528,157 @@ private fun DebugRow(label: String, value: String) {
 }
 
 @Composable
+private fun SamplerSettingsSheet(
+    config: GenerationConfig,
+    onConfigChange: (GenerationConfig) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState()
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text("Sampler Settings", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Applied to the next message. Defaults mirror llama.cpp.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+
+            SamplerSlider(
+                label = "Max tokens",
+                value = config.maxTokens.toFloat(),
+                range = 16f..4096f,
+                onValueChange = { onConfigChange(config.copy(maxTokens = it.roundToInt())) },
+                format = { "%.0f".format(it) }
+            )
+            SamplerSlider(
+                label = "Temperature",
+                value = config.temperature,
+                range = 0f..2f,
+                onValueChange = { onConfigChange(config.copy(temperature = it)) }
+            )
+            SamplerSlider(
+                label = "Top-P",
+                value = config.topP,
+                range = 0.05f..1f,
+                onValueChange = { onConfigChange(config.copy(topP = it)) }
+            )
+            SamplerSlider(
+                label = "Top-K",
+                value = config.topK.toFloat(),
+                range = 1f..100f,
+                onValueChange = { onConfigChange(config.copy(topK = it.roundToInt())) },
+                format = { "%.0f".format(it) }
+            )
+            SamplerSlider(
+                label = "Min-P",
+                value = config.minP,
+                range = 0f..1f,
+                onValueChange = { onConfigChange(config.copy(minP = it)) }
+            )
+            SamplerSlider(
+                label = "Typical-P",
+                value = config.typicalP,
+                range = 0f..1f,
+                onValueChange = { onConfigChange(config.copy(typicalP = it)) }
+            )
+            SamplerSlider(
+                label = "Repetition penalty",
+                value = config.repetitionPenalty,
+                range = 1f..2f,
+                onValueChange = { onConfigChange(config.copy(repetitionPenalty = it)) }
+            )
+            SamplerSlider(
+                label = "Presence penalty",
+                value = config.presencePenalty,
+                range = 0f..2f,
+                onValueChange = { onConfigChange(config.copy(presencePenalty = it)) }
+            )
+            SamplerSlider(
+                label = "Frequency penalty",
+                value = config.frequencyPenalty,
+                range = 0f..2f,
+                onValueChange = { onConfigChange(config.copy(frequencyPenalty = it)) }
+            )
+            SamplerSlider(
+                label = "DRY multiplier",
+                value = config.dryMultiplier,
+                range = 0f..2f,
+                onValueChange = { onConfigChange(config.copy(dryMultiplier = it)) }
+            )
+            SamplerSlider(
+                label = "Mirostat (0 off, 1 v1, 2 v2)",
+                value = config.mirostat.toFloat(),
+                range = 0f..2f,
+                onValueChange = { onConfigChange(config.copy(mirostat = it.roundToInt())) },
+                format = { "%.0f".format(it) }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Reuse KV cache", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = config.reuseKvCache,
+                    onCheckedChange = { onConfigChange(config.copy(reuseKvCache = it)) }
+                )
+            }
+
+            OutlinedTextField(
+                value = config.grammar,
+                onValueChange = { onConfigChange(config.copy(grammar = it)) },
+                label = { Text("GBNF grammar (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                maxLines = 4
+            )
+            OutlinedTextField(
+                value = config.jsonSchema,
+                onValueChange = { onConfigChange(config.copy(jsonSchema = it)) },
+                label = { Text("JSON schema (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                maxLines = 4
+            )
+
+            TextButton(onClick = { onConfigChange(GenerationConfig()) }) {
+                Text("Reset to defaults")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SamplerSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    format: (Float) -> String = { "%.2f".format(it) }
+) {
+    Column {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                format(value),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+        Slider(value = value, onValueChange = onValueChange, valueRange = range)
+    }
+}
+
+@Composable
 private fun ChatTopBar(
     conversationTitle: String,
     engineState: EngineState,
@@ -515,6 +690,7 @@ private fun ChatTopBar(
     onPinToggle: () -> Unit,
     onExport: () -> Unit,
     onDebugInfo: () -> Unit,
+    onOpenSampler: () -> Unit,
     onDelete: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -555,6 +731,10 @@ private fun ChatTopBar(
         actions = {
             IconButton(onClick = onOpenSearch) {
                 Icon(Icons.Default.Search, contentDescription = "Search")
+            }
+
+            IconButton(onClick = onOpenSampler) {
+                Icon(Icons.Default.Tune, contentDescription = "Sampler settings")
             }
 
             Box {

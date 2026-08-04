@@ -17,8 +17,9 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Abstraction over an on-device LLM runtime.
  *
- * The chat layer only depends on this interface, so additional runtimes
- * (ONNX, MLC, MediaPipe, TFLite) can be added without touching the UI.
+ * The chat layer only depends on this interface. The sole production
+ * implementation is [io.androllm.engine.llama.LlamaCppEngine] (llama.cpp),
+ * but additional runtimes can be added without touching the UI.
  */
 interface InferenceEngine {
 

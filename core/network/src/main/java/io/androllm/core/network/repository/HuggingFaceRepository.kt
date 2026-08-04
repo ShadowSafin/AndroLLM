@@ -73,7 +73,7 @@ class HuggingFaceRepository @Inject constructor(
         val parts = id.split("/")
         val authorName = author ?: parts.firstOrNull() ?: "Hugging Face"
         val modelName = parts.lastOrNull() ?: id
-        val familyName = extractFamily(id, tags)
+        val familyName = extractFamily(id, tags, pipelineTag)
 
         return RemoteModelSummary(
             id = id,
@@ -118,16 +118,25 @@ class HuggingFaceRepository @Inject constructor(
         }
     }
 
-    private fun extractFamily(id: String, tags: List<String>): String {
-        val lowerId = id.lowercase()
+    /**
+     * Best-effort family extraction that NEVER inspects the model name. The
+     * value is purely for catalog display — the runtime never uses it to
+     * decide how to load or talk to a model.
+     *
+     * Strategy: prefer an HF pipeline tag (e.g. `text-generation`), fall back
+     * to the library namespace, and otherwise return "Other".
+     */
+    private fun extractFamily(id: String, tags: List<String>, pipelineTag: String?): String {
+        val namespaces = id.split("/").firstOrNull()?.takeIf { it.isNotBlank() }
+        val pipeline = pipelineTag?.takeIf { it.isNotBlank() }
+        val archTag = tags.firstOrNull { it.startsWith("model_type:") }
+            ?.removePrefix("model_type:")
+            ?.takeIf { it.isNotBlank() }
         return when {
-            lowerId.contains("gemma") -> "Gemma"
-            lowerId.contains("llama") || lowerId.contains("tinyllama") -> "Llama"
-            lowerId.contains("qwen") -> "Qwen"
-            lowerId.contains("phi") -> "Phi"
-            lowerId.contains("smollm") -> "SmolLM"
-            lowerId.contains("mistral") -> "Mistral"
-            else -> tags.firstOrNull { t -> t.contains("llama", ignoreCase = true) || t.contains("gemma", ignoreCase = true) }?.capitalize() ?: "General"
+            archTag != null -> archTag.replaceFirstChar { it.uppercase() }
+            pipeline != null -> pipeline.replace("-", " ").replaceFirstChar { it.uppercase() }
+            namespaces != null -> namespaces.replaceFirstChar { it.uppercase() }
+            else -> "Other"
         }
     }
 

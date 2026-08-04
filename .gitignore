@@ -18,6 +18,7 @@ captures/
 *.ear
 *.m4a
 *.mtl
+*.idsig
 
 # Keep the Gradle wrapper jar tracked (required to build)
 !gradle/wrapper/gradle-wrapper.jar
@@ -57,11 +58,7 @@ gradle.properties.bak
 *.pyc
 *.pyo
 
-# ---------------------------------------------------------------------------
-# Vendored llama.cpp repo (pinned source, tracked as plain files)
-# The nested git clone was removed so the source is included in this repo;
-# only ignore any standalone llama.cpp build it may produce.
-# ---------------------------------------------------------------------------
+# Vendored llama.cpp standalone build output
 engine/src/main/cpp/llama.cpp/build/
 
 # ---------------------------------------------------------------------------
@@ -82,7 +79,9 @@ engine/src/main/cpp/llama.cpp/build/
 # Kotlin / IntelliJ project caches
 .kotlin/
 .harness/
-.DS_Store
+
+# Claude AI
+.claude/
 
 # ---------------------------------------------------------------------------
 # OS junk
@@ -103,6 +102,8 @@ temp/
 *.tmp
 _gradle_out.txt
 _run_gradle.bat
+_build_out.txt
+androllm_*.txt
 
 # ---------------------------------------------------------------------------
 # Secrets / credentials (never commit)
@@ -116,6 +117,14 @@ _run_gradle.bat
 *.keystore
 secrets/
 credentials/
+androllm-release.jks
+
+# ---------------------------------------------------------------------------
+# Release / signed APKs (never commit)
+# ---------------------------------------------------------------------------
+app/release/
+release/
+app-release-signed.apk
 
 # ---------------------------------------------------------------------------
 # Runtime artifacts / model weights / memory dumps

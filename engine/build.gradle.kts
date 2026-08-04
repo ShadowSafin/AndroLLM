@@ -1,7 +1,6 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
-    id("kotlin-android")
     id("kotlin-kapt")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -13,21 +12,29 @@ android {
     ndkVersion = "26.1.10909125"
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
 
+        // Vulkan shader generation runs once per ABI and dominates build time.
+        // Snapdragon/Adreno is the target, so only arm64-v8a is built by default.
+        // Add x86_64 with -PandrollmAbis=arm64-v8a,x86_64 to also run on emulators.
+        val abis = (project.findProperty("androllmAbis") as String? ?: "arm64-v8a")
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += abis
         }
 
         externalNativeBuild {
             cmake {
-                cppFlags += listOf("-std=c++17", "-fexceptions", "-frtti", "-O3", "-fno-finite-math-only")
+                cppFlags += listOf("-std=c++17", "-fexceptions", "-frtti")
                 arguments += listOf(
-                    "-DANDROID_STL=c++_static",
-                    "-DANDROLLM_VULKAN=ON"
+                    "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_BUILD_TYPE=Release"
                 )
             }
         }
@@ -51,6 +58,7 @@ android {
 
     buildFeatures {
         compose = false
+        buildConfig = true
     }
 
     externalNativeBuild {
@@ -64,6 +72,15 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE,NOTICE}"
         }
+        jniLibs {
+            // ggml loads its backend .so files by path at runtime, so they must
+            // stay as real files in the APK rather than being page-aligned only.
+            useLegacyPackaging = false
+        }
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 

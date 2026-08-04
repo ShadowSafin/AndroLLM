@@ -60,6 +60,13 @@
 # Keep generated Hilt components
 -keep class dagger.hilt.internal.** { *; }
 
+# Keep Engine classes (prevent stripping by R8)
+-keep class io.androllm.engine.** { *; }
+-keep class io.androllm.engine.llama.LlamaCppEngine { *; }
+-keep class io.androllm.engine.api.** { *; }
+-keep class io.androllm.engine.di.EngineModule { *; }
+-keep class io.androllm.engine.models.** { *; }
+
 # Suppress warnings
 -dontwarn kotlinx.coroutines.**
 -dontwarn kotlinx.serialization.**

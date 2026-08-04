@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
 }
@@ -7,7 +7,7 @@ android {
     namespace = "io.androllm.docs"
     compileSdk = 35
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")

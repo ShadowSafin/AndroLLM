@@ -33,7 +33,14 @@ import io.androllm.engine.models.MemoryStats
 import io.androllm.engine.utils.GgufValidator
 import io.androllm.feature.models.benchmark.BenchmarkReport
 import io.androllm.feature.models.benchmark.ModelBenchmarker
-import io.androllm.feature.models.catalog.OfficialModelCatalog
+import io.androllm.core.models.catalog.CatalogFilters
+import io.androllm.core.models.catalog.CatalogModel
+import io.androllm.core.models.catalog.CatalogRepository
+import io.androllm.core.models.catalog.CatalogSortOption
+import io.androllm.core.models.catalog.CatalogState
+import io.androllm.core.models.catalog.ModelSearchEngine
+import io.androllm.core.models.catalog.RecommendationEngine
+import io.androllm.feature.models.catalog.toDownloadModel
 import io.androllm.feature.models.downloader.ModelDownloadWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +80,8 @@ class ModelsViewModel @Inject constructor(
     private val modelRepository: ModelRepository,
     private val engineRepository: EngineRepository,
     private val repositoryRegistry: RepositoryRegistry,
-    val downloadManager: io.androllm.feature.models.downloader.DownloadManager
+    val downloadManager: io.androllm.feature.models.downloader.DownloadManager,
+    private val catalogRepository: CatalogRepository
 ) : BaseViewModel() {
 
     private val _selectedTab = MutableStateFlow(ModelsTab.INSTALLED)
@@ -91,6 +99,11 @@ class ModelsViewModel @Inject constructor(
     private val _selectedRemoteDetails = MutableStateFlow<RemoteModelDetails?>(null)
     private val _readmeText = MutableStateFlow<String?>(null)
     private val _isLoadingDetails = MutableStateFlow(false)
+
+    // Metadata-driven Catalog State
+    private val _catalogFilters = MutableStateFlow(CatalogFilters())
+    private val _catalogSort = MutableStateFlow(CatalogSortOption.TRENDING)
+    private val _catalogRefreshError = MutableStateFlow<String?>(null)
 
     val hardwareInfo: DeviceHardwareInfo = DeviceInfoCollector.collectDeviceInfo(context)
 
@@ -125,8 +138,17 @@ class ModelsViewModel @Inject constructor(
             _isLoadingDetails
         ) { remoteDetails, readme, isLoadingDetails ->
             Triple(remoteDetails, readme, isLoadingDetails)
+        },
+        combine(
+            catalogRepository.state,
+            catalogRepository.refreshing,
+            _catalogFilters,
+            _catalogSort,
+            _catalogRefreshError
+        ) { catalogState, isRefreshing, filters, sort, refreshError ->
+            listOf(catalogState, isRefreshing, filters, sort, refreshError)
         }
-    ) { group1, group2, group3, group4 ->
+    ) { group1, group2, group3, group4, group5 ->
         @Suppress("UNCHECKED_CAST")
         val installedModels = group1[0] as List<Model>
         val engineState = group1[1] as EngineState
@@ -146,6 +168,13 @@ class ModelsViewModel @Inject constructor(
 
         val (remoteDetails, readme, isLoadingDetails) = group4
 
+        @Suppress("UNCHECKED_CAST")
+        val catalogState = group5[0] as CatalogState
+        val isCatalogRefreshing = group5[1] as Boolean
+        val catalogFilters = group5[2] as CatalogFilters
+        val catalogSort = group5[3] as CatalogSortOption
+        val catalogRefreshError = group5[4] as String?
+
         val loadedId = when (engineState) {
             is EngineState.Ready -> engineState.model.id
             is EngineState.Generating -> engineState.model.id
@@ -153,12 +182,27 @@ class ModelsViewModel @Inject constructor(
         }
         val memStats = (engineState as? EngineState.Ready)?.memoryStats
         val filteredInstalled = sortAndFilter(installedModels, query, sort)
-        val filteredCatalog = sortAndFilter(OfficialModelCatalog.catalogModels, query, sort)
+
+        val allCatalogModels = (catalogState as? CatalogState.Ready)?.catalog?.models.orEmpty()
+        val filteredCatalog = ModelSearchEngine.search(
+            models = allCatalogModels,
+            query = query,
+            filters = catalogFilters,
+            sort = catalogSort
+        )
+        val recommended = RecommendationEngine.recommend(allCatalogModels, hardwareInfo.totalRamGb, topN = 6)
 
         UiState.Success(
             ModelsData(
                 installedModels = filteredInstalled,
+                catalogState = catalogState,
                 catalogModels = filteredCatalog,
+                catalogCount = allCatalogModels.size,
+                recommendedCatalogModels = recommended.map { it.model },
+                catalogFilters = catalogFilters,
+                catalogSort = catalogSort,
+                isCatalogRefreshing = isCatalogRefreshing,
+                catalogRefreshError = catalogRefreshError,
                 selectedTab = tab,
                 searchQuery = query,
                 sortOption = sort,
@@ -175,7 +219,7 @@ class ModelsViewModel @Inject constructor(
                 selectedRemoteDetails = remoteDetails,
                 readmeText = readme,
                 isLoadingDetails = isLoadingDetails,
-                recommendedModel = computeRecommendedModel(hardwareInfo.totalRamGb),
+                recommendedModel = recommended.firstOrNull()?.model?.toDownloadModel(),
                 showFirstLaunchDialog = installedModels.none { it.isDownloaded },
                 engineState = engineState,
                 memoryStats = memStats
@@ -305,6 +349,15 @@ class ModelsViewModel @Inject constructor(
                 return@launch
             }
 
+            // Enrich the model record with GGUF header metadata on import
+            modelRepository.updateDownloadMetadata(
+                id = model.id,
+                architecture = validation.architecture,
+                quantization = validation.fileType,
+                contextLength = validation.contextLength.toInt().coerceAtLeast(1024),
+                license = validation.license.ifBlank { "Apache-2.0" }
+            )
+
             val result = engineRepository.loadModel(model)
             _loadingModelId.value = null
 
@@ -356,11 +409,39 @@ class ModelsViewModel @Inject constructor(
         }
     }
 
-    fun downloadModel(catalogModel: Model) {
+    fun downloadModel(model: Model) {
         viewModelScope.launch {
-            downloadManager.startDownload(catalogModel)
+            downloadManager.startDownload(model)
             selectTab(ModelsTab.DOWNLOADS)
         }
+    }
+
+    fun downloadModel(catalogModel: CatalogModel) {
+        viewModelScope.launch {
+            downloadManager.startDownload(catalogModel.toDownloadModel())
+            selectTab(ModelsTab.DOWNLOADS)
+        }
+    }
+
+    fun updateCatalogFilters(filters: CatalogFilters) {
+        _catalogFilters.value = filters
+    }
+
+    fun updateCatalogSort(sort: CatalogSortOption) {
+        _catalogSort.value = sort
+    }
+
+    fun refreshCatalog() {
+        viewModelScope.launch {
+            when (val result = catalogRepository.refresh()) {
+                is Result.Success -> _catalogRefreshError.value = null
+                is Result.Error -> _catalogRefreshError.value = result.exception.message
+            }
+        }
+    }
+
+    fun dismissCatalogRefreshError() {
+        _catalogRefreshError.value = null
     }
 
     fun pauseDownload(modelId: String) {
@@ -455,16 +536,6 @@ class ModelsViewModel @Inject constructor(
         _benchmarkReport.value = null
     }
 
-    private fun computeRecommendedModel(ramGb: Float): Model {
-        val catalog = OfficialModelCatalog.catalogModels
-        return when {
-            ramGb >= 15f -> catalog.firstOrNull { it.id == "gemma-3n-e4b-it" } ?: catalog.first()
-            ramGb >= 11f -> catalog.firstOrNull { it.id == "gemma-4-e2b-it" } ?: catalog.first()
-            ramGb >= 7f -> catalog.firstOrNull { it.id == "qwen2.5-1.5b-instruct" } ?: catalog.first()
-            else -> catalog.firstOrNull { it.id == "gemma3-1b-it" } ?: catalog.first()
-        }
-    }
-
     private fun sortAndFilter(models: List<Model>, query: String, sort: ModelSortOption): List<Model> {
         val filtered = if (query.isBlank()) models else {
             models.filter { it.name.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true) }
@@ -495,7 +566,14 @@ class ModelsViewModel @Inject constructor(
  */
 data class ModelsData(
     val installedModels: List<Model> = emptyList(),
-    val catalogModels: List<Model> = emptyList(),
+    val catalogState: CatalogState = CatalogState.Loading,
+    val catalogModels: List<CatalogModel> = emptyList(),
+    val catalogCount: Int = 0,
+    val recommendedCatalogModels: List<CatalogModel> = emptyList(),
+    val catalogFilters: CatalogFilters = CatalogFilters(),
+    val catalogSort: CatalogSortOption = CatalogSortOption.TRENDING,
+    val isCatalogRefreshing: Boolean = false,
+    val catalogRefreshError: String? = null,
     val selectedTab: ModelsTab = ModelsTab.INSTALLED,
     val searchQuery: String = "",
     val sortOption: ModelSortOption = ModelSortOption.NAME,
