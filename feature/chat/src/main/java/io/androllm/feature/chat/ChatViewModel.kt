@@ -179,6 +179,9 @@ class ChatViewModel @Inject constructor(
                 content = it.content.trim()
             )
         }
+        android.util.Log.i("ChatViewModel", "generateFromHistory: ${messages.size} messages: ${
+            messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
+        }")
         viewModelScope.launch {
             val promptResult = engineRepository.buildChatPrompt(messages)
             val prompt = promptResult.getOrNull()
@@ -189,6 +192,7 @@ class ChatViewModel @Inject constructor(
                 appendErrorMessage("Model chat template unavailable: $err")
                 return@launch
             }
+            android.util.Log.i("ChatViewModel", "prompt.length=${prompt.length} head=${prompt.take(80)}")
             engineRepository.generate(prompt = prompt, config = _genConfig.value)
         }
     }
@@ -334,6 +338,13 @@ class ChatViewModel @Inject constructor(
             content = trimmed,
             timestamp = System.currentTimeMillis()
         )
+
+        // Update _messages IMMEDIATELY so the next sendMessage() sees the assistant
+        // response. Without this, the DB write is async and Room Flow may not have
+        // emitted by the time the user sends the next message, causing the prompt
+        // to be built WITHOUT the assistant response (two consecutive user messages),
+        // which produces garbage output.
+        _messages.value = _messages.value + message
 
         viewModelScope.launch {
             messageRepository.upsert(message.toCoreMessage())

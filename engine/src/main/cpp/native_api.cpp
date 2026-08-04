@@ -575,29 +575,47 @@ static VulkanInfo checkVulkan() {
 // Chat template rendering (delegates entirely to llama.cpp)
 // ---------------------------------------------------------------------------
 
-static std::string renderChat(
+static int s_gen_counter = 0;
+
+struct RenderedPrompt {
+    std::string prompt;
+    size_t systemPromptCharEnd = 0; // char offset where system prompt portion ends
+};
+
+static RenderedPrompt renderChat(
     const common_chat_templates *tmpls,
     const std::string &msgsJson,
     bool addAssistant,
     std::vector<common_chat_msg> &chatMsgs) {
 
+    s_gen_counter++;
+    LOGI("====== renderChat START gen=%d msgsJson.size=%zu addAssistant=%d ======",
+         s_gen_counter, msgsJson.size(), (int)addAssistant);
+
     std::vector<std::map<std::string, mini_json::Node>> msgs;
     if (!mini_json::parseObjectArray(msgsJson, msgs) || msgs.empty()) {
-        LOGE("[Template] bad message JSON"); return "";
+        LOGE("[Template] bad message JSON"); return {"", 0};
     }
 
-    // Clear previous messages for fresh conversation
+    LOGI("[Template] parsed %zu messages from JSON", msgs.size());
+    for (size_t i = 0; i < msgs.size(); ++i) {
+        auto &m = msgs[i];
+        auto r = m.find("role"), c = m.find("content");
+        std::string role = (r != m.end()) ? r->second.str : "?";
+        std::string content = (c != m.end()) ? c->second.str : "?";
+        LOGI("[Template] msg %zu: role=%s content_len=%zu content=%.60s...",
+             i, role.c_str(), content.size(), content.c_str());
+    }
+
     chatMsgs.clear();
 
-    // Format each message incrementally using upstream's common_chat_format_single().
-    // Each call returns ONLY the newly formatted message, not the full conversation.
-    // We must concatenate all results to produce the complete prompt.
     std::string fullPrompt;
+    size_t systemPromptCharEnd = 0;
     for (size_t i = 0; i < msgs.size(); ++i) {
         auto &m = msgs[i];
         auto r = m.find("role"), c = m.find("content");
         if (r == m.end() || c == m.end() || r->second.str.empty()) {
-            LOGE("[Template] msg missing role/content"); return "";
+            LOGE("[Template] msg missing role/content"); return {"", 0};
         }
         common_chat_msg newMsg{r->second.str, c->second.str};
         bool isLast = (i + 1 == msgs.size());
@@ -605,20 +623,24 @@ static std::string renderChat(
         std::string formatted = common_chat_format_single(tmpls, chatMsgs, newMsg, addGen, /*use_jinja=*/false);
         if (formatted.empty()) {
             LOGE("[Template] format_single returned empty for msg %zu role=%s", i, newMsg.role.c_str());
-            return "";
+            return {"", 0};
         }
         fullPrompt += formatted;
-        LOGI("[Template] msg %zu role=%s formatted %zu chars", i, newMsg.role.c_str(), formatted.size());
+        if (i == 0) {
+            systemPromptCharEnd = fullPrompt.size();
+        }
+        LOGI("[Template] msg %zu role=%s formatted %zu chars (running total=%zu)",
+             i, newMsg.role.c_str(), formatted.size(), fullPrompt.size());
         chatMsgs.push_back(std::move(newMsg));
     }
 
     if (fullPrompt.empty()) {
         LOGE("[Template] render returned empty prompt");
-        return "";
+        return {"", 0};
     }
-    LOGI("[Template] rendered prompt (%zu chars): %.80s...",
-         fullPrompt.size(), fullPrompt.c_str());
-    return fullPrompt;
+    LOGI("[Template] FINAL prompt gen=%d total=%zu chars systemPromptCharEnd=%zu",
+         s_gen_counter, fullPrompt.size(), systemPromptCharEnd);
+    return {fullPrompt, systemPromptCharEnd};
 }
 
 // ---------------------------------------------------------------------------
@@ -668,13 +690,22 @@ static std::string doGenerate(
     eng->cancel.store(false);
     eng->trackMemory();
 
+    llama_memory_t mem = llama_get_memory(eng->ctx);
+    const uint32_t nCtx = llama_n_ctx(eng->ctx);
+    const int n_batch = llama_n_batch(eng->ctx);
+    LOGI("doGenerate START gen=%d promptCount=%d nCtx=%u n_batch=%d sysPromptEnd=%d",
+         s_gen_counter, eng->promptCount, nCtx, n_batch, (int)eng->systemPromptEnd);
+
     auto t0 = clock::now();
 
     // ── Tokenize ──
+    // NOTE: renderChat() calls common_chat_templates_apply which already prepends
+    // <|begin_of_text|> (BOS) when add_bos=true. We must NOT add another BOS via
+    // add_special—upstream avoids this because it tokenizes only the diff (which
+    // starts with <|start_header_id|>, not BOS). add_special=false prevents double-BOS.
     const llama_vocab *vocab = llama_model_get_vocab(eng->model);
-    const bool addBos = llama_vocab_get_add_bos(vocab);
     std::vector<llama_token> tokens =
-        common_tokenize(eng->ctx, prompt, /*add_special=*/addBos, /*parse_special=*/true);
+        common_tokenize(eng->ctx, prompt, /*add_special=*/false, /*parse_special=*/true);
 
     eng->lastPromptTokens = tokens;
     eng->lastPromptText = prompt;
@@ -682,44 +713,54 @@ static std::string doGenerate(
     eng->lastFirstTokenMs = 0;
     eng->lastStopReason = "max_tokens";
 
-    // Log token IDs for validation
+    LOGI("[Tok] n=%zu add_special=false (BOS already in prompt)", tokens.size());
     {
-        std::ostringstream ids;
-        for (size_t i = 0; i < tokens.size(); i++) {
-            if (i) ids << ", ";
-            ids << tokens[i];
+        std::string tokStr;
+        size_t showN = std::min<size_t>(30, tokens.size());
+        for (size_t t = 0; t < showN; t++) {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d ", tokens[t]);
+            tokStr += buf;
         }
-        LOGI("[Tok] n=%zu ids=[%s]", tokens.size(), ids.str().c_str());
+        if (showN < tokens.size()) tokStr += "...";
+        LOGI("[Tok] first_tokens: %s", tokStr.c_str());
     }
+    LOGI("[Tok] prompt_head: %.200s", prompt.c_str());
 
-    // ── Always clear KV cache before prefill ──
-    // Our architecture re-renders the full conversation each time via renderChat(),
-    // so we must start fresh. This matches upstream's pattern of processing system
-    // prompt, user prompt, and assistant header as separate decode steps.
-    llama_memory_clear(llama_get_memory(eng->ctx), true);
-
-    const uint32_t nCtx = llama_n_ctx(eng->ctx);
+    // ── Clear KV cache before prefill ──
+    // Use metadata=false (upstream bench pattern): clears only metadata, not GPU data
+    // buffers. With Vulkan backend, clearing data can cause GPU sync corruption where
+    // the clear and subsequent prefill overlap, corrupting KV state on re-prefill.
+    llama_memory_clear(mem, false);
 
     // ── Prefill ──
-    const int n_batch = llama_n_batch(eng->ctx);
     llama_batch batch = llama_batch_init(n_batch, 0, 1);
 
     bool prefillOk = true;
+    int prefillBatchCount = 0;
     for (size_t i = 0; i < tokens.size(); i += n_batch) {
         size_t n = std::min<size_t>(n_batch, tokens.size() - i);
+        bool batch_has_last = false;
         common_batch_clear(batch);
         for (size_t j = 0; j < n; j++) {
             bool last = (i + j == tokens.size() - 1);
+            if (last) batch_has_last = true;
             common_batch_add(batch, tokens[i + j], (llama_pos)(i + j), {0}, last);
+        }
+        prefillBatchCount++;
+        if (prefillBatchCount <= 2 || batch_has_last) {
+            LOGI("[Prefill] batch %d: n=%zu first_pos=%d last_pos=%d",
+                 prefillBatchCount, n, (int)(i), (int)(i + n - 1));
         }
         if (llama_decode(eng->ctx, batch) != 0) {
             prefillOk = false;
+            LOGE("[Prefill] FAILED at batch %d token_idx=%zu", prefillBatchCount, i);
             break;
         }
     }
-    llama_batch_free(batch);
 
     if (!prefillOk) {
+        llama_batch_free(batch);
         eng->lastStopReason = "decode_error";
         throw_java(env, "Prompt decode failed");
         return "{}";
@@ -728,7 +769,6 @@ static std::string doGenerate(
     auto t1 = clock::now();
     int64_t promptMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
 
-    // ── Reset sampler ──
     common_sampler_reset(eng->sampler);
 
     // ── Decode loop (upstream pattern) ──
@@ -738,12 +778,21 @@ static std::string doGenerate(
     for (int i = 0; i < cfg.maxTokens; i++) {
         if (eng->cancel.load()) { eng->lastStopReason = "cancelled"; break; }
 
-        // Context full: shift (keep half the context after system prompt)
-        if (llama_memory_seq_pos_max(llama_get_memory(eng->ctx), 0) >= (llama_pos)nCtx - 4) {
-            const llama_pos n_discard = (llama_pos)nCtx / 4;
-            llama_memory_seq_rm(llama_get_memory(eng->ctx), 0, 0, n_discard);
-            llama_memory_seq_add(llama_get_memory(eng->ctx), 0, n_discard, -1, -n_discard);
-            LOGI("[Shift] discarded %d tokens from KV cache", n_discard);
+        // Context full: shift (upstream pattern: discard older half after system prompt)
+        llama_pos pos_check = llama_memory_seq_pos_max(mem, 0);
+        if (pos_check >= (llama_pos)nCtx - 4) {
+            const llama_pos sysEnd = eng->systemPromptEnd;
+            const llama_pos n_discard = (pos_check - sysEnd) / 2;
+            if (n_discard > 0) {
+                llama_memory_seq_rm(mem, 0, sysEnd, sysEnd + n_discard);
+                llama_memory_seq_add(mem, 0, sysEnd + n_discard, pos_check + 1, -n_discard);
+                LOGI("[Shift] discarded %d tokens from pos %d..%d at step=%lld (preserved system prompt %d)",
+                     (int)n_discard, (int)sysEnd, (int)(sysEnd + n_discard - 1),
+                     (long long)generated, (int)sysEnd);
+            } else {
+                LOGW("[Shift] cannot shift: n_discard=%d sysEnd=%d pos_check=%d",
+                     (int)n_discard, (int)sysEnd, (int)pos_check);
+            }
         }
 
         // Sample
@@ -754,7 +803,6 @@ static std::string doGenerate(
         // EOS check
         if (llama_vocab_is_eog(vocab, id)) {
             eng->lastStopReason = "eos";
-            LOGI("[Gen] EOS at step=%lld", (long long)generated);
             break;
         }
 
@@ -762,6 +810,7 @@ static std::string doGenerate(
         if (generated == 0) {
             auto now = clock::now();
             eng->lastFirstTokenMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - t1).count();
+            LOGI("[Gen] first token latency: %lld ms", (long long)eng->lastFirstTokenMs);
         }
 
         // Detokenize with special=true (upstream default)
@@ -786,19 +835,24 @@ static std::string doGenerate(
         }
         generated++;
 
-        // Feed token back for next step (upstream pattern: llama_batch_get_one)
-        llama_batch next = llama_batch_get_one(&id, 1);
-        if (llama_decode(eng->ctx, next) != 0) {
+        // Feed token back for next step (upstream pattern: persistent batch + common_batch_add)
+        common_batch_clear(batch);
+        common_batch_add(batch, id, llama_memory_seq_pos_max(mem, 0) + 1, {0}, true);
+        if (llama_decode(eng->ctx, batch) != 0) {
             eng->lastStopReason = "decode_error";
             LOGW("[Gen] decode failed at step=%lld", (long long)generated);
             break;
         }
     }
 
+    llama_batch_free(batch);
+
     auto t2 = clock::now();
     int64_t genMs = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
     float tps = genMs > 0 ? (float)generated * 1000.f / (float)genMs : 0.f;
 
+    LOGI("doGenerate END gen=%d generated=%lld stop=%s",
+         s_gen_counter, (long long)generated, eng->lastStopReason.c_str());
     LOGI("[Perf] backend=%s gpu=%d prompt=%lldms(%zu) gen=%lldms(%lld) %.2f tok/s",
          eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU",
          eng->gpuLayersUsed, (long long)promptMs, tokens.size(),
@@ -1449,11 +1503,26 @@ try {
         throw_java(env, "Chat templates not available");
         return to_jstring(env, "");
     }
-    std::string rendered = renderChat(
+    RenderedPrompt rp = renderChat(
         eng->chatTmpls.get(), from_jstring(env, msgJson),
         addAssistant == JNI_TRUE, eng->chatMsgs);
-    LOGI("[Template] rendered %zu bytes", rendered.size());
-    return to_jstring(env, rendered);
+
+    // Compute systemPromptEnd: token count of system prompt portion
+    if (rp.systemPromptCharEnd > 0 && eng->ctx && eng->model) {
+        const llama_vocab *vocab = llama_model_get_vocab(eng->model);
+        const bool addBos = llama_vocab_get_add_bos(vocab);
+        std::string sysPart = rp.prompt.substr(0, rp.systemPromptCharEnd);
+        std::vector<llama_token> sysToks =
+            common_tokenize(eng->ctx, sysPart, /*add_special=*/addBos, /*parse_special=*/true);
+        eng->systemPromptEnd = (llama_pos)sysToks.size();
+        LOGI("[Template] systemPromptEnd=%d (from %zu chars, %zu tokens)",
+             (int)eng->systemPromptEnd, rp.systemPromptCharEnd, sysToks.size());
+    } else {
+        eng->systemPromptEnd = 0;
+    }
+
+    LOGI("[Template] rendered %zu bytes", rp.prompt.size());
+    return to_jstring(env, rp.prompt);
 } catch (const std::exception &e) {
     LOGE("[Template] exception: %s", e.what());
     throw_java(env, std::string("Chat template failed: ") + e.what());
@@ -1474,11 +1543,23 @@ try {
         throw_java(env, "Chat templates not available");
         return to_jstring(env, "");
     }
-    std::string rendered = renderChat(
+    RenderedPrompt rp = renderChat(
         eng->chatTmpls.get(), from_jstring(env, msgJson),
         addAssistant == JNI_TRUE, eng->chatMsgs);
-    LOGI("[Template] rendered %zu bytes", rendered.size());
-    return to_jstring(env, rendered);
+
+    if (rp.systemPromptCharEnd > 0 && eng->ctx && eng->model) {
+        const llama_vocab *vocab = llama_model_get_vocab(eng->model);
+        const bool addBos = llama_vocab_get_add_bos(vocab);
+        std::string sysPart = rp.prompt.substr(0, rp.systemPromptCharEnd);
+        std::vector<llama_token> sysToks =
+            common_tokenize(eng->ctx, sysPart, /*add_special=*/addBos, /*parse_special=*/true);
+        eng->systemPromptEnd = (llama_pos)sysToks.size();
+    } else {
+        eng->systemPromptEnd = 0;
+    }
+
+    LOGI("[Template] rendered %zu bytes", rp.prompt.size());
+    return to_jstring(env, rp.prompt);
 } catch (const std::exception &e) {
     LOGE("[Template] exception: %s", e.what());
     throw_java(env, std::string("Chat template failed: ") + e.what());
@@ -1524,7 +1605,6 @@ try {
     // Reconfigure sampler for this request
     {
         common_params_sampling sp = buildSamplingParams(cfg);
-
         common_sampler_free(eng->sampler);
         eng->sampler = common_sampler_init(eng->model, sp);
         if (!eng->sampler) {
@@ -1541,8 +1621,15 @@ try {
         return to_jstring(env, "{}");
     }
 
+    std::string promptStr = from_jstring(env, prompt);
+    LOGI("[JNI] nativeGenerate: prompt.size=%zu genConfig: temp=%.2f maxTok=%d",
+         promptStr.size(), cfg.temperature, cfg.maxTokens);
+    LOGI("[JNI] nativeGenerate prompt_head: %.300s", promptStr.c_str());
+    LOGI("[JNI] nativeGenerate prompt_tail: %.300s",
+         promptStr.c_str() + std::max<size_t>(0, promptStr.size() - 300));
+
     std::string result = doGenerate(eng, env, callback, mid,
-                                     from_jstring(env, prompt), cfg);
+                                     promptStr, cfg);
 
     env->DeleteLocalRef(cls);
     return to_jstring(env, result);

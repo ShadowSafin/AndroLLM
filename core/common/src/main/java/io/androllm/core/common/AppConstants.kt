@@ -28,6 +28,7 @@ object AppConstants {
 
     object Navigation {
         const val SPLASH_ROUTE = "splash"
+        const val AUTH_ROUTE = "auth"
         const val HOME_ROUTE = "home"
         const val CHAT_ROUTE = "chat"
         const val CHAT_DETAIL_ROUTE = "chat/{conversationId}"

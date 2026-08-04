@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "371699375359",
+    "project_id": "androllm",
+    "storage_bucket": "androllm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:371699375359:android:a56b0795cfc3083e3180ca",
+        "android_client_info": {
+          "package_name": "io.androllm.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "371699375359-pa464qb4djbb7e04hrfahfl4njp9p9d6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzfpCTzT4OF6kHy0RV3mVBvQM9ytiusoE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "371699375359-pa464qb4djbb7e04hrfahfl4njp9p9d6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

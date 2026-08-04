@@ -5,20 +5,18 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Clear
@@ -36,15 +34,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import io.androllm.core.ui.theme.AzureBlue
+import io.androllm.core.ui.theme.CloudCapsuleShape
+import io.androllm.core.ui.theme.CloudGlassBorder
+import io.androllm.core.ui.theme.CloudGlassBorderHighlight
+import io.androllm.core.ui.theme.CloudGlassSurface
+import io.androllm.core.ui.theme.CloudWhite
+import io.androllm.core.ui.theme.ElectricBlue
+import io.androllm.core.ui.theme.MoonSilver
+import io.androllm.core.ui.theme.SkyBlue
+import io.androllm.core.ui.theme.SoftCyan
 
 /**
- * Modern compose input box with auto-growing text field, send/stop animation,
- * character counter, clear button, and attachment/mic placeholders.
+ * Cloud Intelligence Input Area.
+ * Floating cloud capsule input bar with ambient glow and spring send button.
  */
 @Composable
 fun ComposeInputArea(
@@ -63,21 +70,24 @@ fun ComposeInputArea(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .imePadding(),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 3.dp
+            .imePadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = CloudCapsuleShape,
+        color = CloudGlassSurface,
+        border = BorderStroke(1.dp, if (text.isNotEmpty()) CloudGlassBorderHighlight else CloudGlassBorder),
+        shadowElevation = 12.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Attach Button Placeholder
+                // Attach Button
                 IconButton(
                     onClick = {
                         Toast.makeText(context, "File attachments coming soon", Toast.LENGTH_SHORT).show()
@@ -87,21 +97,28 @@ fun ComposeInputArea(
                     Icon(
                         imageVector = Icons.Default.AttachFile,
                         contentDescription = "Attach file",
-                        tint = MaterialTheme.colorScheme.outline
+                        tint = MoonSilver.copy(alpha = 0.7f)
                     )
                 }
 
-                // Auto-growing Text Field
+                // Text Field Capsule
                 OutlinedTextField(
                     value = text,
                     onValueChange = {
                         if (it.length <= maxCharacterLimit) onTextChanged(it)
                     },
-                    placeholder = { Text("Message AndroLLM...") },
+                    placeholder = {
+                        Text(
+                            text = "Ask AndroLLM...",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MoonSilver.copy(alpha = 0.5f)
+                            )
+                        )
+                    },
                     modifier = Modifier
                         .weight(1f)
-                        .padding(vertical = 4.dp),
-                    shape = RoundedCornerShape(24.dp),
+                        .padding(vertical = 2.dp),
+                    shape = CloudCapsuleShape,
                     maxLines = 5,
                     enabled = enabled && !isGenerating,
                     trailingIcon = {
@@ -113,20 +130,23 @@ fun ComposeInputArea(
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Clear input",
-                                    tint = MaterialTheme.colorScheme.outline
+                                    tint = MoonSilver.copy(alpha = 0.7f)
                                 )
                             }
                         }
                     },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        disabledBorderColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedTextColor = CloudWhite,
+                        unfocusedTextColor = CloudWhite
                     )
                 )
 
-                // Mic Placeholder (when text empty & not generating)
+                // Mic Placeholder
                 if (text.isEmpty() && !isGenerating) {
                     IconButton(
                         onClick = {
@@ -137,20 +157,20 @@ fun ComposeInputArea(
                         Icon(
                             imageVector = Icons.Default.Mic,
                             contentDescription = "Voice input",
-                            tint = MaterialTheme.colorScheme.outline
+                            tint = MoonSilver.copy(alpha = 0.7f)
                         )
                     }
                 }
 
-                // Send / Stop Action Button
+                // Floating Send / Stop Button Capsule
                 Box(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
                         .background(
-                            if (isGenerating) MaterialTheme.colorScheme.error
-                            else if (text.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceContainerHigh
+                            if (isGenerating) Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.error))
+                            else if (text.isNotBlank()) Brush.horizontalGradient(listOf(ElectricBlue, SoftCyan))
+                            else Brush.horizontalGradient(listOf(CloudGlassSurface, CloudGlassSurface))
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -173,14 +193,14 @@ fun ComposeInputArea(
                                 Icon(
                                     imageVector = Icons.Default.Stop,
                                     contentDescription = "Stop generating",
-                                    tint = MaterialTheme.colorScheme.onError,
+                                    tint = CloudWhite,
                                     modifier = Modifier.size(22.dp)
                                 )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Send,
                                     contentDescription = "Send message",
-                                    tint = if (text.isNotBlank()) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline,
+                                    tint = if (text.isNotBlank()) CloudWhite else MoonSilver.copy(alpha = 0.4f),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -189,12 +209,11 @@ fun ComposeInputArea(
                 }
             }
 
-            // Character Counter
             if (text.length > maxCharacterLimit * 0.7) {
                 Text(
                     text = "${text.length} / $maxCharacterLimit",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (text.length >= maxCharacterLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                    color = if (text.length >= maxCharacterLimit) MaterialTheme.colorScheme.error else MoonSilver.copy(alpha = 0.5f),
                     modifier = Modifier
                         .align(Alignment.End)
                         .padding(end = 16.dp, top = 2.dp)

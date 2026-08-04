@@ -127,6 +127,17 @@ class HuggingFaceRepository @Inject constructor(
      * to the library namespace, and otherwise return "Other".
      */
     private fun extractFamily(id: String, tags: List<String>, pipelineTag: String?): String {
+        val lowerId = id.lowercase()
+        val familyMatch = when {
+            lowerId.contains("gemma") || tags.any { it.equals("gemma", ignoreCase = true) } -> "Gemma"
+            lowerId.contains("llama") || tags.any { it.equals("llama", ignoreCase = true) } -> "Llama"
+            lowerId.contains("mistral") || tags.any { it.equals("mistral", ignoreCase = true) } -> "Mistral"
+            lowerId.contains("qwen") || tags.any { it.equals("qwen", ignoreCase = true) } -> "Qwen"
+            lowerId.contains("phi") || tags.any { it.equals("phi", ignoreCase = true) } -> "Phi"
+            else -> null
+        }
+        if (familyMatch != null) return familyMatch
+
         val namespaces = id.split("/").firstOrNull()?.takeIf { it.isNotBlank() }
         val pipeline = pipelineTag?.takeIf { it.isNotBlank() }
         val archTag = tags.firstOrNull { it.startsWith("model_type:") }

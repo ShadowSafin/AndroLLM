@@ -7,6 +7,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.google.firebase.auth.FirebaseAuth
+import io.androllm.app.auth.FirebaseAuthScreen
 import io.androllm.core.navigation.Routes
 import io.androllm.feature.chat.ChatScreen
 import io.androllm.feature.home.HomeScreen
@@ -15,7 +17,7 @@ import io.androllm.feature.settings.SettingsScreen
 import io.androllm.feature.splash.SplashScreen
 
 /**
- * Root navigation host wiring all destinations.
+ * Root navigation host wiring all destinations, starting with Splash & Firebase Auth.
  */
 @Composable
 fun AppNavHost(
@@ -28,8 +30,27 @@ fun AppNavHost(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onFinished = {
-                    navController.navigate(Routes.HOME) {
+                    val currentUser = FirebaseAuth.getInstance().currentUser
+                    val nextRoute = if (currentUser != null) Routes.HOME else Routes.AUTH
+                    navController.navigate(nextRoute) {
                         popUpTo(Routes.SPLASH) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(Routes.AUTH) {
+            FirebaseAuthScreen(
+                onAuthSuccess = {
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.AUTH) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onContinueAsGuest = {
+                    navController.navigate(Routes.HOME) {
+                        popUpTo(Routes.AUTH) { inclusive = true }
                         launchSingleTop = true
                     }
                 }
@@ -67,7 +88,6 @@ fun AppNavHost(
             route = Routes.MODEL_DETAIL,
             arguments = listOf(navArgument(Routes.ARG_MODEL_ID) { type = NavType.StringType })
         ) {
-            // TODO: Model detail screen in Phase 2.
             navController.navigateUp()
         }
 

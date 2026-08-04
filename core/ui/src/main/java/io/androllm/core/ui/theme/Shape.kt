@@ -5,12 +5,19 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 /**
- * AndroLLM shapes - rounded cards and buttons per the design system.
+ * Cloud Intelligence Design System — Shapes
+ * Floating Cloud Islands (28dp) and Cloud Capsules (50dp Pill)
  */
+val CloudIslandShape = RoundedCornerShape(28.dp)
+val CloudCapsuleShape = RoundedCornerShape(50.dp)
+val CloudMediumShape = RoundedCornerShape(20.dp)
+val CloudSmallShape = RoundedCornerShape(12.dp)
+
 val AndroLLMShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    small = CloudSmallShape,
+    medium = CloudMediumShape,
+    large = RoundedCornerShape(24.dp),
+    extraLarge = CloudIslandShape
 )
+

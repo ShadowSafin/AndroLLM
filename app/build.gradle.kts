@@ -6,6 +6,7 @@ plugins {
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -134,6 +135,11 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     
+    // Firebase & Auth
+    implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
+
     // Image Loading
     implementation(libs.coil.compose)
     

@@ -7,6 +7,7 @@ import io.androllm.core.common.AppConstants
  */
 object Routes {
     const val SPLASH = AppConstants.Navigation.SPLASH_ROUTE
+    const val AUTH = AppConstants.Navigation.AUTH_ROUTE
     const val HOME = AppConstants.Navigation.HOME_ROUTE
     const val CHAT = AppConstants.Navigation.CHAT_ROUTE
     const val CHAT_DETAIL = AppConstants.Navigation.CHAT_DETAIL_ROUTE

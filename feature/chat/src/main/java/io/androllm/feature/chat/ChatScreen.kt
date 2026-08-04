@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -66,6 +65,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +76,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import io.androllm.core.models.Conversation
 import io.androllm.core.models.MessageRole
+import io.androllm.core.ui.components.CloudAtmosphericBackground
+import io.androllm.core.ui.components.CloudChip
+import io.androllm.core.ui.theme.CloudWhite
+import io.androllm.core.ui.theme.MoonSilver
+import io.androllm.core.ui.theme.SoftCyan
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.GenerationConfig
 import io.androllm.feature.chat.export.ConversationExporter
@@ -92,8 +97,8 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * Production-quality Chat Screen with Material 3 Drawer, streaming intelligent auto-scroll,
- * Markdown & syntax-highlighted code blocks, search overlay, export, and settings integration.
+ * Cloud Intelligence Chat Screen with 6-Layer background, Markdown rendering,
+ * floating input bar, streaming animations, and sampler options.
  */
 @Composable
 fun ChatScreen(
@@ -121,7 +126,6 @@ fun ChatScreen(
 
     val successState = uiState as? ChatUiState.Success
 
-    // Load requested conversation ID when provided
     LaunchedEffect(conversationId) {
         if (conversationId.isNotBlank()) {
             viewModel.loadConversation(conversationId)
@@ -164,175 +168,169 @@ fun ChatScreen(
             )
         }
     ) {
-        Scaffold(
-            topBar = {
-                ChatTopBar(
-                    conversationTitle = successState?.conversation?.title ?: "New Chat",
-                    engineState = successState?.engineState ?: EngineState.Unloaded,
-                    performanceStats = successState?.performanceStats,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onOpenSearch = { viewModel.toggleSearch(true) },
-                    onRename = {
-                        successState?.conversation?.let { conv ->
-                            renameDialogOpen = conv
-                            renameInputText = conv.title
-                        }
-                    },
-                    onDuplicate = {
-                        successState?.conversationId?.let { viewModel.duplicateConversation(it) }
-                    },
-                    onPinToggle = {
-                        successState?.conversation?.let { viewModel.togglePinConversation(it) }
-                    },
-                    onExport = { exportDialogOpen = true },
-                    onDebugInfo = {
-                        viewModel.refreshDebugInfo()
-                        debugDialogOpen = true
-                    },
-                    onOpenSampler = { samplerSheetOpen = true },
-                    onDelete = {
-                        successState?.conversationId?.let { viewModel.deleteConversation(it) }
-                    }
-                )
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                val listState = rememberLazyListState()
-                val messages = successState?.messages ?: emptyList()
-                val streamingText = successState?.streamingText
-                val isGenerating = successState?.isGenerating == true
-
-                // Detect if user has scrolled away from bottom
-                val isAtBottom by remember {
-                    derivedStateOf {
-                        val lastVisibleItemIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                        val totalItemsCount = listState.layoutInfo.totalItemsCount
-                        totalItemsCount == 0 || lastVisibleItemIndex >= totalItemsCount - 2
-                    }
-                }
-
-                // Intelligent Auto-scroll to bottom as tokens arrive
-                LaunchedEffect(messages.size, streamingText) {
-                    if (isGenerating && (isAtBottom || successState?.userPreferences?.autoScroll == true)) {
-                        val targetIndex = (messages.size + (if (!streamingText.isNullOrEmpty()) 1 else 0)).coerceAtLeast(1) - 1
-                        if (targetIndex >= 0) {
-                            listState.animateScrollToItem(targetIndex)
-                        }
-                    }
-                }
-
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Warning banner if no model is loaded
-                    if (successState?.engineState is EngineState.Unloaded) {
-                        NoModelLoadedCard(onNavigateToModels = { navController.navigate("models") })
-                    }
-
-                    // Chat messages list
-                    if (messages.isEmpty() && streamingText.isNullOrEmpty() && !isGenerating) {
-                        NewChatEmptyState(
-                            onSuggestionClick = { suggestion ->
-                                viewModel.sendMessage(suggestion)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(messages, key = { it.id }) { msg ->
-                                MessageBubble(
-                                    message = msg,
-                                    markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
-                                    codeWrapping = successState?.userPreferences?.codeWrapping ?: false,
-                                    isBookmarked = msg.isBookmarked,
-                                    onRegenerate = { viewModel.regenerateLastResponse() },
-                                    onEditPrompt = {
-                                        editPromptMsgOpen = msg
-                                        editPromptText = msg.content
-                                    },
-                                    onDelete = { viewModel.deleteMessage(msg.id) },
-                                    onBookmarkToggle = { viewModel.toggleBookmarkMessage(msg.id, msg.isBookmarked) }
-                                )
+        CloudAtmosphericBackground {
+            Scaffold(
+                containerColor = Color.Transparent,
+                topBar = {
+                    ChatTopBar(
+                        conversationTitle = successState?.conversation?.title ?: "New Chat",
+                        engineState = successState?.engineState ?: EngineState.Unloaded,
+                        performanceStats = successState?.performanceStats,
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                        onOpenSearch = { viewModel.toggleSearch(true) },
+                        onRename = {
+                            successState?.conversation?.let { conv ->
+                                renameDialogOpen = conv
+                                renameInputText = conv.title
                             }
-
-                            // Streaming message bubble
-                            if (isGenerating && !streamingText.isNullOrEmpty()) {
-                                item(key = "streaming_bubble") {
-                                    MessageBubble(
-                                        message = ChatMessage(
-                                            id = "streaming",
-                                            conversationId = successState?.conversationId ?: "",
-                                            role = MessageRole.ASSISTANT,
-                                            content = streamingText,
-                                            timestamp = System.currentTimeMillis()
-                                        ),
-                                        isStreaming = true,
-                                        markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
-                                        codeWrapping = successState?.userPreferences?.codeWrapping ?: false
-                                    )
-                                }
-                            }
-
-                            // Thinking indicator before first token arrives
-                            if (isGenerating && streamingText.isNullOrEmpty()) {
-                                item(key = "thinking_indicator") {
-                                    TypingAndThinkingIndicator()
-                                }
-                            }
-                        }
-                    }
-
-                    // Compose Input Box
-                    ComposeInputArea(
-                        text = inputMessageText,
-                        onTextChanged = { inputMessageText = it },
-                        onSendMessage = { text ->
-                            viewModel.sendMessage(text)
-                            inputMessageText = ""
                         },
-                        onStopGeneration = { viewModel.cancelGeneration() },
-                        isGenerating = isGenerating
+                        onDuplicate = {
+                            successState?.conversationId?.let { viewModel.duplicateConversation(it) }
+                        },
+                        onPinToggle = {
+                            successState?.conversation?.let { viewModel.togglePinConversation(it) }
+                        },
+                        onExport = { exportDialogOpen = true },
+                        onDebugInfo = {
+                            viewModel.refreshDebugInfo()
+                            debugDialogOpen = true
+                        },
+                        onOpenSampler = { samplerSheetOpen = true },
+                        onDelete = {
+                            successState?.conversationId?.let { viewModel.deleteConversation(it) }
+                        }
                     )
                 }
-
-                // Floating Scroll to Bottom button when scrolled up
-                AnimatedVisibility(
-                    visible = !isAtBottom && (messages.isNotEmpty() || isGenerating),
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { 40 }),
+            ) { innerPadding ->
+                Box(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 80.dp, end = 16.dp)
+                        .fillMaxSize()
+                        .padding(innerPadding)
                 ) {
-                    FloatingActionButton(
-                        onClick = {
-                            scope.launch {
-                                val targetIndex = (messages.size + (if (!streamingText.isNullOrEmpty()) 1 else 0)).coerceAtLeast(1) - 1
-                                if (targetIndex >= 0) listState.animateScrollToItem(targetIndex)
+                    val listState = rememberLazyListState()
+                    val messages = successState?.messages ?: emptyList()
+                    val streamingText = successState?.streamingText
+                    val isGenerating = successState?.isGenerating == true
+
+                    val isAtBottom by remember {
+                        derivedStateOf {
+                            val lastVisibleItemIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                            val totalItemsCount = listState.layoutInfo.totalItemsCount
+                            totalItemsCount == 0 || lastVisibleItemIndex >= totalItemsCount - 2
+                        }
+                    }
+
+                    LaunchedEffect(messages.size, streamingText) {
+                        if (isGenerating && (isAtBottom || successState?.userPreferences?.autoScroll == true)) {
+                            val targetIndex = (messages.size + (if (!streamingText.isNullOrEmpty()) 1 else 0)).coerceAtLeast(1) - 1
+                            if (targetIndex >= 0) {
+                                listState.animateScrollToItem(targetIndex)
                             }
-                        },
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                        modifier = Modifier.size(40.dp)
+                        }
+                    }
+
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (successState?.engineState is EngineState.Unloaded) {
+                            NoModelLoadedCard(onNavigateToModels = { navController.navigate("models") })
+                        }
+
+                        if (messages.isEmpty() && streamingText.isNullOrEmpty() && !isGenerating) {
+                            NewChatEmptyState(
+                                onSuggestionClick = { suggestion ->
+                                    viewModel.sendMessage(suggestion)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentPadding = PaddingValues(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(messages, key = { it.id }) { msg ->
+                                    MessageBubble(
+                                        message = msg,
+                                        markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
+                                        codeWrapping = successState?.userPreferences?.codeWrapping ?: false,
+                                        isBookmarked = msg.isBookmarked,
+                                        onRegenerate = { viewModel.regenerateLastResponse() },
+                                        onEditPrompt = {
+                                            editPromptMsgOpen = msg
+                                            editPromptText = msg.content
+                                        },
+                                        onDelete = { viewModel.deleteMessage(msg.id) },
+                                        onBookmarkToggle = { viewModel.toggleBookmarkMessage(msg.id, msg.isBookmarked) }
+                                    )
+                                }
+
+                                if (isGenerating && !streamingText.isNullOrEmpty()) {
+                                    item(key = "streaming_bubble") {
+                                        MessageBubble(
+                                            message = ChatMessage(
+                                                id = "streaming",
+                                                conversationId = successState?.conversationId ?: "",
+                                                role = MessageRole.ASSISTANT,
+                                                content = streamingText,
+                                                timestamp = System.currentTimeMillis()
+                                            ),
+                                            isStreaming = true,
+                                            markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
+                                            codeWrapping = successState?.userPreferences?.codeWrapping ?: false
+                                        )
+                                    }
+                                }
+
+                                if (isGenerating && streamingText.isNullOrEmpty()) {
+                                    item(key = "thinking_indicator") {
+                                        TypingAndThinkingIndicator()
+                                    }
+                                }
+                            }
+                        }
+
+                        ComposeInputArea(
+                            text = inputMessageText,
+                            onTextChanged = { inputMessageText = it },
+                            onSendMessage = { text ->
+                                viewModel.sendMessage(text)
+                                inputMessageText = ""
+                            },
+                            onStopGeneration = { viewModel.cancelGeneration() },
+                            isGenerating = isGenerating
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = !isAtBottom && (messages.isNotEmpty() || isGenerating),
+                        enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }),
+                        exit = fadeOut() + slideOutVertically(targetOffsetY = { 40 }),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(bottom = 90.dp, end = 20.dp)
                     ) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = "Scroll to bottom")
+                        FloatingActionButton(
+                            onClick = {
+                                scope.launch {
+                                    val targetIndex = (messages.size + (if (!streamingText.isNullOrEmpty()) 1 else 0)).coerceAtLeast(1) - 1
+                                    if (targetIndex >= 0) listState.animateScrollToItem(targetIndex)
+                                }
+                            },
+                            containerColor = io.androllm.core.ui.theme.CloudGlassSurface,
+                            contentColor = SoftCyan,
+                            elevation = FloatingActionButtonDefaults.elevation(8.dp),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(Icons.Default.ArrowDownward, contentDescription = "Scroll to bottom")
+                        }
                     }
                 }
             }
         }
     }
 
-    // Search Overlay Dialog
     if (successState?.isSearchOpen == true) {
         SearchOverlay(
             query = successState.searchQuery,
@@ -347,7 +345,6 @@ fun ChatScreen(
         )
     }
 
-    // Rename Chat Dialog
     renameDialogOpen?.let { conv ->
         AlertDialog(
             onDismissRequest = { renameDialogOpen = null },
@@ -376,7 +373,6 @@ fun ChatScreen(
         )
     }
 
-    // Edit Prompt Dialog
     editPromptMsgOpen?.let { msg ->
         AlertDialog(
             onDismissRequest = { editPromptMsgOpen = null },
@@ -405,7 +401,6 @@ fun ChatScreen(
         )
     }
 
-    // Export Dialog
     if (exportDialogOpen) {
         AlertDialog(
             onDismissRequest = { exportDialogOpen = false },
@@ -439,7 +434,6 @@ fun ChatScreen(
         )
     }
 
-    // Hidden Debug Panel (long-press friendly entry in the top-bar menu)
     if (debugDialogOpen) {
         AlertDialog(
             onDismissRequest = { debugDialogOpen = false },
@@ -477,19 +471,6 @@ fun ChatScreen(
                         DebugRow("Model size", "%.1f MB".format(info.modelSizeBytes / (1024.0 * 1024.0)))
                         DebugRow("Context size", "%.1f MB".format(info.contextSizeBytes / (1024.0 * 1024.0)))
                         DebugRow("Peak RAM", "%.1f MB".format(info.peakMemoryBytes / (1024.0 * 1024.0)))
-                        if (info.backendReason.isNotBlank()) {
-                            DebugRow("Fallback reason", info.backendReason)
-                        }
-                        if (info.promptText.isNotBlank()) {
-                            Text(
-                                text = "Prompt: ${info.promptText}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                        Text(
-                            text = "Template source: ${info.templateSource}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
                     }
                 }
             },
@@ -500,7 +481,6 @@ fun ChatScreen(
         )
     }
 
-    // Sampler settings sheet (v3: full llama.cpp sampling parameter set)
     if (samplerSheetOpen) {
         SamplerSettingsSheet(
             config = genConfig,
@@ -516,12 +496,13 @@ private fun DebugRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline,
+            color = MoonSilver.copy(alpha = 0.6f),
             modifier = Modifier.weight(0.4f)
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
+            color = CloudWhite,
             modifier = Modifier.weight(0.6f)
         )
     }
@@ -548,7 +529,7 @@ private fun SamplerSettingsSheet(
             Text(
                 "Applied to the next message. Defaults mirror llama.cpp.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
+                color = MoonSilver.copy(alpha = 0.7f)
             )
 
             SamplerSlider(
@@ -584,41 +565,10 @@ private fun SamplerSettingsSheet(
                 onValueChange = { onConfigChange(config.copy(minP = it)) }
             )
             SamplerSlider(
-                label = "Typical-P",
-                value = config.typicalP,
-                range = 0f..1f,
-                onValueChange = { onConfigChange(config.copy(typicalP = it)) }
-            )
-            SamplerSlider(
                 label = "Repetition penalty",
                 value = config.repetitionPenalty,
                 range = 1f..2f,
                 onValueChange = { onConfigChange(config.copy(repetitionPenalty = it)) }
-            )
-            SamplerSlider(
-                label = "Presence penalty",
-                value = config.presencePenalty,
-                range = 0f..2f,
-                onValueChange = { onConfigChange(config.copy(presencePenalty = it)) }
-            )
-            SamplerSlider(
-                label = "Frequency penalty",
-                value = config.frequencyPenalty,
-                range = 0f..2f,
-                onValueChange = { onConfigChange(config.copy(frequencyPenalty = it)) }
-            )
-            SamplerSlider(
-                label = "DRY multiplier",
-                value = config.dryMultiplier,
-                range = 0f..2f,
-                onValueChange = { onConfigChange(config.copy(dryMultiplier = it)) }
-            )
-            SamplerSlider(
-                label = "Mirostat (0 off, 1 v1, 2 v2)",
-                value = config.mirostat.toFloat(),
-                range = 0f..2f,
-                onValueChange = { onConfigChange(config.copy(mirostat = it.roundToInt())) },
-                format = { "%.0f".format(it) }
             )
 
             Row(
@@ -632,23 +582,6 @@ private fun SamplerSettingsSheet(
                     onCheckedChange = { onConfigChange(config.copy(reuseKvCache = it)) }
                 )
             }
-
-            OutlinedTextField(
-                value = config.grammar,
-                onValueChange = { onConfigChange(config.copy(grammar = it)) },
-                label = { Text("GBNF grammar (optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 4
-            )
-            OutlinedTextField(
-                value = config.jsonSchema,
-                onValueChange = { onConfigChange(config.copy(jsonSchema = it)) },
-                label = { Text("JSON schema (optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 4
-            )
 
             TextButton(onClick = { onConfigChange(GenerationConfig()) }) {
                 Text("Reset to defaults")
@@ -671,7 +604,7 @@ private fun SamplerSlider(
             Text(
                 format(value),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline
+                color = MoonSilver.copy(alpha = 0.7f)
             )
         }
         Slider(value = value, onValueChange = onValueChange, valueRange = range)
@@ -702,44 +635,47 @@ private fun ChatTopBar(
                     text = conversationTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = CloudWhite
+                    )
                 )
 
                 val statusLabel = when (engineState) {
-                    is EngineState.Ready -> performanceStats?.tokensPerSecond?.let { "%.1f tok/s".format(it) } ?: "Ready"
+                    is EngineState.Ready -> performanceStats?.tokensPerSecond?.let { "%.1f tok/s".format(it) } ?: "Vulkan Ready"
                     is EngineState.Loading -> "Loading: ${engineState.stage}"
                     is EngineState.WarmingUp -> "Warming Up: ${engineState.step}"
-                    is EngineState.Generating -> "Generating (Prompt #${engineState.promptNumber})..."
+                    is EngineState.Generating -> "Generating tokens..."
                     EngineState.Unloading -> "Unloading..."
                     is EngineState.Failed -> "Model Error"
-                    EngineState.Unloaded -> "No Model Loaded"
+                    EngineState.Unloaded -> "Offline AI"
                 }
 
                 Text(
                     text = statusLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = SoftCyan
+                    )
                 )
             }
         },
         navigationIcon = {
             IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Default.Menu, contentDescription = "Open Drawer")
+                Icon(Icons.Default.Menu, contentDescription = "Open Drawer", tint = CloudWhite)
             }
         },
         actions = {
             IconButton(onClick = onOpenSearch) {
-                Icon(Icons.Default.Search, contentDescription = "Search")
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = CloudWhite)
             }
 
             IconButton(onClick = onOpenSampler) {
-                Icon(Icons.Default.Tune, contentDescription = "Sampler settings")
+                Icon(Icons.Default.Tune, contentDescription = "Sampler settings", tint = CloudWhite)
             }
 
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                    Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = CloudWhite)
                 }
 
                 DropdownMenu(
@@ -779,7 +715,7 @@ private fun ChatTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
     )
 }
 
