@@ -105,6 +105,16 @@ fun SettingsScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                 )
+            },
+            bottomBar = {
+                io.androllm.core.ui.components.CloudBottomNavigationBar(
+                    currentRoute = io.androllm.core.navigation.Routes.SETTINGS,
+                    onTabSelected = { tab ->
+                        if (tab.route != io.androllm.core.navigation.Routes.SETTINGS) {
+                            navController.navigate(tab.route)
+                        }
+                    }
+                )
             }
         ) { padding ->
             LazyColumn(

@@ -25,6 +25,16 @@ val SunsetCloudDeepOrange = Color(0xFFF4511E)
 val SunsetGlowAmber = Color(0xFFFFA726)
 val CrescentMoonGold = Color(0xFFFFE082)
 
+// Revolut-Inspired Super-App & Holographic Accents
+val RevolutNeonEmerald = Color(0xFF10B981)
+val RevolutPlatinum = Color(0xFFF1F5F9)
+val RevolutUltraViolet = Color(0xFF8B5CF6)
+val RevolutGoldTier = Color(0xFFF59E0B)
+val RevolutRoseGold = Color(0xFFFB7185)
+val RevolutCyberCyan = Color(0xFF22D3EE)
+val RevolutTitanium = Color(0xFF94A3B8)
+val RevolutDarkCardBackground = Color(0xFF0F172A)
+
 // Secondary & Accents
 val LavenderGlow = Color(0xFFC084FC)
 val DeepIndigo = Color(0xFF1E1B4B)

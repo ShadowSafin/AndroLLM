@@ -135,38 +135,6 @@ fun ModelsScreen(
         data.installedModels.filter { !it.isDownloaded }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Model Manager", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { sortMenuExpanded = true }) {
-                        Icon(Icons.Default.Sort, contentDescription = "Sort models")
-                    }
-
-                    DropdownMenu(
-                        expanded = sortMenuExpanded,
-                        onDismissRequest = { sortMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Sort by Name") },
-                            onClick = { viewModel.updateSortOption(ModelSortOption.NAME); sortMenuExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Sort by Size") },
-                            onClick = { viewModel.updateSortOption(ModelSortOption.SIZE); sortMenuExpanded = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Sort by RAM") },
-                            onClick = { viewModel.updateSortOption(ModelSortOption.RAM); sortMenuExpanded = false }
-                        )
-                    }
-
-                    IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                        Icon(Icons.Default.Folder, contentDescription = "Import GGUF")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             )
         }
     ) { padding ->

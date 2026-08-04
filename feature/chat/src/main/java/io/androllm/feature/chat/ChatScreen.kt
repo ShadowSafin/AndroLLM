@@ -482,10 +482,11 @@ fun ChatScreen(
     }
 
     if (samplerSheetOpen) {
-        SamplerSettingsSheet(
-            config = genConfig,
-            onConfigChange = viewModel::updateGenConfig,
-            onDismiss = { samplerSheetOpen = false }
+        io.androllm.feature.chat.ui.components.ModelParameterSheet(
+            onDismissRequest = { samplerSheetOpen = false },
+            onApplyParameters = { temp, topP, systemPrompt ->
+                viewModel.updateGenConfig(genConfig.copy(temperature = temp, topP = topP))
+            }
         )
     }
 }
