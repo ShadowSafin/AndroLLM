@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -122,14 +123,7 @@ fun CloudBottomNavigationBar(
                             .weight(1f)
                             .clip(RoundedCornerShape(26.dp))
                             .background(
-                                if (selected) {
-                                    Brush.horizontalGradient(
-                                        listOf(
-                                            SunsetCloudOrange.copy(alpha = 0.25f),
-                                            SunsetCloudPeach.copy(alpha = 0.15f)
-                                        )
-                                    )
-                                } else Color.Transparent
+                                if (selected) SunsetCloudOrange.copy(alpha = 0.25f) else Color.Transparent
                             )
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },

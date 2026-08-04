@@ -1,8 +1,5 @@
 package io.androllm.core.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,8 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PlayArrow
@@ -30,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.androllm.core.models.LLMModel
+import io.androllm.core.models.Model
 import io.androllm.core.ui.theme.CloudGlassBorder
 import io.androllm.core.ui.theme.CloudGlassBorderHighlight
 import io.androllm.core.ui.theme.CloudWhite
@@ -47,7 +43,6 @@ import io.androllm.core.ui.theme.RevolutCyberCyan
 import io.androllm.core.ui.theme.RevolutGoldTier
 import io.androllm.core.ui.theme.RevolutNeonEmerald
 import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SunsetCloudDeepOrange
 import io.androllm.core.ui.theme.SunsetCloudOrange
 import io.androllm.core.ui.theme.SunsetCloudPeach
 import io.androllm.core.ui.theme.SunsetGlowAmber
@@ -58,13 +53,17 @@ import io.androllm.core.ui.theme.SunsetGlowAmber
  */
 @Composable
 fun ModelWalletCard(
-    model: LLMModel,
+    model: Model,
     isActive: Boolean,
     isDownloaded: Boolean,
     onLoadClick: () -> Unit,
     onDownloadClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val sizeGbText = remember(model.fileSize) {
+        if (model.fileSize > 0) String.format("%.1f", model.fileSize / (1024.0 * 1024.0 * 1024.0)) else "3.8"
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -140,7 +139,7 @@ fun ModelWalletCard(
                             )
                         )
                         Text(
-                            text = "${model.parameterSize} • ${model.quantization}",
+                            text = "${model.parameters.ifBlank { "7B" }} • ${model.quantization.ifBlank { "Q4_K_M" }}",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = SunsetCloudPeach,
                                 fontWeight = FontWeight.SemiBold
@@ -183,9 +182,9 @@ fun ModelWalletCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ModelSpecPill(label = "RAM", value = "${model.ramRequiredGb} GB")
+                ModelSpecPill(label = "RAM", value = "${model.recommendedRamGb} GB")
                 ModelSpecPill(label = "Context", value = "${model.contextLength / 1024}k")
-                ModelSpecPill(label = "Family", value = model.family.name)
+                ModelSpecPill(label = "Family", value = model.family)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -227,7 +226,7 @@ fun ModelWalletCard(
                     )
                 } else {
                     CloudCapsuleButton(
-                        text = "Download (${model.sizeGb} GB)",
+                        text = "Download ($sizeGbText GB)",
                         onClick = onDownloadClick,
                         icon = Icons.Default.Download,
                         gradient = Brush.horizontalGradient(listOf(SkyBlue, RevolutCyberCyan))

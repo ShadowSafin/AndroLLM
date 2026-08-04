@@ -41,6 +41,7 @@ packaging {
 
 dependencies {
     implementation(project(":core:common"))
+    api(project(":core:models"))
     implementation(platform("androidx.compose:compose-bom:2024.10.00"))
     api("androidx.compose.ui:ui")
     api("androidx.compose.ui:ui-graphics")
