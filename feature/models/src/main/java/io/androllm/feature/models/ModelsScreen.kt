@@ -135,9 +135,53 @@ fun ModelsScreen(
         data.installedModels.filter { !it.isDownloaded }
     }
 
-            )
-        }
-    ) { padding ->
+    io.androllm.core.ui.components.CloudAtmosphericBackground {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = { Text("Model Manager", fontWeight = FontWeight.Bold, color = io.androllm.core.ui.theme.CloudWhite) },
+                    actions = {
+                        IconButton(onClick = { sortMenuExpanded = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort models", tint = io.androllm.core.ui.theme.MoonSilver)
+                        }
+
+                        DropdownMenu(
+                            expanded = sortMenuExpanded,
+                            onDismissRequest = { sortMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Sort by Name") },
+                                onClick = { viewModel.updateSortOption(ModelSortOption.NAME); sortMenuExpanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Sort by Size") },
+                                onClick = { viewModel.updateSortOption(ModelSortOption.SIZE); sortMenuExpanded = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Sort by RAM") },
+                                onClick = { viewModel.updateSortOption(ModelSortOption.RAM); sortMenuExpanded = false }
+                            )
+                        }
+
+                        IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+                            Icon(Icons.Default.Folder, contentDescription = "Import GGUF", tint = io.androllm.core.ui.theme.MoonSilver)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            },
+            bottomBar = {
+                io.androllm.core.ui.components.CloudBottomNavigationBar(
+                    currentRoute = io.androllm.core.navigation.Routes.MODELS,
+                    onTabSelected = { tab ->
+                        if (tab.route != io.androllm.core.navigation.Routes.MODELS) {
+                            navController.navigate(tab.route)
+                        }
+                    }
+                )
+            }
+        ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -255,6 +299,7 @@ fun ModelsScreen(
             report = report,
             onDismiss = { viewModel.dismissBenchmarkReport() }
         )
+    }
     }
 }
 
