@@ -7,9 +7,9 @@ import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,10 +17,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -30,13 +30,11 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,24 +44,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.androllm.core.models.MessageRole
-import io.androllm.core.ui.components.CloudBugdroidLogo
-import io.androllm.core.ui.theme.AzureBlue
-import io.androllm.core.ui.theme.CloudCapsuleShape
-import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudGlassSurface
-import io.androllm.core.ui.theme.CloudIslandShape
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.ElectricBlue
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SoftCyan
+import io.androllm.core.ui.components.LampDot
+import io.androllm.core.ui.theme.DeskHairline
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.DeskSlipShape
+import io.androllm.core.ui.theme.DeskWalnut
+import io.androllm.core.ui.theme.DeskWalnutRaised
+import io.androllm.core.ui.theme.LampAmber
 import io.androllm.feature.chat.ChatMessage
 import io.androllm.feature.chat.export.ConversationSharer
 import io.androllm.feature.chat.ui.markdown.MarkdownRenderer
@@ -72,9 +67,13 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Cloud Intelligence Message Bubble.
- * Floating cloud island styling for Assistant, Azure cloud capsule for User,
- * streaming animations, and quick action toolbars.
+ * A letter on the desk — one turn in the correspondence.
+ *
+ * The assistant's words are the page itself: warm paper on the night wood,
+ * entered with a small lit lamp dot and separated from the next letter by a
+ * hairline rule. Your own words are a walnut slip, set flush to the right edge
+ * with a ruled margin and a single amber edge — the ink you pressed to paper.
+ * No bubbles, no glass: the conversation reads as letters kept after midnight.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -105,217 +104,229 @@ fun MessageBubble(
 
     AnimatedVisibility(
         visible = true,
-        enter = fadeIn() + slideInVertically(initialOffsetY = { 24 })
+        enter = fadeIn() + slideInVertically(initialOffsetY = { 16 })
     ) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+                .padding(vertical = 4.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(0.94f),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
                 verticalAlignment = Alignment.Top
             ) {
                 if (!isUser && !isSystem) {
-                    // Assistant Cloud Bugdroid Avatar
-                    CloudBugdroidLogo(size = 34.dp, showMoon = false)
-                    Spacer(modifier = Modifier.width(10.dp))
+                    // The lamp dot that entered the letter.
+                    Box(
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        LampDot(size = 8.dp, lit = true)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                 }
 
-                Column {
-                    // Message Card Surface
-                    Surface(
-                        shape = when {
-                            isSystem -> CloudCapsuleShape
-                            isUser -> CloudCapsuleShape
-                            else -> CloudIslandShape
-                        },
-                        color = when {
-                            isSystem -> CloudGlassSurface
-                            isUser -> ElectricBlue
-                            else -> CloudGlassSurface
-                        },
-                        border = BorderStroke(
-                            1.dp,
-                            if (isUser) AzureBlue.copy(alpha = 0.5f) else CloudGlassBorder
-                        ),
-                        shadowElevation = if (isUser) 4.dp else 8.dp,
-                        modifier = Modifier.combinedClickable(
-                            onClick = {},
-                            onLongClick = { showMenu = true }
-                        )
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // The letter header: who wrote, at what hour.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 4.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    if (isUser) {
-                                        Brush.horizontalGradient(listOf(ElectricBlue, AzureBlue))
-                                    } else {
-                                        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.05f), Color.Transparent))
-                                    }
+                        Text(
+                            text = when {
+                                isUser -> "YOU"
+                                isSystem -> "NOTE"
+                                else -> "AI"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 1.8.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isUser) LampAmber else DeskInk
+                            )
+                        )
+                        if (formattedTime.isNotEmpty()) {
+                            Text(
+                                text = formattedTime,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 1.2.sp,
+                                    color = DeskInkFaint
                                 )
-                                .padding(horizontal = 18.dp, vertical = 14.dp)
-                        ) {
-                            Column {
-                                val contentToRender = if (isStreaming) "${message.content}▋" else message.content
+                            )
+                        }
+                        if (isBookmarked) {
+                            Icon(
+                                imageVector = Icons.Default.Bookmark,
+                                contentDescription = "Bookmarked",
+                                tint = LampAmber.copy(alpha = 0.85f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
 
-                                if (markdownEnabled && !isUser) {
-                                    MarkdownRenderer(
-                                        markdownText = contentToRender,
-                                        textColor = CloudWhite,
-                                        codeWrapping = codeWrapping
-                                    )
+                    val contentToRender = if (isStreaming) "${message.content}▋" else message.content
+
+                    // The slip: walnut for your words, the bare page for the lamp's.
+                    Box(
+                        modifier = Modifier
+                            .then(
+                                if (isUser) {
+                                    Modifier
+                                        .fillMaxWidth(0.86f)
+                                        .align(Alignment.End)
+                                        .clip(DeskSlipShape)
+                                        .background(DeskWalnutRaised)
+                                        .border(1.dp, DeskHairline, DeskSlipShape)
+                                        .padding(horizontal = 18.dp, vertical = 14.dp)
                                 } else {
-                                    Text(
-                                        text = contentToRender,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            lineHeight = 22.sp,
-                                            color = CloudWhite
-                                        )
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .align(Alignment.Start)
+                                        .padding(end = 16.dp)
+                                }
+                            )
+                            .combinedClickable(
+                                onClick = {},
+                                onLongClick = { showMenu = true }
+                            )
+                    ) {
+                        Column {
+                            if (markdownEnabled && !isUser) {
+                                MarkdownRenderer(
+                                    markdownText = contentToRender,
+                                    textColor = DeskPaper,
+                                    codeWrapping = codeWrapping
+                                )
+                            } else {
+                                Text(
+                                    text = contentToRender,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        lineHeight = 22.sp,
+                                        color = DeskPaper
                                     )
-                                }
-
-                                // Timestamp & Bookmark Indicators
-                                Row(
-                                    modifier = Modifier
-                                        .padding(top = 6.dp)
-                                        .align(Alignment.End),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    if (isBookmarked) {
-                                        Icon(
-                                            imageVector = Icons.Default.Bookmark,
-                                            contentDescription = "Bookmarked",
-                                            tint = SoftCyan,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                    if (formattedTime.isNotEmpty()) {
-                                        Text(
-                                            text = formattedTime,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                            color = if (isUser) CloudWhite.copy(alpha = 0.75f) else MoonSilver.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                }
+                                )
                             }
                         }
                     }
 
-                    // Floating Quick Actions Bar for Assistant Messages
+                    // Quick actions, set in ink — for the lamp's letters only.
                     if (isAssistant && !isStreaming) {
                         Row(
-                            modifier = Modifier.padding(top = 6.dp, start = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.padding(top = 6.dp, start = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            IconButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("Message", message.content))
-                                    Toast.makeText(context, "Copied text", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy",
-                                    tint = MoonSilver.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            IconButton(
-                                onClick = onRegenerate,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Regenerate",
-                                    tint = MoonSilver.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            IconButton(
-                                onClick = { ConversationSharer.shareSingleMessage(context, message.content) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = "Share",
-                                    tint = MoonSilver.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Full Context Dropdown Menu
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Copy Text") },
-                            onClick = {
-                                showMenu = false
+                            InkIconButton(Icons.Default.ContentCopy, "Copy", tint = DeskInkFaint) {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("Message", message.content))
                                 Toast.makeText(context, "Copied text", Toast.LENGTH_SHORT).show()
-                            },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
-                        )
-
-                        if (isUser) {
-                            DropdownMenuItem(
-                                text = { Text("Edit Prompt") },
-                                onClick = {
-                                    showMenu = false
-                                    onEditPrompt()
-                                },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-                            )
-                        } else if (isAssistant) {
-                            DropdownMenuItem(
-                                text = { Text("Regenerate") },
-                                onClick = {
-                                    showMenu = false
-                                    onRegenerate()
-                                },
-                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
-                            )
-                        }
-
-                        DropdownMenuItem(
-                            text = { Text(if (isBookmarked) "Remove Bookmark" else "Bookmark Message") },
-                            onClick = {
-                                showMenu = false
-                                onBookmarkToggle()
-                            },
-                            leadingIcon = { Icon(if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = null) }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Share") },
-                            onClick = {
-                                showMenu = false
+                            }
+                            InkIconButton(Icons.Default.Refresh, "Regenerate", tint = DeskInkFaint) { onRegenerate() }
+                            InkIconButton(Icons.Default.Share, "Share", tint = DeskInkFaint) {
                                 ConversationSharer.shareSingleMessage(context, message.content)
-                            },
-                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-                        )
+                            }
+                        }
                     }
                 }
             }
+
+            // The ruled rule that closes the letter.
+            if (!isStreaming) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                listOf(Color.Transparent, DeskHairline, Color.Transparent)
+                            )
+                        )
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
         }
+    }
+
+    // Long-press ledger of actions.
+    DropdownMenu(
+        expanded = showMenu,
+        onDismissRequest = { showMenu = false }
+    ) {
+        DropdownMenuItem(
+            text = { Text("Copy Text") },
+            onClick = {
+                showMenu = false
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Message", message.content))
+                Toast.makeText(context, "Copied text", Toast.LENGTH_SHORT).show()
+            },
+            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) }
+        )
+
+        if (isUser) {
+            DropdownMenuItem(
+                text = { Text("Edit Prompt") },
+                onClick = {
+                    showMenu = false
+                    onEditPrompt()
+                },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+            )
+        } else if (isAssistant) {
+            DropdownMenuItem(
+                text = { Text("Regenerate") },
+                onClick = {
+                    showMenu = false
+                    onRegenerate()
+                },
+                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
+            )
+        }
+
+        DropdownMenuItem(
+            text = { Text(if (isBookmarked) "Remove Bookmark" else "Bookmark Message") },
+            onClick = {
+                showMenu = false
+                onBookmarkToggle()
+            },
+            leadingIcon = { Icon(if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = null) }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Share") },
+            onClick = {
+                showMenu = false
+                ConversationSharer.shareSingleMessage(context, message.content)
+            },
+            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Delete", color = io.androllm.core.ui.theme.EmberRed) },
+            onClick = {
+                showMenu = false
+                onDelete()
+            },
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = io.androllm.core.ui.theme.EmberRed) }
+        )
+    }
+}
+
+@Composable
+private fun InkIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick, modifier = Modifier.size(30.dp)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = tint,
+            modifier = Modifier.size(14.dp)
+        )
     }
 }

@@ -7,11 +7,11 @@ pluginManagement {
     plugins {
         id("com.android.application") version "8.13.2" apply false
         id("com.android.library") version "8.13.2" apply false
-        id("org.jetbrains.kotlin.android") version "2.0.20" apply false
-        id("com.google.dagger.hilt.android") version "2.51.1" apply false
-        id("org.jetbrains.kotlin.plugin.serialization") version "2.0.20" apply false
-        id("org.jetbrains.kotlin.plugin.compose") version "2.0.20" apply false
-        id("com.google.devtools.ksp") version "2.0.20-1.0.25" apply false
+        id("org.jetbrains.kotlin.android") version "2.1.20" apply false
+        id("com.google.dagger.hilt.android") version "2.57.1" apply false
+        id("org.jetbrains.kotlin.plugin.serialization") version "2.1.20" apply false
+        id("org.jetbrains.kotlin.plugin.compose") version "2.1.20" apply false
+        id("com.google.devtools.ksp") version "2.1.20-1.0.32" apply false
     }
 }
 plugins {
@@ -38,10 +38,15 @@ include(":core:navigation")
 include(":core:models")
 include(":core:network")
 include(":core:utils")
+include(":core:telemetry")
 include(":feature:home")
 include(":feature:chat")
 include(":feature:models")
 include(":feature:settings")
 include(":feature:splash")
+include(":feature:onboarding")
+include(":feature:profile")
+include(":feature:prompts")
+include(":feature:developer")
 include(":engine")
 include(":docs")

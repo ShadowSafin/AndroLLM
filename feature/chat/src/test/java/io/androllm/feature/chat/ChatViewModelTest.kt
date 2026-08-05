@@ -21,7 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -36,7 +36,9 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
 
-    private val dispatcher = StandardTestDispatcher()
+    // Unconfined: nested viewModelScope launches (e.g. sendMessage ->
+    // generateFromHistory) execute eagerly, so verification is deterministic.
+    private val dispatcher = UnconfinedTestDispatcher()
 
     private val engineRepository = mockk<EngineRepository>()
     private val conversationRepository = mockk<ConversationRepository>()
@@ -49,7 +51,7 @@ class ChatViewModelTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(dispatcher)
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         coEvery { engineRepository.initialize() } returns io.androllm.core.common.Result.Success(Unit)
         coEvery { engineRepository.buildChatPrompt(any(), any()) } returns io.androllm.core.common.Result.Success("<|im_start|>user\nhi<|im_end|>\n<|im_start|>assistant\n")
         coEvery { engineRepository.generate(any(), any()) } returns io.androllm.core.common.Result.Success(Unit)

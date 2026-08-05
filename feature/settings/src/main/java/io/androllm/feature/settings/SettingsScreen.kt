@@ -59,23 +59,23 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import io.androllm.core.common.UiState
 import io.androllm.core.models.ThemeMode
+import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.CloudCapsuleButton
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.SectionHeader
-import io.androllm.core.ui.theme.AuroraCyan
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.ElectricBlue
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SoftCyan
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampGlow
 import io.androllm.feature.settings.R
 
 /**
- * Cloud Intelligence Profile & Settings Screen.
- * User Avatar, Firebase Authentication & Guest Mode status, Stats Cards, and Preferences.
+ * Writer's Night Desk — Settings. Identity, storage, motion and privacy,
+ * all kept in walnut under the lamp.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,13 +85,19 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val logPreview by viewModel.logPreview.collectAsStateWithLifecycle()
+    val user by viewModel.user.collectAsStateWithLifecycle()
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
     var reduceMotion by remember { mutableStateOf(false) }
 
     CloudAtmosphericBackground(reduceMotion = reduceMotion) {
-        Scaffold(
-            containerColor = Color.Transparent,
+        CloudAdaptiveNavigation(
+            currentRoute = io.androllm.core.navigation.Routes.SETTINGS,
+            onTabSelected = { tab ->
+                if (tab.route != io.androllm.core.navigation.Routes.SETTINGS) {
+                    navController.navigate(tab.route)
+                }
+            },
             topBar = {
                 TopAppBar(
                     title = {
@@ -99,21 +105,11 @@ fun SettingsScreen(
                             stringResource(R.string.settings_title),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = CloudWhite
+                                color = DeskPaper
                             )
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-                )
-            },
-            bottomBar = {
-                io.androllm.core.ui.components.CloudBottomNavigationBar(
-                    currentRoute = io.androllm.core.navigation.Routes.SETTINGS,
-                    onTabSelected = { tab ->
-                        if (tab.route != io.androllm.core.navigation.Routes.SETTINGS) {
-                            navController.navigate(tab.route)
-                        }
-                    }
                 )
             }
         ) { padding ->
@@ -126,7 +122,7 @@ fun SettingsScreen(
             ) {
                 // 1. User Profile Header Card
                 item {
-                    UserProfileCard()
+                    UserProfileCard(user = user)
                 }
 
                 // 2. User Statistics Cards
@@ -136,7 +132,10 @@ fun SettingsScreen(
 
                 // 3. Firebase Authentication Section
                 item {
-                    FirebaseAuthCard()
+                    FirebaseAuthCard(
+                        user = user,
+                        onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) }
+                    )
                 }
 
                 // 4. Appearance & Motion
@@ -214,7 +213,7 @@ fun SettingsScreen(
                             Text(
                                 text = logPreview.ifBlank { stringResource(R.string.settings_logs_empty) },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MoonSilver.copy(alpha = 0.6f),
+                                color = DeskInk,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
@@ -254,7 +253,7 @@ fun SettingsScreen(
  * Large Floating User Profile Header Card.
  */
 @Composable
-private fun UserProfileCard() {
+private fun UserProfileCard(user: SettingsIdentity?) {
     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -264,18 +263,34 @@ private fun UserProfileCard() {
             Spacer(modifier = Modifier.width(18.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "AndroLLM User",
+                    text = user?.displayName?.takeIf { it.isNotBlank() } ?: "AndroLLM User",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = CloudWhite
-                    )
+                        color = DeskPaper
+                    ),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Anonymous Guest • Offline AI Enabled",
+                    text = user?.displayName?.takeIf { it.isNotBlank() } ?: "",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = SoftCyan
-                    )
+                        color = DeskInkFaint
+                    ),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    text = if (user?.isGuest == false) {
+                        user?.email ?: ""
+                    } else {
+                        "Guest • 100% on-device"
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = if (user?.isGuest == false) LampGlow else DeskInkFaint
+                    ),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
         }
@@ -293,30 +308,33 @@ private fun UserStatsRow() {
     ) {
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Downloaded", style = MaterialTheme.typography.labelSmall.copy(color = MoonSilver.copy(alpha = 0.6f)))
-                Text("3 Models", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = CloudWhite))
+                Text("Downloaded", style = MaterialTheme.typography.labelSmall.copy(color = DeskInk))
+                Text("3 Models", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = DeskPaper))
             }
         }
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Storage", style = MaterialTheme.typography.labelSmall.copy(color = MoonSilver.copy(alpha = 0.6f)))
-                Text("4.2 GB", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = CloudWhite))
+                Text("Storage", style = MaterialTheme.typography.labelSmall.copy(color = DeskInk))
+                Text("4.2 GB", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = DeskPaper))
             }
         }
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Execution", style = MaterialTheme.typography.labelSmall.copy(color = MoonSilver.copy(alpha = 0.6f)))
-                Text("Vulkan", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = SoftCyan))
+                Text("Execution", style = MaterialTheme.typography.labelSmall.copy(color = DeskInk))
+                Text("Vulkan", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = LampAmber))
             }
         }
     }
 }
 
 /**
- * Firebase Authentication & Cloud Sync Section.
+ * Account & Sync Section.
  */
 @Composable
-private fun FirebaseAuthCard() {
+private fun FirebaseAuthCard(
+    user: SettingsIdentity?,
+    onSignIn: () -> Unit
+) {
     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(
@@ -326,25 +344,34 @@ private fun FirebaseAuthCard() {
             ) {
                 Column {
                     Text(
-                        text = "Firebase Cloud Account",
+                        text = "Account & Sync",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = CloudWhite
+                            color = DeskPaper
                         )
                     )
                     Text(
-                        text = "Cloud sync is optional. Offline AI never requires login.",
+                        text = if (user?.isGuest == false) {
+                            "Synced as ${user?.email ?: "your account"}"
+                        } else {
+                            "Syncing is optional — offline AI never requires a login"
+                        },
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = MoonSilver.copy(alpha = 0.7f)
-                        )
+                            color = DeskInk
+                        ),
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
-                CloudChip(text = "Optional", accentColor = SoftCyan)
+                CloudChip(
+                    text = if (user?.isGuest == false) "Signed In" else "Optional",
+                    accentColor = if (user?.isGuest == false) LampAmber else LampGlow
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
             CloudCapsuleButton(
-                text = "Sign in with Google",
-                onClick = {},
+                text = if (user?.isGuest == false) "Manage Account" else "Sign in with Google",
+                onClick = onSignIn,
                 icon = Icons.Filled.AccountCircle,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -370,14 +397,14 @@ private fun SettingRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = SkyBlue,
+            tint = LampGlow,
             modifier = Modifier.size(20.dp)
         )
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.Medium,
-                color = CloudWhite
+                color = DeskPaper
             ),
             modifier = Modifier.weight(1f)
         )
@@ -385,7 +412,7 @@ private fun SettingRow(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = MoonSilver.copy(alpha = 0.7f)
+                    color = DeskInkFaint
                 )
             )
         }

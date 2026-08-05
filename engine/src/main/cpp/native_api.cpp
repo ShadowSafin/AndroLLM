@@ -165,6 +165,37 @@ static std::string utf16_to_utf8(const char16_t *in, size_t n) {
     return out;
 }
 
+// Validates that `string` is a sequence of complete UTF-8 characters.
+// Used to buffer streamed token pieces until they form valid characters
+// (upstream ai_chat.cpp cached_token_chars pattern), so multi-byte code
+// points split across tokens are never emitted as truncated sequences.
+static bool is_valid_utf8(const char *string) {
+    if (!string) return true;
+    const auto *bytes = (const unsigned char *)string;
+    int num;
+    while (*bytes != 0x00) {
+        if ((*bytes & 0x80) == 0x00) {
+            num = 1;
+        } else if ((*bytes & 0xE0) == 0xC0) {
+            num = 2;
+        } else if ((*bytes & 0xF0) == 0xE0) {
+            num = 3;
+        } else if ((*bytes & 0xF8) == 0xF0) {
+            num = 4;
+        } else {
+            return false;
+        }
+        bytes += 1;
+        for (int i = 1; i < num; ++i) {
+            if ((*bytes & 0xC0) != 0x80) {
+                return false;
+            }
+            bytes += 1;
+        }
+    }
+    return true;
+}
+
 static jstring to_jstring(JNIEnv *env, const std::string &s) {
     std::u16string u = utf8_to_utf16(s);
     return env->NewString(reinterpret_cast<const jchar *>(u.data()), (jsize)u.size());
@@ -254,13 +285,83 @@ private:
     void ws() { while (p_ < in_.size() && (in_[p_]==' '||in_[p_]=='\t'||in_[p_]=='\n'||in_[p_]=='\r')) p_++; }
     bool eat(char c) { if (peek()==c) { p_++; return true; } return false; }
 
+    static int hexVal(char c) {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    }
+
+    static void appendUtf8(std::string &o, uint32_t cp) {
+        if (cp < 0x80) {
+            o += (char)cp;
+        } else if (cp < 0x800) {
+            o += (char)(0xC0 | (cp >> 6));
+            o += (char)(0x80 | (cp & 0x3F));
+        } else if (cp < 0x10000) {
+            o += (char)(0xE0 | (cp >> 12));
+            o += (char)(0x80 | ((cp >> 6) & 0x3F));
+            o += (char)(0x80 | (cp & 0x3F));
+        } else {
+            o += (char)(0xF0 | (cp >> 18));
+            o += (char)(0x80 | ((cp >> 12) & 0x3F));
+            o += (char)(0x80 | ((cp >> 6) & 0x3F));
+            o += (char)(0x80 | (cp & 0x3F));
+        }
+    }
+
+    // Decode a JSON string body, handling every escape sequence correctly.
+    // The previous implementation dropped the backslash of \n/\t/\r/\uXXXX,
+    // corrupting message content (newlines became literal 'n' characters) when
+    // the chat history was re-rendered on subsequent turns.
     bool str(std::string &o) {
         if (!eat('"')) return false; o.clear();
         while (p_ < in_.size()) {
             char c = in_[p_++];
             if (c == '"') return true;
-            if (c == '\\') { if (p_>=in_.size()) return false; c=in_[p_++]; }
-            o += c;
+            if (c != '\\') { o += c; continue; }
+            if (p_ >= in_.size()) return false;
+            char e = in_[p_++];
+            switch (e) {
+                case '"':  o += '"';  break;
+                case '\\': o += '\\'; break;
+                case '/':  o += '/';  break;
+                case 'b':  o += '\b'; break;
+                case 'f':  o += '\f'; break;
+                case 'n':  o += '\n'; break;
+                case 'r':  o += '\r'; break;
+                case 't':  o += '\t'; break;
+                case 'u': {
+                    if (p_ + 4 > in_.size()) return false;
+                    uint32_t cp = 0;
+                    for (int k = 0; k < 4; k++) {
+                        int v = hexVal(in_[p_ + k]);
+                        if (v < 0) return false;
+                        cp = (cp << 4) | (uint32_t)v;
+                    }
+                    p_ += 4;
+                    // handle UTF-16 surrogate pairs
+                    if (cp >= 0xD800 && cp <= 0xDBFF) {
+                        if (p_ + 6 <= in_.size() && in_[p_] == '\\' && in_[p_ + 1] == 'u') {
+                            uint32_t lo = 0;
+                            bool ok = true;
+                            for (int k = 0; k < 4; k++) {
+                                int v = hexVal(in_[p_ + 2 + k]);
+                                if (v < 0) { ok = false; break; }
+                                lo = (lo << 4) | (uint32_t)v;
+                            }
+                            if (ok && lo >= 0xDC00 && lo <= 0xDFFF) {
+                                cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+                                p_ += 6;
+                            }
+                        }
+                    }
+                    appendUtf8(o, cp);
+                    break;
+                }
+                default:
+                    return false; // invalid JSON escape
+            }
         }
         return false;
     }
@@ -328,6 +429,7 @@ struct GenConfig {
     std::string grammar;            // GBNF grammar, empty = none
     std::string jsonSchema;         // JSON schema, empty = none
     bool enableThinking = false;    // enable thinking mode in chat templates (Qwen2.5/Qwen3)
+    bool reuseKvCache = true;       // keep the KV cache across turns (official multi-turn pattern)
     int64_t seed = -1;
     std::vector<std::string> stopSequences;
 };
@@ -360,6 +462,7 @@ static GenConfig parseGenConfig(const std::string &json) {
     if (auto *n = get("jsonSchema"); n && n->type == mini_json::Node::String)
         c.jsonSchema = n->str;
     if (auto *n = get("enableThinking"))     c.enableThinking = n->boolean;
+    if (auto *n = get("reuseKvCache"))       c.reuseKvCache = n->boolean;
     if (auto *n = get("seed"))               c.seed = (int64_t)n->num;
     if (auto *n = get("stopSequences"); n && n->type == mini_json::Node::Array)
         c.stopSequences = n->array;
@@ -442,6 +545,7 @@ struct LlamaEngine {
     // ── upstream state (matches ai_chat.cpp) ──
     std::vector<common_chat_msg> chatMsgs;   // accumulated messages
     llama_pos chatPosition = 0;              // current position in KV cache
+    bool      reuseEligible = false;         // KV content == lastPromptTokens ++ lastGenerated
     llama_pos systemPromptEnd = 0;           // position after system prompt
 
     // ── diagnostics ──
@@ -472,6 +576,7 @@ struct LlamaEngine {
         backendReason.clear();
         chatMsgs.clear();
         chatPosition = 0;
+        reuseEligible = false;
         systemPromptEnd = 0;
         lastPromptTokens.clear();
         lastGeneratedTokens.clear();
@@ -727,44 +832,128 @@ static std::string doGenerate(
     }
     LOGI("[Tok] prompt_head: %.200s", prompt.c_str());
 
-    // ── Clear KV cache before prefill ──
-    // Use metadata=false (upstream bench pattern): clears only metadata, not GPU data
-    // buffers. With Vulkan backend, clearing data can cause GPU sync corruption where
-    // the clear and subsequent prefill overlap, corrupting KV state on re-prefill.
-    llama_memory_clear(mem, false);
+    // ── KV cache reuse across turns (official multi-turn pattern) ──
+    // The chat history is re-rendered with common_chat_format_single(), which
+    // returns the diff for each new message, so the re-rendered prompt for the
+    // next turn is always the previous prompt plus a suffix. When that holds, we
+    // keep the previously prefilled prompt in the cache, drop only the stale
+    // generated tail, and prefill the new suffix at the continuing position
+    // (upstream ai_chat.cpp never clears the cache between turns - it continues
+    // from current_position). This avoids the llama_memory_clear + full
+    // re-prefill on every turn, a pattern that has been observed to corrupt KV
+    // state on the Vulkan backend when the clear and the subsequent prefill
+    // overlap.
+    //
+    // The generated (assistant) tokens from the previous turn cannot be reused
+    // as-is: the next prompt re-renders the assistant response from stored text,
+    // whose re-tokenization (including template wrapper tokens such as
+    // <|im_start|>assistant\n) does not reproduce the raw sampled token stream.
+    // So we remove the generated tail with llama_memory_seq_rm and re-prefill
+    // the assistant block + new user block at the continuing position - the
+    // resulting cache is cell-for-cell identical to a full re-prefill.
+    //
+    // Any change to the history (edit, delete, retry, new conversation) makes
+    // the prefix comparison fail, and we safely fall back to a full re-prefill
+    // of the rendered prompt from a cleared cache - identical to upstream
+    // reset_long_term_states() + decode_tokens_in_batches().
+    const bool reuse = cfg.reuseKvCache;
+    bool fullReprocess = true;
+    llama_pos prefillStart = 0;
+    size_t prefillOffset = 0; // token index where decoding begins
+
+    if (reuse && eng->reuseEligible && eng->chatPosition > 0) {
+        // The KV cache holds the previous turn's prompt tokens (positions
+        // [0, prevLen)) followed by the generated tail. The new prompt starts
+        // with the same prompt tokens whenever the history is a strict
+        // continuation (tokenization is deterministic). When that holds, drop
+        // the stale generated tail and prefill only the new suffix - positions
+        // continue from prevLen, matching upstream. reuseEligible is false after
+        // a context shift, a cancellation, a decode error, or a reset, which
+        // guarantees the prefix is still resident and contiguous.
+        const size_t prevLen = eng->lastPromptTokens.size();
+        if (prevLen > 0 && prevLen <= tokens.size() &&
+            (llama_pos)prevLen <= eng->chatPosition &&
+            std::equal(eng->lastPromptTokens.begin(), eng->lastPromptTokens.end(), tokens.begin())) {
+            if (llama_memory_seq_rm(mem, 0, (llama_pos)prevLen, -1)) {
+                fullReprocess = false;
+                prefillStart = (llama_pos)prevLen;
+                prefillOffset = prevLen;
+                LOGI("[KV] reuse cache: prefix=%zu total_tokens=%zu new_suffix=%zu (dropped %zu generated)",
+                     prevLen, tokens.size(), tokens.size() - prevLen,
+                     (size_t)(eng->chatPosition - prevLen));
+            } else {
+                LOGW("[KV] seq_rm failed - full re-prefill");
+            }
+        } else {
+            LOGI("[KV] prefix mismatch (prev=%zu new=%zu chatPos=%d) - full re-prefill",
+                 prevLen, tokens.size(), (int)eng->chatPosition);
+        }
+    }
+
+    if (fullReprocess) {
+        // metadata=false resets every cell (matches upstream ai_chat.cpp
+        // reset_long_term_states() and llama-bench); the GPU data buffers are
+        // fully overwritten by the prefill below.
+        llama_memory_clear(mem, false);
+    }
 
     // ── Prefill ──
     llama_batch batch = llama_batch_init(n_batch, 0, 1);
 
-    bool prefillOk = true;
-    int prefillBatchCount = 0;
-    for (size_t i = 0; i < tokens.size(); i += n_batch) {
-        size_t n = std::min<size_t>(n_batch, tokens.size() - i);
-        bool batch_has_last = false;
-        common_batch_clear(batch);
-        for (size_t j = 0; j < n; j++) {
-            bool last = (i + j == tokens.size() - 1);
-            if (last) batch_has_last = true;
-            common_batch_add(batch, tokens[i + j], (llama_pos)(i + j), {0}, last);
+    auto run_prefill = [&](size_t from, llama_pos pos0) -> bool {
+        bool ok = true;
+        int batchCount = 0;
+        for (size_t i = from; i < tokens.size(); i += n_batch) {
+            size_t n = std::min<size_t>(n_batch, tokens.size() - i);
+            bool batch_has_last = false;
+            common_batch_clear(batch);
+            for (size_t j = 0; j < n; j++) {
+                bool last = (i + j == tokens.size() - 1);
+                if (last) batch_has_last = true;
+                common_batch_add(batch, tokens[i + j],
+                                 (llama_pos)(pos0 + (i - from) + j), {0}, last);
+            }
+            batchCount++;
+            if (batchCount <= 2 || batch_has_last) {
+                LOGI("[Prefill] batch %d: n=%zu first_pos=%d last_pos=%d",
+                     batchCount, n, (int)(pos0 + (i - from)), (int)(pos0 + (i - from) + n - 1));
+            }
+            if (llama_decode(eng->ctx, batch) != 0) {
+                ok = false;
+                LOGE("[Prefill] FAILED at batch %d token_idx=%zu", batchCount, i);
+                break;
+            }
         }
-        prefillBatchCount++;
-        if (prefillBatchCount <= 2 || batch_has_last) {
-            LOGI("[Prefill] batch %d: n=%zu first_pos=%d last_pos=%d",
-                 prefillBatchCount, n, (int)(i), (int)(i + n - 1));
-        }
-        if (llama_decode(eng->ctx, batch) != 0) {
-            prefillOk = false;
-            LOGE("[Prefill] FAILED at batch %d token_idx=%zu", prefillBatchCount, i);
-            break;
-        }
+        return ok;
+    };
+
+    bool prefillOk = run_prefill(prefillOffset, prefillStart);
+    if (!prefillOk && !fullReprocess) {
+        // The diff did not fit into the remaining cache: fall back to the full
+        // re-prefill of the rendered prompt from a cleared cache.
+        LOGW("[KV] diff prefill failed - falling back to full re-prefill");
+        llama_memory_clear(mem, false);
+        prefillOk = run_prefill(0, 0);
     }
 
     if (!prefillOk) {
         llama_batch_free(batch);
         eng->lastStopReason = "decode_error";
+        // The cache was cleared and partially prefilled; never let the next turn
+        // reuse this indeterminate state.
+        eng->chatPosition = 0;
+        eng->reuseEligible = false;
         throw_java(env, "Prompt decode failed");
         return "{}";
     }
+
+    // Tokens now resident in the KV cache: used as the prefix of the next turn's
+    // rendered prompt. lastPromptTokens was already set above; chatPosition must
+    // equal the number of prefilled tokens for the next reuse decision. The cache
+    // is contiguous ([0, tokens.size()) filled), so reuse stays eligible unless a
+    // context shift later truncates it.
+    eng->chatPosition = (llama_pos)tokens.size();
+    eng->reuseEligible = true;
 
     auto t1 = clock::now();
     int64_t promptMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
@@ -773,10 +962,20 @@ static std::string doGenerate(
 
     // ── Decode loop (upstream pattern) ──
     std::string output;
+    std::string pendingUtf8;   // buffers token pieces until they form valid UTF-8
     int64_t generated = 0;
 
     for (int i = 0; i < cfg.maxTokens; i++) {
-        if (eng->cancel.load()) { eng->lastStopReason = "cancelled"; break; }
+        if (eng->cancel.load()) {
+            eng->lastStopReason = "cancelled";
+            // Invalidate cache reuse: the generated tokens left in the KV cache
+            // are not part of the next turn's prompt (the cancelled response is
+            // not stored), so reusing the cache would leak them into the next
+            // context and corrupt it.
+            eng->chatPosition = 0;
+            eng->reuseEligible = false;
+            break;
+        }
 
         // Context full: shift (upstream pattern: discard older half after system prompt)
         llama_pos pos_check = llama_memory_seq_pos_max(mem, 0);
@@ -786,6 +985,9 @@ static std::string doGenerate(
             if (n_discard > 0) {
                 llama_memory_seq_rm(mem, 0, sysEnd, sysEnd + n_discard);
                 llama_memory_seq_add(mem, 0, sysEnd + n_discard, pos_check + 1, -n_discard);
+                // The resident cache no longer matches lastPromptTokens, so the
+                // next turn must not reuse it.
+                eng->reuseEligible = false;
                 LOGI("[Shift] discarded %d tokens from pos %d..%d at step=%lld (preserved system prompt %d)",
                      (int)n_discard, (int)sysEnd, (int)(sysEnd + n_discard - 1),
                      (long long)generated, (int)sysEnd);
@@ -828,10 +1030,19 @@ static std::string doGenerate(
         }
         if (stopped) { eng->lastStopReason = "stop_sequence"; break; }
 
-        if (!piece.empty()) {
-            jstring jpiece = to_jstring(env, piece);
+        // Buffer the piece until it forms a complete UTF-8 character (upstream
+        // ai_chat.cpp cached_token_chars pattern). A multi-byte code point may be
+        // split across several tokens; emitting the truncated sequence would be
+        // replaced with U+FFFD by the JNI UTF-8 conversion and corrupt the text.
+        pendingUtf8 += piece;
+        bool completeUtf8 = is_valid_utf8(pendingUtf8.c_str());
+        // Bound the buffer at 8 bytes so a run of malformed byte-fallback
+        // tokens cannot stall streaming or grow memory without limit.
+        if (!pendingUtf8.empty() && (completeUtf8 || pendingUtf8.size() > 8)) {
+            jstring jpiece = to_jstring(env, pendingUtf8);
             env->CallVoidMethod(callback, onToken, jpiece, JNI_FALSE);
             env->DeleteLocalRef(jpiece);
+            pendingUtf8.clear();
         }
         generated++;
 
@@ -840,9 +1051,18 @@ static std::string doGenerate(
         common_batch_add(batch, id, llama_memory_seq_pos_max(mem, 0) + 1, {0}, true);
         if (llama_decode(eng->ctx, batch) != 0) {
             eng->lastStopReason = "decode_error";
+            eng->chatPosition = 0; // see cancel branch above
             LOGW("[Gen] decode failed at step=%lld", (long long)generated);
             break;
         }
+    }
+
+    // Normal completion (eos / max_tokens / stop_sequence): the generated tokens
+    // remain in the KV cache, so record the next free position for the following
+    // turn's diff prefill. Cancelled / decode_error runs already invalidated
+    // reuse by zeroing chatPosition.
+    if (eng->chatPosition != 0) {
+        eng->chatPosition = llama_memory_seq_pos_max(mem, 0) + 1;
     }
 
     llama_batch_free(batch);
@@ -859,6 +1079,14 @@ static std::string doGenerate(
          (long long)genMs, (long long)generated, tps);
 
     eng->trackMemory();
+
+    // Flush any remaining buffered bytes at the end of the stream
+    if (!pendingUtf8.empty()) {
+        jstring jpiece = to_jstring(env, pendingUtf8);
+        env->CallVoidMethod(callback, onToken, jpiece, JNI_FALSE);
+        env->DeleteLocalRef(jpiece);
+        pendingUtf8.clear();
+    }
 
     // Send final empty delta
     jstring empty = to_jstring(env, "");
@@ -1509,11 +1737,14 @@ try {
 
     // Compute systemPromptEnd: token count of system prompt portion
     if (rp.systemPromptCharEnd > 0 && eng->ctx && eng->model) {
-        const llama_vocab *vocab = llama_model_get_vocab(eng->model);
-        const bool addBos = llama_vocab_get_add_bos(vocab);
         std::string sysPart = rp.prompt.substr(0, rp.systemPromptCharEnd);
+        // Tokenize exactly like doGenerate() (add_special=false): the rendered
+        // prompt already contains the BOS token text, which parse_special=true
+        // converts into the BOS token. Using add_special here would insert a
+        // second BOS and make systemPromptEnd off-by-one vs. the prefill
+        // positions, shifting the wrong range during context compression.
         std::vector<llama_token> sysToks =
-            common_tokenize(eng->ctx, sysPart, /*add_special=*/addBos, /*parse_special=*/true);
+            common_tokenize(eng->ctx, sysPart, /*add_special=*/false, /*parse_special=*/true);
         eng->systemPromptEnd = (llama_pos)sysToks.size();
         LOGI("[Template] systemPromptEnd=%d (from %zu chars, %zu tokens)",
              (int)eng->systemPromptEnd, rp.systemPromptCharEnd, sysToks.size());
@@ -1548,11 +1779,11 @@ try {
         addAssistant == JNI_TRUE, eng->chatMsgs);
 
     if (rp.systemPromptCharEnd > 0 && eng->ctx && eng->model) {
-        const llama_vocab *vocab = llama_model_get_vocab(eng->model);
-        const bool addBos = llama_vocab_get_add_bos(vocab);
         std::string sysPart = rp.prompt.substr(0, rp.systemPromptCharEnd);
+        // Tokenize exactly like doGenerate() (add_special=false); see
+        // nativeApplyChatTemplate for the rationale.
         std::vector<llama_token> sysToks =
-            common_tokenize(eng->ctx, sysPart, /*add_special=*/addBos, /*parse_special=*/true);
+            common_tokenize(eng->ctx, sysPart, /*add_special=*/false, /*parse_special=*/true);
         eng->systemPromptEnd = (llama_pos)sysToks.size();
     } else {
         eng->systemPromptEnd = 0;
@@ -1580,7 +1811,9 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeResetChat(
     if (!eng) return;
     eng->chatMsgs.clear();
     eng->chatPosition = 0;
+    eng->reuseEligible = false;
     eng->systemPromptEnd = 0;
+    eng->lastPromptTokens.clear();
     if (eng->ctx) {
         llama_memory_clear(llama_get_memory(eng->ctx), true);
     }

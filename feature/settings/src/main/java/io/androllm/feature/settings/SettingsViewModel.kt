@@ -2,6 +2,8 @@ package io.androllm.feature.settings
 
 import android.content.Context
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.androllm.core.common.BaseViewModel
@@ -14,6 +16,7 @@ import io.androllm.core.utils.StorageUtils
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -33,9 +36,25 @@ class SettingsViewModel @Inject constructor(
     private val _logPreview = MutableStateFlow("")
     val logPreview: StateFlow<String> = _logPreview
 
+    /** Firebase is optional — the settings header must still work offline as a guest. */
+    private val auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+
+    private val _user = MutableStateFlow(auth?.currentUser?.toSettingsUser())
+    val user: StateFlow<SettingsIdentity?> = _user.asStateFlow()
+
+    private val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+        _user.value = firebaseAuth.currentUser?.toSettingsUser()
+    }
+
     init {
         observeSettings()
         refreshLogPreview()
+        auth?.addAuthStateListener(authListener)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        auth?.removeAuthStateListener(authListener)
     }
 
     private fun observeSettings() {
@@ -154,4 +173,19 @@ data class SettingsData(
     val codeWrapping: Boolean = false,
     val autoScroll: Boolean = true,
     val typingIndicator: Boolean = true
+)
+
+/**
+ * UI snapshot of the Firebase identity for the settings header (null-safe).
+ */
+data class SettingsIdentity(
+    val displayName: String?,
+    val email: String?
+) {
+    val isGuest: Boolean get() = email.isNullOrBlank()
+}
+
+private fun FirebaseUser.toSettingsUser(): SettingsIdentity = SettingsIdentity(
+    displayName = displayName,
+    email = email
 )

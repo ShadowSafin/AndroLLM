@@ -71,6 +71,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -78,9 +79,10 @@ import io.androllm.core.models.Conversation
 import io.androllm.core.models.MessageRole
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudChip
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SoftCyan
+import io.androllm.core.ui.theme.DeskHairline
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.DeskWalnutRaised
+import io.androllm.core.ui.theme.LampGlow
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.GenerationConfig
 import io.androllm.feature.chat.export.ConversationExporter
@@ -97,13 +99,15 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * Cloud Intelligence Chat Screen with 6-Layer background, Markdown rendering,
- * floating input bar, streaming animations, and sampler options.
+ * THE WRITER'S NIGHT DESK — Chat. Your correspondence with the lamp: ruled
+ * paper slips instead of bubbles, a walnut writing slip for the composer, one
+ * amber send, and the ledger of context and tokens above the page.
  */
 @Composable
 fun ChatScreen(
     navController: NavController,
     conversationId: String = "",
+    initialPrompt: String? = null,
     onNavigateUp: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
@@ -132,6 +136,19 @@ fun ChatScreen(
         }
     }
 
+    // One-shot prompt from the Prompt Library.
+    LaunchedEffect(initialPrompt) {
+        if (!initialPrompt.isNullOrBlank()) {
+            viewModel.sendPromptFromLibrary(initialPrompt)
+        }
+    }
+
+    // Real device metrics for the drawer (no fabricated values).
+    val hardwareInfo = remember(context) { io.androllm.core.utils.DeviceInfoCollector.collectDeviceInfo(context) }
+    val storageStats = remember(context) { io.androllm.core.utils.StorageUtils.getStorageStats(context) }
+    val ramUsedGb = (hardwareInfo.totalRamBytes - hardwareInfo.availableRamBytes) / (1024.0 * 1024.0 * 1024.0)
+    val storageUsedGb = storageStats.usedBytes / (1024.0 * 1024.0 * 1024.0)
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -140,8 +157,8 @@ fun ChatScreen(
                 pinnedConversations = successState?.pinnedConversations ?: emptyList(),
                 selectedConversationId = successState?.conversationId ?: "",
                 currentModelName = (successState?.engineState as? EngineState.Ready)?.model?.id,
-                ramUsageText = "3.2 GB",
-                storageUsageText = "4.1 GB",
+                ramUsageText = String.format("%.1f GB", ramUsedGb),
+                storageUsageText = String.format("%.1f GB", storageUsedGb),
                 onSelectConversation = { id ->
                     viewModel.selectConversation(id)
                     scope.launch { drawerState.close() }
@@ -291,6 +308,13 @@ fun ChatScreen(
                             }
                         }
 
+                        ChatStatsBar(
+                            contextLength = (successState?.engineState as? EngineState.Ready)?.model?.contextLength ?: 0,
+                            stats = successState?.performanceStats,
+                            liveTokenCount = (successState?.generationState as? io.androllm.engine.api.GenerationState.Generating)?.generatedTokens ?: 0L,
+                            isGenerating = isGenerating
+                        )
+
                         ComposeInputArea(
                             text = inputMessageText,
                             onTextChanged = { inputMessageText = it },
@@ -318,8 +342,8 @@ fun ChatScreen(
                                     if (targetIndex >= 0) listState.animateScrollToItem(targetIndex)
                                 }
                             },
-                            containerColor = io.androllm.core.ui.theme.CloudGlassSurface,
-                            contentColor = SoftCyan,
+                            containerColor = io.androllm.core.ui.theme.LampAmber,
+                            contentColor = io.androllm.core.ui.theme.InkOnLamp,
                             elevation = FloatingActionButtonDefaults.elevation(8.dp),
                             modifier = Modifier.size(44.dp)
                         ) {
@@ -491,19 +515,113 @@ fun ChatScreen(
     }
 }
 
+/**
+ * Live generation + context window stats above the composer.
+ * Every value is real engine telemetry: native tokens/sec, prompt/generated
+ * token counts, timing, and stop reason.
+ */
+@Composable
+private fun ChatStatsBar(
+    contextLength: Int,
+    stats: io.androllm.engine.models.EngineStats?,
+    liveTokenCount: Long,
+    isGenerating: Boolean
+) {
+    if (contextLength <= 0 && stats == null && !isGenerating) return
+
+    val usedTokens = (stats?.promptTokens ?: 0L) + if (isGenerating) liveTokenCount else (stats?.generatedTokens ?: 0L)
+    val contextFraction = if (contextLength > 0) usedTokens.toFloat() / contextLength else 0f
+    val liveTps = stats?.tokensPerSecond ?: 0f
+
+    androidx.compose.material3.Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = io.androllm.core.ui.theme.DeskSlipShape,
+        color = DeskWalnutRaised,
+        border = androidx.compose.foundation.BorderStroke(1.dp, DeskHairline)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (contextLength > 0) {
+                        "CONTEXT $usedTokens / $contextLength"
+                    } else {
+                        "ENGINE ACTIVE"
+                    },
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.2.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = io.androllm.core.ui.theme.DeskInk
+                    )
+                )
+                if (isGenerating) {
+                    Text(
+                        text = "$liveTokenCount tokens • ${String.format("%.1f", liveTps)} tok/s",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.2.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = LampGlow
+                        )
+                    )
+                } else if (stats != null && stats.generatedTokens > 0) {
+                    Text(
+                        text = buildString {
+                            append(String.format("%.1f", stats.tokensPerSecond)).append(" tok/s")
+                            append(" · ").append(stats.promptTokens + stats.generatedTokens).append(" tokens")
+                            if (stats.totalTimeMs > 0) append(" · ").append(String.format("%.1f", stats.totalTimeMs / 1000f)).append("s")
+                            if (stats.firstTokenMs > 0) append(" · first ").append(String.format("%.1f", stats.firstTokenMs / 1000f)).append("s")
+                            if (stats.stopReason.isNotBlank()) append(" · ").append(stats.stopReason)
+                        },
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.2.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = io.androllm.core.ui.theme.DeskInk
+                        )
+                    )
+                } else {
+                    Text(
+                        text = "IDLE",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            letterSpacing = 1.2.sp,
+                            color = io.androllm.core.ui.theme.DeskInkFaint
+                        )
+                    )
+                }
+            }
+
+            if (contextLength > 0) {
+                Spacer(modifier = Modifier.height(6.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { contextFraction.coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp),
+                    color = if (contextFraction > 0.85f) io.androllm.core.ui.theme.EmberRed else LampGlow,
+                    trackColor = LampGlow.copy(alpha = 0.15f)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun DebugRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MoonSilver.copy(alpha = 0.6f),
+            color = io.androllm.core.ui.theme.DeskInk,
             modifier = Modifier.weight(0.4f)
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
-            color = CloudWhite,
+            color = DeskPaper,
             modifier = Modifier.weight(0.6f)
         )
     }
@@ -530,7 +648,7 @@ private fun SamplerSettingsSheet(
             Text(
                 "Applied to the next message. Defaults mirror llama.cpp.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MoonSilver.copy(alpha = 0.7f)
+                color = io.androllm.core.ui.theme.DeskInk
             )
 
             SamplerSlider(
@@ -605,7 +723,7 @@ private fun SamplerSlider(
             Text(
                 format(value),
                 style = MaterialTheme.typography.labelMedium,
-                color = MoonSilver.copy(alpha = 0.7f)
+                color = io.androllm.core.ui.theme.DeskInk
             )
         }
         Slider(value = value, onValueChange = onValueChange, valueRange = range)
@@ -636,14 +754,13 @@ private fun ChatTopBar(
                     text = conversationTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = CloudWhite
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        color = DeskPaper
                     )
                 )
 
                 val statusLabel = when (engineState) {
-                    is EngineState.Ready -> performanceStats?.tokensPerSecond?.let { "%.1f tok/s".format(it) } ?: "Vulkan Ready"
+                    is EngineState.Ready -> performanceStats?.tokensPerSecond?.let { "${"%.1f".format(it)} tok/s" } ?: "Vulkan Ready"
                     is EngineState.Loading -> "Loading: ${engineState.stage}"
                     is EngineState.WarmingUp -> "Warming Up: ${engineState.step}"
                     is EngineState.Generating -> "Generating tokens..."
@@ -653,30 +770,31 @@ private fun ChatTopBar(
                 }
 
                 Text(
-                    text = statusLabel,
+                    text = statusLabel.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = SoftCyan
+                        letterSpacing = 1.4.sp,
+                        color = LampGlow.copy(alpha = 0.9f)
                     )
                 )
             }
         },
         navigationIcon = {
             IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Default.Menu, contentDescription = "Open Drawer", tint = CloudWhite)
+                Icon(Icons.Default.Menu, contentDescription = "Open Drawer", tint = DeskPaper)
             }
         },
         actions = {
             IconButton(onClick = onOpenSearch) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = CloudWhite)
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = DeskPaper)
             }
 
             IconButton(onClick = onOpenSampler) {
-                Icon(Icons.Default.Tune, contentDescription = "Sampler settings", tint = CloudWhite)
+                Icon(Icons.Default.Tune, contentDescription = "Sampler settings", tint = DeskPaper)
             }
 
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = CloudWhite)
+                    Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = DeskPaper)
                 }
 
                 DropdownMenu(

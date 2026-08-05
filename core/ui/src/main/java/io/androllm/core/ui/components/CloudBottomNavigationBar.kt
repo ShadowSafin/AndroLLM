@@ -18,14 +18,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,34 +36,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudGlassBorderHighlight
-import io.androllm.core.ui.theme.CloudGlassSurface
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.RevolutNeonEmerald
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SunsetCloudOrange
-import io.androllm.core.ui.theme.SunsetCloudPeach
-import io.androllm.core.ui.theme.SunsetGlowAmber
+import io.androllm.core.ui.theme.DeskHairline
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.DeskWalnut
+import io.androllm.core.ui.theme.DeskWalnutRaised
+import io.androllm.core.ui.theme.InkOnLamp
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampGlow
 import kotlinx.coroutines.launch
 
 enum class CloudTab(val route: String, val title: String, val icon: ImageVector) {
     HOME("home", "Home", Icons.Default.Home),
     CHAT("chat", "Chat", Icons.Default.Chat),
     MODELS("models", "Models", Icons.Default.Layers),
+    PROFILE("profile", "Profile", Icons.Default.Person),
     SETTINGS("settings", "Settings", Icons.Default.Settings)
 }
 
 /**
- * Revolut-Style Floating Glass Bottom Navigation Bar.
- * Features spring animated pill indicator, subtle sunset highlights, and badge counters.
+ * The ledger bar — a walnut strip with mono-caps labels and a small lit lamp
+ * on the active tab. The active tab reads in warm paper with an amber lamp
+ * dot; every other tab is ink and hairline.
  */
 @Composable
 fun CloudBottomNavigationBar(
@@ -77,35 +76,21 @@ fun CloudBottomNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Floating Glass Island Capsule
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
-                .clip(RoundedCornerShape(34.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xDF0E1626),
-                            Color(0xF5070B14)
-                        )
-                    )
-                )
+                .height(66.dp)
+                .clip(RoundedCornerShape(33.dp))
+                .background(DeskWalnut.copy(alpha = 0.96f))
                 .border(
                     width = 1.dp,
-                    brush = Brush.horizontalGradient(
-                        listOf(
-                            CloudGlassBorderHighlight,
-                            CloudGlassBorder,
-                            SunsetGlowAmber.copy(alpha = 0.3f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(34.dp)
+                    color = DeskHairline,
+                    shape = RoundedCornerShape(33.dp)
                 )
-                .padding(horizontal = 8.dp)
+                .padding(horizontal = 6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -121,22 +106,19 @@ fun CloudBottomNavigationBar(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(
-                                if (selected) SunsetCloudOrange.copy(alpha = 0.25f) else Color.Transparent
-                            )
+                            .clip(RoundedCornerShape(24.dp))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
                                 scope.launch {
-                                    scaleAnim.animateTo(0.88f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                    scaleAnim.animateTo(0.9f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                                     scaleAnim.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                                 }
                                 onTabSelected(tab)
                             }
                             .scale(scaleAnim.value)
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
@@ -147,24 +129,23 @@ fun CloudBottomNavigationBar(
                                 Icon(
                                     imageVector = tab.icon,
                                     contentDescription = tab.title,
-                                    tint = if (selected) SunsetCloudPeach else MoonSilver.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(22.dp)
+                                    tint = if (selected) LampAmber else DeskInkFaint,
+                                    modifier = Modifier.size(20.dp)
                                 )
-
                                 if (badgeCount > 0) {
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
                                             .size(14.dp)
                                             .clip(CircleShape)
-                                            .background(RevolutNeonEmerald),
+                                            .background(LampAmber),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = if (badgeCount > 9) "9+" else badgeCount.toString(),
                                             fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
+                                            color = InkOnLamp,
+                                            textAlign = TextAlign.Center
                                         )
                                     }
                                 }
@@ -173,13 +154,24 @@ fun CloudBottomNavigationBar(
                             Spacer(modifier = Modifier.height(3.dp))
 
                             Text(
-                                text = tab.title,
+                                text = tab.title.uppercase(),
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selected) CloudWhite else MoonSilver.copy(alpha = 0.5f)
+                                    fontSize = 9.sp,
+                                    letterSpacing = 1.6.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                    color = if (selected) DeskPaper else DeskInk.copy(alpha = 0.7f)
                                 )
                             )
+
+                            if (selected) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .size(3.dp)
+                                        .clip(CircleShape)
+                                        .background(LampGlow)
+                                )
+                            }
                         }
                     }
                 }

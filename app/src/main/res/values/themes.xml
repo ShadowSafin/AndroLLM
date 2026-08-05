@@ -5,10 +5,10 @@
         <item name="android:statusBarColor">@color/brand_background</item>
     </style>
 
-    <style name="Theme.AndroLLM.Splash" parent="Theme.AndroLLM">
-        <item name="android:windowBackground">@color/brand_background</item>
-        <item name="android:windowFullscreen">true</item>
-        <item name="android:windowTranslucentStatus">true</item>
-        <item name="android:windowTranslucentNavigation">true</item>
+    <style name="Theme.AndroLLM.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenAnimationDuration">500</item>
+        <item name="postSplashScreenTheme">@style/Theme.AndroLLM</item>
     </style>
 </resources>

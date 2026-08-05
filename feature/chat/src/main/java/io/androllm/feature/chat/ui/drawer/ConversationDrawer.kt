@@ -88,69 +88,52 @@ fun ConversationDrawerContent(
 ) {
     ModalDrawerSheet(
         modifier = modifier.width(320.dp),
-        drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        drawerContainerColor = io.androllm.core.ui.theme.DeskWalnut
     ) {
         Column(
             modifier = Modifier
                 .fillMaxHeight()
                 .padding(16.dp)
         ) {
-            // App Header
+            // App Header — the wordmark on the walnut.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "A",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                    }
+                    io.androllm.core.ui.components.CloudBugdroidLogo(size = 34.dp, showMoon = false)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
                             text = "AndroLLM",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                color = io.androllm.core.ui.theme.DeskPaper
+                            )
                         )
                         Text(
-                            text = "v1.0.0 • Offline LLM",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
+                            text = "PRIVATE AI · ON-DEVICE",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = io.androllm.core.ui.theme.DeskInk
+                            )
                         )
                     }
                 }
 
                 IconButton(onClick = onOpenSearch) {
-                    Icon(Icons.Default.Search, contentDescription = "Search chats")
+                    Icon(Icons.Default.Search, contentDescription = "Search chats", tint = io.androllm.core.ui.theme.DeskPaper)
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // + New Chat Button
-            Button(
+            // + New Chat Button — one amber capsule.
+            io.androllm.core.ui.components.CloudCapsuleButton(
+                text = "New Chat",
                 onClick = onNewChat,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("New Chat", fontWeight = FontWeight.SemiBold)
-            }
+                icon = Icons.Default.Add,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -165,9 +148,11 @@ fun ConversationDrawerContent(
                     item {
                         Text(
                             text = "PINNED CHATS",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = io.androllm.core.ui.theme.LampAmber,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.4.sp
+                            ),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -185,16 +170,18 @@ fun ConversationDrawerContent(
                     }
 
                     item {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = io.androllm.core.ui.theme.DeskHairline, modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
 
                 item {
                     Text(
                         text = "RECENT CHATS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = io.androllm.core.ui.theme.DeskInk,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.4.sp
+                        ),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
@@ -229,35 +216,35 @@ fun ConversationDrawerContent(
 
             // Footer System Info & Settings
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Model Status Badge
+                // The loaded model, as a ruled journal entry.
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    shape = RoundedCornerShape(12.dp),
+                    color = io.androllm.core.ui.theme.DeskWalnutRaised,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(8.dp),
+                        modifier = Modifier.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Memory,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        io.androllm.core.ui.components.LampDot(size = 8.dp, lit = currentModelName != null)
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = currentModelName ?: "No Model Loaded",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
+                                text = currentModelName ?: "No model loaded",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = io.androllm.core.ui.theme.DeskPaper,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.6.sp
+                                ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "RAM: $ramUsageText | Storage: $storageUsageText",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.outline
+                                text = "RAM $ramUsageText · KEEP $storageUsageText",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = io.androllm.core.ui.theme.DeskInk
+                                )
                             )
                         }
                     }
@@ -267,7 +254,7 @@ fun ConversationDrawerContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable { onOpenSettings() }
                         .padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -275,13 +262,15 @@ fun ConversationDrawerContent(
                     Icon(
                         Icons.Default.Settings,
                         contentDescription = "Settings",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = io.androllm.core.ui.theme.DeskPaper
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Settings",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = io.androllm.core.ui.theme.DeskPaper,
+                            fontWeight = FontWeight.Medium
+                        )
                     )
                 }
             }

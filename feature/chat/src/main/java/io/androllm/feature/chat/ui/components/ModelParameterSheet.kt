@@ -41,19 +41,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.androllm.core.ui.components.CloudCapsuleButton
-import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.DarkAtmosphere
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.RevolutCyberCyan
-import io.androllm.core.ui.theme.RevolutNeonEmerald
-import io.androllm.core.ui.theme.SunsetCloudOrange
-import io.androllm.core.ui.theme.SunsetCloudPeach
+import io.androllm.core.ui.theme.DeskHairline
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskNight
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
+import io.androllm.core.ui.theme.LampGlow
 
 /**
- * Revolut-Inspired Model Parameter Tuner Bottom Sheet.
- * Allows interactive fine-tuning of Temperature, Top-P, Repeat Penalty, and System Presets.
+ * The lamp's tuner — Temperature, Top-P, Repeat Penalty, and system personas.
+ * One amber hand; the rest stays quiet walnut and ink.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +76,7 @@ fun ModelParameterSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = DarkAtmosphere,
+        containerColor = DeskNight,
         scrimColor = Color.Black.copy(alpha = 0.6f)
     ) {
         Column(
@@ -95,7 +94,7 @@ fun ModelParameterSheet(
                     Icon(
                         imageVector = Icons.Default.Tune,
                         contentDescription = null,
-                        tint = SunsetCloudPeach,
+                        tint = LampGlow,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
@@ -103,7 +102,7 @@ fun ModelParameterSheet(
                         text = "Engine Parameter Tuning",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = CloudWhite
+                            color = DeskPaper
                         )
                     )
                 }
@@ -111,14 +110,15 @@ fun ModelParameterSheet(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(RevolutNeonEmerald.copy(alpha = 0.2f))
+                        .background(LampGlow.copy(alpha = 0.18f))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "LIVE TUNER",
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Black,
-                        color = RevolutNeonEmerald
+                        letterSpacing = 0.6.sp,
+                        color = LampGlow
                     )
                 }
             }
@@ -135,14 +135,14 @@ fun ModelParameterSheet(
                         text = "Temperature (Creativity)",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = CloudWhite
+                            color = DeskPaper
                         )
                     )
                     Text(
                         text = String.format("%.2f", temperature),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = SunsetCloudPeach
+                            color = LampGlow
                         )
                     )
                 }
@@ -152,9 +152,9 @@ fun ModelParameterSheet(
                     onValueChange = { temperature = it },
                     valueRange = 0.1f..1.5f,
                     colors = SliderDefaults.colors(
-                        thumbColor = SunsetCloudPeach,
-                        activeTrackColor = SunsetCloudOrange,
-                        inactiveTrackColor = CloudGlassBorder
+                        thumbColor = LampGlow,
+                        activeTrackColor = LampAmber,
+                        inactiveTrackColor = DeskHairline
                     )
                 )
             }
@@ -171,14 +171,14 @@ fun ModelParameterSheet(
                         text = "Top-P (Nucleus Sampling)",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = CloudWhite
+                            color = DeskPaper
                         )
                     )
                     Text(
                         text = String.format("%.2f", topP),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = RevolutCyberCyan
+                            color = LampAmber
                         )
                     )
                 }
@@ -188,9 +188,9 @@ fun ModelParameterSheet(
                     onValueChange = { topP = it },
                     valueRange = 0.1f..1.0f,
                     colors = SliderDefaults.colors(
-                        thumbColor = RevolutCyberCyan,
-                        activeTrackColor = RevolutCyberCyan,
-                        inactiveTrackColor = CloudGlassBorder
+                        thumbColor = LampAmber,
+                        activeTrackColor = LampAmber,
+                        inactiveTrackColor = DeskHairline
                     )
                 )
             }
@@ -202,7 +202,7 @@ fun ModelParameterSheet(
                 text = "System Persona",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = CloudWhite
+                    color = DeskPaper
                 )
             )
 
@@ -214,7 +214,7 @@ fun ModelParameterSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) SunsetCloudOrange else Color(0x33E2E8F0))
+                            .background(if (isSelected) LampDeep else DeskHairline.copy(alpha = 0.5f))
                             .clickable { selectedPreset = name }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
@@ -222,7 +222,7 @@ fun ModelParameterSheet(
                             text = name,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) CloudWhite else MoonSilver
+                            color = if (isSelected) LampGlow else DeskInkFaint
                         )
                     }
                 }

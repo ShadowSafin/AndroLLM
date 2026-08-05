@@ -207,7 +207,8 @@ fun PromptStudioCarousel(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = MoonSilver.copy(alpha = 0.6f)
                             ),
-                            maxLines = 2
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }

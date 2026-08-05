@@ -34,24 +34,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import io.androllm.core.ui.theme.AzureBlue
-import io.androllm.core.ui.theme.CloudCapsuleShape
-import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudGlassBorderHighlight
-import io.androllm.core.ui.theme.CloudGlassSurface
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.ElectricBlue
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SoftCyan
+import io.androllm.core.ui.theme.DeskHairline
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.DeskPillShape
+import io.androllm.core.ui.theme.DeskSlipShape
+import io.androllm.core.ui.theme.DeskWalnutRaised
+import io.androllm.core.ui.theme.EmberRed
+import io.androllm.core.ui.theme.InkOnLamp
+import io.androllm.core.ui.theme.LampAmber
 
 /**
- * Cloud Intelligence Input Area.
- * Floating cloud capsule input bar with ambient glow and spring send button.
+ * The writing slip — the desk's composer. A walnut panel with a ruled
+ * underline where the words go, and one amber capsule for sending the letter.
+ * While the model writes back, the capsule becomes a stop: the lamp's answer.
  */
 @Composable
 fun ComposeInputArea(
@@ -72,22 +72,22 @@ fun ComposeInputArea(
             .navigationBarsPadding()
             .imePadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = CloudCapsuleShape,
-        color = CloudGlassSurface,
-        border = BorderStroke(1.dp, if (text.isNotEmpty()) CloudGlassBorderHighlight else CloudGlassBorder),
-        shadowElevation = 12.dp
+        shape = DeskSlipShape,
+        color = DeskWalnutRaised,
+        border = BorderStroke(1.dp, if (text.isNotEmpty()) LampAmber.copy(alpha = 0.45f) else DeskHairline),
+        shadowElevation = 10.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Attach Button
+                // Attach — a quiet marginal note.
                 IconButton(
                     onClick = {
                         Toast.makeText(context, "File attachments coming soon", Toast.LENGTH_SHORT).show()
@@ -97,11 +97,10 @@ fun ComposeInputArea(
                     Icon(
                         imageVector = Icons.Default.AttachFile,
                         contentDescription = "Attach file",
-                        tint = MoonSilver.copy(alpha = 0.7f)
+                        tint = DeskInk
                     )
                 }
 
-                // Text Field Capsule
                 OutlinedTextField(
                     value = text,
                     onValueChange = {
@@ -109,16 +108,16 @@ fun ComposeInputArea(
                     },
                     placeholder = {
                         Text(
-                            text = "Ask AndroLLM...",
+                            text = "Send a message…",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = MoonSilver.copy(alpha = 0.5f)
+                                color = DeskInkFaint
                             )
                         )
                     },
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = 2.dp),
-                    shape = CloudCapsuleShape,
+                    shape = DeskPillShape,
                     maxLines = 5,
                     enabled = enabled && !isGenerating,
                     trailingIcon = {
@@ -130,7 +129,7 @@ fun ComposeInputArea(
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Clear input",
-                                    tint = MoonSilver.copy(alpha = 0.7f)
+                                    tint = DeskInk
                                 )
                             }
                         }
@@ -141,12 +140,13 @@ fun ComposeInputArea(
                         disabledBorderColor = Color.Transparent,
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
-                        focusedTextColor = CloudWhite,
-                        unfocusedTextColor = CloudWhite
+                        focusedTextColor = DeskPaper,
+                        unfocusedTextColor = DeskPaper,
+                        cursorColor = LampAmber
                     )
                 )
 
-                // Mic Placeholder
+                // Mic — a quiet marginal note.
                 if (text.isEmpty() && !isGenerating) {
                     IconButton(
                         onClick = {
@@ -157,20 +157,22 @@ fun ComposeInputArea(
                         Icon(
                             imageVector = Icons.Default.Mic,
                             contentDescription = "Voice input",
-                            tint = MoonSilver.copy(alpha = 0.7f)
+                            tint = DeskInk
                         )
                     }
                 }
 
-                // Floating Send / Stop Button Capsule
+                // The single amber capsule: send, or stop while the lamp writes.
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(46.dp)
                         .clip(CircleShape)
                         .background(
-                            if (isGenerating) Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.error))
-                            else if (text.isNotBlank()) Brush.horizontalGradient(listOf(ElectricBlue, SoftCyan))
-                            else Brush.horizontalGradient(listOf(CloudGlassSurface, CloudGlassSurface))
+                            when {
+                                isGenerating -> EmberRed
+                                text.isNotBlank() -> LampAmber
+                                else -> DeskInkFaint.copy(alpha = 0.5f)
+                            }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -193,15 +195,15 @@ fun ComposeInputArea(
                                 Icon(
                                     imageVector = Icons.Default.Stop,
                                     contentDescription = "Stop generating",
-                                    tint = CloudWhite,
-                                    modifier = Modifier.size(22.dp)
+                                    tint = InkOnLamp,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Send,
                                     contentDescription = "Send message",
-                                    tint = if (text.isNotBlank()) CloudWhite else MoonSilver.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(20.dp)
+                                    tint = if (text.isNotBlank()) InkOnLamp else DeskInk,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -213,7 +215,7 @@ fun ComposeInputArea(
                 Text(
                     text = "${text.length} / $maxCharacterLimit",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (text.length >= maxCharacterLimit) MaterialTheme.colorScheme.error else MoonSilver.copy(alpha = 0.5f),
+                    color = if (text.length >= maxCharacterLimit) EmberRed else DeskInk,
                     modifier = Modifier
                         .align(Alignment.End)
                         .padding(end = 16.dp, top = 2.dp)

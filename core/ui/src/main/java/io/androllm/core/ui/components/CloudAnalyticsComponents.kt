@@ -74,7 +74,10 @@ fun RevolutResourceGaugeCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -98,13 +101,17 @@ fun RevolutResourceGaugeCard(
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = CloudWhite
-                            )
+                            ),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = if (vulkanEnabled) "Vulkan GPU Acceleration Active" else "CPU Multi-Thread Mode",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = if (vulkanEnabled) RevolutNeonEmerald else MoonSilver.copy(alpha = 0.6f)
-                            )
+                            ),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -265,7 +272,9 @@ fun RevolutHardwareBadge(isVulkan: Boolean) {
 @Composable
 fun RevolutPerformanceChartCard(
     dataPoints: List<Float>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String = "Generation Throughput",
+    subtitle: String = "Live Stream"
 ) {
     CloudGlassCard(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -275,14 +284,17 @@ fun RevolutPerformanceChartCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Generation Latency & Throughput",
+                    text = title,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
                         color = CloudWhite
-                    )
+                    ),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "Live Stream",
+                    text = subtitle,
                     style = MaterialTheme.typography.labelSmall.copy(
                         color = RevolutNeonEmerald,
                         fontWeight = FontWeight.Bold

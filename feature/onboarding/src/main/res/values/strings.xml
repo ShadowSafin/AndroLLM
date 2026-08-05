@@ -1,0 +1,20 @@
+<resources>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_get_started">Get Started</string>
+
+    <string name="onboarding_page1_title">Welcome to AndroLLM</string>
+    <string name="onboarding_page1_subtitle">Your private AI assistant that runs entirely on your device.</string>
+
+    <string name="onboarding_page2_title">100% Local Intelligence</string>
+    <string name="onboarding_page2_subtitle">Runs completely on-device. No cloud inference. Your conversations stay on your phone.</string>
+
+    <string name="onboarding_page3_title">Lightning Fast</string>
+    <string name="onboarding_page3_subtitle">Optimized GGUF models. Vulkan acceleration. Offline performance.</string>
+
+    <string name="onboarding_page4_title">Choose Your Models</string>
+    <string name="onboarding_page4_subtitle">Download GGUF models. Switch instantly. Private inference.</string>
+
+    <string name="onboarding_page5_title">Ready to Begin?</string>
+    <string name="onboarding_page5_subtitle">Your private AI is waiting. Everything stays on your device.</string>
+</resources>

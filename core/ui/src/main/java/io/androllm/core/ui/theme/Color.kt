@@ -3,82 +3,107 @@ package io.androllm.core.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Cloud Intelligence Design System — Sunset Twilight Palette
- * Inspired by the Cloud Bugdroid & Crescent Moon visual identity.
+ * The Writer's Night Desk — design tokens.
+ * A private desk at midnight: your model is the lamp, every conversation a
+ * letter you keep. Deep warm night with a single lamp-amber accent; walnut,
+ * paper, hairline rules, and ink instead of glass, neon, and gradient chrome.
  */
-// Primary Twilight & Sunset Palette
-val DeepMidnightBlue = Color(0xFF070B14)
-val DarkAtmosphere = Color(0xFF0E1626)
-val TwilightNavy = Color(0xFF131D33)
-val CloudShadowIndigo = Color(0xFF1E2238)
+// ── The night desk ────────────────────────────────────────────────────────────
+val DeskNight = Color(0xFF0A0806)          // the room around the desk
+val DeskNightRaised = Color(0xFF0E0C08)    // chair / raised ground
+val DeskWalnut = Color(0xFF1A150F)         // desk wood, cards
+val DeskWalnutRaised = Color(0xFF211B13)   // wood under the lamp
+val DeskWalnutDeep = Color(0xFF151008)     // lower desk
+val DeskPaper = Color(0xFFEDD9B6)          // warm paper / primary text
+val DeskPaperDim = Color(0xFFC8B692)       // well-worn ink
+val DeskInk = Color(0xFF8A7A62)            // secondary ink
+val DeskInkFaint = Color(0xFF5C5141)       // marginalia
+val DeskHairline = Color(0xFF2A2318)       // the ruled line
+val DeskHairlineSoft = Color(0xFF201A12)
 
-val SkyBlue = Color(0xFF38BDF8)
-val AzureBlue = Color(0xFF0284C7)
-val CloudWhite = Color(0xFFF8FAFC)
-val MoonSilver = Color(0xFFE2E8F0)
-val SoftCyan = Color(0xFF2DD4BF)
+// ── The lamp (the single accent) ──────────────────────────────────────────────
+val LampAmber = Color(0xFFE8A33D)          // the one accent — everything loud is this
+val LampGlow = Color(0xFFFFC978)           // lit filament / press feedback
+val LampHalo = Color(0x66E8A33D)           // glow ring around the lit dot
+val LampDeep = Color(0xFFB06F1E)           // lamp base, pressed state
+val InkOnLamp = Color(0xFF180F04)           // text on the amber
 
-// Sunset Cloud Warm Glow (Matching Logo Cloud Bugdroid)
-val SunsetCloudPeach = Color(0xFFFF8A65)
-val SunsetCloudOrange = Color(0xFFFF7043)
-val SunsetCloudDeepOrange = Color(0xFFF4511E)
-val SunsetGlowAmber = Color(0xFFFFA726)
-val CrescentMoonGold = Color(0xFFFFE082)
+// ── Warm error ─────────────────────────────────────────────────────────────────
+val EmberRed = Color(0xFFD97762)
+val EmberRedSoft = Color(0xFF4A2A22)
+val EmberRedHard = Color(0xFF81261D)
+val EmberOnRed = Color(0xFF2A0E08)
 
-// Revolut-Inspired Super-App & Holographic Accents
-val RevolutNeonEmerald = Color(0xFF10B981)
-val RevolutPlatinum = Color(0xFFF1F5F9)
-val RevolutUltraViolet = Color(0xFF8B5CF6)
-val RevolutGoldTier = Color(0xFFF59E0B)
-val RevolutRoseGold = Color(0xFFFB7185)
-val RevolutCyberCyan = Color(0xFF22D3EE)
-val RevolutTitanium = Color(0xFF94A3B8)
-val RevolutDarkCardBackground = Color(0xFF0F172A)
+// ── Legacy aliases mapped into the desk palette ─────────────────────────────────
+// Kept so untouched call-sites land inside the same world while screens are
+// hand-rebuilt onto the tokens above.
+val DeepMidnightBlue = DeskNight
+val DarkAtmosphere = DeskNightRaised
+val TwilightNavy = DeskWalnut
+val CloudShadowIndigo = DeskWalnutDeep
 
-// Secondary & Accents
-val LavenderGlow = Color(0xFFC084FC)
-val DeepIndigo = Color(0xFF1E1B4B)
-val PurpleGlow = Color(0xFFA855F7)
-val ElectricBlue = Color(0xFF3B82F6)
-val AuroraCyan = Color(0xFF06B6D4)
-val MoonlightWhite = Color(0xFFFFFFFF)
+val SkyBlue = LampAmber
+val AzureBlue = LampDeep
+val CloudWhite = DeskPaper
+val MoonSilver = DeskPaperDim
+val SoftCyan = LampGlow.copy(alpha = 0.9f)
 
-// Glassmorphism & Translucent Layers
-val CloudGlassSurface = Color(0x330E1626)
-val CloudGlassSurfaceVariant = Color(0x4D1D283E)
-val CloudGlassBorder = Color(0x33E2E8F0)
-val CloudGlassBorderHighlight = Color(0x66FF8A65)
-val CloudMoonGlow = Color(0x40FF8A65)
-val CloudParticleTint = Color(0x80FFAB91)
+val SunsetCloudPeach = LampAmber
+val SunsetCloudOrange = LampDeep
+val SunsetCloudDeepOrange = Color(0xFF8C5420)
+val SunsetGlowAmber = LampGlow
+val CrescentMoonGold = LampGlow
 
-// Legacy alias mappings for backward compatibility
-val brandPrimary = ElectricBlue
-val brandAccent = SunsetCloudOrange
-val brandOnPrimary = MoonlightWhite
+val RevolutNeonEmerald = LampAmber
+val RevolutPlatinum = DeskPaperDim
+val RevolutUltraViolet = Color(0xFFB08D6E)
+val RevolutGoldTier = LampAmber
+val RevolutRoseGold = Color(0xFFE0A489)
+val RevolutCyberCyan = LampGlow
+val RevolutTitanium = DeskInkFaint
+val RevolutDarkCardBackground = DeskWalnut
 
-val brandBackground = DeepMidnightBlue
-val brandSurface = DarkAtmosphere
-val brandSurfaceVariant = TwilightNavy
-val brandOnSurface = CloudWhite
-val brandOnSurfaceVariant = MoonSilver
-val brandOutline = Color(0x4094A3B8)
-val brandOutlineVariant = Color(0x2094A3B8)
+val LavenderGlow = Color(0xFFC0A288)
+val DeepIndigo = Color(0xFF3A2E22)
+val PurpleGlow = Color(0xFFA88D72)
+val ElectricBlue = LampAmber
+val AuroraCyan = LampGlow
+val MoonlightWhite = DeskPaper
 
-val brandError = Color(0xFFF87171)
-val brandOnError = Color(0xFF7F1D1D)
-val brandErrorContainer = Color(0xFF991B1B)
-val brandOnErrorContainer = Color(0xFFFEE2E2)
+// Glass aliases now read as the lamp-lit translucent walnut
+val CloudGlassSurface = Color(0x2E1A150F)
+val CloudGlassSurfaceVariant = Color(0x401F1810)
+val CloudGlassBorder = Color(0x33E8A33C)
+val CloudGlassBorderHighlight = Color(0x66FFC978)
+val CloudMoonGlow = Color(0x40FFC978)
+val CloudParticleTint = Color(0x59FFC978)
+
+// Material role mappings
+val brandPrimary = LampAmber
+val brandAccent = LampAmber
+val brandOnPrimary = InkOnLamp
+
+val brandBackground = DeskNight
+val brandSurface = DeskNightRaised
+val brandSurfaceVariant = DeskWalnut
+val brandOnSurface = DeskPaper
+val brandOnSurfaceVariant = DeskInk
+val brandOutline = DeskHairline
+val brandOutlineVariant = DeskHairlineSoft
+
+val brandError = EmberRed
+val brandOnError = EmberRedHard
+val brandErrorContainer = EmberRedSoft
+val brandOnErrorContainer = Color(0xFFF6D2C8)
 
 val onSurface = brandOnSurface
 
-/**
- * Light theme colors (Cloud Daylight Variant)
- */
-val LightPrimary = AzureBlue
-val LightOnPrimary = MoonlightWhite
-val LightBackground = Color(0xFFF1F5F9)
-val LightSurface = Color(0xFFFFFFFF)
-val LightOnSurface = Color(0xFF0E1626)
-val LightSurfaceVariant = Color(0xFFE2E8F0)
-val LightOnSurfaceVariant = Color(0xFF475569)
-val LightOutline = Color(0xFF94A3B8)
+// ── Daylight desk (light theme, retained as the lesser scene) ────────────────────
+val LightPrimary = LampDeep
+val LightOnPrimary = InkOnLamp
+val LightBackground = Color(0xFFF3EAD9)
+val LightSurface = Color(0xFFFFF8EC)
+val LightOnSurface = Color(0xFF211B13)
+val LightSurfaceVariant = Color(0xFFE8DCC4)
+val LightOnSurfaceVariant = Color(0xFF6B5A42)
+val LightOutline = Color(0xFFC2B090)

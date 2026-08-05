@@ -204,10 +204,11 @@ class DefaultEngineRepository @Inject constructor(
             return Result.error("Model not loaded")
         }
 
-        _generationState.value = GenerationState.Generating(prompt = prompt, streamingText = "")
+        _generationState.value = GenerationState.Generating(prompt = prompt, streamingText = "", generatedTokens = 0L)
 
         var fullText = ""
         var lastEmitTime = 0L
+        var tokenCount = 0L
         return try {
             engine.tokenStream(prompt, config)
                 .onEach { result ->
@@ -216,12 +217,16 @@ class DefaultEngineRepository @Inject constructor(
                             val chunk = result.data
                             if (chunk.delta.isNotEmpty() && !chunk.finished) {
                                 fullText += chunk.delta
+                                // Prefer the native token counter when the backend reports it;
+                                // otherwise count emitted deltas (1 delta = 1 token piece).
+                                if (chunk.generatedTokens > 0) tokenCount = chunk.generatedTokens else tokenCount++
                                 val now = System.currentTimeMillis()
                                 if (now - lastEmitTime >= 16L) {
                                     lastEmitTime = now
                                     _generationState.value = GenerationState.Generating(
                                         prompt = prompt,
-                                        streamingText = fullText
+                                        streamingText = fullText,
+                                        generatedTokens = tokenCount
                                     )
                                 }
                             }

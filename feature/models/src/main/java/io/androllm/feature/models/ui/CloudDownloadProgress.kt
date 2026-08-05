@@ -33,15 +33,15 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.androllm.core.ui.theme.AuroraCyan
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.ElectricBlue
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SoftCyan
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
+import io.androllm.core.ui.theme.LampGlow
 
 /**
- * Premium Radial Cloud Download Progress Ring & Celebration Arc.
+ * Desk — a lit progress ring for the model shelf. One amber sweep as the
+ * weight settles into the drawer.
  */
 @Composable
 fun CloudDownloadProgress(
@@ -67,9 +67,9 @@ fun CloudDownloadProgress(
             val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
             val arcSize = Size(diameter, diameter)
 
-            // Track Arc
+            // Track Arc — the dark lamp shade
             drawArc(
-                color = ElectricBlue.copy(alpha = 0.15f),
+                color = LampDeep.copy(alpha = 0.3f),
                 startAngle = 0f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -78,10 +78,10 @@ fun CloudDownloadProgress(
                 style = Stroke(width = strokeWidth)
             )
 
-            // Progress Arc
+            // Progress Arc — the lamp glow
             drawArc(
                 brush = Brush.sweepGradient(
-                    listOf(SkyBlue, AuroraCyan, SoftCyan, SkyBlue)
+                    listOf(LampAmber, LampGlow, LampAmber, LampAmber)
                 ),
                 startAngle = -90f,
                 sweepAngle = 360f * animatedProgress,
@@ -99,7 +99,7 @@ fun CloudDownloadProgress(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Completed",
-                    tint = SoftCyan,
+                    tint = LampGlow,
                     modifier = Modifier.size(32.dp)
                 )
             } else {
@@ -107,7 +107,7 @@ fun CloudDownloadProgress(
                     text = "$progressPercent%",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = CloudWhite
+                        color = DeskPaper
                     )
                 )
                 if (speedMbps > 0f) {
@@ -115,7 +115,7 @@ fun CloudDownloadProgress(
                         text = "%.1fMB/s".format(speedMbps),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 9.sp,
-                            color = MoonSilver.copy(alpha = 0.7f)
+                            color = DeskInk
                         )
                     )
                 }

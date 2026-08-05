@@ -96,7 +96,8 @@ sealed interface GenerationState {
 
     data class Generating(
         val prompt: String,
-        val streamingText: String
+        val streamingText: String,
+        val generatedTokens: Long = 0
     ) : GenerationState
 
     data class Completed(

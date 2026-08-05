@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Golden crescent moon (top right) -->
+    <path
+        android:fillColor="#FFE082"
+        android:fillType="evenOdd"
+        android:pathData="M66,30 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0 z M63,24 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0 z" />
+
+    <!-- Peach cloud base -->
+    <path
+        android:fillColor="#FF8A65"
+        android:pathData="M29,86 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0 z M41,80 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 z M62,86 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0 z M29,86 L77,86 L77,102 L29,102 Z" />
+</vector>

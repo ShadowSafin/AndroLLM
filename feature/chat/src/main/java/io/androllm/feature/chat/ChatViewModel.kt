@@ -153,6 +153,18 @@ class ChatViewModel @Inject constructor(
         _currentConversationId.value = id
     }
 
+    private var initialPromptConsumed = false
+
+    /**
+     * Sends a prompt arriving from the Prompt Library (nav argument).
+     * One-shot per chat entry: navigating back does not re-send it.
+     */
+    fun sendPromptFromLibrary(prompt: String) {
+        if (initialPromptConsumed || prompt.isBlank()) return
+        initialPromptConsumed = true
+        sendMessage(prompt)
+    }
+
     fun createNewConversation(title: String = "New Chat") {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -183,7 +195,9 @@ class ChatViewModel @Inject constructor(
             messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
         }")
         viewModelScope.launch {
-            val promptResult = engineRepository.buildChatPrompt(messages)
+            // Explicit addAssistant=true: the rendered prompt ends with the
+            // assistant turn header so generation can start immediately.
+            val promptResult = engineRepository.buildChatPrompt(messages, addAssistant = true)
             val prompt = promptResult.getOrNull()
             if (prompt.isNullOrBlank()) {
                 val err = (promptResult as? io.androllm.core.common.Result.Error)?.exception?.message

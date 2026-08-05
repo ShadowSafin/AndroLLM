@@ -20,10 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,29 +34,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.androllm.core.ui.theme.AuroraCyan
-import io.androllm.core.ui.theme.CloudCapsuleShape
-import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudGlassBorderHighlight
-import io.androllm.core.ui.theme.CloudGlassSurface
-import io.androllm.core.ui.theme.CloudIslandShape
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.ElectricBlue
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SoftCyan
+import androidx.compose.ui.unit.sp
+import io.androllm.core.ui.theme.DeskCardShape
+import io.androllm.core.ui.theme.DeskHairline
+import io.androllm.core.ui.theme.DeskHairlineSoft
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.DeskPillShape
+import io.androllm.core.ui.theme.DeskWalnut
+import io.androllm.core.ui.theme.DeskWalnutRaised
+import io.androllm.core.ui.theme.InkOnLamp
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.LampHalo
 
 /**
- * Backward compatible wrapper for GradientBackground using 6-Layer Cloud Atmospheric System.
+ * Backward compatible wrapper for the desk background.
  */
 @Composable
 fun GradientBackground(
@@ -71,19 +71,20 @@ fun GradientBackground(
 }
 
 /**
- * Floating Cloud Island Glassmorphic Card (28dp rounded)
+ * A walnut desk panel — the writing surface of the desk. Soft offset shadow,
+ * hairline border, warm wood; pressed states settle the card a fraction.
  */
 @Composable
 fun CloudGlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    borderColor: Color = CloudGlassBorder,
+    borderColor: Color = DeskHairline,
     contentPadding: PaddingValues = PaddingValues(20.dp),
     content: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
+        targetValue = if (isPressed) 0.985f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessLow
@@ -94,6 +95,12 @@ fun CloudGlassCard(
     Surface(
         modifier = modifier
             .scale(scale)
+            .shadow(
+                elevation = 10.dp,
+                shape = DeskCardShape,
+                ambientColor = Color(0x66000000),
+                spotColor = Color(0x88000000)
+            )
             .pointerInput(onClick) {
                 if (onClick != null) {
                     detectTapGestures(
@@ -106,23 +113,12 @@ fun CloudGlassCard(
                     )
                 }
             },
-        shape = CloudIslandShape,
-        color = CloudGlassSurface,
-        border = BorderStroke(1.dp, if (isPressed) CloudGlassBorderHighlight else borderColor),
-        shadowElevation = 8.dp,
-        tonalElevation = 4.dp
+        shape = DeskCardShape,
+        color = DeskWalnut,
+        border = BorderStroke(1.dp, if (isPressed) LampAmber.copy(alpha = 0.5f) else borderColor)
     ) {
         Box(
-            modifier = Modifier
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.06f),
-                            Color.Transparent
-                        )
-                    )
-                )
-                .padding(contentPadding)
+            modifier = Modifier.padding(contentPadding)
         ) {
             content()
         }
@@ -130,7 +126,8 @@ fun CloudGlassCard(
 }
 
 /**
- * Floating Cloud Capsule Pill Button
+ * The lamp button — the one amber control on the desk. Press compresses; the
+ * disabled state returns to quiet walnut with ink.
  */
 @Composable
 fun CloudCapsuleButton(
@@ -139,11 +136,11 @@ fun CloudCapsuleButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
-    gradient: Brush = Brush.horizontalGradient(listOf(ElectricBlue, AuroraCyan))
+    gradient: androidx.compose.ui.graphics.Brush? = null
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
@@ -154,8 +151,20 @@ fun CloudCapsuleButton(
     Box(
         modifier = modifier
             .scale(scale)
-            .clip(CloudCapsuleShape)
-            .background(if (enabled) gradient else Brush.linearGradient(listOf(MoonSilver.copy(alpha = 0.2f), MoonSilver.copy(alpha = 0.2f))))
+            .clip(DeskPillShape)
+            .background(
+                when {
+                    !enabled -> DeskHairlineSoft
+                    isPressed -> LampAmber.copy(alpha = 0.85f)
+                    else -> LampAmber
+                }
+            )
+            .shadow(
+                elevation = if (enabled) 6.dp else 0.dp,
+                shape = DeskPillShape,
+                ambientColor = Color(0x55000000),
+                spotColor = LampAmber.copy(alpha = 0.25f)
+            )
             .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 24.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center
@@ -168,7 +177,7 @@ fun CloudCapsuleButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = CloudWhite,
+                    tint = if (enabled) InkOnLamp else DeskInkFaint,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -177,7 +186,7 @@ fun CloudCapsuleButton(
                 text = text,
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = CloudWhite
+                    color = if (enabled) InkOnLamp else DeskInk.copy(alpha = 0.6f)
                 )
             )
         }
@@ -185,7 +194,7 @@ fun CloudCapsuleButton(
 }
 
 /**
- * BrandButton implementation mapped to Cloud Capsule style for backward compatibility.
+ * BrandButton implementation mapped to the lamp button for compatibility.
  */
 @Composable
 fun BrandButton(
@@ -203,7 +212,7 @@ fun BrandButton(
 }
 
 /**
- * SectionCard mapped to CloudGlassCard for backward compatibility.
+ * SectionCard mapped to the walnut panel for compatibility.
  */
 @Composable
 fun SectionCard(
@@ -214,20 +223,20 @@ fun SectionCard(
 }
 
 /**
- * Cloud Badge / Chip Component
+ * A ruled chip — small caps label on a hairline, amber when live.
  */
 @Composable
 fun CloudChip(
     text: String,
     modifier: Modifier = Modifier,
-    accentColor: Color = SoftCyan,
+    accentColor: Color = LampAmber,
     icon: ImageVector? = null
 ) {
     Surface(
         modifier = modifier,
         shape = CircleShape,
-        color = accentColor.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f))
+        color = accentColor.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -240,12 +249,11 @@ fun CloudChip(
                     tint = accentColor,
                     modifier = Modifier.size(14.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(5.dp))
             }
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Medium,
                     color = accentColor
                 )
             )
@@ -254,7 +262,7 @@ fun CloudChip(
 }
 
 /**
- * Section header with Cloud Intelligence typography.
+ * A section heading: the serif voice and a small-caps ledger caption beneath.
  */
 @Composable
 fun SectionHeader(
@@ -268,32 +276,37 @@ fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = CloudWhite
-                )
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    color = DeskPaper
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             if (!subtitle.isNullOrEmpty()) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = MoonSilver.copy(alpha = 0.7f)
-                    )
+                    text = subtitle.uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.4.sp,
+                        color = DeskInk
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
         if (trailing != null) {
+            Spacer(modifier = Modifier.width(12.dp))
             trailing()
         }
     }
 }
 
 /**
- * Empty state with Cloud Floating Icon Illustration.
+ * The desk's empty state: a blank sheet on the walnut.
  */
 @Composable
 fun EmptyState(
@@ -318,22 +331,22 @@ fun EmptyState(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(SkyBlue.copy(alpha = 0.15f)),
+                    .background(DeskWalnutRaised)
+                    .shadow(4.dp, CircleShape, ambientColor = Color(0x55000000)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = SkyBlue,
-                    modifier = Modifier.size(36.dp)
+                    tint = LampAmber,
+                    modifier = Modifier.size(32.dp)
                 )
             }
             Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = CloudWhite
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = DeskPaper
                 ),
                 textAlign = TextAlign.Center
             )
@@ -342,7 +355,7 @@ fun EmptyState(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MoonSilver.copy(alpha = 0.75f)
+                        color = DeskInk
                     ),
                     textAlign = TextAlign.Center
                 )
@@ -356,7 +369,7 @@ fun EmptyState(
 }
 
 /**
- * Centered loading indicator with soft cyan glow.
+ * Centered amber loading ring.
  */
 @Composable
 fun LoadingIndicator(modifier: Modifier = Modifier) {
@@ -365,9 +378,69 @@ fun LoadingIndicator(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator(
-            color = SoftCyan,
+            color = LampAmber,
+            trackColor = DeskHairline,
             strokeWidth = 3.dp,
             modifier = Modifier.padding(24.dp).size(36.dp)
+        )
+    }
+}
+
+/**
+ * The wordmark: serif letters set in warm paper above the desk.
+ */
+@Composable
+fun DeskWordmark(
+    modifier: Modifier = Modifier,
+    size: Dp = 30.dp
+) {
+    Text(
+        text = "AndroLLM",
+        modifier = modifier,
+        style = MaterialTheme.typography.headlineMedium.copy(
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = size.value.sp,
+            color = DeskPaper
+        )
+    )
+}
+
+/**
+ * The lit lamp dot — the single live point on a loaded model card. Breathes
+ * slowly while active, sits dim when idle.
+ */
+@Composable
+fun LampDot(
+    modifier: Modifier = Modifier,
+    lit: Boolean = true,
+    size: Dp = 8.dp
+) {
+    val glow by animateFloatAsState(
+        targetValue = if (lit) 1f else 0.35f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "lampGlow"
+    )
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(LampHalo.copy(alpha = glow * 0.55f))
+            .shadow(
+                elevation = if (lit) 6.dp else 0.dp,
+                shape = CircleShape,
+                spotColor = LampAmber.copy(alpha = 0.5f)
+            )
+            .padding(2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(if (lit) LampGlow else DeskInkFaint)
         )
     }
 }

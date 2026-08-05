@@ -24,17 +24,24 @@ object AppConstants {
         const val STORAGE_PATH_KEY = "storage_path"
         const val FIRST_LAUNCH_KEY = "first_launch"
         const val MODEL_PATH_KEY = "model_path"
+        const val ONBOARDING_COMPLETED_KEY = "onboarding_completed"
     }
 
     object Navigation {
         const val SPLASH_ROUTE = "splash"
+        const val ONBOARDING_ROUTE = "onboarding"
         const val AUTH_ROUTE = "auth"
+        const val PROFILE_SETUP_ROUTE = "profile_setup"
         const val HOME_ROUTE = "home"
         const val CHAT_ROUTE = "chat"
         const val CHAT_DETAIL_ROUTE = "chat/{conversationId}"
+        const val CHAT_WITH_PROMPT_ROUTE = "chat/prompt/{prompt}"
         const val MODELS_ROUTE = "models"
         const val SETTINGS_ROUTE = "settings"
         const val MODEL_DETAIL_ROUTE = "models/{modelId}"
+        const val PROFILE_ROUTE = "profile"
+        const val PROMPTS_ROUTE = "prompts"
+        const val DEVELOPER_ROUTE = "developer"
     }
 
     object Intents {

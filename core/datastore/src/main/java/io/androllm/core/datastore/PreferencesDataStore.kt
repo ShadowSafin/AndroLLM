@@ -5,7 +5,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.androllm.core.common.AppConstants
 import io.androllm.core.models.ThemeMode
@@ -40,6 +42,12 @@ class PreferencesDataStore @Inject constructor(
         val MESSAGE_ANIMATIONS = booleanPreferencesKey("message_animations")
         val AUTO_SCROLL = booleanPreferencesKey("auto_scroll")
         val TYPING_INDICATOR = booleanPreferencesKey("typing_indicator")
+        val FAVORITE_PROMPT_IDS = stringSetPreferencesKey("favorite_prompt_ids")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey(AppConstants.Preferences.ONBOARDING_COMPLETED_KEY)
+        val DISPLAY_NAME = stringPreferencesKey("display_name")
+        val USERNAME = stringPreferencesKey("username")
+        val AVATAR_INDEX = intPreferencesKey("avatar_index")
+        val ACCENT_COLOR = stringPreferencesKey("accent_color")
     }
 
     private val dataStore: DataStore<Preferences> = context.preferencesDataStore
@@ -105,7 +113,12 @@ class PreferencesDataStore @Inject constructor(
             codeWrapping = preferences[Keys.CODE_WRAPPING] ?: false,
             messageAnimations = preferences[Keys.MESSAGE_ANIMATIONS] ?: true,
             autoScroll = preferences[Keys.AUTO_SCROLL] ?: true,
-            typingIndicator = preferences[Keys.TYPING_INDICATOR] ?: true
+            typingIndicator = preferences[Keys.TYPING_INDICATOR] ?: true,
+            onboardingCompleted = preferences[Keys.ONBOARDING_COMPLETED] ?: false,
+            displayName = preferences[Keys.DISPLAY_NAME] ?: "",
+            username = preferences[Keys.USERNAME] ?: "",
+            avatarIndex = preferences[Keys.AVATAR_INDEX] ?: 0,
+            accentColor = preferences[Keys.ACCENT_COLOR] ?: ""
         )
     }
 
@@ -161,6 +174,94 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setTypingIndicator(enabled: Boolean) {
         dataStore.edit { preferences -> preferences[Keys.TYPING_INDICATOR] = enabled }
+    }
+
+    /**
+     * Prompt library favorites (persisted prompt ids).
+     */
+    val favoritePromptIds: Flow<Set<String>> = dataStore.data.map { preferences ->
+        preferences[Keys.FAVORITE_PROMPT_IDS] ?: emptySet()
+    }
+
+    /**
+     * Marks a prompt library entry as favorite.
+     */
+    suspend fun setPromptFavorite(id: String, favorite: Boolean) {
+        dataStore.edit { preferences ->
+            val current = preferences[Keys.FAVORITE_PROMPT_IDS] ?: emptySet()
+            val updated = if (favorite) current + id else current - id
+            preferences[Keys.FAVORITE_PROMPT_IDS] = updated
+        }
+    }
+
+    /**
+     * Whether the user has completed the onboarding introduction.
+     */
+    val onboardingCompleted: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.ONBOARDING_COMPLETED] ?: false
+    }
+
+    /**
+     * Display name chosen during profile setup.
+     */
+    val displayName: Flow<String> = dataStore.data.map { preferences ->
+        preferences[Keys.DISPLAY_NAME] ?: ""
+    }
+
+    /**
+     * Optional username chosen during profile setup.
+     */
+    val username: Flow<String> = dataStore.data.map { preferences ->
+        preferences[Keys.USERNAME] ?: ""
+    }
+
+    /**
+     * Avatar index (gradient preset) chosen during profile setup.
+     */
+    val avatarIndex: Flow<Int> = dataStore.data.map { preferences ->
+        preferences[Keys.AVATAR_INDEX] ?: 0
+    }
+
+    /**
+     * Accent color (ARGB hex, e.g. "FFFF7043") chosen during profile setup.
+     */
+    val accentColor: Flow<String> = dataStore.data.map { preferences ->
+        preferences[Keys.ACCENT_COLOR] ?: ""
+    }
+
+    /**
+     * Marks the onboarding introduction as completed (or resets it).
+     */
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.ONBOARDING_COMPLETED] = completed }
+    }
+
+    /**
+     * Persists the display name chosen during profile setup.
+     */
+    suspend fun setDisplayName(name: String) {
+        dataStore.edit { preferences -> preferences[Keys.DISPLAY_NAME] = name }
+    }
+
+    /**
+     * Persists the optional username chosen during profile setup.
+     */
+    suspend fun setUsername(username: String) {
+        dataStore.edit { preferences -> preferences[Keys.USERNAME] = username }
+    }
+
+    /**
+     * Persists the avatar preset index chosen during profile setup.
+     */
+    suspend fun setAvatarIndex(index: Int) {
+        dataStore.edit { preferences -> preferences[Keys.AVATAR_INDEX] = index }
+    }
+
+    /**
+     * Persists the accent color (ARGB hex) chosen during profile setup.
+     */
+    suspend fun setAccentColor(argbHex: String) {
+        dataStore.edit { preferences -> preferences[Keys.ACCENT_COLOR] = argbHex }
     }
 
     /**

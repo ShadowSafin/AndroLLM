@@ -33,21 +33,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.androllm.core.models.Conversation
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.RevolutCyberCyan
-import io.androllm.core.ui.theme.RevolutNeonEmerald
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SunsetCloudOrange
-import io.androllm.core.ui.theme.SunsetCloudPeach
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
+import io.androllm.core.ui.theme.LampGlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * Revolut Activity Feed Style Chat Card.
- * Displays transactional AI conversation metrics, model tags, and latency indicators.
+ * Writer's Night Desk — a letter entry in the Recent Letters ledger.
+ * One amber seal for the correspondence; the rest stays quiet walnut ink.
  */
 @Composable
 fun ChatActivityCard(
@@ -66,27 +64,27 @@ fun ChatActivityCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Activity Type Icon Bubble
+            // Letter Seal — the one amber mark on the row
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(
-                        Brush.linearGradient(listOf(SkyBlue.copy(alpha = 0.25f), SunsetCloudPeach.copy(alpha = 0.15f)))
+                        Brush.linearGradient(listOf(LampDeep.copy(alpha = 0.45f), LampAmber.copy(alpha = 0.2f)))
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = SunsetCloudPeach,
+                    tint = LampGlow,
                     modifier = Modifier.size(22.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            // Conversation Info
+            // Letter Info
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -97,15 +95,16 @@ fun ChatActivityCard(
                         text = conversation.title.ifBlank { "New Conversation" },
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = CloudWhite
+                            color = DeskPaper
                         ),
                         maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
                         text = formattedTime,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = MoonSilver.copy(alpha = 0.5f)
+                            color = DeskInkFaint
                         )
                     )
                 }
@@ -116,25 +115,26 @@ fun ChatActivityCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Model Used Tag
+                    // Model Tag — a wax seal inked on walnut
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x33E2E8F0))
+                            .background(LampAmber.copy(alpha = 0.14f))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = conversation.lastMessagePreview?.take(16) ?: "On-Device AI",
+                            text = conversation.lastMessagePreview?.take(16) ?: "On-Device",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = RevolutCyberCyan
+                            letterSpacing = 0.4.sp,
+                            color = LampGlow
                         )
                     }
 
                     Text(
                         text = "${conversation.messageCount} messages",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = MoonSilver.copy(alpha = 0.6f)
+                            color = DeskInk
                         )
                     )
                 }
@@ -146,7 +146,7 @@ fun ChatActivityCard(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "Options",
-                    tint = MoonSilver.copy(alpha = 0.6f)
+                    tint = DeskInkFaint
                 )
             }
         }

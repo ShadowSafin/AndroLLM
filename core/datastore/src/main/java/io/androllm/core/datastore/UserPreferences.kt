@@ -17,5 +17,10 @@ data class UserPreferences(
     val codeWrapping: Boolean = false,
     val messageAnimations: Boolean = true,
     val autoScroll: Boolean = true,
-    val typingIndicator: Boolean = true
+    val typingIndicator: Boolean = true,
+    val onboardingCompleted: Boolean = false,
+    val displayName: String = "",
+    val username: String = "",
+    val avatarIndex: Int = 0,
+    val accentColor: String = ""
 )

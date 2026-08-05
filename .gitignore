@@ -148,3 +148,7 @@ coverage/
 *.ec
 *.exec
 *.lcov
+
+# Local scratch / tooling
+.impeccable/
+META-INF/

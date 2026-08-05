@@ -7,9 +7,13 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -32,8 +37,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -42,6 +47,7 @@ import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -52,6 +58,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -64,6 +71,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -80,9 +88,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -104,10 +114,10 @@ import io.androllm.core.utils.DeviceHardwareInfo
 import io.androllm.core.utils.DeviceInfoCollector
 import io.androllm.feature.models.benchmark.BenchmarkReport
 import io.androllm.feature.models.benchmark.ModelBenchmarker
-import io.androllm.feature.models.compatibility.CompatibilityAnalyzer
-import io.androllm.feature.models.compatibility.CompatibilityRating
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.MemoryStats
+import io.androllm.core.ui.components.CloudAdaptiveNavigation
+import io.androllm.core.ui.components.ModelWalletCard
 
 /**
  * Model Manager Screen featuring Installed Models, Download Manager & Queue,
@@ -136,14 +146,19 @@ fun ModelsScreen(
     }
 
     io.androllm.core.ui.components.CloudAtmosphericBackground {
-        Scaffold(
-            containerColor = Color.Transparent,
+        CloudAdaptiveNavigation(
+            currentRoute = io.androllm.core.navigation.Routes.MODELS,
+            onTabSelected = { tab ->
+                if (tab.route != io.androllm.core.navigation.Routes.MODELS) {
+                    navController.navigate(tab.route)
+                }
+            },
             topBar = {
                 TopAppBar(
-                    title = { Text("Model Manager", fontWeight = FontWeight.Bold, color = io.androllm.core.ui.theme.CloudWhite) },
+                    title = { Text("Model Manager", fontWeight = FontWeight.Bold, color = io.androllm.core.ui.theme.DeskPaper) },
                     actions = {
                         IconButton(onClick = { sortMenuExpanded = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort models", tint = io.androllm.core.ui.theme.MoonSilver)
+                            Icon(Icons.Default.Sort, contentDescription = "Sort models", tint = io.androllm.core.ui.theme.DeskInk)
                         }
 
                         DropdownMenu(
@@ -165,22 +180,12 @@ fun ModelsScreen(
                         }
 
                         IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                            Icon(Icons.Default.Folder, contentDescription = "Import GGUF", tint = io.androllm.core.ui.theme.MoonSilver)
+                            Icon(Icons.Default.Folder, contentDescription = "Import GGUF", tint = io.androllm.core.ui.theme.DeskInk)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
                 )
             },
-            bottomBar = {
-                io.androllm.core.ui.components.CloudBottomNavigationBar(
-                    currentRoute = io.androllm.core.navigation.Routes.MODELS,
-                    onTabSelected = { tab ->
-                        if (tab.route != io.androllm.core.navigation.Routes.MODELS) {
-                            navController.navigate(tab.route)
-                        }
-                    }
-                )
-            }
         ) { padding ->
         Column(
             modifier = Modifier
@@ -371,18 +376,45 @@ private fun InstalledModelsTab(
             }
 
             items(installedOnly, key = { it.id }) { model ->
-                InstalledModelCard(
+                ModelWalletCard(
                     model = model,
-                    isLoaded = model.id == data.loadedModelId,
-                    isLoading = model.id == data.loadingModelId,
-                    hardwareInfo = data.hardwareInfo,
-                    onLoad = { viewModel.loadModel(model) },
-                    onUnload = { viewModel.unloadModel(model) },
-                    onFavoriteToggle = { viewModel.toggleFavorite(model) },
-                    onSetDefault = { viewModel.setDefaultModel(model) },
-                    onBenchmark = { viewModel.runBenchmark(model) },
-                    onDelete = { viewModel.deleteModel(model) },
-                    onRetryDownload = { viewModel.downloadModel(model) }
+                    isActive = model.id == data.loadedModelId,
+                    isDownloaded = model.isDownloaded,
+                    onLoadClick = {
+                        if (model.id == data.loadedModelId) {
+                            viewModel.unloadModel(model)
+                        } else {
+                            viewModel.loadModel(model)
+                        }
+                    },
+                    onDownloadClick = { viewModel.downloadModel(model) },
+                    menuItems = {
+                        DropdownMenuItem(
+                            text = { Text(if (model.isDefault) "Default Model" else "Set as Default") },
+                            onClick = { viewModel.setDefaultModel(model) },
+                            enabled = !model.isDefault
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (model.isFavorite) "Remove from Favorites" else "Add to Favorites") },
+                            onClick = { viewModel.toggleFavorite(model) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (model.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Run Benchmark") },
+                            onClick = { viewModel.runBenchmark(model) },
+                            leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete Model", color = MaterialTheme.colorScheme.error) },
+                            onClick = { viewModel.deleteModel(model) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                        )
+                    }
                 )
             }
         }
@@ -507,8 +539,13 @@ private fun DownloadCard(
                 Text(
                     text = model.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+
+                Spacer(modifier = Modifier.width(10.dp))
 
                 StatusBadge(status = status)
             }
@@ -526,28 +563,36 @@ private fun DownloadCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "${bytes.formatSize()} / ${total.formatSize()} ($percent%)",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
 
-                if (status == DownloadStatus.DOWNLOADING) {
-                    Text(
+                when (status) {
+                    DownloadStatus.DOWNLOADING -> Text(
                         text = "${"%.1f".format(speed)} MB/s • ${eta}s left",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                } else if (status == DownloadStatus.ERROR) {
-                    Text(
+                    DownloadStatus.ERROR -> Text(
                         text = progress?.errorMessage ?: "Download Failed (Check network / url)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    else -> {}
                 }
             }
 
@@ -555,200 +600,33 @@ private fun DownloadCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (status == DownloadStatus.DOWNLOADING) {
-                    OutlinedButton(onClick = onPause) {
+                when (status) {
+                    DownloadStatus.DOWNLOADING -> OutlinedButton(onClick = onPause, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Pause")
                     }
-                } else if (status == DownloadStatus.PAUSED) {
-                    Button(onClick = onResume) {
+                    DownloadStatus.PAUSED -> Button(onClick = onResume, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Resume")
                     }
-                } else if (status == DownloadStatus.ERROR) {
-                    Button(onClick = onRetry) {
+                    DownloadStatus.ERROR -> Button(onClick = onRetry, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Retry")
                     }
+                    else -> {}
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                TextButton(onClick = onCancel) {
-                    Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Cancel", color = MaterialTheme.colorScheme.error)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InstalledModelCard(
-    model: Model,
-    isLoaded: Boolean,
-    isLoading: Boolean,
-    hardwareInfo: DeviceHardwareInfo?,
-    onLoad: () -> Unit,
-    onUnload: () -> Unit,
-    onFavoriteToggle: () -> Unit,
-    onSetDefault: () -> Unit,
-    onBenchmark: () -> Unit,
-    onDelete: () -> Unit,
-    onRetryDownload: () -> Unit
-) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
-    val compatibility = remember(model, hardwareInfo) {
-        hardwareInfo?.let { CompatibilityAnalyzer.analyze(model, it) }
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isLoaded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-            else MaterialTheme.colorScheme.surfaceContainer
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = model.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (model.isDefault) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("Default", style = MaterialTheme.typography.labelSmall) },
-                            modifier = Modifier.height(24.dp)
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            imageVector = if (model.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = "Favorite",
-                            tint = if (model.isFavorite) Color(0xFFFFD54F) else MaterialTheme.colorScheme.outline
-                        )
-                    }
-
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Options")
-                        }
-
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Set as Default") },
-                                onClick = { menuExpanded = false; onSetDefault() }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Run Benchmark") },
-                                onClick = { menuExpanded = false; onBenchmark() },
-                                leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Delete Model", color = MaterialTheme.colorScheme.error) },
-                                onClick = { menuExpanded = false; onDelete() },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AssistChip(
-                    onClick = {},
-                    label = { Text(model.quantization.ifBlank { "Q4_K_M" }) }
-                )
-                AssistChip(
-                    onClick = {},
-                    label = { Text("${model.contextLength} ctx") }
-                )
-                Text(
-                    text = model.fileSize.formatSize(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-
-            compatibility?.let { comp ->
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = comp.title,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = when (comp.rating) {
-                        CompatibilityRating.EXCELLENT -> Color(0xFFA6E3A1)
-                        CompatibilityRating.MODERATE -> Color(0xFFFFE082)
-                        else -> MaterialTheme.colorScheme.error
-                    },
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (model.downloadStatus == DownloadStatus.DOWNLOADING || (!model.isDownloaded && model.downloadStatus != DownloadStatus.ERROR)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text(
-                            text = "Downloading...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                } else if (model.downloadStatus == DownloadStatus.ERROR) {
-                    OutlinedButton(onClick = onRetryDownload) {
-                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Retry Download")
-                    }
-                } else if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                } else if (isLoaded) {
-                    OutlinedButton(onClick = onUnload) {
-                        Text("Unload")
-                    }
-                } else {
-                    Button(onClick = onLoad) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                if (status != DownloadStatus.DOWNLOADED) {
+                    TextButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Load Model")
+                        Text("Cancel", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -974,6 +852,7 @@ private fun CatalogList(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CatalogModelCard(
     model: CatalogModel,
@@ -987,9 +866,11 @@ private fun CatalogModelCard(
         installed.downloadStatus != DownloadStatus.ERROR
     val isGated = model.isGated
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        colors = CardDefaults.elevatedCardColors(
             containerColor = if (recommended) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
             } else {
@@ -997,80 +878,83 @@ private fun CatalogModelCard(
             }
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (recommended) "⭐ ${model.name}" else model.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                AssistChip(onClick = {}, label = { Text(model.quantization) })
+        Column(modifier = Modifier.padding(20.dp)) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val wide = maxWidth > 600.dp
+                if (wide) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CatalogTitleBlock(
+                            model = model,
+                            recommended = recommended,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(20.dp))
+                        CatalogModelAction(
+                            isGated = isGated,
+                            isDownloaded = isDownloaded,
+                            isDownloading = isDownloading,
+                            onDownload = { onDownload(model) }
+                        )
+                    }
+                } else {
+                    CatalogTitleBlock(model = model, recommended = recommended)
+                }
             }
 
-            if (model.family.isNotBlank()) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${model.family} • ${model.architecture} • ${model.license}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = model.description,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
 
             if (model.tags.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    model.tags.take(3).forEach { tag ->
-                        AssistChip(
+                Spacer(modifier = Modifier.height(10.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    model.tags.forEach { tag ->
+                        SuggestionChip(
                             onClick = {},
-                            label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
-                            modifier = Modifier.height(24.dp)
+                            label = { Text(tag) },
+                            shape = RoundedCornerShape(16.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Spacer(modifier = Modifier.height(12.dp))
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = buildString {
-                        if (model.parameters.isNotBlank()) append("${model.parameters} params")
-                        append(" • ${model.sizeBytes.formatSize()}")
-                        append(" • ${model.contextLength.coerceAtLeast(1) / 1000}K ctx")
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-                Text(
-                    text = "RAM ${"%.0f".format(model.minRamGb)}+ GB",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
+                if (model.parameters.isNotBlank()) {
+                    ModelMetaPill("${model.parameters} Params", leadingIcon = Icons.Default.Memory)
+                }
+                ModelMetaPill(model.sizeBytes.formatSize(), leadingIcon = Icons.Default.Storage)
+                ModelMetaPill("${model.contextLength.coerceAtLeast(1) / 1000}K Context", leadingIcon = Icons.Default.History)
+                ModelMetaPill("RAM ${"%.0f".format(model.minRamGb)}+ GB", leadingIcon = Icons.Default.Speed)
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Outlined.Download,
@@ -1081,7 +965,7 @@ private fun CatalogModelCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = model.downloads.toString(),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -1095,39 +979,192 @@ private fun CatalogModelCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = model.likes.toString(),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
 
-                when {
-                    isGated -> {
-                        AssistChip(onClick = {}, label = { Text("Gated") })
-                    }
-                    isDownloaded -> {
-                        OutlinedButton(onClick = {}, enabled = false) {
-                            Text("Installed")
-                        }
-                    }
-                    isDownloading -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Downloading...", style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                    else -> {
-                        Button(onClick = { onDownload(model) }) {
-                            Icon(Icons.Default.CloudDownload, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Download")
-                        }
-                    }
+                if (wideSize()) {
+                    CatalogModelAction(
+                        isGated = isGated,
+                        isDownloaded = isDownloaded,
+                        isDownloading = isDownloading,
+                        onDownload = { onDownload(model) }
+                    )
                 }
+            }
+
+            if (!wideSize()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                CatalogModelAction(
+                    isGated = isGated,
+                    isDownloaded = isDownloaded,
+                    isDownloading = isDownloading,
+                    onDownload = { onDownload(model) },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
+}
+
+/**
+ * Model identity block: name (max 2 lines, ellipsized) with the quantization
+ * and recommendation chips laid out beside/below it — never overlapping.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CatalogTitleBlock(
+    model: CatalogModel,
+    recommended: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = model.name,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (model.quantization.isNotBlank()) {
+                AssistChip(
+                    onClick = {},
+                    label = {
+                        Text(model.quantization, style = MaterialTheme.typography.labelMedium)
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+                    }
+                )
+            }
+            if (recommended) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text("★ Recommended") },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                )
+            }
+        }
+        if (model.family.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = buildString {
+                    append(model.family)
+                    if (model.architecture.isNotBlank()) append(" • ${model.architecture}")
+                    if (model.license.isNotBlank()) append(" • ${model.license}")
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * Compact metadata pill (Params / Size / Context / RAM) sized by content.
+ */
+@Composable
+private fun ModelMetaPill(
+    text: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leadingIcon != null) {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * The single action slot for a catalog card: Gated / Installed / Downloading /
+ * Download. Always bottom-anchored on phones, side-anchored on wide screens.
+ */
+@Composable
+private fun CatalogModelAction(
+    isGated: Boolean,
+    isDownloaded: Boolean,
+    isDownloading: Boolean,
+    onDownload: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when {
+        isGated -> AssistChip(
+            onClick = {},
+            label = { Text("Gated") },
+            modifier = modifier
+        )
+        isDownloaded -> OutlinedButton(
+            onClick = {},
+            enabled = false,
+            modifier = modifier
+        ) {
+            Text("Installed")
+        }
+        isDownloading -> Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            modifier = modifier
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Downloading…", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        else -> Button(
+            onClick = onDownload,
+            modifier = modifier
+        ) {
+            Icon(Icons.Default.CloudDownload, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Download")
+        }
+    }
+}
+
+/** Reads the current window width to swap the catalog card layout at ~600dp. */
+@Composable
+private fun wideSize(): Boolean {
+    val configuration = LocalConfiguration.current
+    return configuration.screenWidthDp >= 600
 }
 
 private val SORT_OPTIONS = listOf(
@@ -1187,26 +1224,32 @@ private fun HuggingFaceTab(
                             Text(
                                 text = remote.name,
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
+                            Spacer(modifier = Modifier.width(10.dp))
                             AssistChip(onClick = {}, label = { Text(remote.family) })
                         }
                         Text(
                             text = "by ${remote.author}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("${remote.downloads}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                Text("${remote.downloads}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFF38BA8))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("${remote.likes}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                Text("${remote.likes}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                             }
                         }
                     }
@@ -1236,8 +1279,8 @@ private fun RemoteModelDetailsSheet(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            Text(text = details.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(text = "by ${details.author} • License: ${details.license}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+            Text(text = details.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(text = "by ${details.author} • License: ${details.license}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(12.dp))
 
             SecondaryTabRow(selectedTabIndex = selectedSubTab) {
@@ -1265,9 +1308,10 @@ private fun RemoteModelDetailsSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(file.filename, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                                    Text("Quant: ${file.quantization} | RAM: ${"%.0f".format(file.minRamGb)} GB+", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                    Text(file.filename, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("Quant: ${file.quantization} • RAM: ${"%.0f".format(file.minRamGb)} GB+", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Button(
                                     onClick = {
                                         val summary = RemoteModelSummary(id = details.id, name = details.name, author = details.author)
@@ -1339,22 +1383,35 @@ private fun DiagnosticRow(label: String, value: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
 @Composable
 private fun StatusBadge(status: DownloadStatus) {
     val (label, color) = when (status) {
-        DownloadStatus.DOWNLOADED -> "Installed" to Color(0xFFA6E3A1)
-        DownloadStatus.DOWNLOADING -> "Downloading" to Color(0xFF89B4FA)
-        DownloadStatus.QUEUED -> "Queued" to Color(0xFFF9E2AF)
-        DownloadStatus.PAUSED -> "Paused" to Color(0xFFFAB387)
+        DownloadStatus.DOWNLOADED -> "Installed" to io.androllm.core.ui.theme.LampGlow
+        DownloadStatus.DOWNLOADING -> "Downloading" to io.androllm.core.ui.theme.LampAmber
+        DownloadStatus.QUEUED -> "Queued" to io.androllm.core.ui.theme.DeskPaperDim
+        DownloadStatus.PAUSED -> "Paused" to io.androllm.core.ui.theme.LampDeep
         DownloadStatus.ERROR -> "Failed" to MaterialTheme.colorScheme.error
-        DownloadStatus.NOT_DOWNLOADED -> "Not Installed" to MaterialTheme.colorScheme.outline
+        DownloadStatus.NOT_DOWNLOADED -> "Not Installed" to io.androllm.core.ui.theme.DeskInk
     }
 
     AssistChip(
