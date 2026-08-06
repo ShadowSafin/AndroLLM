@@ -171,5 +171,16 @@ fun AppNavHost(
         composable(Routes.DEVELOPER) {
             DeveloperScreen(navController = navController)
         }
+
+        composable(Routes.CLOUD_PROVIDERS) {
+            io.androllm.feature.cloud.CloudProvidersScreen(navController = navController)
+        }
+
+        composable(
+            route = Routes.CLOUD_MODELS,
+            arguments = listOf(navArgument(Routes.ARG_PROVIDER_ID) { type = NavType.StringType })
+        ) { backStackEntry ->
+            io.androllm.feature.cloud.CloudModelsScreen(navController = navController)
+        }
     }
 }

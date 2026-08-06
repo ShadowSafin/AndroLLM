@@ -2,12 +2,19 @@ package io.androllm.feature.chat
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.androllm.core.cloud.CloudGateway
+import io.androllm.core.cloud.model.CloudChatMessage
+import io.androllm.core.cloud.model.CloudGenerationConfig
+import io.androllm.core.cloud.model.CloudStreamEvent
 import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.getOrNull
 import io.androllm.core.database.repository.ConversationRepository
 import io.androllm.core.database.repository.MessageRepository
 import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.datastore.UserPreferences
+import io.androllm.core.memory.MemoryManager
+import io.androllm.core.memory.model.MemoryContext
+import io.androllm.core.memory.model.MemoryExchange
 import io.androllm.core.models.Conversation
 import io.androllm.core.models.Message
 import io.androllm.core.models.MessageRole
@@ -23,8 +30,13 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import javax.inject.Inject
 
@@ -37,7 +49,9 @@ class ChatViewModel @Inject constructor(
     private val engineRepository: EngineRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val preferencesDataStore: PreferencesDataStore
+    private val preferencesDataStore: PreferencesDataStore,
+    private val memoryManager: MemoryManager,
+    private val cloudGateway: CloudGateway
 ) : BaseViewModel() {
 
     private val _currentConversationId = MutableStateFlow<String>("")
@@ -47,8 +61,16 @@ class ChatViewModel @Inject constructor(
     private val _debugInfo = MutableStateFlow<EngineDebugInfo?>(null)
     private val _genConfig = MutableStateFlow(GenerationConfig())
 
+    /** Cloud chat mode state (Local GGUF vs LiteLLM proxy). */
+    private val _cloudMode = MutableStateFlow(false)
+    private val _cloudGenerating = MutableStateFlow(false)
+    private val _cloudStreamingText = MutableStateFlow<String?>(null)
+    private val _cloudDefaultModel = MutableStateFlow("")
+
     val debugInfo: StateFlow<EngineDebugInfo?> = _debugInfo
     val genConfig: StateFlow<GenerationConfig> = _genConfig
+
+    private var cloudJob: Job? = null
 
     fun updateGenConfig(config: GenerationConfig) {
         _genConfig.value = config
@@ -73,9 +95,22 @@ class ChatViewModel @Inject constructor(
         combine(
             preferencesDataStore.userPreferences,
             _searchQuery,
-            _isSearchOpen
-        ) { userPrefs, searchQuery, isSearchOpen ->
-            Triple(userPrefs, searchQuery, isSearchOpen)
+            _isSearchOpen,
+            _cloudMode,
+            _cloudGenerating,
+            _cloudStreamingText,
+            _cloudDefaultModel
+        ) { values: Array<Any?> ->
+            @Suppress("UNCHECKED_CAST")
+            CloudUiBits(
+                userPrefs = values[0] as UserPreferences,
+                searchQuery = values[1] as String,
+                isSearchOpen = values[2] as Boolean,
+                cloudMode = values[3] as Boolean,
+                cloudGenerating = values[4] as Boolean,
+                cloudStreamingText = values[5] as String?,
+                cloudDefaultModel = values[6] as String
+            )
         }
     ) { convData, engineData, searchData ->
         @Suppress("UNCHECKED_CAST")
@@ -88,7 +123,7 @@ class ChatViewModel @Inject constructor(
         val pinnedConvs = convData[3] as List<Conversation>
 
         val (engineState, genState, stats) = engineData
-        val (userPrefs, searchQuery, isSearchOpen) = searchData
+        val bits = searchData
 
         val currentConv = (activeConvs + pinnedConvs).find { it.id == currentId }
 
@@ -101,11 +136,21 @@ class ChatViewModel @Inject constructor(
             engineState = engineState,
             generationState = genState,
             performanceStats = stats,
-            isGenerating = genState is GenerationState.Generating,
-            streamingText = (genState as? GenerationState.Generating)?.streamingText,
-            userPreferences = userPrefs,
-            searchQuery = searchQuery,
-            isSearchOpen = isSearchOpen
+            isGenerating = if (bits.cloudMode) {
+                bits.cloudGenerating
+            } else {
+                genState is GenerationState.Generating
+            },
+            streamingText = if (bits.cloudMode) {
+                bits.cloudStreamingText
+            } else {
+                (genState as? GenerationState.Generating)?.streamingText
+            },
+            userPreferences = bits.userPrefs,
+            searchQuery = bits.searchQuery,
+            isSearchOpen = bits.isSearchOpen,
+            cloudMode = bits.cloudMode,
+            cloudDefaultModel = bits.cloudDefaultModel
         )
     }.stateIn(
         scope = viewModelScope,
@@ -116,6 +161,15 @@ class ChatViewModel @Inject constructor(
     init {
         observeEngine()
         observeActiveMessages()
+        observeCloudMode()
+        // Preload the embedding source in the background so the first prompt
+        // after enabling memory never pays a multi-second load on the send
+        // path. No-op when memory is disabled or cloud embeddings are active.
+        viewModelScope.launch {
+            if (memoryManager.currentSettings().enabled) {
+                memoryManager.preloadEmbeddingModel()
+            }
+        }
     }
 
     private fun observeEngine() {
@@ -126,10 +180,22 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             engineRepository.generationState.collect { genState ->
                 when (genState) {
-                    is GenerationState.Completed -> appendAssistantMessage(genState.text)
+                    is GenerationState.Completed -> {
+                        appendAssistantMessage(genState.text)
+                        runMemoryPipeline(genState.text)
+                    }
                     is GenerationState.Failed -> appendErrorMessage(genState.message)
                     else -> Unit
                 }
+            }
+        }
+    }
+
+    private fun observeCloudMode() {
+        viewModelScope.launch {
+            cloudGateway.settings.collect { settings ->
+                _cloudMode.value = settings.enabled
+                _cloudDefaultModel.value = settings.defaultModelId
             }
         }
     }
@@ -185,18 +251,44 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun generateFromHistory(history: List<ChatMessage>) {
-        val messages = history.map {
-            ChatPromptMessage(
-                role = it.role.toTemplateRole(),
-                content = it.content.trim()
-            )
-        }
-        android.util.Log.i("ChatViewModel", "generateFromHistory: ${messages.size} messages: ${
-            messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
-        }")
         viewModelScope.launch {
+            // Memory retrieval happens before the prompt is built: relevant
+            // memories + conversation summaries are injected as a system
+            // message. Retrieval is fast (<20ms with the embedding model
+            // loaded); the very first use after enabling memory may be slower
+            // while the model warms up.
+            val memoryContext = buildMemoryContext(history)
+            if (memoryContext.systemText.isNotBlank()) {
+                android.util.Log.i("ChatViewModel", "Injected memory context (${memoryContext.memories.size} memories, ${memoryContext.summaries.size} summaries)")
+            }
+
+            val messages = buildList {
+                if (memoryContext.systemText.isNotBlank()) {
+                    add(ChatPromptMessage(role = "system", content = memoryContext.systemText))
+                }
+                history.mapTo(this) {
+                    ChatPromptMessage(
+                        role = it.role.toTemplateRole(),
+                        content = it.content.trim()
+                    )
+                }
+            }
+            android.util.Log.i("ChatViewModel", "generateFromHistory: ${messages.size} messages: ${
+                messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
+            }")
             // Explicit addAssistant=true: the rendered prompt ends with the
             // assistant turn header so generation can start immediately.
+            // Cloud mode: stream through the LiteLLM proxy instead of the
+            // local engine. Falls back to local inference when not configured.
+            if (_cloudMode.value) {
+                if (cloudGateway.resolveChatTarget() == null) {
+                    appendErrorMessage("No cloud provider/model configured — add one in Settings → Cloud Providers, or switch back to local mode")
+                    return@launch
+                }
+                runCloudGeneration(messages)
+                return@launch
+            }
+
             val promptResult = engineRepository.buildChatPrompt(messages, addAssistant = true)
             val prompt = promptResult.getOrNull()
             if (prompt.isNullOrBlank()) {
@@ -214,6 +306,11 @@ class ChatViewModel @Inject constructor(
     fun sendMessage(content: String) {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return
+
+        // A new user turn supersedes any pending background memory work.
+        memoryPipelineJob?.cancel()
+        // ...and any in-flight cloud generation.
+        cloudJob?.cancel()
 
         viewModelScope.launch {
             var id = _currentConversationId.value
@@ -319,8 +416,23 @@ class ChatViewModel @Inject constructor(
     }
 
     fun cancelGeneration() {
+        cloudJob?.cancel()
         viewModelScope.launch {
             engineRepository.cancelGeneration()
+        }
+    }
+
+    /**
+     * Flips the Local GGUF / Cloud (LiteLLM) chat mode. Purely a UI toggle:
+     * cloud failures never touch the local engine, so switching back is
+     * instant.
+     */
+    fun toggleCloudMode() {
+        val enable = !_cloudMode.value
+        // Switching back to local stops any in-flight cloud stream immediately.
+        if (!enable) cloudJob?.cancel()
+        viewModelScope.launch {
+            cloudGateway.setCloudModeEnabled(enable)
         }
     }
 
@@ -336,6 +448,131 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _debugInfo.value = engineRepository.getDebugInfo().getOrNull()
         }
+    }
+
+    /**
+     * Streams a chat completion through the LiteLLM proxy. The buffered text
+     * is surfaced as [ChatUiState.Success.streamingText]; on completion the
+     * assistant message is persisted and the memory pipeline runs exactly as
+     * it does for local generation.
+     */
+    private fun runCloudGeneration(messages: List<ChatPromptMessage>) {
+        cloudJob?.cancel()
+        cloudJob = viewModelScope.launch {
+            _cloudGenerating.value = true
+            _cloudStreamingText.value = ""
+            val buffer = StringBuilder()
+            try {
+                val requestMessages = messages.map { CloudChatMessage(role = it.role, content = it.content) }
+                cloudGateway.streamChat(
+                    messages = requestMessages,
+                    config = cloudGenerationConfig()
+                ).collect { event ->
+                    when (event) {
+                        is CloudStreamEvent.Delta -> {
+                            buffer.append(event.text)
+                            _cloudStreamingText.value = buffer.toString()
+                        }
+                        // Reasoning/tool deltas are not surfaced in the plain
+                        // chat UI yet — they are dropped at the gateway edge.
+                        is CloudStreamEvent.Reasoning -> Unit
+                        is CloudStreamEvent.ToolCallDelta -> Unit
+                        is CloudStreamEvent.Usage -> Unit
+                        CloudStreamEvent.Done -> Unit
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _cloudGenerating.value = false
+                _cloudStreamingText.value = null
+                if (buffer.isEmpty()) {
+                    appendErrorMessage("Cloud error: ${e.message}")
+                } else {
+                    appendErrorMessage("${e.message} — response may be incomplete")
+                }
+                return@launch
+            }
+            _cloudGenerating.value = false
+            _cloudStreamingText.value = null
+            val text = buffer.toString()
+            if (text.isNotBlank()) {
+                appendAssistantMessage(text)
+                runMemoryPipeline(text)
+            }
+        }
+    }
+
+    /** Maps the chat sampler settings onto the OpenAI-compatible request. */
+    private fun cloudGenerationConfig(): CloudGenerationConfig {
+        val gen = _genConfig.value
+        return CloudGenerationConfig(
+            temperature = gen.temperature.toDouble(),
+            topP = gen.topP.toDouble(),
+            topK = gen.topK.takeIf { it > 0 },
+            maxTokens = gen.maxTokens,
+            seed = gen.seed.takeIf { it >= 0 },
+            stop = gen.stopSequences
+        )
+    }
+
+    private var memoryPipelineJob: Job? = null
+    private var lastProcessedExchangeKey: String? = null
+
+    companion object {
+        /** Budget for memory retrieval on the send path (retrieval is <20ms when warm). */
+        private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 400L
+    }
+
+    /**
+     * Post-response memory pipeline: extract long-term memories from the
+     * finished exchange and schedule rolling summarization. Best-effort and
+     * deferred so the UI stays responsive.
+     */
+    private fun runMemoryPipeline(assistantText: String) {
+        val convId = _currentConversationId.value
+        val userMessage = _messages.value.lastOrNull { it.role == MessageRole.USER }?.content ?: return
+        if (convId.isBlank()) return
+
+        // Regenerate/replace flows re-emit Completed with the same exchange.
+        val key = "$convId|$userMessage|$assistantText"
+        if (key == lastProcessedExchangeKey) return
+        lastProcessedExchangeKey = key
+
+        memoryPipelineJob?.cancel()
+        memoryPipelineJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(800L) // let the response UI settle before spending CPU
+            val history = _messages.value
+            val recent = history.takeLast(6).map { it.role.name.lowercase() to it.content }
+            memoryManager.processExchange(
+                MemoryExchange(
+                    conversationId = convId,
+                    userMessage = userMessage,
+                    assistantResponse = assistantText,
+                    recentMessages = recent,
+                    messageCount = history.size
+                )
+            )
+        }
+    }
+
+    /**
+     * Retrieves memories + summaries for the current conversation and formats
+     * the system prompt block to inject. No-op when memory is disabled.
+     */
+    private suspend fun buildMemoryContext(history: List<ChatMessage>): MemoryContext {
+        val settings = memoryManager.currentSettings()
+        if (!settings.enabled) return MemoryContext()
+        val query = history.lastOrNull { it.role == MessageRole.USER }?.content ?: return MemoryContext()
+        // The send path must never stall on memory work: when the embedding
+        // source is still warming up (first use), retrieval can take longer.
+        // Cap it so the prompt always builds promptly.
+        return withTimeoutOrNull(MEMORY_RETRIEVAL_TIMEOUT_MS) {
+            memoryManager.buildContext(
+                userQuery = query,
+                conversationId = _currentConversationId.value.takeIf { it.isNotBlank() }
+            )
+        } ?: MemoryContext()
     }
 
     private fun appendAssistantMessage(text: String) {
@@ -406,7 +643,9 @@ sealed interface ChatUiState {
         val streamingText: String? = null,
         val userPreferences: UserPreferences = UserPreferences(),
         val searchQuery: String = "",
-        val isSearchOpen: Boolean = false
+        val isSearchOpen: Boolean = false,
+        val cloudMode: Boolean = false,
+        val cloudDefaultModel: String = ""
     ) : ChatUiState
 
     data class Error(val throwable: Throwable) : ChatUiState
@@ -422,6 +661,17 @@ data class ChatMessage(
     val content: String,
     val timestamp: Long,
     val isBookmarked: Boolean = false
+)
+
+/** Internal bundle for the extra chat state flows feeding [ChatUiState]. */
+private data class CloudUiBits(
+    val userPrefs: UserPreferences = UserPreferences(),
+    val searchQuery: String = "",
+    val isSearchOpen: Boolean = false,
+    val cloudMode: Boolean = false,
+    val cloudGenerating: Boolean = false,
+    val cloudStreamingText: String? = null,
+    val cloudDefaultModel: String = ""
 )
 
 private fun Message.toChatMessage(): ChatMessage = ChatMessage(

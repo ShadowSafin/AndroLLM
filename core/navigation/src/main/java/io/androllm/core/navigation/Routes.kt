@@ -21,10 +21,13 @@ object Routes {
     const val PROFILE = AppConstants.Navigation.PROFILE_ROUTE
     const val PROMPTS = AppConstants.Navigation.PROMPTS_ROUTE
     const val DEVELOPER = AppConstants.Navigation.DEVELOPER_ROUTE
+    const val CLOUD_PROVIDERS = AppConstants.Navigation.CLOUD_PROVIDERS_ROUTE
+    const val CLOUD_MODELS = AppConstants.Navigation.CLOUD_MODELS_ROUTE
 
     const val ARG_CONVERSATION_ID = "conversationId"
     const val ARG_MODEL_ID = "modelId"
     const val ARG_PROMPT = "prompt"
+    const val ARG_PROVIDER_ID = "providerId"
 
     /**
      * Builds the route for a specific conversation.
@@ -41,4 +44,9 @@ object Routes {
      * (used by the Prompt Library).
      */
     fun chatWithPrompt(prompt: String): String = "chat/prompt/${Uri.encode(prompt)}"
+
+    /**
+     * Builds the route for a provider's cloud model list.
+     */
+    fun cloudModels(providerId: String): String = "cloud/models/$providerId"
 }

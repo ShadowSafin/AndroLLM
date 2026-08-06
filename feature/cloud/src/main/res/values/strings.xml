@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cloud_providers_title">Cloud Providers</string>
+    <string name="cloud_models_title">Cloud Models</string>
+    <string name="cloud_mode_label">Cloud chat mode</string>
+    <string name="cloud_mode_summary">Route chat through your LiteLLM proxy instead of the local GGUF engine</string>
+    <string name="cloud_add_provider">Add provider</string>
+</resources>

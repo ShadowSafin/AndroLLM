@@ -47,6 +47,7 @@ dependencies {
     implementation(project(":core:models"))
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:memory"))
     implementation(project(":core:utils"))
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")

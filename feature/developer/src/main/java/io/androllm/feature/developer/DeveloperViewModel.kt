@@ -1,4 +1,4 @@
-package io.androllm.feature.developer
+﻿package io.androllm.feature.developer
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -7,6 +7,9 @@ import io.androllm.core.common.UiState
 import io.androllm.core.common.getOrNull
 import io.androllm.core.telemetry.DeviceMetrics
 import io.androllm.core.telemetry.GenerationStat
+import io.androllm.core.memory.MemoryManager
+import io.androllm.core.memory.model.Memory
+import io.androllm.core.memory.model.MemoryInspectorStats
 import io.androllm.core.telemetry.TelemetryRepository
 import io.androllm.core.telemetry.TelemetrySample
 import io.androllm.engine.api.EngineRepository
@@ -24,13 +27,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Developer Mode ViewModel — every graph is backed by real session telemetry
+ * Developer Mode ViewModel â€” every graph is backed by real session telemetry
  * from [TelemetryRepository] and the native engine. No fabricated data.
  */
 @HiltViewModel
 class DeveloperViewModel @Inject constructor(
     private val telemetryRepository: TelemetryRepository,
-    private val engineRepository: EngineRepository
+    private val engineRepository: EngineRepository,
+    private val memoryManager: MemoryManager
 ) : BaseViewModel() {
 
     private val _debugInfo = MutableStateFlow<EngineDebugInfo?>(null)
@@ -80,8 +84,15 @@ class DeveloperViewModel @Inject constructor(
         initialValue = UiState.Loading()
     )
 
+    private val _memoryStats = MutableStateFlow<MemoryInspectorStats?>(null)
+    val memoryStats: StateFlow<MemoryInspectorStats?> = _memoryStats.asStateFlow()
+
+    private val _recentMemories = MutableStateFlow<List<Memory>>(emptyList())
+    val recentMemories: StateFlow<List<Memory>> = _recentMemories.asStateFlow()
+
     init {
         telemetryRepository.startSampling()
+        refreshMemoryInspector()
     }
 
     override fun onCleared() {
@@ -91,6 +102,18 @@ class DeveloperViewModel @Inject constructor(
 
     fun refresh() {
         telemetryRepository.refreshDeviceMetrics()
+        refreshMemoryInspector()
+    }
+
+    /**
+     * Refreshes the Memory Inspector snapshot (counts, timings, logs) and the
+     * most recently updated memories for the context preview.
+     */
+    fun refreshMemoryInspector() {
+        viewModelScope.launch {
+            _memoryStats.value = memoryManager.getInspectorStats()
+            _recentMemories.value = memoryManager.getMemories().take(6)
+        }
     }
 
     fun refreshDebugInfo() {
@@ -140,3 +163,4 @@ data class DeveloperData(
     val generationLatencies: List<Float> get() = generations.map { it.totalTimeMs.toFloat() }
     val generationSpeeds: List<Float> get() = generations.map { it.tokensPerSecond }
 }
+

@@ -66,6 +66,8 @@ fun DeveloperScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val debugInfo by viewModel.debugInfo.collectAsStateWithLifecycle()
+    val memoryStats by viewModel.memoryStats.collectAsStateWithLifecycle()
+    val recentMemories by viewModel.recentMemories.collectAsStateWithLifecycle()
     val data = (uiState as? UiState.Success)?.data ?: DeveloperData()
 
     CloudAtmosphericBackground {
@@ -267,6 +269,20 @@ fun DeveloperScreen(
                     )
                 }
 
+                // Memory Inspector
+                item {
+                    SectionHeader(
+                        title = "Memory Inspector",
+                        subtitle = "On-device memory pipeline"
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    MemoryInspectorCard(
+                        stats = memoryStats,
+                        recentMemories = recentMemories,
+                        onRefresh = { viewModel.refreshMemoryInspector() }
+                    )
+                }
+
                 item { Spacer(modifier = Modifier.height(24.dp)) }
             }
         }
@@ -418,6 +434,191 @@ private fun BackendDiagnosticsCard(
             DiagRow("Generated tokens", data.lastStats?.generatedTokens?.toString() ?: "—")
             DiagRow("Chat template", info?.let { if (it.templateReady) "Ready" else "Unavailable" } ?: "—")
         }
+    }
+}
+
+@Composable
+private fun MemoryInspectorCard(
+    stats: io.androllm.core.memory.model.MemoryInspectorStats?,
+    recentMemories: List<io.androllm.core.memory.model.Memory>,
+    onRefresh: () -> Unit
+) {
+    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Memory Store",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = DeskPaper
+                    )
+                )
+                IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh memory inspector", tint = DeskInk, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            if (stats == null) {
+                Text(
+                    text = "Memory system is idle — enable it in Settings.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                )
+            } else {
+                if (!stats.enabled) {
+                    Text(
+                        text = "Disabled in Settings",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = LampAmber,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Counts
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StatMini("Memories", stats.memoryCount.toString(), Modifier.weight(1f))
+                    StatMini("Embeddings", stats.embeddingCount.toString(), Modifier.weight(1f))
+                    StatMini("Vectors", stats.vectorCount.toString(), Modifier.weight(1f))
+                    StatMini("Summaries", stats.summaryCount.toString(), Modifier.weight(1f))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StatMini("Projects", stats.projectCount.toString(), Modifier.weight(1f))
+                    StatMini("Tags", stats.tagCount.toString(), Modifier.weight(1f))
+                    StatMini("Links", stats.relationshipCount.toString(), Modifier.weight(1f))
+                    StatMini("Extractions", stats.totalExtractions.toString(), Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                DiagRow("Avg retrieval", "${stats.avgRetrievalMs} ms")
+                DiagRow("Last retrieval", "${stats.lastRetrievalMs} ms")
+                DiagRow("Last embedding", "${stats.lastEmbeddingMs} ms")
+                DiagRow("Last extraction", "${stats.lastExtractionMs} ms")
+                DiagRow("Inserted / Updated", "${stats.totalInserted} / ${stats.totalUpdated}")
+                DiagRow("Similarity threshold", "${(stats.similarityThreshold * 100).toInt()}%")
+                DiagRow("Retrieved per prompt", stats.retrievalCount.toString())
+                DiagRow(
+                    "Embedding model",
+                    if (stats.embeddingModelPath.isNotBlank()) {
+                        stats.embeddingModelPath.substringAfterLast('/')
+                            .ifBlank { stats.embeddingModelPath }
+                    } else {
+                        "Not configured"
+                    }
+                )
+                DiagRow(
+                    "Model status",
+                    if (stats.embeddingModelLoaded) "Loaded (dim ${stats.embeddingDimension})" else "Not loaded"
+                )
+
+                // Context preview
+                if (recentMemories.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Context preview (most recent)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = DeskInk
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    for (memory in recentMemories) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = memory.category.name.take(4).uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = LampGlow,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier.width(44.dp)
+                            )
+                            Text(
+                                text = memory.content.take(80),
+                                style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (memory.isPinned) {
+                                Text(
+                                    text = "PIN",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = LampAmber,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Extraction logs
+                if (stats.logs.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Extraction logs",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = DeskInk
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    for (entry in stats.logs.take(8)) {
+                        Text(
+                            text = entry.message.take(120),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = when (entry.level) {
+                                    io.androllm.core.memory.model.MemoryLogLevel.ERROR -> EmberRed
+                                    io.androllm.core.memory.model.MemoryLogLevel.WARN -> LampAmber
+                                    else -> DeskInk
+                                }
+                            ),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatMini(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.ExtraBold,
+                color = LampAmber
+            )
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(color = DeskInk),
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
     }
 }
 

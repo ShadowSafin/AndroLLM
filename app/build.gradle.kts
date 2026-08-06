@@ -68,6 +68,8 @@ dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:models"))
     implementation(project(":core:network"))
+    implementation(project(":core:cloud"))
+    implementation(project(":core:memory"))
     implementation(project(":core:utils"))
     
     // Feature modules
@@ -80,6 +82,7 @@ dependencies {
     implementation(project(":feature:profile"))
     implementation(project(":feature:prompts"))
     implementation(project(":feature:developer"))
+    implementation(project(":feature:cloud"))
     
     // Engine & Docs
     api(project(":engine"))
@@ -114,6 +117,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp("com.google.dagger:hilt-android-compiler:2.57.1")
     implementation(libs.androidx.hilt)
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
     
     // Room
     implementation(libs.room.runtime)

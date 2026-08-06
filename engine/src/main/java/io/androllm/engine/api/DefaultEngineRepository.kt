@@ -1,6 +1,7 @@
 package io.androllm.engine.api
 
 import io.androllm.core.common.Result
+import io.androllm.core.common.getOrThrow
 import io.androllm.core.models.Model
 import io.androllm.engine.models.EngineCapabilities
 import io.androllm.engine.models.EngineConfig
@@ -26,6 +27,8 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * No-op placeholder engine used in tests and as a safe fallback
@@ -157,6 +160,13 @@ class DefaultEngineRepository @Inject constructor(
     private val _memoryStats = MutableStateFlow<MemoryStats?>(null)
     override val memoryStats: StateFlow<MemoryStats?> = _memoryStats.asStateFlow()
 
+    /**
+     * Serializes [generate] and [generateQuiet] so interactive chat generation
+     * and background memory extraction/summarization never overlap on the
+     * single native engine handle.
+     */
+    private val generationMutex = Mutex()
+
     override val capabilities: EngineCapabilities
         get() = engine.capabilities
 
@@ -198,7 +208,7 @@ class DefaultEngineRepository @Inject constructor(
     override suspend fun generate(
         prompt: String,
         config: GenerationConfig
-    ): Result<Unit> {
+    ): Result<Unit> = generationMutex.withLock {
         if (!engine.isLoaded()) {
             _generationState.value = GenerationState.Failed("Model not loaded")
             return Result.error("Model not loaded")
@@ -209,7 +219,7 @@ class DefaultEngineRepository @Inject constructor(
         var fullText = ""
         var lastEmitTime = 0L
         var tokenCount = 0L
-        return try {
+        try {
             engine.tokenStream(prompt, config)
                 .onEach { result ->
                     when (result) {
@@ -249,6 +259,26 @@ class DefaultEngineRepository @Inject constructor(
             )
             Result.Error(e)
         }
+    }
+
+    override suspend fun generateQuiet(
+        prompt: String,
+        config: GenerationConfig
+    ): Result<String> = try {
+        generationMutex.withLock {
+            if (!engine.isLoaded()) {
+                Result.error("Model not loaded")
+            } else {
+                engine.generate(prompt, config)
+            }
+        }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        // Background pipelines (memory extraction) are cancelled when a new
+        // chat turn supersedes them — that must propagate as cancellation,
+        // never be swallowed into Result.Error.
+        throw e
+    } catch (e: Exception) {
+        Result.Error(e)
     }
 
     override suspend fun cancelGeneration(): Result<Unit> = io.androllm.core.common.runCatching {

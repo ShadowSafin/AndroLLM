@@ -25,6 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
@@ -215,7 +217,10 @@ fun ChatScreen(
                         onOpenSampler = { samplerSheetOpen = true },
                         onDelete = {
                             successState?.conversationId?.let { viewModel.deleteConversation(it) }
-                        }
+                        },
+                        cloudMode = successState?.cloudMode == true,
+                        cloudDefaultModel = successState?.cloudDefaultModel.orEmpty(),
+                        onToggleCloudMode = { viewModel.toggleCloudMode() }
                     )
                 }
             ) { innerPadding ->
@@ -247,7 +252,7 @@ fun ChatScreen(
                     }
 
                     Column(modifier = Modifier.fillMaxSize()) {
-                        if (successState?.engineState is EngineState.Unloaded) {
+                        if (successState?.engineState is EngineState.Unloaded && successState?.cloudMode != true) {
                             NoModelLoadedCard(onNavigateToModels = { navController.navigate("models") })
                         }
 
@@ -743,7 +748,10 @@ private fun ChatTopBar(
     onExport: () -> Unit,
     onDebugInfo: () -> Unit,
     onOpenSampler: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    cloudMode: Boolean = false,
+    cloudDefaultModel: String = "",
+    onToggleCloudMode: () -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -759,14 +767,18 @@ private fun ChatTopBar(
                     )
                 )
 
-                val statusLabel = when (engineState) {
-                    is EngineState.Ready -> performanceStats?.tokensPerSecond?.let { "${"%.1f".format(it)} tok/s" } ?: "Vulkan Ready"
-                    is EngineState.Loading -> "Loading: ${engineState.stage}"
-                    is EngineState.WarmingUp -> "Warming Up: ${engineState.step}"
-                    is EngineState.Generating -> "Generating tokens..."
-                    EngineState.Unloading -> "Unloading..."
-                    is EngineState.Failed -> "Model Error"
-                    EngineState.Unloaded -> "Offline AI"
+                val statusLabel = if (cloudMode) {
+                    if (cloudDefaultModel.isNotBlank()) "Cloud · $cloudDefaultModel" else "Cloud · no model"
+                } else {
+                    when (engineState) {
+                        is EngineState.Ready -> performanceStats?.tokensPerSecond?.let { "${"%.1f".format(it)} tok/s" } ?: "Vulkan Ready"
+                        is EngineState.Loading -> "Loading: ${engineState.stage}"
+                        is EngineState.WarmingUp -> "Warming Up: ${engineState.step}"
+                        is EngineState.Generating -> "Generating tokens..."
+                        EngineState.Unloading -> "Unloading..."
+                        is EngineState.Failed -> "Model Error"
+                        EngineState.Unloaded -> "Offline AI"
+                    }
                 }
 
                 Text(
@@ -784,6 +796,14 @@ private fun ChatTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onToggleCloudMode) {
+                Icon(
+                    imageVector = if (cloudMode) Icons.Filled.CloudDone else Icons.Filled.Cloud,
+                    contentDescription = if (cloudMode) "Switch to local GGUF" else "Switch to cloud (LiteLLM)",
+                    tint = if (cloudMode) io.androllm.core.ui.theme.LampGlow else DeskPaper
+                )
+            }
+
             IconButton(onClick = onOpenSearch) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = DeskPaper)
             }

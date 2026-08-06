@@ -1,10 +1,14 @@
-package io.androllm.feature.settings
+﻿package io.androllm.feature.settings
 
 import android.content.Context
 import io.androllm.core.common.UiState
 import io.androllm.core.database.repository.SettingsRepository
+import io.androllm.core.memory.MemoryManager
+import io.androllm.core.memory.model.MemoryInspectorStats
+import io.androllm.core.memory.model.MemorySettings
 import io.androllm.core.models.AppSettings
 import io.androllm.core.models.ThemeMode
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -28,12 +32,16 @@ class SettingsViewModelTest {
 
     private val context: Context = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
+    private val memoryManager: MemoryManager = mockk(relaxed = true)
 
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         every { context.getExternalFilesDir(any()) } returns
             java.io.File(System.getProperty("java.io.tmpdir"), "androllm_test_logs")
+        every { memoryManager.settings } returns flowOf(MemorySettings())
+        coEvery { memoryManager.currentSettings() } returns MemorySettings()
+        coEvery { memoryManager.getInspectorStats() } returns MemoryInspectorStats()
     }
 
     @After
@@ -47,7 +55,7 @@ class SettingsViewModelTest {
             AppSettings(theme = ThemeMode.DARK, developerMode = true)
         )
 
-        val viewModel = SettingsViewModel(context, settingsRepository)
+        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager)
 
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Success)
@@ -60,10 +68,12 @@ class SettingsViewModelTest {
     fun `defaults are used when no settings exist`() = runTest {
         every { settingsRepository.observeSettings() } returns flowOf(AppSettings())
 
-        val viewModel = SettingsViewModel(context, settingsRepository)
+        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager)
 
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Success)
         assertEquals(ThemeMode.SYSTEM, (state as UiState.Success).data.theme)
     }
 }
+
+

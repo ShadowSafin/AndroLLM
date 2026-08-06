@@ -42,6 +42,8 @@ object AppConstants {
         const val PROFILE_ROUTE = "profile"
         const val PROMPTS_ROUTE = "prompts"
         const val DEVELOPER_ROUTE = "developer"
+        const val CLOUD_PROVIDERS_ROUTE = "cloud/providers"
+        const val CLOUD_MODELS_ROUTE = "cloud/models/{providerId}"
     }
 
     object Intents {

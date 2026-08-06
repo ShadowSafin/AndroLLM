@@ -158,4 +158,43 @@ object LlamaJniBridge {
      * token IDs, first-token latency). Consumed by the hidden debug panel.
      */
     external fun nativeGetDebugInfo(engineHandle: Long): String
+
+    // ── Embedding model (memory system) ──
+    // The embedding model is loaded into its own engine handle (typically a
+    // separate nativeCreate() result), keeping it fully independent of the
+    // chat model's lifecycle and KV cache.
+
+    /**
+     * Loads a GGUF embedding model (MiniLM / BGE / nomic / Qwen3-Embedding)
+     * into the engine for sentence embedding generation.
+     * [cfgJson] supports contextLength, batchSize and threads.
+     * @throws java.lang.RuntimeException when the model cannot be loaded
+     */
+    external fun nativeLoadEmbeddingModel(
+        engineHandle: Long,
+        modelPath: String,
+        cfgJson: String
+    )
+
+    /**
+     * True when an embedding model is currently loaded in the engine.
+     */
+    external fun nativeEmbeddingLoaded(engineHandle: Long): Boolean
+
+    /**
+     * Embedding dimension of the loaded embedding model (0 when none).
+     */
+    external fun nativeEmbeddingDim(engineHandle: Long): Int
+
+    /**
+     * Encodes [texts] into sentence embeddings. Returns a JSON string
+     * encoding an array of float arrays (e.g. "[[0.1,0.2,...],...]").
+     * Blocking: never call on the main thread.
+     */
+    external fun nativeEmbed(engineHandle: Long, texts: Array<String>): String
+
+    /**
+     * Unloads the embedding model and frees its native memory.
+     */
+    external fun nativeUnloadEmbeddingModel(engineHandle: Long)
 }

@@ -1,9 +1,14 @@
-package io.androllm.feature.chat
+﻿package io.androllm.feature.chat
 
+import io.androllm.core.cloud.CloudGateway
+import io.androllm.core.cloud.model.CloudSettings
 import io.androllm.core.database.repository.ConversationRepository
 import io.androllm.core.database.repository.MessageRepository
 import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.datastore.UserPreferences
+import io.androllm.core.memory.MemoryManager
+import io.androllm.core.memory.model.MemoryContext
+import io.androllm.core.memory.model.MemorySettings
 import io.androllm.core.models.Conversation
 import io.androllm.core.models.Message
 import io.androllm.core.models.MessageRole
@@ -44,6 +49,8 @@ class ChatViewModelTest {
     private val conversationRepository = mockk<ConversationRepository>()
     private val messageRepository = mockk<MessageRepository>()
     private val preferencesDataStore = mockk<PreferencesDataStore>()
+    private val memoryManager = mockk<MemoryManager>(relaxed = true)
+    private val cloudGateway = mockk<CloudGateway>(relaxed = true)
 
     private val engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
     private val generationState = MutableStateFlow<GenerationState>(GenerationState.Idle)
@@ -72,6 +79,10 @@ class ChatViewModelTest {
         coEvery { messageRepository.deleteById(any()) } returns io.androllm.core.common.Result.Success(Unit)
         coEvery { messageRepository.setBookmarked(any(), any()) } returns io.androllm.core.common.Result.Success(Unit)
         coEvery { messageRepository.truncateAfterTimestamp(any(), any()) } returns io.androllm.core.common.Result.Success(Unit)
+        coEvery { memoryManager.currentSettings() } returns MemorySettings()
+        coEvery { memoryManager.buildContext(any(), any(), any(), any()) } returns MemoryContext()
+        every { cloudGateway.settings } returns flowOf(CloudSettings())
+        coEvery { cloudGateway.resolveChatTarget() } returns null
     }
 
     @After
@@ -88,7 +99,14 @@ class ChatViewModelTest {
             version = "1",
             backend = BackendType.CPU
         )
-        return ChatViewModel(engineRepository, conversationRepository, messageRepository, preferencesDataStore)
+        return ChatViewModel(
+            engineRepository,
+            conversationRepository,
+            messageRepository,
+            preferencesDataStore,
+            memoryManager,
+            cloudGateway
+        )
     }
 
     @Test
@@ -138,3 +156,5 @@ class ChatViewModelTest {
         coVerify { engineRepository.cancelGeneration() }
     }
 }
+
+

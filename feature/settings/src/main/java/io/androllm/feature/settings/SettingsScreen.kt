@@ -14,31 +14,46 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MotionPhotosOn
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,9 +101,25 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val logPreview by viewModel.logPreview.collectAsStateWithLifecycle()
     val user by viewModel.user.collectAsStateWithLifecycle()
+    val memorySettings by viewModel.memorySettings.collectAsStateWithLifecycle()
+    val memoryStats by viewModel.memoryStats.collectAsStateWithLifecycle()
+    val memoryMessage by viewModel.memoryMessage.collectAsStateWithLifecycle()
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
     var reduceMotion by remember { mutableStateOf(false) }
+    var showModelPathDialog by remember { mutableStateOf(false) }
+    var showCloudEmbeddingDialog by remember { mutableStateOf(false) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> viewModel.importMemories(uri) }
+
+    LaunchedEffect(memoryMessage) {
+        if (memoryMessage != null) {
+            kotlinx.coroutines.delay(4000)
+            viewModel.clearMemoryMessage()
+        }
+    }
 
     CloudAtmosphericBackground(reduceMotion = reduceMotion) {
         CloudAdaptiveNavigation(
@@ -179,7 +210,46 @@ fun SettingsScreen(
                     }
                 }
 
-                // 6. Developer Options
+                // 6. On-device Memory
+                item {
+                    SectionHeader(title = "Memory")
+                    MemorySettingsCard(
+                        settings = memorySettings,
+                        stats = memoryStats,
+                        feedback = memoryMessage,
+                        onToggleEnabled = { viewModel.toggleMemoryEnabled() },
+                        onThresholdChange = { viewModel.updateSimilarityThreshold(it) },
+                        onRetrievalCountChange = { viewModel.updateRetrievalCount(it) },
+                        onSummarizationIntervalChange = { viewModel.updateSummarizationInterval(it) },
+                        onModelPathClick = { showModelPathDialog = true },
+                        onTestModel = { viewModel.testEmbeddingModel() },
+                        onCloudEmbeddingClick = { showCloudEmbeddingDialog = true },
+                        onExport = { viewModel.exportMemories() },
+                        onImport = { importLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) },
+                        onDeleteAll = { viewModel.deleteAllMemories() },
+                        onRefreshStats = { viewModel.refreshMemoryStats() },
+                        onInspectorClick = {
+                            navController.navigate(io.androllm.core.navigation.Routes.DEVELOPER)
+                        }
+                    )
+                }
+
+                // 7. Cloud Providers (LiteLLM gateway)
+                item {
+                    SectionHeader(title = "Cloud Providers")
+                    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            SettingRow(
+                                icon = Icons.Filled.CloudDone,
+                                title = "LiteLLM Gateway",
+                                value = "Manage providers & models",
+                                onClick = { navController.navigate(io.androllm.core.navigation.Routes.CLOUD_PROVIDERS) }
+                            )
+                        }
+                    }
+                }
+
+                // 8. Developer Options
                 item {
                     SectionHeader(title = stringResource(R.string.settings_developer))
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -194,7 +264,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // 7. Logs & Diagnostics
+                // 9. Logs & Diagnostics
                 item {
                     SectionHeader(title = stringResource(R.string.settings_logs))
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -220,7 +290,7 @@ fun SettingsScreen(
                     }
                 }
 
-                // 8. About & Privacy
+                // 10. About & Privacy
                 item {
                     SectionHeader(title = stringResource(R.string.settings_about))
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -246,6 +316,28 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    if (showModelPathDialog) {
+        ModelPathDialog(
+            currentPath = memorySettings.embeddingModelPath,
+            onDismiss = { showModelPathDialog = false },
+            onSave = { path ->
+                showModelPathDialog = false
+                viewModel.setEmbeddingModelPath(path)
+            }
+        )
+    }
+
+    if (showCloudEmbeddingDialog) {
+        CloudEmbeddingModelDialog(
+            currentModel = memorySettings.cloudEmbeddingModel,
+            onDismiss = { showCloudEmbeddingDialog = false },
+            onSave = { modelId ->
+                showCloudEmbeddingDialog = false
+                viewModel.setCloudEmbeddingModel(modelId)
+            }
+        )
     }
 }
 
@@ -417,6 +509,282 @@ private fun SettingRow(
             )
         }
     }
+}
+
+/**
+ * On-device Memory — master switch, similarity threshold, retrieval count,
+ * embedding model wiring, export/import and full wipe.
+ */
+@Composable
+private fun MemorySettingsCard(
+    settings: io.androllm.core.memory.model.MemorySettings,
+    stats: io.androllm.core.memory.model.MemoryInspectorStats?,
+    feedback: String?,
+    onToggleEnabled: () -> Unit,
+    onThresholdChange: (Float) -> Unit,
+    onRetrievalCountChange: (Int) -> Unit,
+    onSummarizationIntervalChange: (Int) -> Unit,
+    onModelPathClick: () -> Unit,
+    onTestModel: () -> Unit,
+    onCloudEmbeddingClick: () -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onDeleteAll: () -> Unit,
+    onRefreshStats: () -> Unit,
+    onInspectorClick: () -> Unit
+) {
+    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            // Master switch
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleEnabled)
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Memory,
+                    contentDescription = null,
+                    tint = if (settings.enabled) LampAmber else LampGlow,
+                    modifier = Modifier.size(20.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "On-device Memory",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = DeskPaper
+                        )
+                    )
+                    Text(
+                        text = "Personalized replies from your own conversations — never leaves this device",
+                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                Switch(
+                    checked = settings.enabled,
+                    onCheckedChange = { onToggleEnabled() },
+                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                )
+            }
+
+            if (settings.enabled) {
+                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+
+                // Stats line
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = stats?.let { "${it.memoryCount} memories • ${it.embeddingCount} embeddings" } ?: "…",
+                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInkFaint),
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onRefreshStats) {
+                        Text("Refresh", color = LampGlow)
+                    }
+                }
+
+                if (feedback != null) {
+                    Text(
+                        text = feedback,
+                        style = MaterialTheme.typography.bodySmall.copy(color = LampAmber),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+
+                // Similarity threshold
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "Similarity threshold  ${(settings.similarityThreshold * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    )
+                    Slider(
+                        value = settings.similarityThreshold,
+                        onValueChange = onThresholdChange,
+                        valueRange = io.androllm.core.memory.model.MemorySettings.THRESHOLD_MIN..io.androllm.core.memory.model.MemorySettings.THRESHOLD_MAX,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Retrieval count
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "Memories retrieved per prompt: ${settings.retrievalCount}",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    )
+                    Slider(
+                        value = settings.retrievalCount.toFloat(),
+                        onValueChange = { onRetrievalCountChange(it.toInt()) },
+                        valueRange = io.androllm.core.memory.model.MemorySettings.RETRIEVAL_MIN.toFloat()..
+                            io.androllm.core.memory.model.MemorySettings.RETRIEVAL_MAX.toFloat(),
+                        steps = io.androllm.core.memory.model.MemorySettings.RETRIEVAL_MAX -
+                            io.androllm.core.memory.model.MemorySettings.RETRIEVAL_MIN - 1,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Summarization interval
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "Summarize every ${settings.summarizationInterval} messages",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    )
+                    Slider(
+                        value = settings.summarizationInterval.toFloat(),
+                        onValueChange = { onSummarizationIntervalChange(it.toInt()) },
+                        valueRange = io.androllm.core.memory.model.MemorySettings.SUMMARIZATION_MIN.toFloat()..
+                            io.androllm.core.memory.model.MemorySettings.SUMMARIZATION_MAX.toFloat(),
+                        steps = 10,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Embedding model
+                SettingRow(
+                    icon = Icons.Filled.Tune,
+                    title = "Embedding model",
+                    value = settings.embeddingModelPath.substringAfterLast('/')
+                        .takeIf { it.isNotBlank() }
+                        ?: "Not configured",
+                    onClick = onModelPathClick
+                )
+                SettingRow(
+                    icon = Icons.Filled.PlayArrow,
+                    title = "Test embedding model",
+                    value = if (stats?.embeddingModelLoaded == true) "Loaded (dim ${stats.embeddingDimension})" else null,
+                    onClick = onTestModel
+                )
+                SettingRow(
+                    icon = Icons.Filled.CloudDone,
+                    title = "Cloud embedding model",
+                    value = settings.cloudEmbeddingModel.substringAfterLast('/')
+                        .takeIf { it.isNotBlank() }
+                        ?: "Not configured",
+                    onClick = onCloudEmbeddingClick
+                )
+
+                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+
+                SettingRow(
+                    icon = Icons.Filled.IosShare,
+                    title = "Export memories",
+                    onClick = onExport
+                )
+                SettingRow(
+                    icon = Icons.Filled.FileUpload,
+                    title = "Import memories",
+                    onClick = onImport
+                )
+                SettingRow(
+                    icon = Icons.Filled.Psychology,
+                    title = "Memory Inspector",
+                    value = "Open developer dashboard",
+                    onClick = onInspectorClick
+                )
+                SettingRow(
+                    icon = Icons.Filled.Delete,
+                    title = "Delete all memories",
+                    onClick = onDeleteAll
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Small dialog for entering the absolute path of a GGUF embedding model.
+ */
+@Composable
+private fun ModelPathDialog(
+    currentPath: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var path by remember { mutableStateOf(currentPath) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Embedding model path", fontWeight = FontWeight.Bold, color = DeskPaper) },
+        text = {
+            Column {
+                Text(
+                    text = "Absolute path to a small GGUF embedding model (e.g. all-MiniLM-L6-v2.Q8_0.gguf, bge-small-en-v1.5.Q8_0.gguf). Download it from the Models screen first.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = path,
+                    onValueChange = { path = it },
+                    label = { Text("Model path") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(path.trim()) },
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = LampAmber)
+            ) {
+                Text("Save", color = DeskPaper)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = DeskInkFaint) }
+        }
+    )
+}
+
+/**
+ * Small dialog for configuring the cloud embedding model id, routed through
+ * the active LiteLLM provider. Empty clears the cloud route.
+ */
+@Composable
+private fun CloudEmbeddingModelDialog(
+    currentModel: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var model by remember { mutableStateOf(currentModel) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Cloud embedding model", fontWeight = FontWeight.Bold, color = DeskPaper) },
+        text = {
+            Column {
+                Text(
+                    text = "Model id for /v1/embeddings through your active cloud provider (e.g. openai/text-embedding-3-small, cohere/embed-english-v3.0, togethertext-embedding...). Leave empty to use the local GGUF model.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = model,
+                    onValueChange = { model = it },
+                    label = { Text("Embedding model id") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(model.trim()) },
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = LampAmber)
+            ) {
+                Text("Save", color = DeskPaper)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = DeskInkFaint) }
+        }
+    )
 }
 
 private fun ThemeMode.displayName(): String = when (this) {

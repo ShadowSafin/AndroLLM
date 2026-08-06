@@ -28,6 +28,7 @@
 #include <sched.h>
 #include <unistd.h>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -555,9 +556,26 @@ struct LlamaEngine {
     int64_t lastFirstTokenMs = 0;
     std::string lastStopReason;
 
+    // ── embedding model (optional; separate lifecycle from the chat model) ──
+    // The embedding model is a small, independent model (MiniLM/BGE/nomic GGUF)
+    // used for memory vectorization. It is NOT cleared by destroy() so that
+    // reloading a chat model never drops a loaded embedding model; it is only
+    // released by unloadEmbedding() (nativeUnloadEmbeddingModel / destructor).
+    common_init_result_ptr embedInitResult; // owns embed model + ctx
+    llama_model            *embedModel = nullptr;
+    llama_context          *embedCtx   = nullptr;
+    int32_t                 embedDim   = 0;
+
     LlamaEngine() : sampler(nullptr), model(nullptr), ctx(nullptr) {}
 
-    ~LlamaEngine() { destroy(); }
+    ~LlamaEngine() { destroy(); unloadEmbedding(); }
+
+    void unloadEmbedding() {
+        embedModel = nullptr;
+        embedCtx = nullptr;
+        embedDim = 0;
+        embedInitResult.reset();
+    }
 
     void destroy() {
         cancel.store(true);
@@ -1096,6 +1114,61 @@ static std::string doGenerate(
     return statsJson(tokens.size(), generated, promptMs, genMs, tps,
                      eng->peakMemoryBytes, eng->lastFirstTokenMs,
                      eng->lastStopReason);
+}
+
+// ---------------------------------------------------------------------------
+// Embeddings — official llama.cpp embedding pattern (examples/embedding)
+// ---------------------------------------------------------------------------
+
+// Encodes a single text and returns its (pooled, normalized) embedding.
+// Pooling is handled by llama.cpp based on the model's pooling type metadata
+// (MEAN for BERT-style models, CLS/LAST for others); embd_normalize=2 is set
+// at load time so embeddings come back unit-length (cosine == dot product).
+static std::vector<float> embed_one(llama_context * ctx, const std::string & text) {
+    const int32_t n_embd = llama_model_n_embd(llama_get_model(ctx));
+
+    std::vector<llama_token> tokens =
+        common_tokenize(ctx, text, /*add_special=*/true, /*parse_special=*/false);
+    if (tokens.empty()) return std::vector<float>(n_embd, 0.0f);
+
+    // Never exceed the context: truncate from the tail (embedding models are
+    // short-text models; MiniLM/BGE train on <=512 tokens). An overflow would
+    // fail llama_encode and abort the whole batch.
+    const uint32_t n_ctx = llama_n_ctx(ctx);
+    if ((uint32_t)tokens.size() >= n_ctx) {
+        tokens.resize(n_ctx - 1);
+    }
+
+    llama_batch batch = llama_batch_init((int32_t)tokens.size(), 0, 1);
+    for (size_t i = 0; i < tokens.size(); i++) {
+        // logits=true on every token so the pooled embedding is computed from
+        // the full sequence (required for MEAN pooling models).
+        common_batch_add(batch, tokens[i], (llama_pos)i, {0}, /*logits=*/true);
+    }
+    const int rc = llama_encode(ctx, batch);
+    llama_batch_free(batch);
+    if (rc != 0) throw std::runtime_error("llama_encode failed (rc=" + std::to_string(rc) + ")");
+
+    const float * embd = llama_get_embeddings_ith(ctx, -1);
+    if (!embd) throw std::runtime_error("embeddings unavailable");
+    return std::vector<float>(embd, embd + n_embd);
+}
+
+// Serializes a list of embeddings as a JSON array of float arrays.
+static std::string embeddings_to_json(const std::vector<std::vector<float>> & embs) {
+    std::ostringstream o;
+    o << "[";
+    for (size_t i = 0; i < embs.size(); i++) {
+        if (i) o << ",";
+        o << "[";
+        for (size_t j = 0; j < embs[i].size(); j++) {
+            if (j) o << ",";
+            o << std::setprecision(8) << embs[i][j];
+        }
+        o << "]";
+    }
+    o << "]";
+    return o.str();
 }
 
 // ---------------------------------------------------------------------------
@@ -2139,6 +2212,136 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetDebugInfo(
       << "\",\"gpuInferenceVerified\":" << (eng->gpuInferenceVerified ? "true" : "false")
       << "}";
     return to_jstring(env, o.str());
+}
+
+// ── nativeLoadEmbeddingModel ───────────────────────────────────────────────
+
+JNIEXPORT void JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeLoadEmbeddingModel(
+    JNIEnv *env, jobject, jlong handle, jstring modelPath, jstring cfgJson) {
+
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    if (!eng) { throw_java(env, "Invalid engine handle"); return; }
+
+    std::string path = from_jstring(env, modelPath);
+    if (path.empty()) { throw_java(env, "Embedding model path is empty"); return; }
+
+    int ctxLen = 512, batchSize = 512, threads = 4;
+    {
+        std::map<std::string, mini_json::Node> obj;
+        mini_json::parseObject(from_jstring(env, cfgJson), obj);
+        auto it = obj.end();
+        if ((it = obj.find("contextLength")) != obj.end()) ctxLen    = (int)it->second.num;
+        if ((it = obj.find("batchSize"))     != obj.end()) batchSize = (int)it->second.num;
+        if ((it = obj.find("threads"))       != obj.end()) threads   = (int)it->second.num;
+    }
+
+    // Drop any previously loaded embedding model first.
+    eng->unloadEmbedding();
+
+    LOGI("[Embed] loading model=%s ctx=%d batch=%d", path.c_str(), ctxLen, batchSize);
+
+    common_params params;
+    params.model.path    = path;
+    params.embedding     = true;          // sentence-embedding mode (no sampling)
+    params.embd_normalize = 2;            // L2-normalize embeddings (cosine == dot)
+    params.n_ctx          = std::max(128, ctxLen);
+    params.n_batch        = std::max(128, batchSize);
+    params.n_ubatch       = params.n_batch;
+    params.cpuparams.n_threads       = threads;   // this llama.cpp moved thread counts
+    params.cpuparams_batch.n_threads = threads;   // into common_cpu_params
+    params.n_gpu_layers   = 0;            // CPU: embedding models are tiny, GPU adds RAM pressure
+    params.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+
+    common_init_result_ptr result;
+    try {
+        result = common_init_from_params(params);
+    } catch (const std::exception &e) {
+        throw_java(env, std::string("Embedding model load failed: ") + e.what());
+        return;
+    } catch (...) {
+        throw_java(env, "Embedding model load failed (unknown)");
+        return;
+    }
+
+    if (!result || !result->model() || !result->context()) {
+        throw_java(env, "Embedding model init returned null");
+        return;
+    }
+
+    eng->embedInitResult = std::move(result);
+    eng->embedModel      = eng->embedInitResult->model();
+    eng->embedCtx        = eng->embedInitResult->context();
+    eng->embedDim        = llama_model_n_embd(eng->embedModel);
+
+    LOGI("[Embed] loaded dim=%d ctx=%u model_size=%zu",
+         eng->embedDim, llama_n_ctx(eng->embedCtx), llama_model_size(eng->embedModel));
+}
+
+// ── nativeEmbeddingLoaded ──────────────────────────────────────────────────
+
+JNIEXPORT jboolean JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeEmbeddingLoaded(
+    JNIEnv *, jobject, jlong handle) {
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    return (eng && eng->embedModel && eng->embedCtx) ? JNI_TRUE : JNI_FALSE;
+}
+
+// ── nativeEmbeddingDim ─────────────────────────────────────────────────────
+
+JNIEXPORT jint JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeEmbeddingDim(
+    JNIEnv *, jobject, jlong handle) {
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    return (eng && eng->embedModel) ? eng->embedDim : 0;
+}
+
+// ── nativeEmbed ────────────────────────────────────────────────────────────
+// Encodes each text and returns a JSON array of float arrays.
+// Blocking: caller must not invoke on the main thread.
+
+JNIEXPORT jstring JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeEmbed(
+    JNIEnv *env, jobject, jlong handle, jobjectArray texts) {
+
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    if (!eng || !eng->embedModel || !eng->embedCtx) {
+        throw_java(env, "Embedding model not loaded");
+        return to_jstring(env, "[]");
+    }
+
+    std::vector<std::string> list;
+    jsize n = texts ? env->GetArrayLength(texts) : 0;
+    list.reserve(n);
+    for (jsize i = 0; i < n; i++) {
+        jstring js = (jstring)env->GetObjectArrayElement(texts, i);
+        list.push_back(from_jstring(env, js));
+        env->DeleteLocalRef(js);
+    }
+
+    try {
+        std::vector<std::vector<float>> embs;
+        embs.reserve(list.size());
+        for (const auto & t : list) {
+            embs.push_back(embed_one(eng->embedCtx, t));
+        }
+        return to_jstring(env, embeddings_to_json(embs));
+    } catch (const std::exception &e) {
+        throw_java(env, std::string("Embedding failed: ") + e.what());
+        return to_jstring(env, "[]");
+    } catch (...) {
+        throw_java(env, "Embedding failed (unknown)");
+        return to_jstring(env, "[]");
+    }
+}
+
+// ── nativeUnloadEmbeddingModel ─────────────────────────────────────────────
+
+JNIEXPORT void JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeUnloadEmbeddingModel(
+    JNIEnv *, jobject, jlong handle) {
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    if (eng) eng->unloadEmbedding();
 }
 
 } // extern "C"

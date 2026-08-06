@@ -3,7 +3,11 @@ package io.androllm.app
 import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration as WorkConfiguration
 import dagger.hilt.android.HiltAndroidApp
+import io.androllm.core.cloud.ProviderHealthMonitor
+import io.androllm.core.memory.background.MemoryBackgroundScheduler
 import io.androllm.engine.api.EngineRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,12 +21,26 @@ import javax.inject.Inject
  *
  * Registers ComponentCallbacks2 to keep the loaded model resident in memory
  * during background operation, only releasing under critical memory pressure.
+ * Also wires WorkManager to Hilt (so memory background jobs get their
+ * dependencies) and schedules the opportunistic memory maintenance loop.
  */
 @HiltAndroidApp
-class AndroLLMApplication : Application() {
+class AndroLLMApplication : Application(), WorkConfiguration.Provider {
 
     @Inject
     lateinit var engineRepository: EngineRepository
+
+    @Inject
+    lateinit var providerHealthMonitor: ProviderHealthMonitor
+
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
+
+    @Inject
+    lateinit var memoryBackgroundScheduler: MemoryBackgroundScheduler
+
+    override val workManagerConfiguration: WorkConfiguration
+        get() = WorkConfiguration.Builder().setWorkerFactory(workerFactory).build()
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -31,6 +49,13 @@ class AndroLLMApplication : Application() {
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
+
+        // Background health probing for configured LiteLLM providers.
+        providerHealthMonitor.start()
+
+        // Memory housekeeping: pending-embedding backfill + periodic cleanup.
+        // Idempotent and opportunistic — never blocks chat.
+        memoryBackgroundScheduler.schedule()
 
         registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {

@@ -72,6 +72,14 @@ interface EngineRepository {
     suspend fun generate(prompt: String, config: GenerationConfig = GenerationConfig()): Result<Unit>
 
     /**
+     * Runs a non-streaming generation WITHOUT publishing to [generationState]
+     * (the chat UI never sees it). Used by background pipelines such as the
+     * memory extractor/summarizer. Serialized with [generate] so the two can
+     * never overlap on the shared native engine.
+     */
+    suspend fun generateQuiet(prompt: String, config: GenerationConfig = GenerationConfig()): Result<String>
+
+    /**
      * Requests cancellation of an in-flight generation.
      */
     suspend fun cancelGeneration(): Result<Unit>

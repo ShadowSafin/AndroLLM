@@ -1,6 +1,7 @@
-package io.androllm.feature.settings
+﻿package io.androllm.feature.settings
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -8,18 +9,26 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.UiState
+import io.androllm.core.common.onError
+import io.androllm.core.common.onSuccess
 import io.androllm.core.database.repository.SettingsRepository
+import io.androllm.core.memory.MemoryManager
+import io.androllm.core.memory.model.MemoryInspectorStats
+import io.androllm.core.memory.model.MemorySettings
 import io.androllm.core.models.ThemeMode
 import io.androllm.core.utils.LogUtils
 import io.androllm.core.utils.ShareUtils
 import io.androllm.core.utils.StorageUtils
+import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for the settings screen.
@@ -27,7 +36,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val memoryManager: MemoryManager
 ) : BaseViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<SettingsData>>(UiState.Loading())
@@ -36,7 +46,16 @@ class SettingsViewModel @Inject constructor(
     private val _logPreview = MutableStateFlow("")
     val logPreview: StateFlow<String> = _logPreview
 
-    /** Firebase is optional — the settings header must still work offline as a guest. */
+    private val _memorySettings = MutableStateFlow(MemorySettings())
+    val memorySettings: StateFlow<MemorySettings> = _memorySettings.asStateFlow()
+
+    private val _memoryStats = MutableStateFlow<MemoryInspectorStats?>(null)
+    val memoryStats: StateFlow<MemoryInspectorStats?> = _memoryStats.asStateFlow()
+
+    private val _memoryMessage = MutableStateFlow<String?>(null)
+    val memoryMessage: StateFlow<String?> = _memoryMessage.asStateFlow()
+
+    /** Firebase is optional â€” the settings header must still work offline as a guest. */
     private val auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
 
     private val _user = MutableStateFlow(auth?.currentUser?.toSettingsUser())
@@ -50,6 +69,8 @@ class SettingsViewModel @Inject constructor(
         observeSettings()
         refreshLogPreview()
         auth?.addAuthStateListener(authListener)
+        observeMemorySettings()
+        refreshMemoryStats()
     }
 
     override fun onCleared() {
@@ -122,6 +143,131 @@ class SettingsViewModel @Inject constructor(
 
     fun refreshLogPreview() {
         _logPreview.value = LogUtils.readRecentLogs(context)
+    }
+
+    // â”€â”€ On-device memory system â”€â”€
+
+    private fun observeMemorySettings() {
+        viewModelScope.launch {
+            memoryManager.settings.collect { _memorySettings.value = it }
+        }
+    }
+
+    fun refreshMemoryStats() {
+        viewModelScope.launch {
+            _memoryStats.value = memoryManager.getInspectorStats()
+        }
+    }
+
+    fun toggleMemoryEnabled() {
+        viewModelScope.launch {
+            val enabled = !_memorySettings.value.enabled
+            memoryManager.updateSettings { it.copy(enabled = enabled) }
+            if (enabled) {
+                memoryManager.preloadEmbeddingModel()
+                _memoryMessage.value = "Memory enabled"
+            } else {
+                _memoryMessage.value = "Memory disabled"
+            }
+            refreshMemoryStats()
+        }
+    }
+
+    fun updateSimilarityThreshold(value: Float) {
+        viewModelScope.launch {
+            memoryManager.updateSettings { it.copy(similarityThreshold = value) }
+        }
+    }
+
+    fun updateRetrievalCount(value: Int) {
+        viewModelScope.launch {
+            memoryManager.updateSettings { it.copy(retrievalCount = value) }
+        }
+    }
+
+    fun updateSummarizationInterval(value: Int) {
+        viewModelScope.launch {
+            memoryManager.updateSettings { it.copy(summarizationInterval = value) }
+        }
+    }
+
+    fun setEmbeddingModelPath(path: String) {
+        viewModelScope.launch {
+            memoryManager.setEmbeddingModelPath(path.trim())
+            _memoryMessage.value = "Embedding model path saved"
+            refreshMemoryStats()
+        }
+    }
+
+    /**
+     * Points embeddings at the active cloud provider's embedding model
+     * (OpenAI-compatible id, e.g. "openai/text-embedding-3-small"). Empty
+     * clears the cloud route and reverts to the local GGUF model.
+     */
+    fun setCloudEmbeddingModel(modelId: String) {
+        viewModelScope.launch {
+            memoryManager.setCloudEmbeddingModel(modelId.trim())
+            _memoryMessage.value = if (modelId.isBlank()) {
+                "Cloud embedding disabled — using local model"
+            } else {
+                "Cloud embedding model saved: $modelId"
+            }
+            refreshMemoryStats()
+        }
+    }
+
+    fun testEmbeddingModel() {
+        viewModelScope.launch {
+            memoryManager.preloadEmbeddingModel()
+                .onSuccess { _memoryMessage.value = "Embedding model loaded (dim ${memoryManager.getInspectorStats().embeddingDimension})" }
+                .onError { _memoryMessage.value = "Model load failed: ${it.message}" }
+            refreshMemoryStats()
+        }
+    }
+
+    fun deleteAllMemories() {
+        viewModelScope.launch {
+            memoryManager.deleteAll()
+            _memoryMessage.value = "All memories deleted"
+            refreshMemoryStats()
+        }
+    }
+
+    fun exportMemories() {
+        viewModelScope.launch {
+            memoryManager.exportMemories()
+                .onSuccess { file ->
+                    ShareUtils.shareFile(context, file, "AndroLLM Memory Export")
+                    _memoryMessage.value = "Export shared"
+                }
+                .onError { _memoryMessage.value = "Export failed: ${it.message}" }
+        }
+    }
+
+    /**
+     * Imports memories from a user-picked JSON file (SAF Uri).
+     */
+    fun importMemories(uri: Uri?) {
+        if (uri == null) return
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val temp = File(context.cacheDir, "memory_import_${System.currentTimeMillis()}.json")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    temp.outputStream().use { input.copyTo(it) }
+                }
+                memoryManager.importMemories(temp)
+            }
+            result.onSuccess {
+                _memoryMessage.value = "Imported +${it.inserted} ~${it.updated} -${it.skipped}"
+            }.onError {
+                _memoryMessage.value = "Import failed: ${it.message}"
+            }
+            refreshMemoryStats()
+        }
+    }
+
+    fun clearMemoryMessage() {
+        _memoryMessage.value = null
     }
 
     fun toggleMarkdownEnabled() {

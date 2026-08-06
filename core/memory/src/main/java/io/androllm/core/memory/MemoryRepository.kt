@@ -1,0 +1,939 @@
+package io.androllm.core.memory
+
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.androllm.core.common.Result
+import io.androllm.core.common.getOrDefault
+import io.androllm.core.common.getOrNull
+import io.androllm.core.common.getOrThrow
+import io.androllm.core.common.runCatching
+import io.androllm.core.memory.context.ContextBuilder
+import io.androllm.core.memory.db.dao.EmbeddingDao
+import io.androllm.core.memory.db.dao.MemoryDao
+import io.androllm.core.memory.db.dao.ProjectDao
+import io.androllm.core.memory.db.dao.RelationshipDao
+import io.androllm.core.memory.db.dao.SummaryDao
+import io.androllm.core.memory.db.dao.TagDao
+import io.androllm.core.memory.db.entity.EmbeddingEntity
+import io.androllm.core.memory.db.entity.MemoryEntity
+import io.androllm.core.memory.db.entity.MemoryTagCrossRef
+import io.androllm.core.memory.db.entity.ProjectEntity
+import io.androllm.core.memory.db.entity.RelationshipEntity
+import io.androllm.core.memory.db.entity.SummaryEntity
+import io.androllm.core.memory.db.entity.TagEntity
+import io.androllm.core.memory.embedding.EmbeddingProvider
+import io.androllm.core.memory.intelligence.MemoryIntelligence
+import io.androllm.core.memory.model.ExtractedMemory
+import io.androllm.core.memory.model.Memory
+import io.androllm.core.memory.model.MemoryContext
+import io.androllm.core.memory.model.MemoryExchange
+import io.androllm.core.memory.model.MemoryImportResult
+import io.androllm.core.memory.model.MemoryInspectorStats
+import io.androllm.core.memory.model.MemoryLogEntry
+import io.androllm.core.memory.model.MemorySearchFilters
+import io.androllm.core.memory.model.MemorySearchResult
+import io.androllm.core.memory.model.MemorySettings
+import io.androllm.core.memory.model.MemorySummary
+import io.androllm.core.memory.model.MemoryWriteAction
+import io.androllm.core.memory.model.MemoryWriteResult
+import io.androllm.core.memory.model.MemoryWriteSummary
+import io.androllm.core.memory.model.Project
+import io.androllm.core.memory.util.MemoryLogger
+import io.androllm.core.memory.vector.CosineVectorIndex
+import io.androllm.core.memory.vector.VectorMath
+import java.io.File
+import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+/**
+ * Orchestrates the on-device memory system:
+ *
+ * ```
+ * exchange → extract → embed? → similarity search → update-or-insert
+ * prompt   → retrieve (vector + keyword hybrid) → context builder
+ * ```
+ *
+ * Everything is local for storage (Room) and vector search (in-memory cosine
+ * index). Extraction/summarization run through [MemoryIntelligence] — the
+ * ACTIVE provider (cloud or local llama.cpp), never tied to a specific chat
+ * model. Embeddings are an optional optimization via [EmbeddingProvider];
+ * when no vector source is available, retrieval uses keyword/recency ranking
+ * and memory still persists. This repository implements [MemoryManager], the
+ * only surface the rest of the app sees.
+ */
+@Singleton
+class MemoryRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val memoryDao: MemoryDao,
+    private val embeddingDao: EmbeddingDao,
+    private val summaryDao: SummaryDao,
+    private val projectDao: ProjectDao,
+    private val tagDao: TagDao,
+    private val relationshipDao: RelationshipDao,
+    private val embeddingProvider: EmbeddingProvider,
+    private val intelligence: MemoryIntelligence,
+    private val settingsStore: MemorySettingsStore,
+    private val contextBuilder: ContextBuilder,
+    private val logger: MemoryLogger
+) : MemoryManager {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    private val indexMutex = Mutex()
+    private var vectorIndex: CosineVectorIndex? = null
+
+    // ── Inspector timings ──
+    @Volatile private var lastRetrievalMs = 0L
+    @Volatile private var lastEmbeddingMs = 0L
+    @Volatile private var lastExtractionMs = 0L
+    @Volatile private var avgRetrievalMs = 0L
+    @Volatile private var retrievalSamples = 0L
+    @Volatile private var totalExtractions = 0L
+    @Volatile private var totalEmbeddings = 0L
+    @Volatile private var totalInserted = 0L
+    @Volatile private var totalUpdated = 0L
+
+    // ── Settings ──
+
+    override val settings: Flow<MemorySettings> = settingsStore.settings
+
+    override suspend fun currentSettings(): MemorySettings = settingsStore.current()
+
+    override suspend fun updateSettings(transform: (MemorySettings) -> MemorySettings): Result<Unit> =
+        io.androllm.core.common.runCatching {
+            val previous = settingsStore.current()
+            val updated = transform(previous)
+            val embeddingConfigChanged =
+                previous.embeddingModelPath != updated.embeddingModelPath ||
+                    previous.cloudEmbeddingModel != updated.cloudEmbeddingModel
+            if (embeddingConfigChanged && embeddingProvider.isModelLoaded()) {
+                // Embedding source/path changed: drop the stale local model so
+                // the next embed reloads the right file / route.
+                embeddingsWithContext { embeddingProvider.unload() }
+            }
+            settingsStore.update { updated }
+        }
+
+    /**
+     * Loads the configured embedding source in the background. Chat preloads
+     * this so retrieval is fast on the first prompt. In cloud-embedding mode
+     * this is a no-op — no local model is loaded.
+     */
+    override suspend fun preloadEmbeddingModel(): Result<Unit> = embeddingProvider.ensureLoaded()
+
+    override suspend fun setEmbeddingModelPath(path: String): Result<Unit> =
+        updateSettings { it.copy(embeddingModelPath = path.trim()) }
+
+    override suspend fun setCloudEmbeddingModel(modelId: String): Result<Unit> =
+        updateSettings { it.copy(cloudEmbeddingModel = modelId.trim()) }
+
+    // ── Retrieval ──
+
+    /**
+     * Retrieves the top-K memories relevant to [query], honoring [filters].
+     * Vector scores come from the cosine index; keyword matches (content or
+     * tag LIKE) get a small hybrid boost. Falls back to keyword/recency when
+     * no embedding model is available.
+     */
+    override suspend fun retrieve(
+        query: String,
+        filters: MemorySearchFilters,
+        topK: Int?
+    ): Result<List<MemorySearchResult>> = io.androllm.core.common.runCatching {
+        val settings = settingsStore.current()
+        val k = (topK ?: settings.retrievalCount).coerceIn(MemorySettings.RETRIEVAL_MIN, MemorySettings.RETRIEVAL_MAX)
+        val t0 = System.currentTimeMillis()
+
+        val candidates = candidateIds(filters)
+        if (candidates.isEmpty()) return Result.Success(emptyList())
+        val keywordIds = keywordMatchIds(query)
+        val index = ensureVectorIndex()
+
+        val results: List<MemorySearchResult> = if (index != null) {
+            val queryVec = embedQuery(query)
+            if (queryVec != null) {
+                val scored = index.search(queryVec, k * 3, candidates)
+                val memoriesById = memoryDao.getByIds(scored.map { it.id }).associateBy { it.id }
+                val tagMap = memoryDao.getTagsForMemoryIds(memoriesById.keys.toList())
+                    .groupBy({ it.memoryId }, { it.tagName })
+                scored
+                    .mapNotNull { (id, score) ->
+                        memoriesById[id]?.let { MemorySearchResult(it.toDomain(tagMap[id].orEmpty()), score, id in keywordIds) }
+                    }
+                    .sortedWith(
+                        compareByDescending<MemorySearchResult> { it.score + if (it.matchedByKeyword) HYBRID_KEYWORD_BOOST else 0f }
+                            .thenByDescending { it.memory.isPinned }
+                            .thenByDescending { it.memory.importance }
+                            .thenByDescending { it.memory.updatedAt }
+                    )
+                    .take(k)
+            } else {
+                keywordFallback(candidates, keywordIds, k)
+            }
+        } else {
+            keywordFallback(candidates, keywordIds, k)
+        }
+
+        val elapsed = System.currentTimeMillis() - t0
+        lastRetrievalMs = elapsed
+        avgRetrievalMs = if (retrievalSamples == 0L) elapsed
+        else (avgRetrievalMs * retrievalSamples + elapsed) / (retrievalSamples + 1)
+        retrievalSamples++
+
+        val now = System.currentTimeMillis()
+        for (r in results) memoryDao.bumpAccess(r.memory.id, now)
+        results
+    }
+
+    /**
+     * Builds the context block injected into the system prompt: relevant
+     * memories + recent conversation summaries. Never dumps the database.
+     */
+    override suspend fun buildContext(
+        userQuery: String,
+        filters: MemorySearchFilters,
+        conversationId: String?,
+        topK: Int?
+    ): MemoryContext {
+        val settings = settingsStore.current()
+        val t0 = System.currentTimeMillis()
+        val memories = retrieve(userQuery, filters, topK).getOrDefault(emptyList())
+
+        val summaries = if (settings.maxContextSummaries > 0) {
+            val all = summaryDao.getAll().map { it.toDomain() }.take(settings.maxContextSummaries)
+            val current = conversationId?.let { summaryDao.getLatestForConversation(it)?.toDomain() }
+            (listOfNotNull(current) + all.filter { it.id != current?.id })
+                .take(settings.maxContextSummaries)
+        } else {
+            emptyList()
+        }
+
+        val text = contextBuilder.buildSystemText(
+            memories = memories,
+            summaries = summaries,
+            maxMemories = settings.maxContextMemories,
+            maxSummaries = settings.maxContextSummaries
+        )
+        return MemoryContext(
+            memories = memories,
+            summaries = summaries,
+            retrievalMs = System.currentTimeMillis() - t0,
+            systemText = text
+        )
+    }
+
+    // ── Update pipeline ──
+
+    /**
+     * Full post-response pipeline: extract → embed → search → update-or-insert,
+     * plus summarization scheduling. Best-effort and non-blocking for the UI:
+     * LLM work (extraction/summarization) and embedding calls run on the IO
+     * dispatcher regardless of the caller's context.
+     */
+    override suspend fun processExchange(exchange: MemoryExchange): Result<MemoryWriteSummary> =
+        io.androllm.core.common.runCatching {
+            val settings = settingsStore.current()
+            if (!settings.enabled) return Result.Success(MemoryWriteSummary())
+
+            val t0 = System.currentTimeMillis()
+            val items = withContext(Dispatchers.IO) {
+                intelligence.extract(exchange, settings).getOrNull().orEmpty()
+            }
+            lastExtractionMs = System.currentTimeMillis() - t0
+            totalExtractions++
+
+            var inserted = 0
+            var updated = 0
+            var skipped = 0
+            val writtenIds = mutableListOf<String>()
+            for (item in items) {
+                val r = writeMemory(item, exchange, settings)
+                when (r.action) {
+                    MemoryWriteAction.INSERTED -> { inserted++; writtenIds += r.memoryId }
+                    MemoryWriteAction.UPDATED -> updated++
+                    MemoryWriteAction.SKIPPED -> skipped++
+                }
+            }
+            linkExchangeMemories(writtenIds)
+
+            val summarized = maybeSummarize(exchange, settings)
+            logger.info("Exchange processed: +$inserted ~$updated -$skipped summarized=$summarized")
+            MemoryWriteSummary(
+                inserted = inserted,
+                updated = updated,
+                skipped = skipped,
+                extracted = items.size,
+                summarized = summarized
+            )
+        }
+
+    /**
+     * Manually adds a memory (settings UI / future pinning flows).
+     */
+    override suspend fun saveMemory(
+        category: MemoryCategory,
+        content: String,
+        importance: Int,
+        tags: List<String>,
+        projectName: String?
+    ): Result<MemoryWriteResult> = io.androllm.core.common.runCatching {
+        val settings = settingsStore.current()
+        writeMemory(
+            ExtractedMemory(content.trim(), category, importance.coerceIn(1, 5), tags, projectName),
+            MemoryExchange(conversationId = "", userMessage = "", assistantResponse = "", messageCount = 0),
+            settings
+        )
+    }
+
+    // ── CRUD ──
+
+    override fun observeMemories(): Flow<List<Memory>> = memoryDao.observeAllWithPinnedFirst().mapLatest { entities ->
+        val tagMap = memoryDao.getTagsForMemoryIds(entities.map { it.id })
+            .groupBy({ it.memoryId }, { it.tagName })
+        entities.map { it.toDomain(tagMap[it.id].orEmpty()) }
+    }
+
+    override suspend fun getMemories(): List<Memory> = io.androllm.core.common.runCatching {
+        val entities = memoryDao.getAll()
+        val tagMap = memoryDao.getTagsForMemoryIds(entities.map { it.id })
+            .groupBy({ it.memoryId }, { it.tagName })
+        entities.map { it.toDomain(tagMap[it.id].orEmpty()) }
+    }.getOrDefault(emptyList())
+
+    override suspend fun getMemory(id: String): Memory? = io.androllm.core.common.runCatching {
+        memoryDao.getById(id)?.let { it.toDomain(tagDao.getTagNamesForMemory(it.id)) }
+    }.getOrDefault(null)
+
+    override fun observeProjects(): Flow<List<Project>> = projectDao.observeAll().map { list ->
+        list.map { Project(it.id, it.name, it.description, it.createdAt) }
+    }
+
+    override suspend fun pinMemory(id: String, pinned: Boolean): Result<Unit> = io.androllm.core.common.runCatching {
+        memoryDao.updatePinned(id, pinned)
+        logger.info(if (pinned) "Pinned memory $id" else "Unpinned memory $id")
+    }
+
+    override suspend fun archiveMemory(id: String, archived: Boolean): Result<Unit> = io.androllm.core.common.runCatching {
+        memoryDao.updateArchived(id, archived)
+    }
+
+    override suspend fun deleteMemory(id: String): Result<Unit> = io.androllm.core.common.runCatching {
+        memoryDao.deleteById(id)
+        indexMutex.withLock { vectorIndex?.remove(id) }
+        logger.info("Deleted memory $id")
+    }
+
+    override suspend fun updateImportance(id: String, importance: Int): Result<Unit> = io.androllm.core.common.runCatching {
+        memoryDao.updateImportance(id, importance.coerceIn(1, 5), System.currentTimeMillis())
+    }
+
+    /**
+     * Wipes the entire memory store (database, index, logs).
+     */
+    override suspend fun deleteAll(): Result<Unit> = io.androllm.core.common.runCatching {
+        memoryDao.deleteAll()
+        embeddingDao.deleteAll()
+        summaryDao.deleteAll()
+        projectDao.deleteAll()
+        tagDao.deleteAll()
+        relationshipDao.deleteAll()
+        indexMutex.withLock { vectorIndex?.clear() }
+        logger.clear()
+        logger.info("Memory store wiped")
+    }
+
+    override suspend fun deleteSummariesForConversation(conversationId: String): Result<Unit> =
+        io.androllm.core.common.runCatching {
+            summaryDao.deleteForConversation(conversationId)
+        }
+
+    // ── Export / Import ──
+
+    /**
+     * Exports all memories (with projects/tags/relationships) as a JSON file.
+     */
+    override suspend fun exportMemories(): Result<File> = io.androllm.core.common.runCatching {
+        val memories = memoryDao.getAll()
+        val projects = projectDao.getAll().associateBy { it.id }
+        val tags = tagDao.getAll().associateBy { it.id }
+        val tagMap = memoryDao.getTagsForMemoryIds(memories.map { it.id })
+            .groupBy({ it.memoryId }, { it.tagName })
+        val relationships = relationshipDao.getAll()
+
+        val dto = MemoryExportFile(
+            version = EXPORT_VERSION,
+            exportedAt = System.currentTimeMillis(),
+            memories = memories.map { m ->
+                MemoryExportItem(
+                    id = m.id,
+                    category = m.category,
+                    content = m.content,
+                    importance = m.importance,
+                    tags = tagMap[m.id].orEmpty(),
+                    project = m.projectId?.let { projects[it]?.name },
+                    isPinned = m.isPinned,
+                    isArchived = m.isArchived,
+                    createdAt = m.createdAt,
+                    updatedAt = m.updatedAt
+                )
+            },
+            relationships = relationships.map {
+                MemoryExportRelationship(
+                    from = it.fromMemoryId,
+                    to = it.toMemoryId,
+                    type = it.type
+                )
+            }
+        )
+
+        val dir = File(context.cacheDir, "memory_exports").apply { mkdirs() }
+        val file = File(dir, "androllm_memory_${System.currentTimeMillis()}.json")
+        file.writeText(json.encodeToString(MemoryExportFile.serializer(), dto))
+        logger.info("Exported ${dto.memories.size} memories")
+        file
+    }
+
+    /**
+     * Imports memories from an exported JSON file. Duplicates (by normalized
+     * content within the same category) update existing rows instead of
+     * creating new ones. Embeddings are re-generated lazily by the pipeline.
+     */
+    override suspend fun importMemories(file: File): Result<MemoryImportResult> =
+        io.androllm.core.common.runCatching {
+            val dto = json.decodeFromString(MemoryExportFile.serializer(), file.readText())
+            val settings = settingsStore.current()
+            var inserted = 0
+            var updated = 0
+            var skipped = 0
+            for (item in dto.memories) {
+                val category = MemoryCategory.fromName(item.category)
+                val result = writeMemory(
+                    ExtractedMemory(
+                        content = item.content,
+                        category = category,
+                        importance = item.importance.coerceIn(1, 5),
+                        tags = item.tags,
+                        projectName = item.project
+                    ),
+                    MemoryExchange("", "", "", emptyList(), 0),
+                    settings,
+                    forceInsert = false
+                )
+                when (result.action) {
+                    MemoryWriteAction.INSERTED -> {
+                        inserted++
+                        // Restore export fidelity: pin/archive flags + timestamps.
+                        memoryDao.getById(result.memoryId)?.let { mem ->
+                            memoryDao.update(
+                                mem.copy(
+                                    isPinned = item.isPinned,
+                                    isArchived = item.isArchived,
+                                    createdAt = item.createdAt,
+                                    updatedAt = item.updatedAt
+                                )
+                            )
+                        }
+                    }
+                    MemoryWriteAction.UPDATED -> updated++
+                    MemoryWriteAction.SKIPPED -> skipped++
+                }
+            }
+            logger.info("Import: +$inserted ~$updated -$skipped from ${file.name}")
+            MemoryImportResult(inserted, updated, skipped)
+        }
+
+    // ── Reindex / background indexing ──
+
+    /**
+     * Re-embeds every memory with the current embedding source (cloud route
+     * or local GGUF). Requires a configured source; returns the number of
+     * re-embedded memories.
+     */
+    override suspend fun reindexAll(): Result<Int> = io.androllm.core.common.runCatching {
+        withContext(Dispatchers.IO) {
+            embeddingProvider.ensureLoaded().getOrThrow()
+            val settings = settingsStore.current()
+            val label = embeddingSourceLabel(settings)
+            val memories = memoryDao.getAll()
+            var count = 0
+            for (chunk in memories.chunked(16)) {
+                val texts = chunk.map { withPassagePrefix(it.content, settings) }
+                val vectors = embeddingProvider.embed(texts).getOrNull() ?: continue
+                val now = System.currentTimeMillis()
+                embeddingDao.upsertAll(
+                    chunk.mapIndexed { i, m ->
+                        EmbeddingEntity(
+                            memoryId = m.id,
+                            vector = VectorMath.toBytes(vectors[i]),
+                            dimension = vectors[i].size,
+                            modelPath = label,
+                            createdAt = now
+                        )
+                    }
+                )
+                indexMutex.withLock {
+                    val index = ensureVectorIndexLocked() ?: CosineVectorIndex(vectors.first().size)
+                    for (i in chunk.indices) index.upsert(chunk[i].id, vectors[i])
+                }
+                count += chunk.size
+                totalEmbeddings += chunk.size
+            }
+            logger.info("Reindexed $count memories")
+            count
+        }
+    }
+
+    /**
+     * Drains the pending-embedding queue: embeds memories that currently have
+     * no vector, using whatever embedding source is configured. Called by the
+     * background worker and whenever memory is enabled. Embeddings are an
+     * optimization — if no source is available this simply reports 0 and the
+     * memories stay fully usable via keyword/recency retrieval.
+     */
+    override suspend fun embedPendingMemories(): Result<Int> = io.androllm.core.common.runCatching {
+        val count = withContext(Dispatchers.IO) {
+            val settings = settingsStore.current()
+            if (settings.embeddingModelPath.isBlank() && settings.cloudEmbeddingModel.isBlank()) {
+                return@withContext 0
+            }
+            val missing = memoryDao.getMemoryIdsWithoutEmbeddings()
+            if (missing.isEmpty()) return@withContext 0
+            val entities = memoryDao.getByIds(missing)
+            val label = embeddingSourceLabel(settings)
+            var count = 0
+            for (chunk in entities.chunked(8)) {
+                val texts = chunk.map { withPassagePrefix(it.content, settings) }
+                val vectors = embeddingProvider.embed(texts).getOrNull() ?: continue
+                val now = System.currentTimeMillis()
+                embeddingDao.upsertAll(
+                    chunk.mapIndexed { i, m ->
+                        EmbeddingEntity(
+                            memoryId = m.id,
+                            vector = VectorMath.toBytes(vectors[i]),
+                            dimension = vectors[i].size,
+                            modelPath = label,
+                            createdAt = now
+                        )
+                    }
+                )
+                indexMutex.withLock {
+                    val index = ensureVectorIndexLocked() ?: CosineVectorIndex(vectors.first().size).also { vectorIndex = it }
+                    for (i in chunk.indices) index.upsert(chunk[i].id, vectors[i])
+                }
+                count += chunk.size
+                totalEmbeddings += chunk.size
+            }
+            logger.info("Background indexing: embedded $count pending memory(s)")
+            count
+        }
+        count
+    }
+
+    // ── Inspector ──
+
+    override suspend fun getInspectorStats(): MemoryInspectorStats {
+        val settings = settingsStore.current()
+        return MemoryInspectorStats(
+            memoryCount = memoryDao.count(),
+            embeddingCount = embeddingDao.count(),
+            vectorCount = vectorIndex?.size ?: embeddingDao.count(),
+            projectCount = projectDao.count(),
+            tagCount = tagDao.count(),
+            summaryCount = summaryDao.count(),
+            relationshipCount = relationshipDao.count(),
+            avgRetrievalMs = avgRetrievalMs,
+            lastRetrievalMs = lastRetrievalMs,
+            lastEmbeddingMs = lastEmbeddingMs,
+            lastExtractionMs = lastExtractionMs,
+            totalExtractions = totalExtractions,
+            totalEmbeddings = totalEmbeddings,
+            totalInserted = totalInserted,
+            totalUpdated = totalUpdated,
+            retrievalCount = settings.retrievalCount,
+            similarityThreshold = settings.similarityThreshold,
+            embeddingModelPath = settings.embeddingModelPath,
+            cloudEmbeddingModel = settings.cloudEmbeddingModel,
+            embeddingDimension = embeddingProvider.dimension,
+            embeddingModelLoaded = embeddingProvider.isModelLoaded(),
+            enabled = settings.enabled,
+            logs = logger.recent(60)
+        )
+    }
+
+    override fun observeInspectorLogs(): Flow<List<MemoryLogEntry>> =
+        kotlinx.coroutines.flow.flow { emit(logger.snapshot()) }
+
+    // ── Internals ──
+
+    private suspend fun candidateIds(filters: MemorySearchFilters): Set<String> {
+        if (filters.tags.isEmpty()) {
+            return memoryDao.getFilteredIds(
+                category = filters.category?.name,
+                projectId = filters.projectId,
+                pinnedOnly = filters.pinnedOnly,
+                includeArchived = filters.includeArchived,
+                minImportance = filters.minImportance,
+                tag = null
+            ).toSet()
+        }
+        // Match-any tag semantics: union of per-tag candidate sets.
+        val result = mutableSetOf<String>()
+        for (tag in filters.tags) {
+            result += memoryDao.getFilteredIds(
+                category = filters.category?.name,
+                projectId = filters.projectId,
+                pinnedOnly = filters.pinnedOnly,
+                includeArchived = filters.includeArchived,
+                minImportance = filters.minImportance,
+                tag = tag
+            )
+        }
+        return result
+    }
+
+    private suspend fun keywordMatchIds(query: String): Set<String> {
+        if (query.isBlank()) return emptySet()
+        val q = query.trim().take(120)
+        return (memoryDao.searchContentIds(q) + memoryDao.searchTagIds(q)).toSet()
+    }
+
+    private suspend fun keywordFallback(
+        candidates: Set<String>,
+        keywordIds: Set<String>,
+        k: Int
+    ): List<MemorySearchResult> {
+        val entities = memoryDao.getByIds(candidates.toList())
+        if (entities.isEmpty()) return emptyList()
+        val tagMap = memoryDao.getTagsForMemoryIds(entities.map { it.id })
+            .groupBy({ it.memoryId }, { it.tagName })
+        return entities
+            .sortedWith(
+                compareByDescending<MemoryEntity> { it.id in keywordIds }
+                    .thenByDescending { it.isPinned }
+                    .thenByDescending { it.importance }
+                    .thenByDescending { it.updatedAt }
+            )
+            .take(k)
+            .map { MemorySearchResult(it.toDomain(tagMap[it.id].orEmpty()), if (it.id in keywordIds) 0.6f else 0f, it.id in keywordIds) }
+    }
+
+    private suspend fun embedQuery(query: String): FloatArray? {
+        if (query.isBlank()) return null
+        val settings = settingsStore.current()
+        if (settings.embeddingModelPath.isBlank() && settings.cloudEmbeddingModel.isBlank()) return null
+        val text = if (settings.queryPrefix.isBlank()) query else "${settings.queryPrefix} $query"
+        val t0 = System.currentTimeMillis()
+        val vec = embeddingProvider.embed(text).getOrNull() ?: return null
+        lastEmbeddingMs = System.currentTimeMillis() - t0
+        totalEmbeddings++
+        return vec
+    }
+
+    private suspend fun ensureVectorIndex(): CosineVectorIndex? = indexMutex.withLock {
+        ensureVectorIndexLocked()
+    }
+
+    private suspend fun ensureVectorIndexLocked(): CosineVectorIndex? {
+        val embeddings = if (vectorIndex == null) embeddingDao.getAll() else emptyList()
+        if (embeddings.isEmpty()) return vectorIndex
+        val dim = embeddings.first().dimension
+        if (vectorIndex?.dimension == dim) return vectorIndex
+        val index = CosineVectorIndex(dim)
+        for (e in embeddings) index.upsert(e.memoryId, VectorMath.fromBytes(e.vector))
+        vectorIndex = index
+        return index
+    }
+
+    private suspend fun embedForWrite(content: String, settings: MemorySettings): FloatArray? {
+        if (settings.embeddingModelPath.isBlank() && settings.cloudEmbeddingModel.isBlank()) return null
+        val text = withPassagePrefix(content, settings)
+        val t0 = System.currentTimeMillis()
+        val vec = embeddingProvider.embed(text).getOrNull() ?: return null
+        lastEmbeddingMs = System.currentTimeMillis() - t0
+        totalEmbeddings++
+        return vec
+    }
+
+    private fun withPassagePrefix(content: String, settings: MemorySettings): String =
+        if (settings.passagePrefix.isBlank()) content else "${settings.passagePrefix} $content"
+
+    /** Labels the embedding vector rows with their source so a stale set can be detected. */
+    private fun embeddingSourceLabel(settings: MemorySettings): String =
+        if (settings.cloudEmbeddingModel.isNotBlank()) "cloud:${settings.cloudEmbeddingModel}"
+        else settings.embeddingModelPath
+
+    /** Runs blocking embedding-engine operations off the calling (main) thread. */
+    private suspend fun <T> embeddingsWithContext(block: suspend () -> T): T =
+        withContext(Dispatchers.IO) { block() }
+
+    /**
+     * Core update-or-insert step. Never creates duplicates: embeddings (when
+     * available) decide via the similarity threshold, otherwise normalized
+     * exact-content matching within the category.
+     */
+    private suspend fun writeMemory(
+        item: ExtractedMemory,
+        exchange: MemoryExchange,
+        settings: MemorySettings,
+        forceInsert: Boolean = false
+    ): MemoryWriteResult {
+        val now = System.currentTimeMillis()
+        val content = item.content.trim().replace(WHITESPACE, " ")
+        if (content.isEmpty() || content.length > MAX_MEMORY_LENGTH) {
+            logger.debug("Skipped memory: empty or too long")
+            return MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+        }
+
+        val projectId = resolveProjectId(item.projectName, now)
+        val tagIds = resolveTagIds(item.tags)
+
+        // 1) Embedding-based dedupe.
+        val embedding = if (forceInsert) null else embedForWrite(content, settings)
+        if (embedding != null) {
+            val index = ensureVectorIndex()
+            if (index != null && index.size > 0) {
+                val sameCategory = memoryDao.getFilteredIds(item.category.name, null, false, true, 0, null)
+                val best = index.search(embedding, 1, sameCategory).firstOrNull()
+                if (best != null && best.score >= settings.similarityThreshold) {
+                    return updateExisting(best.id, item, projectId, now, best.score)
+                }
+            }
+        }
+
+        // 2) Normalized exact-content dedupe (no embedding available).
+        if (!forceInsert) {
+            val existing = findExactDuplicate(content, item.category)
+            if (existing != null) {
+                return updateExisting(existing.id, item, projectId, now, null)
+            }
+        }
+
+        // 3) Insert.
+        val id = UUID.randomUUID().toString()
+        memoryDao.upsert(
+            MemoryEntity(
+                id = id,
+                category = item.category.name,
+                content = content,
+                importance = item.importance.coerceIn(1, 5),
+                projectId = projectId,
+                sourceConversationId = exchange.conversationId.takeIf { it.isNotBlank() },
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        if (tagIds.isNotEmpty()) {
+            tagDao.insertCrossRefs(tagIds.map { MemoryTagCrossRef(id, it) })
+        }
+        if (embedding != null) {
+            embeddingDao.upsert(
+                EmbeddingEntity(
+                    memoryId = id,
+                    vector = VectorMath.toBytes(embedding),
+                    dimension = embedding.size,
+                    modelPath = embeddingSourceLabel(settings),
+                    createdAt = now
+                )
+            )
+            indexMutex.withLock {
+                val index = ensureVectorIndexLocked() ?: CosineVectorIndex(embedding.size).also { vectorIndex = it }
+                index.upsert(id, embedding)
+            }
+        }
+        totalInserted++
+        return MemoryWriteResult(id, MemoryWriteAction.INSERTED)
+    }
+
+    private suspend fun updateExisting(
+        id: String,
+        item: ExtractedMemory,
+        projectId: String?,
+        now: Long,
+        score: Float?
+    ): MemoryWriteResult {
+        val existing = memoryDao.getById(id) ?: return MemoryWriteResult(id, MemoryWriteAction.SKIPPED)
+        val existingTags = tagDao.getTagNamesForMemory(id)
+        val mergedTags = (existingTags + item.tags.map { it.trim().lowercase().take(32) }.filter { it.isNotEmpty() })
+            .distinct()
+            .take(10)
+
+        memoryDao.update(
+            existing.copy(
+                importance = maxOf(existing.importance, item.importance.coerceIn(1, 5)),
+                updatedAt = now,
+                projectId = existing.projectId ?: projectId
+            )
+        )
+        // Merge tags: drop old crossrefs, insert merged set.
+        tagDao.deleteCrossRefsForMemory(id)
+        if (mergedTags.isNotEmpty()) {
+            val mergedTagIds = resolveTagIds(mergedTags)
+            tagDao.insertCrossRefs(mergedTagIds.map { MemoryTagCrossRef(id, it) })
+        }
+        totalUpdated++
+        logger.debug("Updated memory $id (score=${score?.let { "%.3f".format(it) } ?: "exact"})")
+        return MemoryWriteResult(id, MemoryWriteAction.UPDATED, score)
+    }
+
+    private suspend fun findExactDuplicate(content: String, category: MemoryCategory): MemoryEntity? {
+        val norm = normalizeForCompare(content)
+        val ids = memoryDao.getFilteredIds(category.name, null, false, true, 0, null)
+        val entities = memoryDao.getByIds(ids)
+        return entities.firstOrNull { normalizeForCompare(it.content) == norm }
+    }
+
+    private fun normalizeForCompare(content: String): String =
+        content.lowercase().replace(WHITESPACE, " ").trim()
+
+    private suspend fun resolveProjectId(name: String?, now: Long): String? {
+        if (name.isNullOrBlank()) return null
+        val trimmed = name.trim().take(64)
+        val existing = projectDao.getByName(trimmed)
+        if (existing != null) return existing.id
+        val project = ProjectEntity(UUID.randomUUID().toString(), trimmed, "", now)
+        projectDao.upsert(project)
+        return project.id
+    }
+
+    private suspend fun resolveTagIds(names: List<String>): List<String> {
+        val result = mutableListOf<String>()
+        for (name in names.distinct().take(10)) {
+            val trimmed = name.trim().lowercase().take(32)
+            if (trimmed.isEmpty()) continue
+            val existing = tagDao.getByName(trimmed)
+            if (existing != null) {
+                result += existing.id
+            } else {
+                val tag = TagEntity(UUID.randomUUID().toString(), trimmed)
+                tagDao.upsert(tag)
+                result += tag.id
+            }
+        }
+        return result
+    }
+
+    /**
+     * Links memories written in the same exchange with "related_to"
+     * relationships (deduplicated).
+     */
+    private suspend fun linkExchangeMemories(ids: List<String>) {
+        if (ids.size < 2) return
+        val existing = ids.flatMap { relationshipDao.getForMemory(it) }
+            .map { "${it.fromMemoryId}|${it.toMemoryId}|${it.type}" }
+            .toSet()
+        for (i in ids.indices) {
+            for (j in i + 1 until ids.size) {
+                val key = "${ids[i]}|${ids[j]}|related_to"
+                if (key in existing) continue
+                relationshipDao.upsert(
+                    RelationshipEntity(
+                        id = UUID.randomUUID().toString(),
+                        fromMemoryId = ids[i],
+                        toMemoryId = ids[j],
+                        type = "related_to",
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
+    private suspend fun maybeSummarize(exchange: MemoryExchange, settings: MemorySettings): Boolean {
+        if (exchange.messageCount < settings.summarizationInterval) return false
+        val last = summaryDao.getLatestForConversation(exchange.conversationId)
+        if (last != null && exchange.messageCount < last.messageCount + settings.summarizationInterval) return false
+        val summary = withContext(Dispatchers.IO) {
+            intelligence.summarize(exchange.conversationId, last?.summary, exchange.recentMessages)
+        }.getOrNull() ?: return false
+        summaryDao.upsert(
+            SummaryEntity(
+                id = "summary_${exchange.conversationId}",
+                conversationId = exchange.conversationId,
+                summary = summary,
+                messageCount = exchange.messageCount,
+                createdAt = last?.createdAt ?: System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+        return true
+    }
+
+    companion object {
+        private const val EXPORT_VERSION = 1
+        private const val MAX_MEMORY_LENGTH = 800
+        private const val HYBRID_KEYWORD_BOOST = 0.06f
+        private val WHITESPACE = Regex("\\s+")
+    }
+}
+
+// ── Export/import wire format ──
+
+@Serializable
+internal data class MemoryExportFile(
+    val version: Int = 1,
+    val exportedAt: Long = 0L,
+    val memories: List<MemoryExportItem> = emptyList(),
+    val relationships: List<MemoryExportRelationship> = emptyList()
+)
+
+@Serializable
+internal data class MemoryExportItem(
+    val id: String,
+    val category: String,
+    val content: String,
+    val importance: Int,
+    val tags: List<String> = emptyList(),
+    val project: String? = null,
+    val isPinned: Boolean = false,
+    val isArchived: Boolean = false,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+@Serializable
+internal data class MemoryExportRelationship(
+    val from: String,
+    val to: String,
+    val type: String
+)
+
+// ── Entity ↔ domain mapping ──
+
+internal fun MemoryEntity.toDomain(tags: List<String>): Memory = Memory(
+    id = id,
+    category = MemoryCategory.fromName(category),
+    content = content,
+    importance = importance,
+    tags = tags,
+    projectId = projectId,
+    sourceConversationId = sourceConversationId,
+    isPinned = isPinned,
+    isArchived = isArchived,
+    accessCount = accessCount,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    lastAccessedAt = lastAccessedAt
+)
+
+internal fun SummaryEntity.toDomain(): MemorySummary = MemorySummary(
+    id = id,
+    conversationId = conversationId,
+    summary = summary,
+    messageCount = messageCount,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
