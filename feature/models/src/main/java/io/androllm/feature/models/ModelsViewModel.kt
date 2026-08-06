@@ -29,6 +29,7 @@ import io.androllm.core.utils.StorageStats
 import io.androllm.core.utils.StorageUtils
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.models.EngineStats
 import io.androllm.engine.models.MemoryStats
 import io.androllm.engine.utils.GgufValidator
 import io.androllm.feature.models.benchmark.BenchmarkReport
@@ -111,10 +112,11 @@ class ModelsViewModel @Inject constructor(
         combine(
             modelRepository.observeAllModels(),
             engineRepository.engineState,
+            engineRepository.performanceStats,
             _selectedTab,
             _searchQuery
-        ) { installedModels, engineState, tab, query ->
-            listOf(installedModels, engineState, tab, query)
+        ) { installedModels, engineState, performanceStats, tab, query ->
+            listOf(installedModels, engineState, performanceStats, tab, query)
         },
         combine(
             _sortOption,
@@ -152,8 +154,10 @@ class ModelsViewModel @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         val installedModels = group1[0] as List<Model>
         val engineState = group1[1] as EngineState
-        val tab = group1[2] as ModelsTab
-        val query = group1[3] as String
+        @Suppress("UNCHECKED_CAST")
+        val performanceStats = group1[2] as EngineStats?
+        val tab = group1[3] as ModelsTab
+        val query = group1[4] as String
 
         val sort = group2[0] as ModelSortOption
         val loadingId = group2[1] as String?
@@ -222,7 +226,8 @@ class ModelsViewModel @Inject constructor(
                 recommendedModel = recommended.firstOrNull()?.model?.toDownloadModel(),
                 showFirstLaunchDialog = installedModels.none { it.isDownloaded },
                 engineState = engineState,
-                memoryStats = memStats
+                memoryStats = memStats,
+                inferenceTokensPerSecond = performanceStats?.tokensPerSecond ?: 0f
             )
         )
     }.stateIn(
@@ -593,5 +598,6 @@ data class ModelsData(
     val recommendedModel: Model? = null,
     val showFirstLaunchDialog: Boolean = false,
     val engineState: EngineState = EngineState.Unloaded,
-    val memoryStats: MemoryStats? = null
+    val memoryStats: MemoryStats? = null,
+    val inferenceTokensPerSecond: Float = 0f
 )

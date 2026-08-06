@@ -94,7 +94,7 @@ fun ModelParameterSheet(
                     Icon(
                         imageVector = Icons.Default.Tune,
                         contentDescription = null,
-                        tint = LampGlow,
+                        tint = LampDeep,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
@@ -118,7 +118,7 @@ fun ModelParameterSheet(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 0.6.sp,
-                        color = LampGlow
+                        color = LampDeep
                     )
                 }
             }

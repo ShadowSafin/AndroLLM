@@ -42,6 +42,8 @@ class EngineRepositoryTest {
             backend = BackendType.CPU
         )
 
+        var decodeErrorStopReason = false
+
         private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
         override val engineState: Flow<EngineState> = _engineState.asStateFlow()
 
@@ -88,6 +90,23 @@ class EngineRepositoryTest {
 
         override suspend fun generate(prompt: String, config: GenerationConfig): io.androllm.core.common.Result<String> =
             io.androllm.core.common.Result.Success("hello world")
+
+        override fun generateChatStream(
+            messages: List<io.androllm.engine.models.ChatPromptMessage>,
+            addAssistant: Boolean,
+            config: GenerationConfig
+        ): Flow<io.androllm.core.common.Result<StreamChunk>> = flow {
+            if (decodeErrorStopReason) {
+                _stats.value = io.androllm.engine.models.EngineStats(
+                    promptTokens = 1,
+                    generatedTokens = 1,
+                    stopReason = "decode_error"
+                )
+            }
+            emit(io.androllm.core.common.Result.Success(StreamChunk("hello ", false)))
+            emit(io.androllm.core.common.Result.Success(StreamChunk("world", false)))
+            emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 2)))
+        }
 
         override fun cancel(): io.androllm.core.common.Result<Unit> {
             cancelled = true
@@ -149,6 +168,48 @@ class EngineRepositoryTest {
 
         val completed = repository.generationState.value as GenerationState.Completed
         assertEquals("hello world", completed.text)
+    }
+
+    @Test
+    fun `generateChat streams into generation state`() = runTest {
+        val engine = FakeEngine()
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"))
+
+        val messages = listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hi"))
+        val result = repository.generateChat(messages, addAssistant = true)
+        assertTrue("generateChat failed: $result", result.isSuccess())
+
+        val completed = repository.generationState.value as GenerationState.Completed
+        assertEquals("hello world", completed.text)
+    }
+
+    @Test
+    fun `generateChat fails when no model is loaded`() = runTest {
+        val engine = FakeEngine()
+        val repository = DefaultEngineRepository(engine)
+        val result = repository.generateChat(listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hi")))
+        assertTrue(result.isError())
+        assertTrue(repository.generationState.value is GenerationState.Failed)
+    }
+
+    @Test
+    fun `generateChat surfaces decode_error as failure`() = runTest {
+        val engine = FakeEngine()
+        // The native multi-turn path rolls a decode error back and reports it
+        // via stats; the repository must surface it as Failed (never persist
+        // the partial as a full assistant response).
+        engine.decodeErrorStopReason = true
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"))
+
+        val result = repository.generateChat(
+            listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hi"))
+        )
+        assertTrue(result.isError())
+        assertTrue(repository.generationState.value is GenerationState.Failed)
     }
 
     @Test

@@ -26,10 +26,10 @@ import io.androllm.core.ui.theme.LampHalo
 import kotlin.random.Random
 
 /**
- * The Writer's Night Desk background — the room around the lamp.
+ * The Parchment Ledger background — the warm daylight desk.
  *
- * A deep warm night ground, a slow breathing lamp pool high in the room, a
- * faint ruled horizon, and motes of dust drifting through the lamplight.
+ * A soft parchment ground, a slow terracotta pool of light high in the room,
+ * a faint ruled horizon, and motes of dust drifting through the sunlit air.
  * Calm and slow: the desk holds still while the model thinks.
  */
 @Composable
@@ -38,16 +38,16 @@ fun CloudAtmosphericBackground(
     reduceMotion: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "DeskAtmosphereTransition")
+    val infiniteTransition = rememberInfiniteTransition(label = "ParchmentAtmosphereTransition")
 
-    val lampBreath = if (reduceMotion) 0.5f else infiniteTransition.animateFloat(
+    val sunBreath = if (reduceMotion) 0.5f else infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 6400, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "lampBreath"
+        label = "sunBreath"
     ).value
 
     val dustShift = if (reduceMotion) 0f else infiniteTransition.animateFloat(
@@ -88,29 +88,29 @@ fun CloudAtmosphericBackground(
             val width = size.width
             val height = size.height
 
-            // Layer 1: the lamp pool high in the room — one warm light above the desk.
-            val lampCenter = Offset(width * 0.72f, height * 0.06f)
-            val glowRadius = width * 0.62f * (1f + lampBreath * 0.14f)
+            // Layer 1: the warm sun pool high in the room — one terracotta light.
+            val sunCenter = Offset(width * 0.72f, height * 0.06f)
+            val glowRadius = width * 0.62f * (1f + sunBreath * 0.14f)
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        LampAmber.copy(alpha = 0.16f + lampBreath * 0.08f),
+                        LampAmber.copy(alpha = 0.16f + sunBreath * 0.08f),
                         LampHalo.copy(alpha = 0.05f),
                         Color.Transparent
                     ),
-                    center = lampCenter,
+                    center = sunCenter,
                     radius = glowRadius
                 ),
-                center = lampCenter,
+                center = sunCenter,
                 radius = glowRadius
             )
 
-            // Layer 2: a faint counter-light low on the desk (the screen's own glow).
+            // Layer 2: a faint counter-light low on the desk (the page's own glow).
             val deskGlowCenter = Offset(width * 0.28f, height * 0.94f)
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        LampAmber.copy(alpha = 0.07f),
+                        LampAmber.copy(alpha = 0.06f),
                         Color.Transparent
                     ),
                     center = deskGlowCenter,
@@ -120,22 +120,22 @@ fun CloudAtmosphericBackground(
                 radius = width * 0.55f
             )
 
-            // Layer 3: the ruled horizon — the desk edge receding into the dark.
+            // Layer 3: the ruled horizon — the desk edge receding into the page.
             val horizonY = height * 0.82f
             drawLine(
-                color = DeskHairline.copy(alpha = 0.55f),
+                color = DeskHairline.copy(alpha = 0.7f),
                 start = Offset(0f, horizonY),
                 end = Offset(width, horizonY),
                 strokeWidth = 1.2f
             )
             drawLine(
-                color = DeskInkFaint.copy(alpha = 0.18f),
+                color = DeskInkFaint.copy(alpha = 0.22f),
                 start = Offset(0f, horizonY + 14f),
                 end = Offset(width, horizonY + 14f),
                 strokeWidth = 1f
             )
 
-            // Layer 4: dust drifting through the lamplight.
+            // Layer 4: dust drifting through the sunlit air.
             dust.forEach { mote ->
                 val floatY = ((mote.yPct - dustShift / 360f * 0.08f) % 1f + 1f) % 1f
                 val x = mote.xPct * width

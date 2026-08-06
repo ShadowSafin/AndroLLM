@@ -44,8 +44,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Writer's Night Desk — a letter entry in the Recent Letters ledger.
- * One amber seal for the correspondence; the rest stays quiet walnut ink.
+ * Parchment Ledger — a letter entry in the Recent Letters ledger.
+ * One terracotta seal for the correspondence; the rest stays quiet ink.
  */
 @Composable
 fun ChatActivityCard(
@@ -63,8 +63,7 @@ fun ChatActivityCard(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Letter Seal — the one amber mark on the row
+        ) {                    // Letter Seal — the one terracotta mark on the row
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -77,7 +76,7 @@ fun ChatActivityCard(
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = LampGlow,
+                    tint = LampDeep,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -115,7 +114,7 @@ fun ChatActivityCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Model Tag — a wax seal inked on walnut
+                    // Model Tag — a wax seal inked on parchment
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
@@ -127,7 +126,7 @@ fun ChatActivityCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.4.sp,
-                            color = LampGlow
+                            color = LampDeep
                         )
                     }
 

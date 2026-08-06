@@ -40,8 +40,8 @@ import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 
 /**
- * Desk — a lit progress ring for the model shelf. One amber sweep as the
- * weight settles into the drawer.
+ * Parchment — a lit progress ring for the model shelf. One terracotta sweep
+ * as the weight settles into the drawer.
  */
 @Composable
 fun CloudDownloadProgress(
@@ -67,7 +67,7 @@ fun CloudDownloadProgress(
             val topLeft = Offset(strokeWidth / 2, strokeWidth / 2)
             val arcSize = Size(diameter, diameter)
 
-            // Track Arc — the dark lamp shade
+            // Track Arc — the quiet cream ring
             drawArc(
                 color = LampDeep.copy(alpha = 0.3f),
                 startAngle = 0f,
@@ -78,7 +78,7 @@ fun CloudDownloadProgress(
                 style = Stroke(width = strokeWidth)
             )
 
-            // Progress Arc — the lamp glow
+            // Progress Arc — the terracotta sweep
             drawArc(
                 brush = Brush.sweepGradient(
                     listOf(LampAmber, LampGlow, LampAmber, LampAmber)

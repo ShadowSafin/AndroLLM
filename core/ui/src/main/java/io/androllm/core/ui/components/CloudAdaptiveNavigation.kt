@@ -46,10 +46,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.androllm.core.ui.theme.CloudGlassBorder
 import io.androllm.core.ui.theme.CloudGlassBorderHighlight
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SunsetCloudOrange
-import io.androllm.core.ui.theme.SunsetCloudPeach
+import io.androllm.core.ui.theme.DeskHairline
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.SunsetGlowAmber
 import kotlinx.coroutines.launch
 
@@ -115,7 +117,7 @@ fun CloudAdaptiveNavigation(
 }
 
 /**
- * Floating glass navigation rail for medium & expanded window widths.
+ * Floating parchment navigation rail for medium & expanded window widths.
  * Mirrors the bottom dock's styling vertically.
  */
 @Composable
@@ -140,8 +142,8 @@ private fun CloudNavigationRail(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xDF0E1626),
-                            Color(0xF5070B14)
+                            Color(0xE6FBFAF4),
+                            Color(0xE6ECEBE3)
                         )
                     )
                 )
@@ -169,7 +171,7 @@ private fun CloudNavigationRail(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(
-                            if (selected) SunsetCloudOrange.copy(alpha = 0.25f) else Color.Transparent
+                            if (selected) LampDeep.copy(alpha = 0.14f) else Color.Transparent
                         )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -188,7 +190,7 @@ private fun CloudNavigationRail(
                     Icon(
                         imageVector = tab.icon,
                         contentDescription = tab.title,
-                        tint = if (selected) SunsetCloudPeach else MoonSilver.copy(alpha = 0.6f),
+                        tint = if (selected) LampAmber else DeskInkFaint,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -197,7 +199,7 @@ private fun CloudNavigationRail(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 10.sp,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) CloudWhite else MoonSilver.copy(alpha = 0.5f)
+                            color = if (selected) DeskPaper else DeskInk.copy(alpha = 0.7f)
                         )
                     )
                 }

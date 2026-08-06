@@ -97,7 +97,7 @@ fun PromptLibraryScreen(
                             Text(
                                 text = "${uiState.prompts.size} prompts • ${uiState.favoriteCount} favorites",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampGlow,
+                                    color = LampDeep,
                                     fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 0.8.sp
                                 )

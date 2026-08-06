@@ -34,16 +34,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.MoonSilver
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SunsetCloudOrange
-import io.androllm.core.ui.theme.SunsetCloudPeach
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.DeskWalnutDeep
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
 
 data class PromptTemplate(
     val id: String,
@@ -55,7 +55,8 @@ data class PromptTemplate(
 )
 
 /**
- * Revolut-Inspired Prompt Studio Library & Carousel in core:ui.
+ * Prompt Studio — editorial template shelf in core:ui. Terracotta stamp on the
+ * selected category, parchment slips for the templates.
  */
 @Composable
 fun PromptStudioCarousel(
@@ -125,7 +126,7 @@ fun PromptStudioCarousel(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) SunsetCloudOrange else Color(0x33E2E8F0))
+                        .background(if (isSelected) LampAmber else DeskWalnutDeep)
                         .clickable { selectedCategory = cat }
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
@@ -133,7 +134,7 @@ fun PromptStudioCarousel(
                         text = cat,
                         fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) CloudWhite else MoonSilver
+                        color = if (isSelected) io.androllm.core.ui.theme.CloudWhite else DeskInk
                     )
                 }
             }
@@ -166,13 +167,13 @@ fun PromptStudioCarousel(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(CircleShape)
-                                    .background(SkyBlue.copy(alpha = 0.2f)),
+                                    .background(LampAmber.copy(alpha = 0.16f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = null,
-                                    tint = SkyBlue,
+                                    tint = LampDeep,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -180,14 +181,14 @@ fun PromptStudioCarousel(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0x33E2E8F0))
+                                    .background(DeskWalnutDeep)
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = "~${item.estimatedTokens} tok",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = SunsetCloudPeach
+                                    color = LampDeep
                                 )
                             }
                         }
@@ -198,14 +199,14 @@ fun PromptStudioCarousel(
                             text = item.title,
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = CloudWhite
+                                color = DeskPaper
                             )
                         )
 
                         Text(
                             text = item.promptText,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = MoonSilver.copy(alpha = 0.6f)
+                                color = DeskInkFaint
                             ),
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

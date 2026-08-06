@@ -29,9 +29,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
@@ -44,6 +48,7 @@ import javax.inject.Inject
  * ViewModel for the chat feature managing full conversation lifecycle,
  * streaming, settings, search, pinning/archiving, export, and prompt editing.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val engineRepository: EngineRepository,
@@ -71,6 +76,14 @@ class ChatViewModel @Inject constructor(
     val genConfig: StateFlow<GenerationConfig> = _genConfig
 
     private var cloudJob: Job? = null
+
+    /**
+     * Message ids appended to [_messages] locally while their Room upsert is
+     * still in flight. The DB observer merges these back in so a stale Room
+     * emission can never drop the assistant response before the next prompt
+     * is built (two consecutive user messages → template corruption).
+     */
+    private val pendingLocalMessageIds = mutableSetOf<String>()
 
     fun updateGenConfig(config: GenerationConfig) {
         _genConfig.value = config
@@ -202,15 +215,36 @@ class ChatViewModel @Inject constructor(
 
     private fun observeActiveMessages() {
         viewModelScope.launch {
-            _currentConversationId.collect { id ->
-                if (id.isNotBlank()) {
-                    messageRepository.observeByConversationId(id).collect { msgs ->
-                        _messages.value = msgs.map { it.toChatMessage() }
-                    }
-                } else {
+            _currentConversationId
+                // Switching conversations must never leak the previous
+                // conversation's locally-pending messages (or its rows from an
+                // in-flight Room stream) into the new one — that would bake
+                // foreign assistant text into the next prompt.
+                .onEach {
+                    pendingLocalMessageIds.clear()
                     _messages.value = emptyList()
                 }
-            }
+                // flatMapLatest cancels the previous conversation's Room
+                // stream when the id changes, so stale emissions from the old
+                // conversation can never interleave with the new one's.
+                .flatMapLatest { id ->
+                    if (id.isBlank()) flowOf(emptyList())
+                    else messageRepository.observeByConversationId(id)
+                }
+                .collect { msgs ->
+                    val dbMessages = msgs.map { it.toChatMessage() }
+                    val dbIds = dbMessages.mapTo(mutableSetOf()) { it.id }
+                    // Locally appended messages (async upsert still in flight)
+                    // survive a stale DB emission from the same conversation.
+                    // Once the DB confirms them they leave the pending set. The
+                    // merged list is re-sorted by timestamp so a pending
+                    // assistant response never lands after a newer user message
+                    // (that would still produce two consecutive user messages
+                    // in the next prompt).
+                    pendingLocalMessageIds.removeAll(dbIds)
+                    val pending = _messages.value.filter { it.id in pendingLocalMessageIds }
+                    _messages.value = (dbMessages + pending).sortedBy { it.timestamp }
+                }
         }
     }
 
@@ -289,23 +323,47 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
 
-            val promptResult = engineRepository.buildChatPrompt(messages, addAssistant = true)
-            val prompt = promptResult.getOrNull()
-            if (prompt.isNullOrBlank()) {
-                val err = (promptResult as? io.androllm.core.common.Result.Error)?.exception?.message
-                    ?: "Chat template returned empty prompt"
-                android.util.Log.e("ChatViewModel", "Chat template failed: $err")
-                appendErrorMessage("Model chat template unavailable: $err")
+            if (messages.isEmpty()) {
+                android.util.Log.e("ChatViewModel", "generateFromHistory: empty message list")
+                appendErrorMessage("No messages to send")
                 return@launch
             }
-            android.util.Log.i("ChatViewModel", "prompt.length=${prompt.length} head=${prompt.take(80)}")
-            engineRepository.generate(prompt = prompt, config = _genConfig.value)
+            android.util.Log.i("ChatViewModel", "generateFromHistory: ${messages.size} messages: ${
+                messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
+            }")
+            // Stateful multi-turn chat: the native engine diffs [messages]
+            // against its accumulated conversation and decodes only the new
+            // messages' template diff at the continuing KV position (official
+            // llama.cpp pattern). Template errors surface as Failed state.
+            engineRepository.generateChat(
+                messages = messages,
+                addAssistant = true,
+                config = _genConfig.value
+            )
         }
     }
+
+    /**
+     * True while a chat turn (local or cloud) is actively generating. The UI
+     * already disables input during generation; this guard closes the
+     * remaining programmatic paths (prompt library, suggestions, deep links)
+     * that would otherwise build a prompt with two consecutive user messages
+     * and no assistant separator — a corruption source.
+     */
+    private fun isGenerationInFlight(): Boolean =
+        _cloudGenerating.value ||
+            engineRepository.generationState.value is GenerationState.Generating
 
     fun sendMessage(content: String) {
         val trimmed = content.trim()
         if (trimmed.isEmpty()) return
+
+        // Runtime stabilization: never start a new turn while one is running.
+        // A queued/dropped prompt beats a corrupt context.
+        if (isGenerationInFlight()) {
+            android.util.Log.w("ChatViewModel", "sendMessage ignored: generation already in flight")
+            return
+        }
 
         // A new user turn supersedes any pending background memory work.
         memoryPipelineJob?.cancel()
@@ -314,7 +372,8 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             var id = _currentConversationId.value
-            if (id.isBlank()) {
+            val isNewConversation = id.isBlank()
+            if (isNewConversation) {
                 val now = System.currentTimeMillis()
                 id = UUID.randomUUID().toString()
                 val title = if (trimmed.length > 30) trimmed.take(30) + "..." else trimmed
@@ -334,18 +393,31 @@ class ChatViewModel @Inject constructor(
             messageRepository.upsert(userMessage.toCoreMessage())
             conversationRepository.updateTitle(id, generateTitleFromMessage(trimmed))
 
-            val currentHistory = _messages.value + userMessage
+            // A brand-new conversation never inherits stale rows from a previous
+            // conversation (_messages is cleared by the observer, but only
+            // asynchronously). For existing conversations, the DB observer may
+            // already have echoed this user message back into _messages (Room
+            // emission after the upsert above) — dedupe so the prompt never
+            // contains the same user message twice.
+            val base = if (isNewConversation) emptyList() else _messages.value
+            val currentHistory =
+                base.filterNot { it.id == userMessage.id } + userMessage
             generateFromHistory(currentHistory)
         }
     }
 
     fun regenerateLastResponse() {
+        if (isGenerationInFlight()) {
+            android.util.Log.w("ChatViewModel", "regenerateLastResponse ignored: generation already in flight")
+            return
+        }
         val currentMsgs = _messages.value
         if (currentMsgs.isEmpty()) return
 
         val lastAssistantMsg = currentMsgs.lastOrNull { it.role == MessageRole.ASSISTANT }
         viewModelScope.launch {
             if (lastAssistantMsg != null) {
+                pendingLocalMessageIds.remove(lastAssistantMsg.id)
                 messageRepository.deleteById(lastAssistantMsg.id)
             }
             val remainingHistory = _messages.value.filter { it.id != lastAssistantMsg?.id }
@@ -356,11 +428,16 @@ class ChatViewModel @Inject constructor(
     }
 
     fun editUserPrompt(messageId: String, newContent: String) {
+        if (isGenerationInFlight()) {
+            android.util.Log.w("ChatViewModel", "editUserPrompt ignored: generation already in flight")
+            return
+        }
         val msgs = _messages.value
         val targetMsg = msgs.find { it.id == messageId } ?: return
 
         viewModelScope.launch {
             messageRepository.truncateAfterTimestamp(targetMsg.conversationId, targetMsg.timestamp)
+            pendingLocalMessageIds.removeAll(msgs.map { it.id })
             val updatedMsg = targetMsg.copy(content = newContent.trim(), timestamp = System.currentTimeMillis())
             messageRepository.upsert(updatedMsg.toCoreMessage())
 
@@ -410,6 +487,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun deleteMessage(messageId: String) {
+        pendingLocalMessageIds.remove(messageId)
         viewModelScope.launch {
             messageRepository.deleteById(messageId)
         }
@@ -542,6 +620,13 @@ class ChatViewModel @Inject constructor(
         memoryPipelineJob?.cancel()
         memoryPipelineJob = viewModelScope.launch(Dispatchers.IO) {
             delay(800L) // let the response UI settle before spending CPU
+            // Memory defers to chat: never start extraction while a chat turn
+            // is in flight (sendMessage cancels this job, but this guards the
+            // window where a generation starts after the delay elapses).
+            if (isGenerationInFlight()) {
+                android.util.Log.d("ChatViewModel", "Memory extraction deferred: chat generation in flight")
+                return@launch
+            }
             val history = _messages.value
             val recent = history.takeLast(6).map { it.role.name.lowercase() to it.content }
             memoryManager.processExchange(
@@ -596,6 +681,9 @@ class ChatViewModel @Inject constructor(
         // to be built WITHOUT the assistant response (two consecutive user messages),
         // which produces garbage output.
         _messages.value = _messages.value + message
+        // Track the id so the DB observer merges it back in until the async
+        // upsert is confirmed by a Room emission.
+        pendingLocalMessageIds += message.id
 
         viewModelScope.launch {
             messageRepository.upsert(message.toCoreMessage())
@@ -613,6 +701,11 @@ class ChatViewModel @Inject constructor(
             content = "Error: $message",
             timestamp = System.currentTimeMillis()
         )
+
+        // Same local-first + pending-tracking pattern as appendAssistantMessage:
+        // an error message must never be dropped by a stale Room emission.
+        _messages.value = _messages.value + errorMessage
+        pendingLocalMessageIds += errorMessage.id
 
         viewModelScope.launch {
             messageRepository.upsert(errorMessage.toCoreMessage())

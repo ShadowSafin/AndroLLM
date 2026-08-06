@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -118,6 +119,10 @@ import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.MemoryStats
 import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.ModelWalletCard
+import io.androllm.core.ui.theme.DeskWalnut
+import io.androllm.core.ui.theme.DeskWalnutDeep
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.TerracottaSoft
 
 /**
  * Model Manager Screen featuring Installed Models, Download Manager & Queue,
@@ -212,36 +217,49 @@ fun ModelsScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            // Material 3 Scrollable Tabs
+            // Parchment scrollable tabs — terracotta on the active tab, ink on the rest
             androidx.compose.material3.ScrollableTabRow(
                 selectedTabIndex = data.selectedTab.ordinal,
                 edgePadding = 16.dp,
+                containerColor = Color.Transparent,
+                contentColor = io.androllm.core.ui.theme.DeskInk,
+                divider = {},
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Tab(
                     selected = data.selectedTab == ModelsTab.INSTALLED,
                     onClick = { viewModel.selectTab(ModelsTab.INSTALLED) },
-                    text = { Text("Installed (${data.installedModels.count { it.isDownloaded }})") }
+                    text = { Text("Installed (${data.installedModels.count { it.isDownloaded }})") },
+                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
+                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.DOWNLOADS,
                     onClick = { viewModel.selectTab(ModelsTab.DOWNLOADS) },
-                    text = { Text("Downloads (${activeDownloads.size})") }
+                    text = { Text("Downloads (${activeDownloads.size})") },
+                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
+                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.CATALOG,
                     onClick = { viewModel.selectTab(ModelsTab.CATALOG) },
-                    text = { Text("Catalog (${data.catalogCount})") }
+                    text = { Text("Catalog (${data.catalogCount})") },
+                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
+                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.HUGGINGFACE,
                     onClick = { viewModel.selectTab(ModelsTab.HUGGINGFACE) },
-                    text = { Text("HuggingFace 🤗") }
+                    text = { Text("HuggingFace 🤗") },
+                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
+                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.DIAGNOSTICS,
                     onClick = { viewModel.selectTab(ModelsTab.DIAGNOSTICS) },
-                    text = { Text("Hardware") }
+                    text = { Text("Hardware") },
+                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
+                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
                 )
             }
 
@@ -367,6 +385,7 @@ private fun InstalledModelsTab(
                     ModelStatusDashboard(
                         engineState = engineState,
                         memoryStats = data.memoryStats,
+                        inferenceTokensPerSecond = data.inferenceTokensPerSecond,
                         onUnload = {
                             val loadedModel = installedOnly.find { it.id == data.loadedModelId }
                             loadedModel?.let { viewModel.unloadModel(it) }
@@ -528,7 +547,7 @@ private fun DownloadCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        colors = CardDefaults.cardColors(containerColor = DeskWalnut)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -872,9 +891,9 @@ private fun CatalogModelCard(
             .wrapContentHeight(),
         colors = CardDefaults.elevatedCardColors(
             containerColor = if (recommended) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                TerracottaSoft
             } else {
-                MaterialTheme.colorScheme.surfaceContainer
+                DeskWalnut
             }
         )
     ) {
@@ -974,7 +993,7 @@ private fun CatalogModelCard(
                             Icons.Default.Favorite,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
-                            tint = Color(0xFFF38BA8)
+                            tint = Color(0xFFE0A489)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -1082,7 +1101,7 @@ private fun ModelMetaPill(
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = DeskWalnutDeep,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
@@ -1094,14 +1113,14 @@ private fun ModelMetaPill(
                     imageVector = leadingIcon,
                     contentDescription = null,
                     modifier = Modifier.size(13.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = io.androllm.core.ui.theme.DeskInk
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             }
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = io.androllm.core.ui.theme.DeskInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1213,7 +1232,7 @@ private fun HuggingFaceTab(
                 Card(
                     onClick = { onSelectModel(remote) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                    colors = CardDefaults.cardColors(containerColor = DeskWalnut)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -1247,7 +1266,7 @@ private fun HuggingFaceTab(
                                 Text("${remote.downloads}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFF38BA8))
+                                Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFE0A489))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("${remote.likes}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                             }
@@ -1283,9 +1302,25 @@ private fun RemoteModelDetailsSheet(
             Text(text = "by ${details.author} • License: ${details.license}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(12.dp))
 
-            SecondaryTabRow(selectedTabIndex = selectedSubTab) {
-                Tab(selected = selectedSubTab == 0, onClick = { selectedSubTab = 0 }, text = { Text("GGUF Files (${details.ggufFiles.size})") })
-                Tab(selected = selectedSubTab == 1, onClick = { selectedSubTab = 1 }, text = { Text("README.md") })
+            SecondaryTabRow(
+                selectedTabIndex = selectedSubTab,
+                containerColor = Color.Transparent,
+                contentColor = io.androllm.core.ui.theme.DeskInk
+            ) {
+                Tab(
+                    selected = selectedSubTab == 0,
+                    onClick = { selectedSubTab = 0 },
+                    text = { Text("GGUF Files (${details.ggufFiles.size})") },
+                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
+                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                )
+                Tab(
+                    selected = selectedSubTab == 1,
+                    onClick = { selectedSubTab = 1 },
+                    text = { Text("README.md") },
+                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
+                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -1298,7 +1333,7 @@ private fun RemoteModelDetailsSheet(
                     details.ggufFiles.forEach { file ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                            colors = CardDefaults.cardColors(containerColor = DeskWalnutDeep)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -1353,7 +1388,7 @@ private fun HardwareDiagnosticsTab(hardwareInfo: DeviceHardwareInfo) {
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                colors = CardDefaults.cardColors(containerColor = DeskWalnut)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -1406,7 +1441,7 @@ private fun DiagnosticRow(label: String, value: String) {
 @Composable
 private fun StatusBadge(status: DownloadStatus) {
     val (label, color) = when (status) {
-        DownloadStatus.DOWNLOADED -> "Installed" to io.androllm.core.ui.theme.LampGlow
+        DownloadStatus.DOWNLOADED -> "Installed" to io.androllm.core.ui.theme.LampDeep
         DownloadStatus.DOWNLOADING -> "Downloading" to io.androllm.core.ui.theme.LampAmber
         DownloadStatus.QUEUED -> "Queued" to io.androllm.core.ui.theme.DeskPaperDim
         DownloadStatus.PAUSED -> "Paused" to io.androllm.core.ui.theme.LampDeep
@@ -1486,7 +1521,7 @@ private fun FirstLaunchRecommendationDialog(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                    colors = CardDefaults.cardColors(containerColor = DeskWalnut)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(text = model.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -1525,42 +1560,43 @@ private fun FirstLaunchRecommendationDialog(
 private fun ModelStatusDashboard(
     engineState: EngineState,
     memoryStats: MemoryStats?,
+    inferenceTokensPerSecond: Float = 0f,
     onUnload: () -> Unit
 ) {
     val (statusLabel, statusColor, showProgress) = when (engineState) {
         is EngineState.Loading -> Triple(
             "Loading: ${engineState.stage}",
-            Color(0xFF89B4FA),
+            Color(0xFFE69D81),
             true
         )
         is EngineState.WarmingUp -> Triple(
             "Warming Up: ${engineState.step}",
-            Color(0xFFF9E2AF),
+            Color(0xFFE0A33D),
             true
         )
         is EngineState.Ready -> Triple(
-            "● Ready",
-            Color(0xFFA6E3A1),
+            "🟢 Engine Ready",
+            Color(0xFF52C41A),
             false
         )
         is EngineState.Generating -> Triple(
             "● Generating (Prompt #${engineState.promptNumber})",
-            Color(0xFF89B4FA),
+            Color(0xFFD97757),
             false
         )
         EngineState.Unloading -> Triple(
             "Unloading...",
-            Color(0xFFFAB387),
+            Color(0xFFE0A489),
             true
         )
         is EngineState.Failed -> Triple(
             "● Error: ${engineState.message}",
-            Color(0xFFF38BA8),
+            Color(0xFFC7442F),
             false
         )
         EngineState.Unloaded -> Triple(
             "No Model",
-            Color(0xFF6C7086),
+            Color(0xFF8F8D87),
             false
         )
     }
@@ -1568,7 +1604,7 @@ private fun ModelStatusDashboard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = DeskWalnut
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -1656,26 +1692,50 @@ private fun ModelStatusDashboard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Backend & GPU Status
+                // ── Execution Backend — derived from RUNTIME state only (the
+                // Vulkan correctness self-test never determines the active backend) ──
+                Text(
+                    text = "Execution Backend",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val successGreen = Color(0xFF52C41A)
+                LedgerStatRow(
+                    "GPU",
+                    if (stats.isGpuAccelerated) "Vulkan ✓" else "—",
+                    valueColor = if (stats.isGpuAccelerated) successGreen else MaterialTheme.colorScheme.outline
+                )
+                LedgerStatRow("CPU", "Host ✓", valueColor = successGreen)
+                LedgerStatRow(
+                    "Mode",
+                    stats.executionMode,
+                    valueColor = if (stats.isGpuAccelerated) successGreen else io.androllm.core.ui.theme.LampAmber
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Backend status pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val isVulkan = stats.backend == "vulkan"
+                    val isVulkan = stats.isGpuAccelerated
                     AssistChip(
                         onClick = {},
                         label = {
                             Text(
-                                text = if (isVulkan) "🟢 Vulkan" else "🔴 ${stats.backend.uppercase()}",
+                                text = if (isVulkan) "🟢 Vulkan" else "🟡 CPU",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
                         },
                         colors = AssistChipDefaults.assistChipColors(
                             containerColor = if (isVulkan)
-                                Color(0xFFA6E3A1).copy(alpha = 0.15f)
+                                Color(0xFF52C41A).copy(alpha = 0.15f)
                             else
-                                Color(0xFFF38BA8).copy(alpha = 0.15f)
+                                Color(0xFFE0A33D).copy(alpha = 0.18f)
                         )
                     )
                     if (stats.gpuLayersOffloaded > 0) {
@@ -1701,14 +1761,71 @@ private fun ModelStatusDashboard(
                             if (stats.gpuApiVersion.isNotBlank()) append(" • Vulkan ${stats.gpuApiVersion}")
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFA6E3A1)
+                        color = successGreen
                     )
-                } else if (stats.backendReason.isNotBlank()) {
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ── Runtime statistics ──
+                Text(
+                    text = "Runtime",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                LedgerStatRow("GPU", if (stats.isGpuAccelerated) "Vulkan" else "—")
+                LedgerStatRow("CPU", "ARM64 NEON")
+                LedgerStatRow(
+                    "GPU Layers",
+                    if (stats.gpuLayersOffloaded > 0) stats.gpuLayersDisplay else "0 / ${stats.totalLayers}"
+                )
+                LedgerStatRow("CPU Layers", "Embedding · Sampling · Tokenizer")
+                LedgerStatRow("KV Cache", if (stats.isGpuAccelerated) "GPU" else "CPU")
+                val contextLen = (engineState as? EngineState.Ready)?.model?.contextLength ?: 0
+                LedgerStatRow(
+                    "Context",
+                    if (contextLen > 0) "${(contextLen / 1024).coerceAtLeast(1)}K" else "—"
+                )
+                LedgerStatRow("Memory", "%.0f MB".format(stats.totalNativeMb()))
+                LedgerStatRow(
+                    "Inference",
+                    if (inferenceTokensPerSecond > 0f) "%.1f tok/s".format(inferenceTokensPerSecond) else "—"
+                )
+
+                // Genuine runtime CPU fallback — the ONLY case a warning is shown
+                if (stats.isCpuFallback) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        color = Color(0xFFE0A33D).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⚠ Running on CPU — ${stats.backendReason}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF8A5A00),
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+
+                // Inference status (runtime, from real decodes)
+                if (stats.isGpuAccelerated) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "CPU fallback: ${stats.backendReason}",
+                        text = when {
+                            stats.gpuInferenceVerified -> "✓ Vulkan inference active"
+                            stats.vulkanValidationFailed -> "Inference active (self-test mismatch — see Diagnostics)"
+                            else -> "Verifying Vulkan inference…"
+                        },
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFF38BA8)
+                        color = when {
+                            stats.gpuInferenceVerified -> successGreen
+                            stats.vulkanValidationFailed -> io.androllm.core.ui.theme.LampDeep
+                            else -> MaterialTheme.colorScheme.outline
+                        }
                     )
                 }
 
@@ -1719,15 +1836,12 @@ private fun ModelStatusDashboard(
                     MemoryStatRow("GPU free / total", "%.0f / %.0f MB".format(stats.gpuMemoryFreeMb(), stats.gpuMemoryTotalMb()))
                     MemoryStatRow("GPU peak", "%.0f MB • Buffers: %d".format(stats.gpuMemoryPeakMb(), stats.gpuBufferCount))
                     MemoryStatRow("KV cache", "%.0f MB (included in allocation)".format(stats.contextSizeMb()))
-                    Text(
-                        text = if (stats.gpuInferenceVerified) {
-                            "Vulkan inference verified"
-                        } else {
-                            "Verifying Vulkan inference…"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (stats.gpuInferenceVerified) Color(0xFFA6E3A1) else MaterialTheme.colorScheme.outline
-                    )
+                }
+
+                // ── Diagnostics: Vulkan correctness self-test (collapsible) ──
+                if (stats.vulkanValidationFailed) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    VulkanValidationDiagnostics(detail = stats.vulkanValidationDetail)
                 }
             }
 
@@ -1770,5 +1884,97 @@ private fun MemoryStatRow(label: String, value: String) {
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+/**
+ * Ledger-style stat row: muted label on the left, semi-bold value on the right.
+ */
+@Composable
+private fun LedgerStatRow(
+    label: String,
+    value: String,
+    valueColor: Color = io.androllm.core.ui.theme.DeskInk
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Collapsible diagnostics panel for the Vulkan correctness self-test.
+ * The self-test result is diagnostic-only and never affects which backend is
+ * actually executing inference.
+ */
+@Composable
+private fun VulkanValidationDiagnostics(detail: String) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Surface(
+        color = Color(0xFFE0A33D).copy(alpha = 0.12f),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, Color(0xFFE0A33D).copy(alpha = 0.4f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "⚠ Vulkan validation mismatch",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFB3573E)
+                    )
+                    Text(
+                        text = "This only affects the validation self-test. Inference continues using Vulkan.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF8A5A00),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text(
+                    text = if (expanded) "Hide Details ▲" else "Show Details ▾",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFB3573E)
+                )
+            }
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = detail.ifBlank { "No mismatch details captured." },
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = io.androllm.core.ui.theme.DeskInk
+                )
+            }
+        }
     }
 }

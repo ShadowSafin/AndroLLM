@@ -464,7 +464,7 @@ private fun parseFormattedText(text: String, defaultColor: Color): AnnotatedStri
                 append(linkText)
                 addStyle(
                     SpanStyle(
-                        color = Color(0xFF89B4FA),
+                        color = Color(0xFFB3573E),
                         textDecoration = TextDecoration.Underline,
                         fontWeight = FontWeight.Medium
                     ),
@@ -497,8 +497,8 @@ private fun AnnotatedString.Builder.appendFormattedInline(text: String, defaultC
                 addStyle(
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
-                        background = Color(0xFF313244),
-                        color = Color(0xFFF5E0DC),
+                        background = Color(0xFFEFEEE6),
+                        color = Color(0xFF4A4945),
                         fontSize = 13.sp
                     ),
                     start,

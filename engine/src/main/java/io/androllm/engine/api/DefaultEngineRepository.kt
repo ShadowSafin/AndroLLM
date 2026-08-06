@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * No-op placeholder engine used in tests and as a safe fallback
@@ -167,6 +168,15 @@ class DefaultEngineRepository @Inject constructor(
      */
     private val generationMutex = Mutex()
 
+    /**
+     * Set by [cancelGeneration] while a [generate] run is in flight. The native
+     * loop exits cleanly on cancel (it does not throw), so without this flag a
+     * cancelled run would be republished as [GenerationState.Completed] and its
+     * partial text persisted as a full assistant response — corrupting the
+     * context for the next prompt.
+     */
+    private val cancelRequested = AtomicBoolean(false)
+
     override val capabilities: EngineCapabilities
         get() = engine.capabilities
 
@@ -209,6 +219,10 @@ class DefaultEngineRepository @Inject constructor(
         prompt: String,
         config: GenerationConfig
     ): Result<Unit> = generationMutex.withLock {
+        // A fresh run never inherits a stale cancel (e.g. one requested while
+        // the engine was idle or waiting behind background work).
+        cancelRequested.set(false)
+
         if (!engine.isLoaded()) {
             _generationState.value = GenerationState.Failed("Model not loaded")
             return Result.error("Model not loaded")
@@ -247,7 +261,88 @@ class DefaultEngineRepository @Inject constructor(
                 }
                 .collect()
 
+            if (cancelRequested.getAndSet(false)) {
+                // A cancel was requested mid-flight (Stop pressed). The native
+                // loop exits cleanly, so completion must NOT be published here:
+                // a cancelled run never surfaces as a full response and its
+                // partial text is never fed back into the next prompt.
+                _generationState.value = GenerationState.Cancelled
+                return Result.Success(Unit)
+            }
             val stats = engine.stats.firstOrNull()
+            _generationState.value = GenerationState.Completed(text = fullText, stats = stats)
+            Result.Success(Unit)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _generationState.value = GenerationState.Failed(
+                message = e.message ?: "Generation failed",
+                partialText = fullText
+            )
+            Result.Error(e)
+        }
+    }
+
+    override suspend fun generateChat(
+        messages: List<ChatPromptMessage>,
+        addAssistant: Boolean,
+        config: GenerationConfig
+    ): Result<Unit> = generationMutex.withLock {
+        cancelRequested.set(false)
+
+        if (!engine.isLoaded()) {
+            _generationState.value = GenerationState.Failed("Model not loaded")
+            return Result.error("Model not loaded")
+        }
+
+        val lastUser = messages.lastOrNull { it.role == "user" }?.content ?: "(chat)"
+        _generationState.value = GenerationState.Generating(prompt = lastUser, streamingText = "", generatedTokens = 0L)
+
+        var fullText = ""
+        var lastEmitTime = 0L
+        var tokenCount = 0L
+        try {
+            engine.generateChatStream(messages, addAssistant, config)
+                .onEach { result ->
+                    when (result) {
+                        is Result.Success -> {
+                            val chunk = result.data
+                            if (chunk.delta.isNotEmpty() && !chunk.finished) {
+                                fullText += chunk.delta
+                                if (chunk.generatedTokens > 0) tokenCount = chunk.generatedTokens else tokenCount++
+                                val now = System.currentTimeMillis()
+                                if (now - lastEmitTime >= 16L) {
+                                    lastEmitTime = now
+                                    _generationState.value = GenerationState.Generating(
+                                        prompt = lastUser,
+                                        streamingText = fullText,
+                                        generatedTokens = tokenCount
+                                    )
+                                }
+                            }
+                        }
+
+                        is Result.Error -> throw result.exception
+                    }
+                }
+                .collect()
+
+            if (cancelRequested.getAndSet(false)) {
+                _generationState.value = GenerationState.Cancelled
+                return Result.Success(Unit)
+            }
+
+            val stats = engine.stats.firstOrNull()
+            if (stats?.stopReason == "decode_error") {
+                // The native side rolled the turn back (the partial response is
+                // NOT part of the conversation), so surface it as a failure
+                // instead of persisting a corrupted partial response.
+                _generationState.value = GenerationState.Failed(
+                    message = "Decode error — try again",
+                    partialText = fullText
+                )
+                return Result.error("Decode error")
+            }
             _generationState.value = GenerationState.Completed(text = fullText, stats = stats)
             Result.Success(Unit)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -282,6 +377,7 @@ class DefaultEngineRepository @Inject constructor(
     }
 
     override suspend fun cancelGeneration(): Result<Unit> = io.androllm.core.common.runCatching {
+        cancelRequested.set(true)
         engine.cancel()
         _generationState.value = GenerationState.Cancelled
     }
@@ -290,6 +386,7 @@ class DefaultEngineRepository @Inject constructor(
 
     override fun release() {
         engine.release()
+        cancelRequested.set(false)
         _engineState.value = EngineState.Unloaded
         _generationState.value = GenerationState.Idle
         _memoryStats.value = null

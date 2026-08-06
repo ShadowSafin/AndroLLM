@@ -29,10 +29,44 @@ data class MemoryStats(
     val gpuDriverVersion: String = "",
     val gpuApiVersion: String = "",
     val backendReason: String = "",
-    val gpuInferenceVerified: Boolean = false
+    val gpuInferenceVerified: Boolean = false,
+    // Vulkan correctness self-test diagnostics. This is a diagnostic-only
+    // result that NEVER determines the active execution backend — the runtime
+    // backend is derived from [backend] + [gpuLayersOffloaded] only.
+    val vulkanValidationStatus: String = "skipped", // "passed" | "failed" | "skipped"
+    val vulkanValidationDetail: String = ""
 ) {
     val totalNativeBytes: Long get() = modelSizeBytes + contextSizeBytes
+
+    /** True only when the runtime inference pipeline is offloaded to Vulkan. */
     val isGpuAccelerated: Boolean get() = backend == "vulkan" && gpuLayersOffloaded > 0
+
+    /** Vulkan correctness self-test passed (diagnostic only). */
+    val vulkanValidationPassed: Boolean get() = vulkanValidationStatus == "passed"
+
+    /** Vulkan correctness self-test reported a mismatch (diagnostic only). */
+    val vulkanValidationFailed: Boolean get() = vulkanValidationStatus == "failed"
+
+    /** Runtime execution mode derived from actual GPU offload, never validation. */
+    val executionMode: String get() = when {
+        isGpuAccelerated && cpuLayers > 0 -> "Hybrid"
+        isGpuAccelerated -> "GPU only"
+        else -> "CPU only"
+    }
+
+    /**
+     * True only when the model genuinely fell back to CPU at runtime.
+     *
+     * Heuristic couples to the native reason strings set in native_api.cpp
+     * ("Vulkan unavailable: …" / "GPU init failed: …"). Keep those two phrases
+     * stable if this warning must keep showing; a deliberate CPU load
+     * ("CPU backend (no GPU offload)") is intentionally NOT a fallback.
+     */
+    val isCpuFallback: Boolean get() = !isGpuAccelerated && (
+        backendReason.contains("unavailable", ignoreCase = true) ||
+            backendReason.contains("init failed", ignoreCase = true)
+        )
+
     val cpuLayers: Int get() = totalLayers - gpuLayersOffloaded
     val gpuLayersDisplay: String get() = if (isGpuAccelerated && totalLayers > 0) "$gpuLayersOffloaded / $totalLayers" else if (isGpuAccelerated) "$gpuLayersOffloaded / ?" else "0 / ?"
     val gpuMemoryUsedMb: Float get() = gpuMemoryUsedBytes / (1024f * 1024f)

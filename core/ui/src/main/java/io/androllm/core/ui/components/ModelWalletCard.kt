@@ -53,9 +53,9 @@ import io.androllm.core.ui.theme.LampAmber
 
 /**
  * The lettered index card — a model as an entry in the desk's own ledger.
- * Serif name, monospace meta, the lit lamp dot when loaded, and the single
- * amber action. Downloaded models read as cards under the lamp; the rest sit
- * dim in the stack.
+ * Serif name, monospace meta, the lit terracotta seal when loaded, and the
+ * single accent action. Downloaded models read as cards on the page; the
+ * rest sit dim in the stack.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -218,7 +218,7 @@ private fun ModelSpecPill(label: String, value: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(DeskNightSurface)
+            .background(ParchmentInset)
             .border(1.dp, DeskHairline, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
@@ -234,4 +234,4 @@ private fun ModelSpecPill(label: String, value: String) {
     }
 }
 
-private val DeskNightSurface = Color(0xFF141008)
+private val ParchmentInset = Color(0xFFEFEEE6)

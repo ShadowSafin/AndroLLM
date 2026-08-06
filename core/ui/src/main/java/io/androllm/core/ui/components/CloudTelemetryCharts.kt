@@ -28,8 +28,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.androllm.core.ui.theme.CloudGlassBorder
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.MoonSilver
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskPaper
 
 /**
  * Smooth animated line chart with gradient fill — used for live tokens/sec
@@ -185,7 +185,7 @@ fun CloudUsageBar(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = MoonSilver.copy(alpha = 0.85f)
+                    color = DeskInk
                 ),
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -195,7 +195,7 @@ fun CloudUsageBar(
                 text = valueText,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    color = CloudWhite
+                    color = DeskPaper
                 )
             )
         }

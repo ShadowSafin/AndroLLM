@@ -149,7 +149,7 @@ fun ConversationDrawerContent(
                         Text(
                             text = "PINNED CHATS",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = io.androllm.core.ui.theme.LampAmber,
+                                color = io.androllm.core.ui.theme.LampDeep,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.4.sp
                             ),

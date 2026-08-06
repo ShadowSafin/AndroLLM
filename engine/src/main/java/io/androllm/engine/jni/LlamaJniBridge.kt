@@ -100,6 +100,23 @@ object LlamaJniBridge {
     ): String
 
     /**
+     * Runs a multi-turn chat generation synchronously. [messageHistoryJson] is
+     * the FULL message history (a JSON array of {"role", "content"} objects);
+     * the native engine diffs it against its accumulated conversation and
+     * decodes only the new messages' template diff at the continuing KV
+     * position (official llama.cpp multi-turn pattern). [callback] is invoked
+     * per token on the calling thread. Returns a JSON string with performance
+     * stats.
+     */
+    external fun nativeGenerateChat(
+        engineHandle: Long,
+        messageHistoryJson: String,
+        addAssistant: Boolean,
+        genConfigJson: String,
+        callback: TokenCallback
+    ): String
+
+    /**
      * Requests cancellation of an in-flight generation.
      */
     external fun nativeCancel(engineHandle: Long)

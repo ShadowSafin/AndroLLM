@@ -69,11 +69,12 @@ import java.util.Locale
 /**
  * A letter on the desk — one turn in the correspondence.
  *
- * The assistant's words are the page itself: warm paper on the night wood,
- * entered with a small lit lamp dot and separated from the next letter by a
- * hairline rule. Your own words are a walnut slip, set flush to the right edge
- * with a ruled margin and a single amber edge — the ink you pressed to paper.
- * No bubbles, no glass: the conversation reads as letters kept after midnight.
+ * The assistant's words are the page itself: ink on parchment, entered with a
+ * small lit terracotta seal and separated from the next letter by a cream
+ * hairline rule. Your own words are a white slip, set flush to the right edge
+ * with a ruled margin and a single terracotta edge — the ink you pressed to
+ * paper. No bubbles, no glass: the conversation reads as correspondence kept
+ * in daylight.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -144,7 +145,7 @@ fun MessageBubble(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 1.8.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (isUser) LampAmber else DeskInk
+                                color = if (isUser) io.androllm.core.ui.theme.LampDeep else DeskInk
                             )
                         )
                         if (formattedTime.isNotEmpty()) {
@@ -160,7 +161,7 @@ fun MessageBubble(
                             Icon(
                                 imageVector = Icons.Default.Bookmark,
                                 contentDescription = "Bookmarked",
-                                tint = LampAmber.copy(alpha = 0.85f),
+                                tint = io.androllm.core.ui.theme.LampDeep.copy(alpha = 0.9f),
                                 modifier = Modifier.size(12.dp)
                             )
                         }

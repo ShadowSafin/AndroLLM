@@ -89,7 +89,7 @@ fun DeveloperScreen(
                             Text(
                                 text = "Live engine & device telemetry",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampGlow,
+                                    color = LampDeep,
                                     fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 0.8.sp
                                 )

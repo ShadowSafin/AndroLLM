@@ -32,22 +32,21 @@ import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.rememberReduceMotion
 import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.LampDeep
 import io.androllm.feature.splash.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Writer's Night Desk Cinematic Splash.
+ * Parchment Ledger Cinematic Splash.
  *
  * Choreography (never rushed):
- *   1. Atmospheric background is already breathing (walnut grain, lamp glow).
- *   2. The desk lamp & bugdroid mark fades in while spring-scaling up.
+ *   1. Atmospheric background is already breathing (parchment, terracotta glow).
+ *   2. The bugdroid mark fades in while spring-scaling up.
  *   3. The mark settles into a slow, weightless floating bob.
  *   4. The tagline — "Private AI. Powered by You." — fades in beneath it.
- *   5. A quiet "Lighting the lamp…" hint completes the composition.
+ *   5. A quiet "Ink drying…" hint completes the composition.
  *   6. After the full beat, [onFinished] hands over to the entry flow.
  *
  * Reduce-motion: static logo, shortened timing.
@@ -139,7 +138,7 @@ fun SplashScreen(
                 Text(
                     text = stringResource(R.string.splash_tagline),
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = LampGlow,
+                        color = LampDeep,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp
                     ),

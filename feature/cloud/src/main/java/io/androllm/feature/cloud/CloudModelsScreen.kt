@@ -70,6 +70,7 @@ import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.EmberRed
 import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import java.util.Locale
 
@@ -131,7 +132,7 @@ fun CloudModelsScreen(
                             if (uiState.refreshing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
-                                    color = LampGlow,
+                                    color = LampDeep,
                                     strokeWidth = 2.dp
                                 )
                             } else {
@@ -288,7 +289,7 @@ private fun ModelRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = model.label,
-                        color = if (model.isDefault) LampGlow else DeskPaper,
+                        color = if (model.isDefault) LampDeep else DeskPaper,
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

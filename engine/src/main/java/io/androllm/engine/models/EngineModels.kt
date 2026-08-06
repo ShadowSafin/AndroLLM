@@ -78,7 +78,13 @@ data class GenerationConfig(
     val jsonSchema: String = "",
     val reuseKvCache: Boolean = true,
     val seed: Long = -1,
-    val stopSequences: List<String> = emptyList()
+    val stopSequences: List<String> = emptyList(),
+    /**
+     * When true the native engine logs every sampled token (step, id, decoded
+     * text, top-5 logits, temperature, backend) to logcat. A decode-debugging
+     * aid; keep false in production to avoid log spam.
+     */
+    val debugTokenLogging: Boolean = false
 )
 
 /**
@@ -168,7 +174,11 @@ data class EngineDebugInfo(
     val contextSizeBytes: Long = 0,
     val peakMemoryBytes: Long = 0,
     val backendReason: String = "",
-    val gpuInferenceVerified: Boolean = false
+    val gpuInferenceVerified: Boolean = false,
+    // Vulkan correctness self-test diagnostics (diagnostic only — never used
+    // to determine the active execution backend).
+    val vulkanValidationStatus: String = "skipped", // "passed" | "failed" | "skipped"
+    val vulkanValidationDetail: String = ""
 )
 
 /**

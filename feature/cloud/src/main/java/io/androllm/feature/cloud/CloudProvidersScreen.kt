@@ -77,6 +77,7 @@ import io.androllm.core.ui.theme.DeskInkFaint
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.EmberRed
 import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 
 /**
@@ -271,8 +272,7 @@ private fun CloudModeCard(enabled: Boolean, onToggle: () -> Unit) {
             ) {
                 Icon(
                     imageVector = if (enabled) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
-                    contentDescription = null,
-                    tint = if (enabled) LampGlow else DeskInk
+                    contentDescription = null,                        tint = if (enabled) LampDeep else DeskInk
                 )
             }
             Spacer(Modifier.width(14.dp))
@@ -321,7 +321,7 @@ private fun ProviderCard(
                 Icon(
                     imageVector = Icons.Filled.Cloud,
                     contentDescription = null,
-                    tint = if (provider.enabled) LampAmber else DeskInk,
+                    tint = if (provider.enabled) LampDeep else DeskInk,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(Modifier.width(10.dp))

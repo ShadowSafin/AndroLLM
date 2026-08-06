@@ -243,7 +243,7 @@ private fun OnboardingDots(
                     .width(width)
                     .clip(CircleShape)
                     .background(
-                        if (active) LampGlow else DeskInkFaint.copy(alpha = 0.4f)
+                        if (active) LampDeep else DeskInkFaint.copy(alpha = 0.4f)
                     )
             )
         }

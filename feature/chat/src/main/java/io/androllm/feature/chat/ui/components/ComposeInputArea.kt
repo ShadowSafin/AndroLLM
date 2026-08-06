@@ -49,9 +49,9 @@ import io.androllm.core.ui.theme.InkOnLamp
 import io.androllm.core.ui.theme.LampAmber
 
 /**
- * The writing slip — the desk's composer. A walnut panel with a ruled
- * underline where the words go, and one amber capsule for sending the letter.
- * While the model writes back, the capsule becomes a stop: the lamp's answer.
+ * The writing slip — the desk's composer. A parchment panel with a ruled
+ * underline where the words go, and one terracotta capsule for sending the
+ * letter. While the model writes back, the capsule becomes a stop.
  */
 @Composable
 fun ComposeInputArea(

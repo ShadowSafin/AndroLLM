@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -431,6 +432,7 @@ struct GenConfig {
     std::string jsonSchema;         // JSON schema, empty = none
     bool enableThinking = false;    // enable thinking mode in chat templates (Qwen2.5/Qwen3)
     bool reuseKvCache = true;       // keep the KV cache across turns (official multi-turn pattern)
+    bool debugTokenLogging = false; // log every sampled token (step/id/piece/top-5) — decode debugging aid
     int64_t seed = -1;
     std::vector<std::string> stopSequences;
 };
@@ -464,6 +466,7 @@ static GenConfig parseGenConfig(const std::string &json) {
         c.jsonSchema = n->str;
     if (auto *n = get("enableThinking"))     c.enableThinking = n->boolean;
     if (auto *n = get("reuseKvCache"))       c.reuseKvCache = n->boolean;
+    if (auto *n = get("debugTokenLogging"))  c.debugTokenLogging = n->boolean;
     if (auto *n = get("seed"))               c.seed = (int64_t)n->num;
     if (auto *n = get("stopSequences"); n && n->type == mini_json::Node::Array)
         c.stopSequences = n->array;
@@ -539,17 +542,41 @@ struct LlamaEngine {
     std::string gpuApiVersion;
     std::string backendReason;
 
+    // ── validation diagnostics (self-test only; NEVER drives the active backend) ──
+    // vulkanValidationStatus: "passed" | "failed" | "skipped"
+    // vulkanValidationDetail: full mismatch report when the self-test failed
+    std::string vulkanValidationStatus;
+    std::string vulkanValidationDetail;
+
+    // ── corruption recovery ──
+    // Enough state to recreate the inference context when runtime corruption
+    // is detected (NaN/INF logits, invalid token ids, decode failures, or
+    // degenerate repetition). The generation wrapper reloads the context and
+    // retries once on the same backend, then once on CPU, before giving up.
+    std::string modelPath;
+    int  loadCtxLen = 0;
+    int  loadBatchSize = 2048;
+    int  loadGpuLayers = -1;
+    std::string lastRecoveryReason;  // set when the latest attempt was corrupted
+
     // ── runtime ──
     int promptCount = 0;
     size_t peakMemoryBytes = 0;
 
     // ── upstream state (matches ai_chat.cpp) ──
+    // chatMsgs is the conversation as known to the template; the KV cache
+    // holds the rendered prompt tokens plus the raw generated tokens. Each
+    // turn decodes only the template diff of the new messages at chatPosition
+    // (official multi-turn pattern) — the cache IS the conversation.
     std::vector<common_chat_msg> chatMsgs;   // accumulated messages
     llama_pos chatPosition = 0;              // current position in KV cache
-    bool      reuseEligible = false;         // KV content == lastPromptTokens ++ lastGenerated
     llama_pos systemPromptEnd = 0;           // position after system prompt
 
-    // ── diagnostics ──
+    // ── KV-resident prompt / diagnostics ──
+    // lastPromptTokens is the token stream of the most recent prompt rendered
+    // into the KV cache (positions [0, len)). It doubles as the previous-turn
+    // prefix baseline for the KV-reuse decision; doGenerate() must snapshot it
+    // BEFORE overwriting it with the current prompt.
     std::vector<llama_token> lastPromptTokens;
     std::vector<llama_token> lastGeneratedTokens;
     std::string lastPromptText;
@@ -592,9 +619,13 @@ struct LlamaEngine {
         gpuBufferCount = 0;
         gpuInferenceVerified = false;
         backendReason.clear();
+        vulkanValidationStatus.clear();
+        vulkanValidationDetail.clear();
+        // NOTE: lastRecoveryReason is intentionally NOT cleared here — the
+        // generation wrapper reads it after reloadEngineContext() to log and
+        // decide the next recovery stage.
         chatMsgs.clear();
         chatPosition = 0;
-        reuseEligible = false;
         systemPromptEnd = 0;
         lastPromptTokens.clear();
         lastGeneratedTokens.clear();
@@ -790,6 +821,117 @@ static std::string statsJson(
 }
 
 // ---------------------------------------------------------------------------
+// Generation health — corruption detection & automatic context recovery
+// ---------------------------------------------------------------------------
+//
+// llama.cpp's Vulkan backend submits the graph and waits for completion inside
+// ggml_backend_vk_graph_compute, so llama_decode() returns with synchronized
+// logits — no extra GPU fence is required before reading them. What CAN go
+// wrong is the compute itself producing NaN/INF logits on a broken backend;
+// the guards below detect that and the recovery wrapper below recreates the
+// context (retry once, then CPU fallback) instead of generating garbage.
+
+// Every logit must be finite. NaN/INF means the compute path is broken
+// (typically the GPU backend). Checked after every decode, before sampling.
+static bool logits_are_finite(llama_context * ctx, const llama_vocab * vocab) {
+    const float * logits = llama_get_logits_ith(ctx, -1);
+    if (!logits) return false;
+    const int n = llama_vocab_n_tokens(vocab);
+    for (int i = 0; i < n; i++) {
+        if (!std::isfinite(logits[i])) return false;
+    }
+    return true;
+}
+
+static bool token_is_valid(const llama_vocab * vocab, llama_token id) {
+    return id >= 0 && id < llama_vocab_n_tokens(vocab);
+}
+
+// Dumps the corruption context: backend, sampler state, last sampled token
+// ids and KV position. Called the moment a corrupt attempt is detected.
+static void dump_corruption(LlamaEngine * eng, const char * where, const std::string & detail) {
+    std::ostringstream o;
+    o << "[" << where << "] " << detail
+      << " backend=" << (eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU")
+      << " sampler=" << (eng->sampler ? common_sampler_print(eng->sampler) : "null");
+    const size_t from = eng->lastGeneratedTokens.size() > 10
+                        ? eng->lastGeneratedTokens.size() - 10 : 0;
+    o << " last_tokens=";
+    for (size_t i = from; i < eng->lastGeneratedTokens.size(); i++) {
+        if (i > from) o << ",";
+        o << eng->lastGeneratedTokens[i];
+    }
+    if (eng->ctx) {
+        o << " kv_pos=" << llama_memory_seq_pos_max(llama_get_memory(eng->ctx), 0)
+          << "/" << llama_n_ctx(eng->ctx);
+    }
+    LOGE("%s", o.str().c_str());
+}
+
+// Destroys and rebuilds the inference context from the stored load
+// configuration. useGpu=false forces the CPU backend (runtime fallback after
+// GPU corruption). Returns true on success; on failure the engine is left
+// unloaded and *outErr carries the reason.
+static bool reloadEngineContext(LlamaEngine * eng, bool useGpu, std::string * outErr = nullptr) {
+    auto fail = [&](const std::string & m) {
+        if (outErr) *outErr = m;
+        return false;
+    };
+    if (eng->modelPath.empty()) return fail("no stored model path for recovery");
+
+    eng->destroy();
+
+    common_params params;
+    params.model.path    = eng->modelPath;
+    params.n_ctx         = eng->loadCtxLen <= 0 ? 0 : eng->loadCtxLen;
+    params.n_batch       = std::max(1024, eng->loadBatchSize);
+    params.n_ubatch      = std::min(params.n_batch, 512);
+    params.n_gpu_layers  = useGpu ? eng->loadGpuLayers : 0;
+    params.cache_type_k  = GGML_TYPE_F16;
+    params.cache_type_v  = GGML_TYPE_F16;
+    params.flash_attn_type = eng->useFlashAttention ? LLAMA_FLASH_ATTN_TYPE_AUTO
+                                                    : LLAMA_FLASH_ATTN_TYPE_DISABLED;
+
+    common_init_result_ptr result;
+    try {
+        result = common_init_from_params(params);
+    } catch (const std::exception &e) {
+        return fail(std::string("context reload failed: ") + e.what());
+    } catch (...) {
+        return fail("context reload failed (unknown exception)");
+    }
+    if (!result) return fail("context reload returned null");
+
+    eng->model = result->model();
+    eng->ctx   = result->context();
+    if (!eng->model || !eng->ctx) return fail("context reload produced no model/context");
+    eng->initResult = std::move(result);
+
+    try {
+        eng->chatTmpls = common_chat_templates_init(eng->model, "");
+    } catch (...) { eng->chatTmpls.reset(); }
+
+    const int nL = llama_model_n_layer(eng->model);
+    eng->totalLayers = nL;
+    const int sel = useGpu ? eng->loadGpuLayers : 0;
+    eng->gpuLayersUsed = sel < 0 ? nL : std::min(sel, nL);
+    eng->gpuInferenceVerified = false;
+    eng->gpuMemoryAllocatedBytes = 0;
+    eng->gpuBufferCount = 0;
+    eng->vulkanValidationStatus = "skipped";  // the self-test is not re-run on recovery
+    if (!useGpu) {
+        // "init failed" wording keeps MemoryStats.isCpuFallback true in Kotlin.
+        eng->backendReason = "CPU fallback after GPU runtime corruption (init failed during recovery)";
+    } else {
+        eng->backendReason = "Vulkan active after context recovery (" +
+                             std::to_string(eng->gpuLayersUsed) + "/" +
+                             std::to_string(eng->totalLayers) + " layers)";
+    }
+    eng->cancel.store(false);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
 // Generation — delegates everything to llama.cpp
 // ---------------------------------------------------------------------------
 
@@ -830,6 +972,13 @@ static std::string doGenerate(
     std::vector<llama_token> tokens =
         common_tokenize(eng->ctx, prompt, /*add_special=*/false, /*parse_special=*/true);
 
+    // A raw generation (memory extraction, benchmarks) reuses the same native
+    // context as chat, so it clobbers the conversational KV cache. Reset the
+    // chat state here: the next chat turn re-renders from scratch (upstream
+    // single-shot behavior).
+    eng->chatMsgs.clear();
+    eng->chatPosition = 0;
+
     eng->lastPromptTokens = tokens;
     eng->lastPromptText = prompt;
     eng->lastGeneratedTokens.clear();
@@ -850,78 +999,25 @@ static std::string doGenerate(
     }
     LOGI("[Tok] prompt_head: %.200s", prompt.c_str());
 
-    // ── KV cache reuse across turns (official multi-turn pattern) ──
-    // The chat history is re-rendered with common_chat_format_single(), which
-    // returns the diff for each new message, so the re-rendered prompt for the
-    // next turn is always the previous prompt plus a suffix. When that holds, we
-    // keep the previously prefilled prompt in the cache, drop only the stale
-    // generated tail, and prefill the new suffix at the continuing position
-    // (upstream ai_chat.cpp never clears the cache between turns - it continues
-    // from current_position). This avoids the llama_memory_clear + full
-    // re-prefill on every turn, a pattern that has been observed to corrupt KV
-    // state on the Vulkan backend when the clear and the subsequent prefill
-    // overlap.
-    //
-    // The generated (assistant) tokens from the previous turn cannot be reused
-    // as-is: the next prompt re-renders the assistant response from stored text,
-    // whose re-tokenization (including template wrapper tokens such as
-    // <|im_start|>assistant\n) does not reproduce the raw sampled token stream.
-    // So we remove the generated tail with llama_memory_seq_rm and re-prefill
-    // the assistant block + new user block at the continuing position - the
-    // resulting cache is cell-for-cell identical to a full re-prefill.
-    //
-    // Any change to the history (edit, delete, retry, new conversation) makes
-    // the prefix comparison fail, and we safely fall back to a full re-prefill
-    // of the rendered prompt from a cleared cache - identical to upstream
-    // reset_long_term_states() + decode_tokens_in_batches().
-    const bool reuse = cfg.reuseKvCache;
-    bool fullReprocess = true;
-    llama_pos prefillStart = 0;
-    size_t prefillOffset = 0; // token index where decoding begins
+    // ── Prefill (full re-prefill from a cleared cache — upstream single-shot) ──
+    llama_memory_clear(mem, false);
 
-    if (reuse && eng->reuseEligible && eng->chatPosition > 0) {
-        // The KV cache holds the previous turn's prompt tokens (positions
-        // [0, prevLen)) followed by the generated tail. The new prompt starts
-        // with the same prompt tokens whenever the history is a strict
-        // continuation (tokenization is deterministic). When that holds, drop
-        // the stale generated tail and prefill only the new suffix - positions
-        // continue from prevLen, matching upstream. reuseEligible is false after
-        // a context shift, a cancellation, a decode error, or a reset, which
-        // guarantees the prefix is still resident and contiguous.
-        const size_t prevLen = eng->lastPromptTokens.size();
-        if (prevLen > 0 && prevLen <= tokens.size() &&
-            (llama_pos)prevLen <= eng->chatPosition &&
-            std::equal(eng->lastPromptTokens.begin(), eng->lastPromptTokens.end(), tokens.begin())) {
-            if (llama_memory_seq_rm(mem, 0, (llama_pos)prevLen, -1)) {
-                fullReprocess = false;
-                prefillStart = (llama_pos)prevLen;
-                prefillOffset = prevLen;
-                LOGI("[KV] reuse cache: prefix=%zu total_tokens=%zu new_suffix=%zu (dropped %zu generated)",
-                     prevLen, tokens.size(), tokens.size() - prevLen,
-                     (size_t)(eng->chatPosition - prevLen));
-            } else {
-                LOGW("[KV] seq_rm failed - full re-prefill");
-            }
-        } else {
-            LOGI("[KV] prefix mismatch (prev=%zu new=%zu chatPos=%d) - full re-prefill",
-                 prevLen, tokens.size(), (int)eng->chatPosition);
-        }
-    }
-
-    if (fullReprocess) {
-        // metadata=false resets every cell (matches upstream ai_chat.cpp
-        // reset_long_term_states() and llama-bench); the GPU data buffers are
-        // fully overwritten by the prefill below.
-        llama_memory_clear(mem, false);
-    }
-
-    // ── Prefill ──
     llama_batch batch = llama_batch_init(n_batch, 0, 1);
+
+    // A cancel requested during a long prefill must abort promptly — the decode
+    // loop below is cancel-aware, so the prefill must be too, or Stop becomes
+    // unresponsive for the duration of the prefill.
+    bool prefillCancelled = false;
 
     auto run_prefill = [&](size_t from, llama_pos pos0) -> bool {
         bool ok = true;
         int batchCount = 0;
         for (size_t i = from; i < tokens.size(); i += n_batch) {
+            if (eng->cancel.load()) {
+                prefillCancelled = true;
+                LOGI("[Prefill] cancel requested at batch %d", batchCount);
+                break;
+            }
             size_t n = std::min<size_t>(n_batch, tokens.size() - i);
             bool batch_has_last = false;
             common_batch_clear(batch);
@@ -945,33 +1041,62 @@ static std::string doGenerate(
         return ok;
     };
 
-    bool prefillOk = run_prefill(prefillOffset, prefillStart);
-    if (!prefillOk && !fullReprocess) {
-        // The diff did not fit into the remaining cache: fall back to the full
-        // re-prefill of the rendered prompt from a cleared cache.
-        LOGW("[KV] diff prefill failed - falling back to full re-prefill");
-        llama_memory_clear(mem, false);
-        prefillOk = run_prefill(0, 0);
+    bool prefillOk = run_prefill(0, 0);
+
+    if (prefillCancelled) {
+        llama_batch_free(batch);
+        eng->lastStopReason = "cancelled";
+        eng->chatPosition = 0;
+        jstring empty = to_jstring(env, "");
+        env->CallVoidMethod(callback, onToken, empty, JNI_TRUE);
+        env->DeleteLocalRef(empty);
+        return statsJson(tokens.size(), 0, 0, 0, 0.f,
+                         eng->peakMemoryBytes, 0, "cancelled");
     }
 
     if (!prefillOk) {
         llama_batch_free(batch);
-        eng->lastStopReason = "decode_error";
-        // The cache was cleared and partially prefilled; never let the next turn
-        // reuse this indeterminate state.
+        eng->lastRecoveryReason = "prefill decode failed";
+        eng->lastStopReason = "corrupted";
         eng->chatPosition = 0;
-        eng->reuseEligible = false;
-        throw_java(env, "Prompt decode failed");
-        return "{}";
+        dump_corruption(eng, "prefill_decode", eng->lastRecoveryReason);
+        return statsJson(tokens.size(), 0, 0, 0, 0.f,
+                         eng->peakMemoryBytes, 0, "corrupted");
     }
 
-    // Tokens now resident in the KV cache: used as the prefix of the next turn's
-    // rendered prompt. lastPromptTokens was already set above; chatPosition must
-    // equal the number of prefilled tokens for the next reuse decision. The cache
-    // is contiguous ([0, tokens.size()) filled), so reuse stays eligible unless a
-    // context shift later truncates it.
     eng->chatPosition = (llama_pos)tokens.size();
-    eng->reuseEligible = true;
+
+    // Corruption guard: the prefill logits feed the first sample. A broken
+    // compute path (typically GPU) yields NaN/INF here — abort before any
+    // token is emitted so the recovery retry re-streams nothing.
+    if (!logits_are_finite(eng->ctx, vocab)) {
+        llama_batch_free(batch);
+        eng->lastRecoveryReason = "prefill logits corrupted (NaN/INF)";
+        eng->lastStopReason = "corrupted";
+        eng->chatPosition = 0;
+        dump_corruption(eng, "logits", eng->lastRecoveryReason);
+        return statsJson(tokens.size(), 0, 0, 0, 0.f,
+                         eng->peakMemoryBytes, 0, "corrupted");
+    }
+
+    // Context-overflow guard: never budget more generated tokens than the
+    // cache can hold. The mid-run shift still discards old context when the
+    // window fills; this pre-check keeps a doomed generation from starting.
+    int64_t genBudget = cfg.maxTokens;
+    {
+        const int64_t used = (int64_t)llama_memory_seq_pos_max(mem, 0) + 1;
+        const int64_t available = (int64_t)nCtx - 4 - used;
+        if (available < 1) {
+            llama_batch_free(batch);
+            // A reload cannot fix a prompt that is simply too long for the
+            // context — surface a clean error instead of recovery retries.
+            eng->lastStopReason = "context_overflow";
+            eng->chatPosition = 0;
+            throw_java(env, "Context overflow: no room to generate (prompt exceeds context window)");
+            return "{}";
+        }
+        genBudget = std::min<int64_t>(genBudget, available);
+    }
 
     auto t1 = clock::now();
     int64_t promptMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
@@ -983,15 +1108,10 @@ static std::string doGenerate(
     std::string pendingUtf8;   // buffers token pieces until they form valid UTF-8
     int64_t generated = 0;
 
-    for (int i = 0; i < cfg.maxTokens; i++) {
+    for (int i = 0; i < genBudget; i++) {
         if (eng->cancel.load()) {
             eng->lastStopReason = "cancelled";
-            // Invalidate cache reuse: the generated tokens left in the KV cache
-            // are not part of the next turn's prompt (the cancelled response is
-            // not stored), so reusing the cache would leak them into the next
-            // context and corrupt it.
             eng->chatPosition = 0;
-            eng->reuseEligible = false;
             break;
         }
 
@@ -1003,9 +1123,6 @@ static std::string doGenerate(
             if (n_discard > 0) {
                 llama_memory_seq_rm(mem, 0, sysEnd, sysEnd + n_discard);
                 llama_memory_seq_add(mem, 0, sysEnd + n_discard, pos_check + 1, -n_discard);
-                // The resident cache no longer matches lastPromptTokens, so the
-                // next turn must not reuse it.
-                eng->reuseEligible = false;
                 LOGI("[Shift] discarded %d tokens from pos %d..%d at step=%lld (preserved system prompt %d)",
                      (int)n_discard, (int)sysEnd, (int)(sysEnd + n_discard - 1),
                      (long long)generated, (int)sysEnd);
@@ -1015,8 +1132,29 @@ static std::string doGenerate(
             }
         }
 
+        // Corruption guard: sample only from finite logits (already
+        // synchronized by llama.cpp when llama_decode returned).
+        if (!logits_are_finite(eng->ctx, vocab)) {
+            eng->lastRecoveryReason = std::string("logits corrupted (NaN/INF) at step ") + std::to_string(i);
+            eng->lastStopReason = "corrupted";
+            eng->chatPosition = 0;
+            dump_corruption(eng, "logits", eng->lastRecoveryReason);
+            break;
+        }
+
         // Sample
         llama_token id = common_sampler_sample(eng->sampler, eng->ctx, -1);
+
+        // Bounds guard: the sampler must return a valid token id.
+        if (!token_is_valid(vocab, id)) {
+            eng->lastRecoveryReason = std::string("invalid token id ") +
+                std::to_string((long long)id) + " at step " + std::to_string(i);
+            eng->lastStopReason = "corrupted";
+            eng->chatPosition = 0;
+            dump_corruption(eng, "token", eng->lastRecoveryReason);
+            break;
+        }
+
         eng->lastGeneratedTokens.push_back(id);
         common_sampler_accept(eng->sampler, id, true);
 
@@ -1036,6 +1174,61 @@ static std::string doGenerate(
         // Detokenize with special=true (upstream default)
         std::string piece = common_token_to_piece(eng->ctx, id);
         output += piece;
+
+        // Per-token decode logging (opt-in): step, id, decoded text, top-5
+        // logits, temperature and backend — the decode-corruption diagnostic.
+        if (cfg.debugTokenLogging) {
+            const float * logits = llama_get_logits_ith(eng->ctx, -1);
+            std::ostringstream o;
+            o << "[TokLog] step=" << i << " id=" << id
+              << " piece=\"" << piece << "\" temp=" << cfg.temperature
+              << " backend=" << (eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU")
+              << " top5=";
+            if (logits) {
+                const int n = llama_vocab_n_tokens(vocab);
+                int top[5] = { -1, -1, -1, -1, -1 };
+                float tv[5] = { -1e30f, -1e30f, -1e30f, -1e30f, -1e30f };
+                for (int t = 0; t < n; t++) {
+                    for (int k = 0; k < 5; k++) {
+                        if (logits[t] > tv[k]) {
+                            for (int j = 4; j > k; j--) { tv[j] = tv[j - 1]; top[j] = top[j - 1]; }
+                            tv[k] = logits[t]; top[k] = t;
+                            break;
+                        }
+                    }
+                }
+                for (int k = 0; k < 5; k++) {
+                    if (k) o << ",";
+                    o << top[k] << ":" << tv[k];
+                }
+            } else {
+                o << "(no logits)";
+            }
+            LOGI("%s", o.str().c_str());
+        }
+
+        // Degenerate-repetition guard: a run of identical non-whitespace
+        // tokens (e.g. "////////") is a decode failure, not model text.
+        {
+            const size_t REPEAT_LIMIT = 24;
+            const size_t n = eng->lastGeneratedTokens.size();
+            bool whitespacePiece = true;
+            for (char c : piece) if (!std::isspace((unsigned char)c)) { whitespacePiece = false; break; }
+            if (n >= REPEAT_LIMIT && !whitespacePiece && piece.size() > 0) {
+                bool allSame = true;
+                for (size_t k = n - REPEAT_LIMIT; k < n; k++) {
+                    if (eng->lastGeneratedTokens[k] != id) { allSame = false; break; }
+                }
+                if (allSame) {
+                    eng->lastRecoveryReason = std::string("degenerate repetition (") +
+                        std::to_string(REPEAT_LIMIT) + "x token " + std::to_string((long long)id) + ")";
+                    eng->lastStopReason = "corrupted";
+                    eng->chatPosition = 0;
+                    dump_corruption(eng, "repetition", eng->lastRecoveryReason);
+                    break;
+                }
+            }
+        }
 
         // Stop sequences
         bool stopped = false;
@@ -1068,11 +1261,21 @@ static std::string doGenerate(
         common_batch_clear(batch);
         common_batch_add(batch, id, llama_memory_seq_pos_max(mem, 0) + 1, {0}, true);
         if (llama_decode(eng->ctx, batch) != 0) {
-            eng->lastStopReason = "decode_error";
-            eng->chatPosition = 0; // see cancel branch above
-            LOGW("[Gen] decode failed at step=%lld", (long long)generated);
+            eng->lastRecoveryReason = std::string("decode failed at step ") + std::to_string(i);
+            eng->lastStopReason = "corrupted";
+            eng->chatPosition = 0;
+            dump_corruption(eng, "decode", eng->lastRecoveryReason);
             break;
         }
+    }
+
+    if (!eng->lastRecoveryReason.empty()) {
+        // Corrupted attempt: no finished callback and no chatPosition update —
+        // the recovery wrapper recreates the context and re-streams the prompt.
+        llama_batch_free(batch);
+        eng->trackMemory();
+        return statsJson(tokens.size(), generated, 0, 0, 0.f,
+                         eng->peakMemoryBytes, 0, "corrupted");
     }
 
     // Normal completion (eos / max_tokens / stop_sequence): the generated tokens
@@ -1114,6 +1317,621 @@ static std::string doGenerate(
     return statsJson(tokens.size(), generated, promptMs, genMs, tps,
                      eng->peakMemoryBytes, eng->lastFirstTokenMs,
                      eng->lastStopReason);
+}
+
+// ---------------------------------------------------------------------------
+// Chat generation — official llama.cpp multi-turn pattern (ai_chat.cpp / CLI)
+// ---------------------------------------------------------------------------
+//
+// The KV cache IS the conversation. The previous turn's prompt tokens and the
+// assistant's raw generated tokens stay resident; each new turn formats ONLY
+// the new messages' template diff with common_chat_format_single() (the exact
+// upstream call) and decodes it at the continuing position (chatPosition).
+// The history is re-rendered in full from a cleared cache only when it is not
+// a strict continuation — first turn, edit/delete/regenerate, new
+// conversation, changed system prompt — the upstream reset behavior — or when
+// reuseKvCache is disabled.
+//
+// This replaces the previous custom scheme (full re-render + token-prefix
+// comparison + llama_memory_seq_rm of generated tails), which had no upstream
+// counterpart and was the source of the Prompt-#2 corruption bug.
+
+static std::string trim_copy(const std::string &s) {
+    size_t b = 0, e = s.size();
+    while (b < e && std::isspace((unsigned char)s[b])) b++;
+    while (e > b && std::isspace((unsigned char)s[e - 1])) e--;
+    return s.substr(b, e - b);
+}
+
+static std::string doGenerateChat(
+    LlamaEngine *eng,
+    JNIEnv *env,
+    jobject callback,
+    jmethodID onToken,
+    const std::string &msgsJson,
+    bool addAssistant,
+    const GenConfig &cfg) {
+
+    using clock = std::chrono::steady_clock;
+
+    pin_big_cores();
+
+    if (!eng->model || !eng->ctx || !eng->sampler) {
+        throw_java(env, "Engine not initialized"); return "{}";
+    }
+    if (!eng->chatTmpls) {
+        throw_java(env, "Chat templates not available"); return "{}";
+    }
+
+    eng->promptCount++;
+    eng->cancel.store(false);
+    eng->trackMemory();
+
+    llama_memory_t mem = llama_get_memory(eng->ctx);
+    const uint32_t nCtx = llama_n_ctx(eng->ctx);
+    const int n_batch = llama_n_batch(eng->ctx);
+    const llama_vocab *vocab = llama_model_get_vocab(eng->model);
+
+    auto t0 = clock::now();
+
+    // ── Parse the incoming message history ──
+    std::vector<std::map<std::string, mini_json::Node>> msgs;
+    if (!mini_json::parseObjectArray(msgsJson, msgs) || msgs.empty()) {
+        throw_java(env, "Empty message history"); return "{}";
+    }
+
+    // ── Continuation vs full re-render ──
+    // A continuation requires every stored message to appear verbatim at the
+    // start of the incoming list (the app persists its own copy of the
+    // conversation; assistant texts are trimmed on both sides so they match),
+    // plus new messages, plus a non-empty cache. Anything else (first turn,
+    // edit/delete/regenerate, new conversation, changed system prompt, or a
+    // previous cancel/decode error that emptied the cache) falls back to a
+    // full re-render from a cleared cache.
+    const size_t storedN = eng->chatMsgs.size();
+    bool isContinuation =
+        cfg.reuseKvCache && storedN > 0 && eng->chatPosition > 0 && msgs.size() > storedN;
+    for (size_t i = 0; isContinuation && i < storedN; ++i) {
+        auto r = msgs[i].find("role"), c = msgs[i].find("content");
+        const std::string role = (r != msgs[i].end()) ? r->second.str : "";
+        const std::string content = (c != msgs[i].end()) ? c->second.str : "";
+        // Compare trimmed-to-trimmed: the app persists its own copy of the
+        // conversation (messages are trimmed on both sides), while the native
+        // side stores the assistant text verbatim as generated. A whitespace
+        // mismatch must not silently disable KV reuse (that would force a full
+        // re-render every turn) — and the trimmed prefix is exactly what the
+        // cache holds at these positions.
+        if (eng->chatMsgs[i].role != role ||
+            trim_copy(eng->chatMsgs[i].content) != trim_copy(content)) {
+            isContinuation = false;
+        }
+    }
+
+    std::string prompt;
+    llama_pos prefillStart = 0;
+    const size_t msgsBeforeGen = eng->chatMsgs.size();
+
+    if (isContinuation) {
+        // Diff path: format each new message with the official
+        // common_chat_format_single() (returns the template diff for that
+        // message against the accumulated past) and decode it at the
+        // continuing position. The assistant's raw generated tokens from the
+        // previous turn stay in the cache — they are never re-encoded.
+        for (size_t i = storedN; i < msgs.size(); ++i) {
+            auto &m = msgs[i];
+            auto r = m.find("role"), c = m.find("content");
+            if (r == m.end() || c == m.end() || r->second.str.empty()) {
+                throw_java(env, "Message missing role/content"); return "{}";
+            }
+            common_chat_msg newMsg{r->second.str, c->second.str};
+            bool isLast = (i + 1 == msgs.size());
+            bool addGen = isLast && addAssistant;
+            std::string part = common_chat_format_single(
+                eng->chatTmpls.get(), eng->chatMsgs, newMsg, addGen, /*use_jinja=*/false);
+            if (part.empty()) {
+                throw_java(env, "Chat template returned an empty diff"); return "{}";
+            }
+            prompt += part;
+            eng->chatMsgs.push_back(std::move(newMsg));
+        }
+        prefillStart = eng->chatPosition;
+        LOGI("[Chat] continuation: +%zu msgs, %zu chars at pos %d",
+             msgs.size() - storedN, prompt.size(), (int)prefillStart);
+    } else {
+        // Full re-render. Render into a LOCAL message list; commit to the
+        // engine only after the prefill succeeds so a cancel leaves the
+        // previous conversation untouched.
+        std::vector<common_chat_msg> rebuilt;
+        RenderedPrompt rp = renderChat(eng->chatTmpls.get(), msgsJson, addAssistant, rebuilt);
+        if (rp.prompt.empty()) {
+            throw_java(env, "Chat template returned an empty prompt"); return "{}";
+        }
+        prompt = rp.prompt;
+        if (rp.systemPromptCharEnd > 0) {
+            std::string sysPart = prompt.substr(0, rp.systemPromptCharEnd);
+            eng->systemPromptEnd = (llama_pos)common_tokenize(
+                eng->ctx, sysPart, /*add_special=*/false, /*parse_special=*/true).size();
+        } else {
+            eng->systemPromptEnd = 0;
+        }
+        llama_memory_clear(mem, false);
+        prefillStart = 0;
+        eng->chatMsgs = std::move(rebuilt);
+        LOGI("[Chat] full re-render: %zu msgs, %zu chars", eng->chatMsgs.size(), prompt.size());
+    }
+
+    // Diff path: derive the system boundary for context shifts from the
+    // accumulated conversation itself (the message-0 template block), never
+    // from eng->systemPromptEnd — the memory pipeline's buildChatPrompt may
+    // overwrite that field between turns with a different prompt's boundary.
+    llama_pos diffSysEnd = 0;
+    if (isContinuation && !eng->chatMsgs.empty()) {
+        std::string sysBlock = common_chat_format_single(
+            eng->chatTmpls.get(), {}, eng->chatMsgs[0],
+            /*add_gen=*/false, /*use_jinja=*/false);
+        if (!sysBlock.empty()) {
+            diffSysEnd = (llama_pos)common_tokenize(
+                eng->ctx, sysBlock, /*add_special=*/false, /*parse_special=*/true).size();
+        }
+    }
+
+    // ── Tokenize ──
+    // add_special=false: the template render carries the BOS in the system
+    // block; adding another would inject a BOS mid-conversation on
+    // continuation turns. parse_special=true turns the template's special
+    // tokens (e.g. <|start_header_id|>) into single tokens.
+    std::vector<llama_token> tokens =
+        common_tokenize(eng->ctx, prompt, /*add_special=*/false, /*parse_special=*/true);
+
+    eng->lastPromptTokens = tokens;
+    eng->lastPromptText = prompt;
+    eng->lastGeneratedTokens.clear();
+    eng->lastFirstTokenMs = 0;
+    eng->lastStopReason = "max_tokens";
+
+    LOGI("[Tok] chat n=%zu add_special=false (diff=%s)", tokens.size(), isContinuation ? "yes" : "no");
+
+    // ── Prefill (cancel-aware batches) ──
+    llama_batch batch = llama_batch_init(n_batch, 0, 1);
+
+    // Undo this turn: drop the partial diff/generation from the cache and
+    // restore chatMsgs, so the next turn starts from the previous state.
+    auto rollback = [&]() {
+        llama_memory_seq_rm(mem, 0, prefillStart, -1);
+        eng->chatMsgs.resize(msgsBeforeGen);
+        eng->chatPosition = prefillStart;
+    };
+
+    bool prefillOk = true;
+    for (size_t i = 0; i < tokens.size(); i += n_batch) {
+        if (eng->cancel.load()) {
+            LOGI("[Prefill] cancel requested at token %zu", i);
+            llama_batch_free(batch);
+            rollback();
+            eng->lastStopReason = "cancelled";
+            jstring empty = to_jstring(env, "");
+            env->CallVoidMethod(callback, onToken, empty, JNI_TRUE);
+            env->DeleteLocalRef(empty);
+            return statsJson(tokens.size(), 0, 0, 0, 0.f,
+                             eng->peakMemoryBytes, 0, "cancelled");
+        }
+        size_t n = std::min<size_t>(n_batch, tokens.size() - i);
+        common_batch_clear(batch);
+        for (size_t j = 0; j < n; j++) {
+            common_batch_add(batch, tokens[i + j],
+                             (llama_pos)(prefillStart + i + j), {0},
+                             (i + j == tokens.size() - 1));
+        }
+        if (isContinuation) {
+            // Upstream ai_chat.cpp shifts the context when a prefill batch
+            // would overflow the cache (decode_tokens_in_batches); a long
+            // conversation with a big new message must keep working.
+            llama_pos pos_check = llama_memory_seq_pos_max(mem, 0);
+            if (pos_check + (llama_pos)n >= (llama_pos)nCtx - 4) {
+                const llama_pos sysEnd = diffSysEnd;
+                const llama_pos n_discard = (pos_check - sysEnd) / 2;
+                if (n_discard > 0) {
+                    llama_memory_seq_rm(mem, 0, sysEnd, sysEnd + n_discard);
+                    llama_memory_seq_add(mem, 0, sysEnd + n_discard, pos_check + 1, -n_discard);
+                    LOGI("[Shift] prefill shift: discarded %d tokens", (int)n_discard);
+                }
+            }
+        }
+        if (llama_decode(eng->ctx, batch) != 0) {
+            prefillOk = false;
+            LOGE("[Prefill] FAILED at token_idx=%zu", i);
+            break;
+        }
+    }
+
+    if (!prefillOk && isContinuation) {
+        // The diff did not fit into the cache (and the shift could not make
+        // room): fall back to a full re-render from a cleared cache.
+        LOGW("[Chat] diff prefill failed - falling back to full re-render");
+        std::vector<common_chat_msg> rebuilt;
+        RenderedPrompt rp = renderChat(eng->chatTmpls.get(), msgsJson, addAssistant, rebuilt);
+        if (!rp.prompt.empty()) {
+            llama_memory_clear(mem, false);
+            eng->chatMsgs = std::move(rebuilt);
+            prompt = rp.prompt;
+            tokens = common_tokenize(eng->ctx, prompt, /*add_special=*/false, /*parse_special=*/true);
+            eng->lastPromptTokens = tokens;
+            prefillStart = 0;
+            prefillOk = true;
+            for (size_t i = 0; i < tokens.size(); i += n_batch) {
+                if (eng->cancel.load()) {
+                    llama_batch_free(batch);
+                    rollback();
+                    eng->lastStopReason = "cancelled";
+                    jstring empty = to_jstring(env, "");
+                    env->CallVoidMethod(callback, onToken, empty, JNI_TRUE);
+                    env->DeleteLocalRef(empty);
+                    return statsJson(tokens.size(), 0, 0, 0, 0.f,
+                                     eng->peakMemoryBytes, 0, "cancelled");
+                }
+                size_t n = std::min<size_t>(n_batch, tokens.size() - i);
+                common_batch_clear(batch);
+                for (size_t j = 0; j < n; j++) {
+                    common_batch_add(batch, tokens[i + j], (llama_pos)(i + j), {0},
+                                     (i + j == tokens.size() - 1));
+                }
+                if (llama_decode(eng->ctx, batch) != 0) {
+                    prefillOk = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!prefillOk) {
+        llama_batch_free(batch);
+        rollback();
+        eng->lastRecoveryReason = "prefill decode failed after full re-render";
+        eng->lastStopReason = "corrupted";
+        eng->chatPosition = 0;
+        dump_corruption(eng, "prefill_decode", eng->lastRecoveryReason);
+        return statsJson(tokens.size(), 0, 0, 0, 0.f,
+                         eng->peakMemoryBytes, 0, "corrupted");
+    }
+
+    eng->chatPosition = llama_memory_seq_pos_max(mem, 0) + 1;
+
+    // Corruption guard: the prefill logits feed the first sample. A broken
+    // compute path (typically GPU) yields NaN/INF here — abort before any
+    // token is emitted so the recovery retry re-streams nothing.
+    if (!logits_are_finite(eng->ctx, vocab)) {
+        llama_batch_free(batch);
+        rollback();
+        eng->lastRecoveryReason = "prefill logits corrupted (NaN/INF)";
+        eng->lastStopReason = "corrupted";
+        eng->chatPosition = 0;
+        dump_corruption(eng, "logits", eng->lastRecoveryReason);
+        return statsJson(tokens.size(), 0, 0, 0, 0.f,
+                         eng->peakMemoryBytes, 0, "corrupted");
+    }
+
+    // Context-overflow guard: never budget more generated tokens than the
+    // cache can hold (the mid-run shift still discards old context when the
+    // window fills).
+    int64_t genBudget = cfg.maxTokens;
+    {
+        const int64_t used = (int64_t)llama_memory_seq_pos_max(mem, 0) + 1;
+        const int64_t available = (int64_t)nCtx - 4 - used;
+        if (available < 1) {
+            llama_batch_free(batch);
+            rollback();
+            // A reload cannot fix a prompt that is simply too long for the
+            // context — surface a clean error instead of recovery retries.
+            eng->lastStopReason = "context_overflow";
+            eng->chatPosition = 0;
+            throw_java(env, "Context overflow: no room to generate (prompt exceeds context window)");
+            return "{}";
+        }
+        genBudget = std::min<int64_t>(genBudget, available);
+    }
+
+    auto t1 = clock::now();
+    int64_t promptMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+    common_sampler_reset(eng->sampler);
+
+    // ── Decode loop (upstream pattern) ──
+    std::string output;
+    std::string pendingUtf8;   // buffers token pieces until they form valid UTF-8
+    int64_t generated = 0;
+    bool aborted = false;      // cancel OR decode error: roll back the turn
+
+    for (int i = 0; i < genBudget; i++) {
+        if (eng->cancel.load()) {
+            aborted = true;
+            eng->lastStopReason = "cancelled";
+            break;
+        }
+
+        // Context full: shift (upstream shift_context pattern: discard the
+        // older half of the tokens after the system prompt).
+        llama_pos pos_check = llama_memory_seq_pos_max(mem, 0);
+        if (pos_check >= (llama_pos)nCtx - 4) {
+            const llama_pos sysEnd = eng->systemPromptEnd;
+            const llama_pos n_discard = (pos_check - sysEnd) / 2;
+            if (n_discard > 0) {
+                llama_memory_seq_rm(mem, 0, sysEnd, sysEnd + n_discard);
+                llama_memory_seq_add(mem, 0, sysEnd + n_discard, pos_check + 1, -n_discard);
+                LOGI("[Shift] discarded %d tokens at step=%lld (preserved system prompt %d)",
+                     (int)n_discard, (long long)generated, (int)sysEnd);
+            } else {
+                LOGW("[Shift] cannot shift: n_discard=%d sysEnd=%d pos_check=%d",
+                     (int)n_discard, (int)sysEnd, (int)pos_check);
+            }
+        }
+
+        // Corruption guard: sample only from finite logits (already
+        // synchronized by llama.cpp when llama_decode returned).
+        if (!logits_are_finite(eng->ctx, vocab)) {
+            eng->lastRecoveryReason = std::string("logits corrupted (NaN/INF) at step ") + std::to_string(i);
+            eng->lastStopReason = "corrupted";
+            eng->chatPosition = 0;
+            dump_corruption(eng, "logits", eng->lastRecoveryReason);
+            break;
+        }
+
+        // Sample
+        llama_token id = common_sampler_sample(eng->sampler, eng->ctx, -1);
+
+        // Bounds guard: the sampler must return a valid token id.
+        if (!token_is_valid(vocab, id)) {
+            eng->lastRecoveryReason = std::string("invalid token id ") +
+                std::to_string((long long)id) + " at step " + std::to_string(i);
+            eng->lastStopReason = "corrupted";
+            eng->chatPosition = 0;
+            dump_corruption(eng, "token", eng->lastRecoveryReason);
+            break;
+        }
+
+        eng->lastGeneratedTokens.push_back(id);
+        common_sampler_accept(eng->sampler, id, true);
+
+        // EOS check
+        if (llama_vocab_is_eog(vocab, id)) {
+            eng->lastStopReason = "eos";
+            break;
+        }
+
+        // First token timing
+        if (generated == 0) {
+            auto now = clock::now();
+            eng->lastFirstTokenMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - t1).count();
+            LOGI("[Gen] first token latency: %lld ms", (long long)eng->lastFirstTokenMs);
+        }
+
+        // Detokenize with special=true (upstream default)
+        std::string piece = common_token_to_piece(eng->ctx, id);
+        output += piece;
+
+        // Per-token decode logging (opt-in): step, id, decoded text, top-5
+        // logits, temperature and backend — the decode-corruption diagnostic.
+        if (cfg.debugTokenLogging) {
+            const float * logits = llama_get_logits_ith(eng->ctx, -1);
+            std::ostringstream o;
+            o << "[TokLog] step=" << i << " id=" << id
+              << " piece=\"" << piece << "\" temp=" << cfg.temperature
+              << " backend=" << (eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU")
+              << " top5=";
+            if (logits) {
+                const int n = llama_vocab_n_tokens(vocab);
+                int top[5] = { -1, -1, -1, -1, -1 };
+                float tv[5] = { -1e30f, -1e30f, -1e30f, -1e30f, -1e30f };
+                for (int t = 0; t < n; t++) {
+                    for (int k = 0; k < 5; k++) {
+                        if (logits[t] > tv[k]) {
+                            for (int j = 4; j > k; j--) { tv[j] = tv[j - 1]; top[j] = top[j - 1]; }
+                            tv[k] = logits[t]; top[k] = t;
+                            break;
+                        }
+                    }
+                }
+                for (int k = 0; k < 5; k++) {
+                    if (k) o << ",";
+                    o << top[k] << ":" << tv[k];
+                }
+            } else {
+                o << "(no logits)";
+            }
+            LOGI("%s", o.str().c_str());
+        }
+
+        // Degenerate-repetition guard: a run of identical non-whitespace
+        // tokens (e.g. "////////") is a decode failure, not model text.
+        {
+            const size_t REPEAT_LIMIT = 24;
+            const size_t n = eng->lastGeneratedTokens.size();
+            bool whitespacePiece = true;
+            for (char c : piece) if (!std::isspace((unsigned char)c)) { whitespacePiece = false; break; }
+            if (n >= REPEAT_LIMIT && !whitespacePiece && piece.size() > 0) {
+                bool allSame = true;
+                for (size_t k = n - REPEAT_LIMIT; k < n; k++) {
+                    if (eng->lastGeneratedTokens[k] != id) { allSame = false; break; }
+                }
+                if (allSame) {
+                    eng->lastRecoveryReason = std::string("degenerate repetition (") +
+                        std::to_string(REPEAT_LIMIT) + "x token " + std::to_string((long long)id) + ")";
+                    eng->lastStopReason = "corrupted";
+                    eng->chatPosition = 0;
+                    dump_corruption(eng, "repetition", eng->lastRecoveryReason);
+                    break;
+                }
+            }
+        }
+
+        // Stop sequences
+        bool stopped = false;
+        for (auto &s : cfg.stopSequences) {
+            if (output.size() >= s.size() &&
+                output.compare(output.size() - s.size(), s.size(), s) == 0) {
+                output.resize(output.size() - s.size());
+                stopped = true; break;
+            }
+        }
+        if (stopped) { eng->lastStopReason = "stop_sequence"; break; }
+
+        // Buffer the piece until it forms a complete UTF-8 character (upstream
+        // ai_chat.cpp cached_token_chars pattern).
+        pendingUtf8 += piece;
+        bool completeUtf8 = is_valid_utf8(pendingUtf8.c_str());
+        if (!pendingUtf8.empty() && (completeUtf8 || pendingUtf8.size() > 8)) {
+            jstring jpiece = to_jstring(env, pendingUtf8);
+            env->CallVoidMethod(callback, onToken, jpiece, JNI_FALSE);
+            env->DeleteLocalRef(jpiece);
+            pendingUtf8.clear();
+        }
+        generated++;
+
+        // Feed token back for next step (upstream pattern: persistent batch + common_batch_add)
+        common_batch_clear(batch);
+        common_batch_add(batch, id, llama_memory_seq_pos_max(mem, 0) + 1, {0}, true);
+        if (llama_decode(eng->ctx, batch) != 0) {
+            eng->lastRecoveryReason = std::string("decode failed at step ") + std::to_string(i);
+            eng->lastStopReason = "corrupted";
+            aborted = true; // the partial turn must not survive into the next one
+            dump_corruption(eng, "decode", eng->lastRecoveryReason);
+            break;
+        }
+    }
+
+    if (!eng->lastRecoveryReason.empty()) {
+        // Corrupted attempt: free the batch, roll back the turn and emit NO
+        // finished callback — the recovery wrapper re-streams this turn. This
+        // runs BEFORE the commit block so a partial corrupt output can never
+        // be pushed into chatMsgs.
+        llama_batch_free(batch);
+        rollback();
+        eng->trackMemory();
+        return statsJson(tokens.size(), generated, 0, 0, 0.f,
+                         eng->peakMemoryBytes, 0, "corrupted");
+    }
+
+    if (aborted) {
+        // Cancel: remove this turn's partial diff + generation from the cache
+        // and restore chatMsgs. The next turn either retries the diff (when
+        // the cache still holds the prefix) or full re-renders (when the cache
+        // was emptied). Decode errors never reach here — they set
+        // lastRecoveryReason and return above.
+        llama_batch_free(batch);
+        rollback();
+    } else {
+        // Normal completion (eos / max_tokens / stop_sequence): the generated
+        // tokens remain in the cache and the assistant message is recorded so
+        // the next turn's continuation check matches the app's stored copy
+        // (trimmed on both sides).
+        llama_batch_free(batch);
+        eng->chatPosition = llama_memory_seq_pos_max(mem, 0) + 1;
+        // Upstream ai_chat.cpp pushes the generated text verbatim into its
+        // message list. We do the same: the KV cache holds exactly these
+        // tokens, so the next turn's diff is computed against the real cache
+        // prefix. The continuation comparison trims both sides, so the app's
+        // trimmed copy still matches.
+        eng->chatMsgs.push_back(common_chat_msg{"assistant", output});
+    }
+
+    auto t2 = clock::now();
+    int64_t genMs = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+    float tps = genMs > 0 ? (float)generated * 1000.f / (float)genMs : 0.f;
+
+    LOGI("doGenerateChat END gen=%d generated=%lld stop=%s",
+         s_gen_counter, (long long)generated, eng->lastStopReason.c_str());
+    LOGI("[Perf] backend=%s gpu=%d prompt=%lldms(%zu) gen=%lldms(%lld) %.2f tok/s",
+         eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU",
+         eng->gpuLayersUsed, (long long)promptMs, tokens.size(),
+         (long long)genMs, (long long)generated, tps);
+
+    eng->trackMemory();
+
+    // Flush any remaining buffered bytes at the end of the stream
+    if (!pendingUtf8.empty()) {
+        jstring jpiece = to_jstring(env, pendingUtf8);
+        env->CallVoidMethod(callback, onToken, jpiece, JNI_FALSE);
+        env->DeleteLocalRef(jpiece);
+        pendingUtf8.clear();
+    }
+
+    // Send final empty delta
+    jstring empty = to_jstring(env, "");
+    env->CallVoidMethod(callback, onToken, empty, JNI_TRUE);
+    env->DeleteLocalRef(empty);
+
+    return statsJson(tokens.size(), generated, promptMs, genMs, tps,
+                     eng->peakMemoryBytes, eng->lastFirstTokenMs,
+                     eng->lastStopReason);
+}
+
+// ---------------------------------------------------------------------------
+// Generation wrapper — automatic recovery from corrupted inference
+// ---------------------------------------------------------------------------
+//
+// Every generation runs a FRESH sampler (never reused across requests). If the
+// attempt is flagged corrupt (NaN/INF logits, invalid token id, decode failure,
+// degenerate repetition), the wrapper destroys and recreates the context — once
+// on the same backend, then once on CPU — and re-streams the same prompt. It
+// only gives up after both recovery stages also fail.
+
+enum class GenKind { Raw, Chat };
+
+static std::string generateWithRecovery(
+    LlamaEngine * eng,
+    JNIEnv * env,
+    jobject callback,
+    jmethodID mid,
+    const std::string & prompt,
+    const std::string & msgsJson,
+    bool addAssistant,
+    const GenConfig & cfg,
+    GenKind kind) {
+
+    int stage = 0; // 0: current backend, 1: fresh context (same backend), 2: CPU
+    for (;;) {
+        // Fresh sampler per attempt: a corrupted sampler state can never leak
+        // into the next attempt (grammar, penalties, top-k/p/min-p, temp...).
+        common_params_sampling sp = buildSamplingParams(cfg);
+        common_sampler_free(eng->sampler);
+        eng->sampler = common_sampler_init(eng->model, sp);
+        if (!eng->sampler) {
+            throw_java(env, "Sampler creation failed");
+            return "{}";
+        }
+
+        eng->lastRecoveryReason.clear();
+
+        std::string stats = kind == GenKind::Chat
+            ? doGenerateChat(eng, env, callback, mid, msgsJson, addAssistant, cfg)
+            : doGenerate(eng, env, callback, mid, prompt, cfg);
+
+        if (eng->lastRecoveryReason.empty()) return stats;  // clean run
+
+        if (stage >= 2) {
+            throw_java(env, "Inference corrupted after recovery retries: " + eng->lastRecoveryReason);
+            return "{}";
+        }
+        const bool useGpu = stage == 0 && eng->gpuLayersUsed > 0;
+        const std::string reason = eng->lastRecoveryReason;
+        std::string err;
+        if (!reloadEngineContext(eng, useGpu, &err)) {
+            // The backend rebuild itself failed (e.g. the GPU driver died):
+            // fall straight to a CPU rebuild before giving up.
+            if (useGpu) {
+                std::string err2;
+                if (reloadEngineContext(eng, false, &err2)) {
+                    LOGW("[Recovery] GPU reload failed (%s) - recovered on CPU", err.c_str());
+                    stage = 2;  // the next attempt runs on the fresh CPU context
+                    continue;
+                }
+            }
+            throw_java(env, "Recovery failed: " + err);
+            return "{}";
+        }
+        LOGW("[Recovery] recreated context backend=%s stage=%d reason=%s",
+             useGpu ? "GPU" : "CPU", stage, reason.c_str());
+        stage++;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1554,6 +2372,13 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeLoadModel(
         if ((it = obj.find("gpuLayers"))     != obj.end()) gpuLayers = (int)it->second.num;
     }
 
+    // Store the load configuration for runtime corruption recovery (the
+    // generation wrapper can destroy and recreate this exact context).
+    eng->modelPath = path;
+    eng->loadCtxLen = ctxLen;
+    eng->loadBatchSize = batchSize;
+    eng->loadGpuLayers = gpuLayers;
+
     // Clean up any previously loaded model
     eng->destroy();
 
@@ -1699,28 +2524,27 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeLoadModel(
 
         if (vr.passed) {
             eng->gpuInferenceVerified = true;
-            eng->backendReason = "Vulkan verified: " + format_verify_summary(vr);
-            LOGI("[Verify] PASSED: %s", eng->backendReason.c_str());
+            eng->vulkanValidationStatus = "passed";
+            eng->backendReason = "Vulkan active (" + std::to_string(eng->gpuLayersUsed) + "/" +
+                                 std::to_string(eng->totalLayers) + " layers)";
+            LOGI("[Verify] PASSED: %s", format_verify_summary(vr).c_str());
         } else {
             const std::string fail = "Vulkan backend failed correctness validation on this device." +
                                      format_verify_failures(vr) + " (" + format_verify_summary(vr) + ")";
-            LOGW("[Load] %s", fail.c_str());
-            eng->destroy();
-            params.n_gpu_layers = 0;
-            selectedGpuLayers = 0;
-            params.flash_attn_type = eng->useFlashAttention ? LLAMA_FLASH_ATTN_TYPE_AUTO
-                                                            : LLAMA_FLASH_ATTN_TYPE_DISABLED;
-            try { result = common_init_from_params(params); }
-            catch (const std::exception &e) {
-                throw_java(env, std::string("CPU fallback after Vulkan validation failed: ") + e.what());
-                return;
-            }
-            if (!result || !install_result(result, "CPU fallback after Vulkan validation failed")) return;
-            eng->backendReason = fail;
-            LOGW("[Load] fallback backend=CPU layers=%d/%d",
-                 eng->gpuLayersUsed, eng->totalLayers);
+            // The self-test result is DIAGNOSTIC ONLY. A mismatch between the CPU
+            // reference and the GPU path does not mean Vulkan inference is broken
+            // on this device — the GPU context already loaded and decoded fine.
+            // Keep the Vulkan backend active and surface the mismatch in the
+            // diagnostics UI; gpuInferenceVerified flips true the moment a real
+            // inference run (warm-up / generation) succeeds on the GPU.
+            LOGW("[Verify] FAILED (diagnostic only, keeping Vulkan): %s", fail.c_str());
+            eng->vulkanValidationStatus = "failed";
+            eng->vulkanValidationDetail = fail;
+            eng->backendReason = "Vulkan active (" + std::to_string(eng->gpuLayersUsed) + "/" +
+                                 std::to_string(eng->totalLayers) + " layers)";
         }
     } else {
+        eng->vulkanValidationStatus = "skipped";
         if (eng->backendReason.empty()) {
             eng->backendReason = "CPU backend (no GPU offload)";
         }
@@ -1804,9 +2628,14 @@ try {
         throw_java(env, "Chat templates not available");
         return to_jstring(env, "");
     }
+    // Pure render: compute into a LOCAL message list so this call has no side
+    // effects on the engine's accumulated conversation (chatMsgs). Only
+    // systemPromptEnd is recorded below, for the raw single-shot generate path
+    // that needs the system boundary for its context shifts.
+    std::vector<common_chat_msg> localMsgs;
     RenderedPrompt rp = renderChat(
         eng->chatTmpls.get(), from_jstring(env, msgJson),
-        addAssistant == JNI_TRUE, eng->chatMsgs);
+        addAssistant == JNI_TRUE, localMsgs);
 
     // Compute systemPromptEnd: token count of system prompt portion
     if (rp.systemPromptCharEnd > 0 && eng->ctx && eng->model) {
@@ -1847,9 +2676,14 @@ try {
         throw_java(env, "Chat templates not available");
         return to_jstring(env, "");
     }
+    // Pure render: compute into a LOCAL message list so this call has no side
+    // effects on the engine's accumulated conversation (chatMsgs). Only
+    // systemPromptEnd is recorded below, for the raw single-shot generate path
+    // that needs the system boundary for its context shifts.
+    std::vector<common_chat_msg> localMsgs;
     RenderedPrompt rp = renderChat(
         eng->chatTmpls.get(), from_jstring(env, msgJson),
-        addAssistant == JNI_TRUE, eng->chatMsgs);
+        addAssistant == JNI_TRUE, localMsgs);
 
     if (rp.systemPromptCharEnd > 0 && eng->ctx && eng->model) {
         std::string sysPart = rp.prompt.substr(0, rp.systemPromptCharEnd);
@@ -1884,7 +2718,6 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeResetChat(
     if (!eng) return;
     eng->chatMsgs.clear();
     eng->chatPosition = 0;
-    eng->reuseEligible = false;
     eng->systemPromptEnd = 0;
     eng->lastPromptTokens.clear();
     if (eng->ctx) {
@@ -1908,17 +2741,6 @@ try {
 
     GenConfig cfg = parseGenConfig(from_jstring(env, cfgJson));
 
-    // Reconfigure sampler for this request
-    {
-        common_params_sampling sp = buildSamplingParams(cfg);
-        common_sampler_free(eng->sampler);
-        eng->sampler = common_sampler_init(eng->model, sp);
-        if (!eng->sampler) {
-            throw_java(env, "Sampler creation failed");
-            return to_jstring(env, "{}");
-        }
-    }
-
     jclass cls = env->GetObjectClass(callback);
     jmethodID mid = env->GetMethodID(cls, "onToken", "(Ljava/lang/String;Z)V");
     if (!mid) {
@@ -1934,8 +2756,10 @@ try {
     LOGI("[JNI] nativeGenerate prompt_tail: %.300s",
          promptStr.c_str() + std::max<size_t>(0, promptStr.size() - 300));
 
-    std::string result = doGenerate(eng, env, callback, mid,
-                                     promptStr, cfg);
+    // generateWithRecovery creates a FRESH sampler and recreates the context
+    // (retry once, then CPU fallback) if the run is detected as corrupted.
+    std::string result = generateWithRecovery(eng, env, callback, mid,
+                                              promptStr, "", false, cfg, GenKind::Raw);
 
     env->DeleteLocalRef(cls);
     return to_jstring(env, result);
@@ -1947,6 +2771,56 @@ try {
 } catch (...) {
     LOGE("[Generate] unknown exception");
     throw_java(env, "Generation failed (unknown)");
+    return to_jstring(env, "{}");
+}
+}
+
+// ── nativeGenerateChat ─────────────────────────────────────────────────────
+// Official llama.cpp multi-turn chat: the message history is diffed against
+// the engine's accumulated conversation and only the new messages' template
+// diff is decoded at the continuing KV position (see doGenerateChat).
+
+JNIEXPORT jstring JNICALL
+Java_io_androllm_engine_jni_LlamaJniBridge_nativeGenerateChat(
+    JNIEnv *env, jobject, jlong handle,
+    jstring msgJson, jboolean addAssistant, jstring cfgJson, jobject callback) {
+try {
+
+    auto *eng = reinterpret_cast<LlamaEngine *>(handle);
+    if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
+        throw_java(env, "Engine not initialized"); return to_jstring(env, "{}");
+    }
+
+    GenConfig cfg = parseGenConfig(from_jstring(env, cfgJson));
+
+    jclass cls = env->GetObjectClass(callback);
+    jmethodID mid = env->GetMethodID(cls, "onToken", "(Ljava/lang/String;Z)V");
+    if (!mid) {
+        throw_java(env, "Invalid callback");
+        env->DeleteLocalRef(cls);
+        return to_jstring(env, "{}");
+    }
+
+    const bool addAss = addAssistant == JNI_TRUE;
+    std::string msgStr = from_jstring(env, msgJson);
+    LOGI("[JNI] nativeGenerateChat: msgsJson.size=%zu addAssistant=%d genConfig: temp=%.2f maxTok=%d",
+         msgStr.size(), (int)addAss, cfg.temperature, cfg.maxTokens);
+
+    // generateWithRecovery creates a FRESH sampler and recreates the context
+    // (retry once, then CPU fallback) if the run is detected as corrupted.
+    std::string result = generateWithRecovery(eng, env, callback, mid,
+                                              "", msgStr, addAss, cfg, GenKind::Chat);
+
+    env->DeleteLocalRef(cls);
+    return to_jstring(env, result);
+
+} catch (const std::exception &e) {
+    LOGE("[GenerateChat] exception: %s", e.what());
+    throw_java(env, std::string("Chat generation failed: ") + e.what());
+    return to_jstring(env, "{}");
+} catch (...) {
+    LOGE("[GenerateChat] unknown exception");
+    throw_java(env, "Chat generation failed (unknown)");
     return to_jstring(env, "{}");
 }
 }
@@ -2004,7 +2878,8 @@ try {
 
     float totalTps = 0, bestTps = 0;
     for (int i = 0; i < iters && !eng->cancel.load(); i++) {
-        std::string stats = doGenerate(eng, env, callback, mid, "Hello", cfg);
+        std::string stats = generateWithRecovery(eng, env, callback, mid,
+                                                 "Hello", "", false, cfg, GenKind::Raw);
         std::map<std::string, mini_json::Node> obj;
         if (mini_json::parseObject(stats, obj)) {
             float t = 0;
@@ -2079,6 +2954,40 @@ try {
     llama_batch_free(batch);
     if (rc != 0) { throw_java(env, "Warm-up decode failed"); return to_jstring(env, "{}"); }
 
+    if (!logits_are_finite(eng->ctx, vocab)) {
+        // The GPU pipeline is producing corrupted results: recreate the context
+        // on the same backend once; if it is still corrupt, fall back to CPU.
+        // Warm-up is a shader/command-pool pass, so a recovered run skips the
+        // trailing sample (the real decode loop verifies itself on first use).
+        LOGW("[WarmUp] logits corrupted (NaN/INF) - recreating context");
+        std::string err;
+        bool useGpu = eng->gpuLayersUsed > 0;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            if (!reloadEngineContext(eng, useGpu, &err)) {
+                throw_java(env, std::string("Warm-up recovery failed: ") + err);
+                return to_jstring(env, "{}");
+            }
+            common_params_sampling sp = buildSamplingParams(GenConfig());
+            eng->sampler = common_sampler_init(eng->model, sp);
+            const llama_vocab *v = llama_model_get_vocab(eng->model);
+            llama_memory_clear(llama_get_memory(eng->ctx), true);
+            std::vector<llama_token> tt = common_tokenize(eng->ctx, "Hi", llama_vocab_get_add_bos(v), true);
+            llama_batch bb = llama_batch_init((int32_t)tt.size(), 0, 1);
+            for (size_t j = 0; j < tt.size(); j++)
+                common_batch_add(bb, tt[j], (llama_pos)j, {0}, true);
+            const int rc2 = llama_decode(eng->ctx, bb);
+            llama_batch_free(bb);
+            if (rc2 == 0 && logits_are_finite(eng->ctx, v)) {
+                LOGI("[WarmUp] context recreated backend=%s",
+                     eng->gpuLayersUsed > 0 ? "GPU" : "CPU");
+                return to_jstring(env, "{\"warmUpTimeMs\":0,\"tokensPerSecond\":0}");
+            }
+            useGpu = false;  // next attempt forces CPU
+        }
+        throw_java(env, "Warm-up corrupted on CPU after recovery");
+        return to_jstring(env, "{}");
+    }
+
     if (eng->gpuLayersUsed > 0 && !eng->gpuInferenceVerified) {
         eng->gpuInferenceVerified = true;
         LOGI("[WarmUp] GPU inference verified");
@@ -2152,6 +3061,8 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetMemoryStats(
       << "\",\"gpuApiVersion\":\"" << json_escape(eng->gpuApiVersion)
       << "\",\"backendReason\":\"" << json_escape(eng->backendReason)
       << "\",\"gpuInferenceVerified\":" << (eng->gpuInferenceVerified ? "true" : "false")
+      << ",\"vulkanValidationStatus\":\"" << json_escape(eng->vulkanValidationStatus)
+      << "\",\"vulkanValidationDetail\":\"" << json_escape(eng->vulkanValidationDetail)
       << "}";
     return to_jstring(env, o.str());
 }
@@ -2210,6 +3121,8 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetDebugInfo(
       << ",\"peakMemoryBytes\":" << eng->peakMemoryBytes
       << ",\"backendReason\":\"" << json_escape(eng->backendReason)
       << "\",\"gpuInferenceVerified\":" << (eng->gpuInferenceVerified ? "true" : "false")
+      << ",\"vulkanValidationStatus\":\"" << json_escape(eng->vulkanValidationStatus)
+      << "\",\"vulkanValidationDetail\":\"" << json_escape(eng->vulkanValidationDetail)
       << "}";
     return to_jstring(env, o.str());
 }

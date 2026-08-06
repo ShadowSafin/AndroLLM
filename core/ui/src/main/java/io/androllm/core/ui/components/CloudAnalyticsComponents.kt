@@ -44,18 +44,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.androllm.core.ui.theme.CloudGlassBorder
 import io.androllm.core.ui.theme.CloudGlassBorderHighlight
-import io.androllm.core.ui.theme.CloudWhite
-import io.androllm.core.ui.theme.MoonSilver
+import io.androllm.core.ui.theme.DeskInk
+import io.androllm.core.ui.theme.DeskInkFaint
+import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.RevolutCyberCyan
 import io.androllm.core.ui.theme.RevolutGoldTier
 import io.androllm.core.ui.theme.RevolutNeonEmerald
-import io.androllm.core.ui.theme.SkyBlue
-import io.androllm.core.ui.theme.SunsetCloudOrange
-import io.androllm.core.ui.theme.SunsetCloudPeach
 import io.androllm.core.ui.theme.SunsetGlowAmber
 
 /**
- * Revolut-Inspired Hardware & On-Device AI Gauge Card.
+ * Parchment hardware & on-device AI gauge card.
  * Displays real-time RAM allocation, tokens/sec speed, and Vulkan GPU acceleration metrics.
  */
 @Composable
@@ -83,14 +83,14 @@ fun RevolutResourceGaugeCard(
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(
-                                Brush.linearGradient(listOf(SunsetCloudOrange, SunsetGlowAmber))
+                                Brush.linearGradient(listOf(LampAmber, LampGlow))
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Speed,
                             contentDescription = null,
-                            tint = CloudWhite,
+                            tint = io.androllm.core.ui.theme.CloudWhite,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -100,7 +100,7 @@ fun RevolutResourceGaugeCard(
                             text = "On-Device Engine Health",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = CloudWhite
+                                color = DeskPaper
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -108,7 +108,7 @@ fun RevolutResourceGaugeCard(
                         Text(
                             text = if (vulkanEnabled) "Vulkan GPU Acceleration Active" else "CPU Multi-Thread Mode",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (vulkanEnabled) RevolutNeonEmerald else MoonSilver.copy(alpha = 0.6f)
+                                color = if (vulkanEnabled) RevolutNeonEmerald else DeskInkFaint
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -133,7 +133,7 @@ fun RevolutResourceGaugeCard(
                     label = "RAM Allocated",
                     valueText = "${String.format("%.1f", ramUsedGb)} / ${String.format("%.0f", ramTotalGb)} GB",
                     progress = ramPct,
-                    color = SunsetCloudPeach
+                    color = LampAmber
                 )
 
                 // Radial Tokens/sec Meter
@@ -200,7 +200,7 @@ private fun CircularGaugeItem(
                 text = "${(progress * 100).toInt()}%",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Black,
-                    color = CloudWhite
+                    color = DeskPaper
                 )
             )
         }
@@ -211,20 +211,20 @@ private fun CircularGaugeItem(
             text = valueText,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.Bold,
-                color = CloudWhite
+                color = DeskPaper
             )
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
-                color = MoonSilver.copy(alpha = 0.6f)
+                color = DeskInk
             )
         )
     }
 }
 
 /**
- * Revolut Metal / Gold Style Hardware Tier Badge.
+ * Parchment hardware tier badge.
  */
 @Composable
 fun RevolutHardwareBadge(isVulkan: Boolean) {
@@ -251,7 +251,7 @@ fun RevolutHardwareBadge(isVulkan: Boolean) {
             Icon(
                 imageVector = Icons.Default.Bolt,
                 contentDescription = null,
-                tint = if (isVulkan) RevolutGoldTier else MoonSilver.copy(alpha = 0.7f),
+                tint = if (isVulkan) RevolutGoldTier else DeskInkFaint,
                 modifier = Modifier.size(14.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
@@ -260,7 +260,7 @@ fun RevolutHardwareBadge(isVulkan: Boolean) {
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 0.8.sp,
-                color = if (isVulkan) RevolutGoldTier else MoonSilver
+                color = if (isVulkan) RevolutGoldTier else DeskInk
             )
         }
     }
@@ -287,7 +287,7 @@ fun RevolutPerformanceChartCard(
                     text = title,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = CloudWhite
+                        color = DeskPaper
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -345,7 +345,7 @@ fun RevolutPerformanceChartCard(
                     brush = Brush.verticalGradient(
                         colors = listOf(
                             RevolutCyberCyan.copy(alpha = 0.35f),
-                            SunsetCloudPeach.copy(alpha = 0.05f),
+                            LampAmber.copy(alpha = 0.05f),
                             Color.Transparent
                         )
                     )
@@ -355,7 +355,7 @@ fun RevolutPerformanceChartCard(
                 drawPath(
                     path = path,
                     brush = Brush.horizontalGradient(
-                        colors = listOf(SunsetCloudPeach, RevolutCyberCyan, RevolutNeonEmerald)
+                        colors = listOf(LampAmber, RevolutCyberCyan, RevolutNeonEmerald)
                     ),
                     style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                 )

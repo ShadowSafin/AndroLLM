@@ -328,20 +328,141 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
         io.androllm.core.common.runCatching {
             if (!isNativeAvailable) return Result.error("Native engine unavailable")
             check(isLoaded()) { "Model not loaded" }
+            // Same reentrancy guard as the streaming paths: two native runs on
+            // one engine handle would race on the shared context/sampler.
+            if (!generationActive.compareAndSet(false, true)) {
+                return Result.error(EngineException("Generation already in progress"))
+            }
+            try {
+                val sb = StringBuilder()
+                val callback = LlamaJniBridge.TokenCallback { delta, _ -> sb.append(delta) }
+                withContext(Dispatchers.Default) {
+                    val statsJson = LlamaJniBridge.nativeGenerate(
+                        engineHandle,
+                        prompt,
+                        json.encodeToString(GenerationConfig.serializer(), config),
+                        callback
+                    )
+                    _stats.value = json.decodeFromString(EngineStats.serializer(), statsJson)
+                }
+                sb.toString()
+            } finally {
+                generationActive.set(false)
+            }
+        }
 
+    /**
+     * Multi-turn chat generation: sends the FULL message history to the native
+     * engine, which diffs it against its accumulated conversation and decodes
+     * only the new messages' template diff (official llama.cpp multi-turn
+     * pattern). Non-streaming convenience; the streaming path is
+     * [generateChatStream].
+     */
+    override suspend fun generateChat(
+        messages: List<ChatPromptMessage>,
+        addAssistant: Boolean,
+        config: GenerationConfig
+    ): Result<String> = io.androllm.core.common.runCatching {
+        if (!isNativeAvailable) return Result.error("Native engine unavailable")
+        check(isLoaded()) { "Model not loaded" }
+        // Same reentrancy guard as the streaming paths.
+        if (!generationActive.compareAndSet(false, true)) {
+            return Result.error(EngineException("Generation already in progress"))
+        }
+        try {
             val sb = StringBuilder()
             val callback = LlamaJniBridge.TokenCallback { delta, _ -> sb.append(delta) }
             withContext(Dispatchers.Default) {
-                val statsJson = LlamaJniBridge.nativeGenerate(
+                val statsJson = LlamaJniBridge.nativeGenerateChat(
                     engineHandle,
-                    prompt,
+                    json.encodeToString(ListSerializer(ChatPromptMessage.serializer()), messages),
+                    addAssistant,
                     json.encodeToString(GenerationConfig.serializer(), config),
                     callback
                 )
                 _stats.value = json.decodeFromString(EngineStats.serializer(), statsJson)
             }
             sb.toString()
+        } finally {
+            generationActive.set(false)
         }
+    }
+
+    override fun generateChatStream(
+        messages: List<ChatPromptMessage>,
+        addAssistant: Boolean,
+        config: GenerationConfig
+    ): Flow<Result<StreamChunk>> = callbackFlow {
+        if (!isNativeAvailable) {
+            trySend(Result.Error(EngineException("Native engine unavailable")))
+            close()
+            return@callbackFlow
+        }
+        if (!isLoaded() || engineHandle == 0L) {
+            trySend(Result.Error(EngineException("Model not loaded")))
+            close()
+            return@callbackFlow
+        }
+        if (!generationActive.compareAndSet(false, true)) {
+            trySend(Result.Error(EngineException("Generation already in progress")))
+            close()
+            return@callbackFlow
+        }
+        var tokenCount = 0L
+        val callback = LlamaJniBridge.TokenCallback { delta, finished ->
+            if (delta.isNotEmpty()) tokenCount++
+            trySend(
+                Result.Success(
+                    StreamChunk(
+                        delta = delta,
+                        finished = finished,
+                        tokenCount = tokenCount,
+                        generatedTokens = tokenCount
+                    )
+                )
+            )
+        }
+        val job = launch(Dispatchers.Default) {
+            promptCount++
+            val currentModel = loadedModel
+            if (currentModel != null) {
+                _engineState.value = EngineState.Generating(model = currentModel, promptNumber = promptCount)
+            }
+            try {
+                val statsJson = LlamaJniBridge.nativeGenerateChat(
+                    engineHandle,
+                    json.encodeToString(ListSerializer(ChatPromptMessage.serializer()), messages),
+                    addAssistant,
+                    json.encodeToString(GenerationConfig.serializer(), config),
+                    callback
+                )
+                _stats.value = json.decodeFromString(EngineStats.serializer(), statsJson)
+            } catch (e: CancellationException) {
+                LlamaJniBridge.nativeCancel(engineHandle)
+                throw e
+            } catch (e: Throwable) {
+                trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
+            } finally {
+                generationActive.set(false)
+                val model = loadedModel
+                if (model != null) {
+                    val memStats = fetchMemoryStats()
+                    _engineState.value = EngineState.Ready(
+                        model = model,
+                        memoryStats = memStats,
+                        promptCount = promptCount,
+                        loadedSinceMs = loadedSinceMs
+                    )
+                }
+                close()
+            }
+        }
+
+        awaitClose {
+            LlamaJniBridge.nativeCancel(engineHandle)
+            job.cancel()
+        }
+    }
 
     override fun cancel(): Result<Unit> = io.androllm.core.common.runCatching {
         if (!isNativeAvailable) return Result.error("Native engine unavailable")

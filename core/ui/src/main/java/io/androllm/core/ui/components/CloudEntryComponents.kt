@@ -140,14 +140,14 @@ data class CloudAccent(
 }
 
 /**
- * The six warm accents offered during profile setup — all readings of the
- * same lamp: firelight, candle, ember, amber, moss, slate.
+ * The six accents offered during profile setup — all readings of the same
+ * terracotta family: clay, ember, rose, umber, moss, slate.
  */
 val CloudAccentOptions: List<CloudAccent> = listOf(
-    CloudAccent("Amber", "FFE8A33D"),
-    CloudAccent("Candle", "FFFFC978"),
-    CloudAccent("Ember", "FFD97762"),
-    CloudAccent("Rosewood", "FFB08D6E"),
+    CloudAccent("Terracotta", "FFD97757"),
+    CloudAccent("Ember", "FFB3573E"),
+    CloudAccent("Rose", "FFE0A489"),
+    CloudAccent("Umber", "FF8C6A4E"),
     CloudAccent("Moss", "FF9AA86E"),
     CloudAccent("Slate", "FF8A9AA8")
 )
@@ -157,11 +157,11 @@ val CloudAccentOptions: List<CloudAccent> = listOf(
  */
 val CloudAvatarGradients: List<List<Color>> = listOf(
     listOf(LampAmber, LampGlow),
-    listOf(Color(0xFFD97762), Color(0xFFB05A44)),
+    listOf(Color(0xFFB3573E), Color(0xFF8C3C2A)),
     listOf(Color(0xFFB08D6E), Color(0xFF8C6A4E)),
     listOf(Color(0xFF9AA86E), Color(0xFF7A8558)),
     listOf(Color(0xFF8A9AA8), Color(0xFF64717E)),
-    listOf(Color(0xFFE8A33D), Color(0xFF7A4F1D))
+    listOf(Color(0xFFE0A489), Color(0xFFB3573E))
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,8 +169,8 @@ val CloudAvatarGradients: List<List<Color>> = listOf(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Full-bleed desk scaffold for entry screens: the night background with a
- * transparent Material Scaffold layered on top.
+ * Full-bleed parchment scaffold for entry screens: the daylight background
+ * with a transparent Material Scaffold layered on top.
  */
 @Composable
 fun CloudScaffold(
@@ -192,7 +192,7 @@ fun CloudScaffold(
 }
 
 /**
- * The desk top bar — serif title, quiet back affordance.
+ * The parchment top bar — serif title, quiet back affordance.
  */
 @Composable
 fun CloudTopBar(
@@ -234,8 +234,8 @@ fun CloudTopBar(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * A ruled paper field — walnut pill with a hairline border and an amber
- * underline when the lamp falls on it.
+ * A ruled paper field — parchment pill with a cream hairline border and a
+ * terracotta underline when the ink falls on it.
  */
 @Composable
 fun CloudTextField(
@@ -276,7 +276,7 @@ fun CloudTextField(
 }
 
 /**
- * The desk avatar — a walnut disc with warm paper initials.
+ * The desk avatar — a terracotta wash disc with warm paper initials.
  */
 @Composable
 fun CloudAvatar(
@@ -357,7 +357,7 @@ fun CloudSection(
 }
 
 /**
- * Breathing lamp loading indicator — the AndroLLM answer to a progress bar.
+ * Breathing terracotta ember loading indicator — the AndroLLM answer to a progress bar.
  */
 @Composable
 fun CloudProgress(
@@ -430,7 +430,7 @@ fun CloudProgress(
 }
 
 /**
- * Walnut desk dialog with a title, body and confirm/cancel actions.
+ * Parchment desk dialog with a title, body and confirm/cancel actions.
  */
 @Composable
 fun CloudDialog(

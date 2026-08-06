@@ -473,11 +473,11 @@ fun FirebaseAuthScreen(
             // Legal footer
             val legal = buildAnnotatedString {
                 append("By continuing you agree to the ")
-                withStyle(SpanStyle(color = io.androllm.core.ui.theme.LampGlow, fontWeight = FontWeight.SemiBold)) {
+                withStyle(SpanStyle(color = io.androllm.core.ui.theme.LampDeep, fontWeight = FontWeight.SemiBold)) {
                     append("Privacy Policy")
                 }
                 append(" and ")
-                withStyle(SpanStyle(color = io.androllm.core.ui.theme.LampGlow, fontWeight = FontWeight.SemiBold)) {
+                withStyle(SpanStyle(color = io.androllm.core.ui.theme.LampDeep, fontWeight = FontWeight.SemiBold)) {
                     append("Terms of Service")
                 }
                 append(".")

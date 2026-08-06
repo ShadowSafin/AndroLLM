@@ -70,9 +70,9 @@ import java.util.Calendar
 import kotlin.math.roundToInt
 
 /**
- * Writer's Night Desk — Home. Every metric is real runtime telemetry from
+ * Parchment Ledger — Home. Every metric is real runtime telemetry from
  * [TelemetryRepository]: device RAM, engine tokens/sec, GPU/KV cache memory,
- * model storage, and engine lifecycle — all kept on the desk, under the lamp.
+ * model storage, and engine lifecycle — all kept on the desk, on the page.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,7 +110,7 @@ fun HomeScreen(
                                 Text(
                                     text = greetingForTimeOfDay(),
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = LampGlow,
+                                        color = LampDeep,
                                         fontWeight = FontWeight.SemiBold,
                                         letterSpacing = 0.8.sp
                                     )
@@ -201,10 +201,10 @@ fun HomeScreen(
                         title = "Activity & Chats",
                         subtitle = "Your private on-device conversations",
                         trailing = {
-                            CloudChip(
-                                text = "100% Offline",
-                                accentColor = LampAmber
-                            )
+                    CloudChip(
+                        text = "100% Offline",
+                        accentColor = LampDeep
+                    )
                         }
                     )
                 }
@@ -257,9 +257,9 @@ private fun ModelStatusIsland(
                             else -> "No Model Active"
                         },
                         accentColor = when {
-                            telemetry.isGenerating -> LampGlow
-                            telemetry.isModelLoaded -> LampAmber
-                            else -> LampDeep
+                            telemetry.isGenerating -> LampDeep
+                            telemetry.isModelLoaded -> LampDeep
+                            else -> DeskInk
                         },
                         icon = Icons.Filled.Memory
                     )

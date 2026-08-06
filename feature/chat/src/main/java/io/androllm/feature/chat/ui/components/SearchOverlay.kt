@@ -203,8 +203,8 @@ private fun highlightText(text: String, query: String) = buildAnnotatedString {
             val endIndex = startIndex + query.length
             addStyle(
                 SpanStyle(
-                    background = androidx.compose.ui.graphics.Color(0xFFFFE082),
-                    color = androidx.compose.ui.graphics.Color.Black,
+                    background = androidx.compose.ui.graphics.Color(0xFFF6DF9E),
+                    color = androidx.compose.ui.graphics.Color(0xFF141413),
                     fontWeight = FontWeight.Bold
                 ),
                 startIndex,

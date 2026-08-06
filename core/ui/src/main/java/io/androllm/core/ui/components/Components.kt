@@ -53,6 +53,7 @@ import io.androllm.core.ui.theme.DeskInkFaint
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.DeskPillShape
 import io.androllm.core.ui.theme.DeskWalnut
+import io.androllm.core.ui.theme.DeskWalnutDeep
 import io.androllm.core.ui.theme.DeskWalnutRaised
 import io.androllm.core.ui.theme.InkOnLamp
 import io.androllm.core.ui.theme.LampAmber
@@ -71,8 +72,8 @@ fun GradientBackground(
 }
 
 /**
- * A walnut desk panel — the writing surface of the desk. Soft offset shadow,
- * hairline border, warm wood; pressed states settle the card a fraction.
+ * A parchment index card — the writing surface of the desk. Soft warm shadow,
+ * cream hairline border; pressed states settle the card a fraction.
  */
 @Composable
 fun CloudGlassCard(
@@ -98,8 +99,8 @@ fun CloudGlassCard(
             .shadow(
                 elevation = 10.dp,
                 shape = DeskCardShape,
-                ambientColor = Color(0x66000000),
-                spotColor = Color(0x88000000)
+                ambientColor = Color(0x1A141413),
+                spotColor = Color(0x2E141413)
             )
             .pointerInput(onClick) {
                 if (onClick != null) {
@@ -115,7 +116,7 @@ fun CloudGlassCard(
             },
         shape = DeskCardShape,
         color = DeskWalnut,
-        border = BorderStroke(1.dp, if (isPressed) LampAmber.copy(alpha = 0.5f) else borderColor)
+        border = BorderStroke(1.dp, if (isPressed) LampAmber.copy(alpha = 0.65f) else borderColor)
     ) {
         Box(
             modifier = Modifier.padding(contentPadding)
@@ -126,8 +127,8 @@ fun CloudGlassCard(
 }
 
 /**
- * The lamp button — the one amber control on the desk. Press compresses; the
- * disabled state returns to quiet walnut with ink.
+ * The terracotta stamp button — the one accent control on the desk. Press
+ * compresses; the disabled state returns to quiet cream with ink.
  */
 @Composable
 fun CloudCapsuleButton(
@@ -162,8 +163,8 @@ fun CloudCapsuleButton(
             .shadow(
                 elevation = if (enabled) 6.dp else 0.dp,
                 shape = DeskPillShape,
-                ambientColor = Color(0x55000000),
-                spotColor = LampAmber.copy(alpha = 0.25f)
+                ambientColor = Color(0x1F141413),
+                spotColor = LampAmber.copy(alpha = 0.3f)
             )
             .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 24.dp, vertical = 14.dp),
@@ -306,7 +307,7 @@ fun SectionHeader(
 }
 
 /**
- * The desk's empty state: a blank sheet on the walnut.
+ * The desk's empty state: a blank sheet on the parchment.
  */
 @Composable
 fun EmptyState(
@@ -331,8 +332,8 @@ fun EmptyState(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(DeskWalnutRaised)
-                    .shadow(4.dp, CircleShape, ambientColor = Color(0x55000000)),
+                    .background(DeskWalnutDeep)
+                    .shadow(4.dp, CircleShape, ambientColor = Color(0x1F141413)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -387,7 +388,7 @@ fun LoadingIndicator(modifier: Modifier = Modifier) {
 }
 
 /**
- * The wordmark: serif letters set in warm paper above the desk.
+ * The wordmark: serif letters set in ink above the parchment.
  */
 @Composable
 fun DeskWordmark(
@@ -407,8 +408,8 @@ fun DeskWordmark(
 }
 
 /**
- * The lit lamp dot — the single live point on a loaded model card. Breathes
- * slowly while active, sits dim when idle.
+ * The lit terracotta seal — the single live point on a loaded model card.
+ * Breathes slowly while active, sits dim when idle.
  */
 @Composable
 fun LampDot(

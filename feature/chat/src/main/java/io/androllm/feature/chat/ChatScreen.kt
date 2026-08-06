@@ -84,7 +84,6 @@ import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.theme.DeskHairline
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.DeskWalnutRaised
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.GenerationConfig
 import io.androllm.feature.chat.export.ConversationExporter
@@ -101,9 +100,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
- * THE WRITER'S NIGHT DESK — Chat. Your correspondence with the lamp: ruled
- * paper slips instead of bubbles, a walnut writing slip for the composer, one
- * amber send, and the ledger of context and tokens above the page.
+ * THE PARCHMENT LEDGER — Chat. Your correspondence in ink on paper: ruled
+ * letter slips instead of bubbles, a parchment composer, one terracotta send,
+ * and the ledger of context and tokens above the page.
  */
 @Composable
 fun ChatScreen(
@@ -497,6 +496,8 @@ fun ChatScreen(
                         DebugRow("Prompt tokens", info.promptTokenIds.joinToString(" "))
                         DebugRow("Generated tokens", info.generatedTokenIds.joinToString(" "))
                         DebugRow("GPU verified", info.gpuInferenceVerified.toString())
+                        DebugRow("Vulkan validation", info.vulkanValidationStatus)
+                        DebugRow("Validation detail", info.vulkanValidationDetail.ifBlank { "—" })
                         DebugRow("Model size", "%.1f MB".format(info.modelSizeBytes / (1024.0 * 1024.0)))
                         DebugRow("Context size", "%.1f MB".format(info.contextSizeBytes / (1024.0 * 1024.0)))
                         DebugRow("Peak RAM", "%.1f MB".format(info.peakMemoryBytes / (1024.0 * 1024.0)))
@@ -570,7 +571,7 @@ private fun ChatStatsBar(
                         style = MaterialTheme.typography.labelSmall.copy(
                             letterSpacing = 1.2.sp,
                             fontWeight = FontWeight.Bold,
-                            color = LampGlow
+                            color = io.androllm.core.ui.theme.LampDeep
                         )
                     )
                 } else if (stats != null && stats.generatedTokens > 0) {
@@ -606,8 +607,8 @@ private fun ChatStatsBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp),
-                    color = if (contextFraction > 0.85f) io.androllm.core.ui.theme.EmberRed else LampGlow,
-                    trackColor = LampGlow.copy(alpha = 0.15f)
+                    color = if (contextFraction > 0.85f) io.androllm.core.ui.theme.EmberRed else io.androllm.core.ui.theme.LampAmber,
+                    trackColor = io.androllm.core.ui.theme.LampAmber.copy(alpha = 0.15f)
                 )
             }
         }
@@ -785,7 +786,7 @@ private fun ChatTopBar(
                     text = statusLabel.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 1.4.sp,
-                        color = LampGlow.copy(alpha = 0.9f)
+                        color = io.androllm.core.ui.theme.LampDeep
                     )
                 )
             }
@@ -800,7 +801,7 @@ private fun ChatTopBar(
                 Icon(
                     imageVector = if (cloudMode) Icons.Filled.CloudDone else Icons.Filled.Cloud,
                     contentDescription = if (cloudMode) "Switch to local GGUF" else "Switch to cloud (LiteLLM)",
-                    tint = if (cloudMode) io.androllm.core.ui.theme.LampGlow else DeskPaper
+                    tint = if (cloudMode) io.androllm.core.ui.theme.LampDeep else DeskPaper
                 )
             }
 

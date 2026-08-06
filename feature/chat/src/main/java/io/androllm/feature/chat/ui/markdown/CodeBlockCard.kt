@@ -76,8 +76,8 @@ fun CodeBlockCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1E1E2E), // Dark code editor background
-            contentColor = Color(0xFFCDD6F4)
+            containerColor = Color(0xFF262624), // Warm dark code editor background
+            contentColor = Color(0xFFEDEAE1)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -85,7 +85,7 @@ fun CodeBlockCard(
             // Header Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF181825),
+                color = Color(0xFF1E1E1B),
                 shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
             ) {
                 Row(
@@ -100,7 +100,7 @@ fun CodeBlockCard(
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFCBA6F7)
+                            color = Color(0xFFE69D81)
                         )
                     )
 
@@ -115,7 +115,7 @@ fun CodeBlockCard(
                             Icon(
                                 imageVector = Icons.Default.WrapText,
                                 contentDescription = "Toggle line wrap",
-                                tint = if (isWrapped) Color(0xFFA6E3A1) else Color(0xFFA6ADC8),
+                                tint = if (isWrapped) Color(0xFFA8C07A) else Color(0xFF9A9891),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -142,7 +142,7 @@ fun CodeBlockCard(
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = "Copied",
-                                    tint = Color(0xFFA6E3A1),
+                                    tint = Color(0xFFA8C07A),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -154,7 +154,7 @@ fun CodeBlockCard(
                                 Icon(
                                     imageVector = Icons.Default.ContentCopy,
                                     contentDescription = "Copy code",
-                                    tint = Color(0xFFA6ADC8),
+                                    tint = Color(0xFF9A9891),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -180,7 +180,7 @@ fun CodeBlockCard(
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         softWrap = isWrapped,
-                        color = Color(0xFFCDD6F4)
+                        color = Color(0xFFEDEAE1)
                     )
                 }
             }
@@ -195,12 +195,12 @@ private fun highlightSyntax(code: String, language: String): AnnotatedString {
     return buildAnnotatedString {
         append(code)
 
-        val keywordColor = Color(0xFFCBA6F7)  // Lavender
-        val stringColor = Color(0xFFA6E3A1)   // Mint Green
-        val commentColor = Color(0xFF6C7086)  // Muted Grey
-        val numberColor = Color(0xFFFAB387)   // Peach
-        val typeColor = Color(0xFF89B4FA)     // Blue
-        val fnColor = Color(0xFF89DCEB)       // Cyan
+        val keywordColor = Color(0xFFE69D81)  // Terracotta
+        val stringColor = Color(0xFFA8C07A)   // Sage
+        val commentColor = Color(0xFF7E7E7E)  // Warm grey
+        val numberColor = Color(0xFFE0A33D)   // Amber
+        val typeColor = Color(0xFF9DB8D2)     // Slate blue
+        val fnColor = Color(0xFFD0B49A)       // Warm tan
 
         // Highlight single line and multi-line comments
         val commentRegex = Regex("(//.*$|#.*$|/\\*.*?\\*/)", RegexOption.MULTILINE)

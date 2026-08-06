@@ -3,38 +3,80 @@ package io.androllm.core.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * The Writer's Night Desk — design tokens.
- * A private desk at midnight: your model is the lamp, every conversation a
- * letter you keep. Deep warm night with a single lamp-amber accent; walnut,
- * paper, hairline rules, and ink instead of glass, neon, and gradient chrome.
+ * The Parchment Ledger — design tokens.
+ * A warm daylight desk: parchment pages, ink text, and one terracotta stamp for
+ * every action. Cream rules, editorial serif headlines, and a single warm accent
+ * instead of glass, neon, and gradient chrome.
+ *
+ * Sourced from design-system/ (Claude-inspired): canvas #F5F4ED, ink #141413,
+ * terracotta #D97757, muted #5E5D59, cream borders #E8E6DC / #F0EEE6.
  */
-// ── The night desk ────────────────────────────────────────────────────────────
-val DeskNight = Color(0xFF0A0806)          // the room around the desk
-val DeskNightRaised = Color(0xFF0E0C08)    // chair / raised ground
-val DeskWalnut = Color(0xFF1A150F)         // desk wood, cards
-val DeskWalnutRaised = Color(0xFF211B13)   // wood under the lamp
-val DeskWalnutDeep = Color(0xFF151008)     // lower desk
-val DeskPaper = Color(0xFFEDD9B6)          // warm paper / primary text
-val DeskPaperDim = Color(0xFFC8B692)       // well-worn ink
-val DeskInk = Color(0xFF8A7A62)            // secondary ink
-val DeskInkFaint = Color(0xFF5C5141)       // marginalia
-val DeskHairline = Color(0xFF2A2318)       // the ruled line
-val DeskHairlineSoft = Color(0xFF201A12)
+// ── The parchment canvas ───────────────────────────────────────────────────────
+val DeskNight = Color(0xFFF5F4ED)          // the page — app canvas
+val DeskNightRaised = Color(0xFFECEBE3)    // raised ground / layout wash
+val DeskWalnut = Color(0xFFFBFAF4)         // warm white card surface
+val DeskWalnutRaised = Color(0xFFFFFFFF)   // elevated card / hover surface
+val DeskWalnutDeep = Color(0xFFEFEEE6)     // inset well / pressed surface
+val DeskPaper = Color(0xFF141413)          // ink — primary text & headings
+val DeskPaperDim = Color(0xFF4A4945)       // strong ink (status figures)
+val DeskInk = Color(0xFF5E5D59)            // muted ink — secondary text
+val DeskInkFaint = Color(0xFF8F8D87)       // faint ink — tertiary / marginalia
+val DeskHairline = Color(0xFFE8E6DC)       // the cream rule
+val DeskHairlineSoft = Color(0xFFF0EEE6)   // softer cream rule
 
-// ── The lamp (the single accent) ──────────────────────────────────────────────
-val LampAmber = Color(0xFFE8A33D)          // the one accent — everything loud is this
-val LampGlow = Color(0xFFFFC978)           // lit filament / press feedback
-val LampHalo = Color(0x66E8A33D)           // glow ring around the lit dot
-val LampDeep = Color(0xFFB06F1E)           // lamp base, pressed state
-val InkOnLamp = Color(0xFF180F04)           // text on the amber
+// ── The terracotta stamp (the single accent) ───────────────────────────────────
+val LampAmber = Color(0xFFD97757)          // terracotta — primary actions
+val LampGlow = Color(0xFFE69D81)           // terracotta light — hover / glow
+val LampHalo = Color(0x40D97757)           // soft terracotta halo
+val LampDeep = Color(0xFFB3573E)           // terracotta deep — pressed / focus
+val InkOnLamp = Color(0xFFFFFFFF)          // text on terracotta
 
 // ── Warm error ─────────────────────────────────────────────────────────────────
-val EmberRed = Color(0xFFD97762)
-val EmberRedSoft = Color(0xFF4A2A22)
-val EmberRedHard = Color(0xFF81261D)
-val EmberOnRed = Color(0xFF2A0E08)
+val EmberRed = Color(0xFFC7442F)
+val EmberRedSoft = Color(0xFFFBE9E6)
+val EmberRedHard = Color(0xFF7E1F14)
+val EmberOnRed = Color(0xFFFFFFFF)
 
-// ── Legacy aliases mapped into the desk palette ─────────────────────────────────
+// ── Parchment container & dark-variant extras ──────────────────────────────────
+val TerracottaSoft = Color(0xFFFFEBE0)     // terracotta wash container
+val TerracottaDeep = Color(0xFF66251A)     // terracotta text on light
+
+val DarkCanvas = Color(0xFF141414)
+val DarkCanvasRaised = Color(0xFF1D1D1D)
+val DarkSurface = Color(0xFF272727)
+val DarkText = Color(0xFFDCDCDC)
+val DarkTextSecondary = Color(0xFFADADAD)
+val DarkTextFaint = Color(0xFF7E7E7E)
+val DarkHairline = Color(0xFF3E3E3E)
+val DarkHairlineSoft = Color(0xFF303030)
+val DarkPrimary = Color(0xFFC78871)
+val DarkPrimaryHover = Color(0xFFDCB29F)
+val DarkPrimaryDeep = Color(0xFF9D6D5B)
+val DarkOnPrimary = Color(0xFF1F1F1C)
+
+// ── Material surface-container roles (parchment daylight) ─────────────────────
+val ParchmentLowest = Color(0xFFFFFFFF)
+val ParchmentLow = Color(0xFFF7F6EF)
+val ParchmentContainer = Color(0xFFF1F0E8)
+val ParchmentHigh = Color(0xFFEBEAE1)
+val ParchmentHighest = Color(0xFFE4E3D9)
+val ParchmentBright = Color(0xFFF5F4ED)
+val ParchmentDim = Color(0xFFDDDCD1)
+val ParchmentInverse = Color(0xFF2E2D2A)
+val OnParchmentInverse = Color(0xFFF2F1E9)
+
+// ── Material surface-container roles (dark variant) ───────────────────────────
+val DarkContainerLowest = Color(0xFF0F0F0F)
+val DarkContainerLow = Color(0xFF1C1C1C)
+val DarkContainer = Color(0xFF232323)
+val DarkContainerHigh = Color(0xFF2D2D2D)
+val DarkContainerHighest = Color(0xFF383838)
+val DarkSurfaceBright = Color(0xFF3D3D3D)
+val DarkSurfaceDim = Color(0xFF141414)
+val DarkInverse = Color(0xFFDCDCDC)
+val OnDarkInverse = Color(0xFF141414)
+
+// ── Legacy aliases mapped into the parchment palette ────────────────────────────
 // Kept so untouched call-sites land inside the same world while screens are
 // hand-rebuilt onto the tokens above.
 val DeepMidnightBlue = DeskNight
@@ -44,39 +86,39 @@ val CloudShadowIndigo = DeskWalnutDeep
 
 val SkyBlue = LampAmber
 val AzureBlue = LampDeep
-val CloudWhite = DeskPaper
-val MoonSilver = DeskPaperDim
+val CloudWhite = Color(0xFFFDFCF8)         // warm white — text on terracotta
+val MoonSilver = DeskInkFaint
 val SoftCyan = LampGlow.copy(alpha = 0.9f)
 
 val SunsetCloudPeach = LampAmber
 val SunsetCloudOrange = LampDeep
-val SunsetCloudDeepOrange = Color(0xFF8C5420)
+val SunsetCloudDeepOrange = Color(0xFF8C3C2A)
 val SunsetGlowAmber = LampGlow
 val CrescentMoonGold = LampGlow
 
-val RevolutNeonEmerald = LampAmber
-val RevolutPlatinum = DeskPaperDim
-val RevolutUltraViolet = Color(0xFFB08D6E)
-val RevolutGoldTier = LampAmber
+val RevolutNeonEmerald = Color(0xFF52C41A) // success green (design tokens)
+val RevolutPlatinum = Color(0xFFC9C7BE)
+val RevolutUltraViolet = Color(0xFFA9886E)
+val RevolutGoldTier = Color(0xFFC08A2E)
 val RevolutRoseGold = Color(0xFFE0A489)
 val RevolutCyberCyan = LampGlow
 val RevolutTitanium = DeskInkFaint
 val RevolutDarkCardBackground = DeskWalnut
 
-val LavenderGlow = Color(0xFFC0A288)
-val DeepIndigo = Color(0xFF3A2E22)
-val PurpleGlow = Color(0xFFA88D72)
+val LavenderGlow = Color(0xFFB08D6E)
+val DeepIndigo = Color(0xFF3F3830)
+val PurpleGlow = Color(0xFF8C6A4E)
 val ElectricBlue = LampAmber
 val AuroraCyan = LampGlow
-val MoonlightWhite = DeskPaper
+val MoonlightWhite = CloudWhite
 
-// Glass aliases now read as the lamp-lit translucent walnut
-val CloudGlassSurface = Color(0x2E1A150F)
-val CloudGlassSurfaceVariant = Color(0x401F1810)
-val CloudGlassBorder = Color(0x33E8A33C)
-val CloudGlassBorderHighlight = Color(0x66FFC978)
-val CloudMoonGlow = Color(0x40FFC978)
-val CloudParticleTint = Color(0x59FFC978)
+// Frosted parchment aliases
+val CloudGlassSurface = Color(0xCCFBFAF4)
+val CloudGlassSurfaceVariant = Color(0xE6FFFFFF)
+val CloudGlassBorder = Color(0x59E8E6DC)
+val CloudGlassBorderHighlight = Color(0x99E69D81)
+val CloudMoonGlow = Color(0x40E69D81)
+val CloudParticleTint = Color(0x59D97757)
 
 // Material role mappings
 val brandPrimary = LampAmber
@@ -84,26 +126,26 @@ val brandAccent = LampAmber
 val brandOnPrimary = InkOnLamp
 
 val brandBackground = DeskNight
-val brandSurface = DeskNightRaised
-val brandSurfaceVariant = DeskWalnut
+val brandSurface = DeskWalnut
+val brandSurfaceVariant = DeskWalnutDeep
 val brandOnSurface = DeskPaper
 val brandOnSurfaceVariant = DeskInk
 val brandOutline = DeskHairline
 val brandOutlineVariant = DeskHairlineSoft
 
 val brandError = EmberRed
-val brandOnError = EmberRedHard
+val brandOnError = EmberOnRed
 val brandErrorContainer = EmberRedSoft
-val brandOnErrorContainer = Color(0xFFF6D2C8)
+val brandOnErrorContainer = EmberRedHard
 
 val onSurface = brandOnSurface
 
-// ── Daylight desk (light theme, retained as the lesser scene) ────────────────────
-val LightPrimary = LampDeep
+// ── Light scheme palette (parchment, the flagship) ──────────────────────────────
+val LightPrimary = LampAmber
 val LightOnPrimary = InkOnLamp
-val LightBackground = Color(0xFFF3EAD9)
-val LightSurface = Color(0xFFFFF8EC)
-val LightOnSurface = Color(0xFF211B13)
-val LightSurfaceVariant = Color(0xFFE8DCC4)
-val LightOnSurfaceVariant = Color(0xFF6B5A42)
-val LightOutline = Color(0xFFC2B090)
+val LightBackground = DeskNight
+val LightSurface = DeskWalnut
+val LightOnSurface = DeskPaper
+val LightSurfaceVariant = DeskWalnutDeep
+val LightOnSurfaceVariant = DeskInk
+val LightOutline = DeskHairline

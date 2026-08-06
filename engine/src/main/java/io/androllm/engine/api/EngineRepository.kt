@@ -72,6 +72,21 @@ interface EngineRepository {
     suspend fun generate(prompt: String, config: GenerationConfig = GenerationConfig()): Result<Unit>
 
     /**
+     * Generates a chat response from the FULL message history, maintaining the
+     * engine's conversational state (messages + KV cache) across turns — the
+     * official llama.cpp diff-based multi-turn pattern. Streams tokens into
+     * [generationState] and suspends until the generation finishes. Prefer this
+     * over [buildChatPrompt] + [generate] for the chat feature: the native
+     * engine diffs the history and decodes only the new messages' template
+     * diff, so continuation turns never re-encode the assistant response.
+     */
+    suspend fun generateChat(
+        messages: List<ChatPromptMessage>,
+        addAssistant: Boolean = true,
+        config: GenerationConfig = GenerationConfig()
+    ): Result<Unit>
+
+    /**
      * Runs a non-streaming generation WITHOUT publishing to [generationState]
      * (the chat UI never sees it). Used by background pipelines such as the
      * memory extractor/summarizer. Serialized with [generate] so the two can

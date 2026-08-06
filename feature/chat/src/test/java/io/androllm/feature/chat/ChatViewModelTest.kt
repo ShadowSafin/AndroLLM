@@ -62,6 +62,7 @@ class ChatViewModelTest {
         coEvery { engineRepository.initialize() } returns io.androllm.core.common.Result.Success(Unit)
         coEvery { engineRepository.buildChatPrompt(any(), any()) } returns io.androllm.core.common.Result.Success("<|im_start|>user\nhi<|im_end|>\n<|im_start|>assistant\n")
         coEvery { engineRepository.generate(any(), any()) } returns io.androllm.core.common.Result.Success(Unit)
+        coEvery { engineRepository.generateChat(any(), any(), any()) } returns io.androllm.core.common.Result.Success(Unit)
         coEvery { engineRepository.cancelGeneration() } returns io.androllm.core.common.Result.Success(Unit)
         coEvery { engineRepository.unloadModel() } returns io.androllm.core.common.Result.Success(Unit)
 
@@ -134,7 +135,7 @@ class ChatViewModelTest {
 
         coVerify { conversationRepository.upsert(any()) }
         coVerify { messageRepository.upsert(any()) }
-        coVerify { engineRepository.generate(any(), any()) }
+        coVerify { engineRepository.generateChat(any(), any(), any()) }
     }
 
     @Test

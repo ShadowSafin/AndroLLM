@@ -61,9 +61,9 @@ enum class CloudTab(val route: String, val title: String, val icon: ImageVector)
 }
 
 /**
- * The ledger bar — a walnut strip with mono-caps labels and a small lit lamp
- * on the active tab. The active tab reads in warm paper with an amber lamp
- * dot; every other tab is ink and hairline.
+ * The ledger dock — a parchment strip with mono-caps labels and a small
+ * terracotta seal on the active tab. The active tab reads in ink with a
+ * terracotta dot; every other tab is muted ink on cream.
  */
 @Composable
 fun CloudBottomNavigationBar(

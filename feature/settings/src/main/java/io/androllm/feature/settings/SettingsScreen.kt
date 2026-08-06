@@ -85,6 +85,7 @@ import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskInkFaint
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.feature.settings.R
 
@@ -379,7 +380,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                         "Guest • 100% on-device"
                     },
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = if (user?.isGuest == false) LampGlow else DeskInkFaint
+                        color = if (user?.isGuest == false) LampDeep else DeskInkFaint
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -413,7 +414,7 @@ private fun UserStatsRow() {
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Execution", style = MaterialTheme.typography.labelSmall.copy(color = DeskInk))
-                Text("Vulkan", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = LampAmber))
+                Text("Vulkan", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = LampDeep))
             }
         }
     }
@@ -457,7 +458,7 @@ private fun FirebaseAuthCard(
                 }
                 CloudChip(
                     text = if (user?.isGuest == false) "Signed In" else "Optional",
-                    accentColor = if (user?.isGuest == false) LampAmber else LampGlow
+                    accentColor = if (user?.isGuest == false) LampDeep else DeskInk
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -489,7 +490,7 @@ private fun SettingRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = LampGlow,
+            tint = LampDeep,
             modifier = Modifier.size(20.dp)
         )
         Text(
