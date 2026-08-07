@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://sliday.github.io/google-fonts-skill/sitemap.xml

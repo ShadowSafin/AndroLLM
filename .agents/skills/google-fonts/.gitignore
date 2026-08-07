@@ -1,8 +1,0 @@
-__pycache__/
-*.pyc
-.venv/
-.env
-.claude/
-dist/
-*.egg-info/
-.pytest_cache/

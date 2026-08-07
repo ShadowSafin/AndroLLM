@@ -153,3 +153,6 @@ coverage/
 .impeccable/
 META-INF/
 skills-lock.json
+
+# Agent skills (never commit)
+.agents/
