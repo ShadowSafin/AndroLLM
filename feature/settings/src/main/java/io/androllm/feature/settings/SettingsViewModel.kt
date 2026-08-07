@@ -55,6 +55,9 @@ class SettingsViewModel @Inject constructor(
     private val _memoryMessage = MutableStateFlow<String?>(null)
     val memoryMessage: StateFlow<String?> = _memoryMessage.asStateFlow()
 
+    private val _storageStats = MutableStateFlow<io.androllm.core.utils.StorageStats?>(null)
+    val storageStats: StateFlow<io.androllm.core.utils.StorageStats?> = _storageStats.asStateFlow()
+
     /** Firebase is optional â€” the settings header must still work offline as a guest. */
     private val auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
 
@@ -71,6 +74,7 @@ class SettingsViewModel @Inject constructor(
         auth?.addAuthStateListener(authListener)
         observeMemorySettings()
         refreshMemoryStats()
+        refreshStorageStats()
     }
 
     override fun onCleared() {
@@ -129,6 +133,24 @@ class SettingsViewModel @Inject constructor(
     fun clearCache() {
         viewModelScope.launch {
             StorageUtils.clearCache(context)
+            refreshStorageStats()
+        }
+    }
+
+    /**
+     * Re-reads the real free space on the models filesystem (cheap: a single
+     * filesystem stat, no directory walk). Never throws — a storage read must
+     * not take down the settings screen (or leak an uncaught coroutine
+     * exception in tests when the mock context returns unusable File mocks).
+     * Runs entirely on IO: the coroutine must not need the Main dispatcher to
+     * resume after a test teardown (StateFlow writes are thread-safe).
+     */
+    fun refreshStorageStats() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val stats = runCatching { StorageUtils.getStorageStats(context) }.getOrNull()
+            if (stats != null) {
+                _storageStats.value = stats
+            }
         }
     }
 

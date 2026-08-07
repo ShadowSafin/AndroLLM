@@ -168,7 +168,8 @@ class TelemetryRepository @Inject constructor(
             androidVersion = info.androidVersion,
             isVulkanSupported = info.isVulkanSupported,
             totalStorageBytes = storage?.totalBytes ?: 0L,
-            usedStorageBytes = storage?.usedBytes ?: 0L
+            usedStorageBytes = storage?.usedBytes ?: 0L,
+            freeStorageBytes = storage?.availableBytes ?: 0L
         )
     }
 

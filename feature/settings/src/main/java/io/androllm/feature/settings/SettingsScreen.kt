@@ -87,6 +87,7 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.utils.StorageUtils
 import io.androllm.feature.settings.R
 
 /**
@@ -105,6 +106,7 @@ fun SettingsScreen(
     val memorySettings by viewModel.memorySettings.collectAsStateWithLifecycle()
     val memoryStats by viewModel.memoryStats.collectAsStateWithLifecycle()
     val memoryMessage by viewModel.memoryMessage.collectAsStateWithLifecycle()
+    val storageStats by viewModel.storageStats.collectAsStateWithLifecycle()
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
     var reduceMotion by remember { mutableStateOf(false) }
@@ -201,6 +203,22 @@ fun SettingsScreen(
                                 title = stringResource(R.string.settings_storage_path),
                                 value = settings.storagePath.ifEmpty { "Internal Storage" },
                                 onClick = {}
+                            )
+                            SettingRow(
+                                icon = Icons.Filled.Storage,
+                                title = "Free Space",
+                                value = storageStats?.let {
+                                    "${StorageUtils.formatBytes(it.availableBytes)} free"
+                                } ?: "…",
+                                onClick = { viewModel.refreshStorageStats() }
+                            )
+                            SettingRow(
+                                icon = Icons.Filled.Storage,
+                                title = "Models on Device",
+                                value = storageStats?.let {
+                                    StorageUtils.formatBytes(it.usedBytes)
+                                } ?: "…",
+                                onClick = { viewModel.refreshStorageStats() }
                             )
                             SettingRow(
                                 icon = Icons.Filled.Storage,

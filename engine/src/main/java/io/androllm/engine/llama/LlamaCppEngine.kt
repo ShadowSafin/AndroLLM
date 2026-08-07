@@ -84,6 +84,17 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
     private var engineHandle: Long = 0L
     private var loadedModel: EngineModelInfo? = null
     private val generationActive = AtomicBoolean(false)
+
+    /**
+     * True while a native generation call ([nativeGenerate]/[nativeGenerateChat])
+     * is actually on the stack. Unlike [generationActive] — which [cancel]
+     * clears the moment the cancel flag is set — this stays true until the
+     * native decode loop has fully unwound. [resetChat] waits on it so a
+     * conversation switch can never clear the KV cache under an in-flight
+     * decode on the shared resident context.
+     */
+    @Volatile
+    private var nativeGenerationInFlight = false
     private var promptCount = 0
     private var loadedSinceMs = 0L
 
@@ -215,6 +226,38 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
         _engineState.value = EngineState.Unloaded
     }
 
+    override suspend fun resetChat(): Result<Unit> = io.androllm.core.common.runCatching {
+        if (isLoaded() && engineHandle != 0L) {
+            withContext(Dispatchers.Default) {
+                // cancelGeneration() returns as soon as the cancel flag is set,
+                // but the native decode loop may still be unwinding. Clearing
+                // the KV cache mid-decode races the shared resident context, so
+                // wait (bounded) for the in-flight native call to fully return
+                // before resetting.
+                val deadline = System.nanoTime() + RESET_CHAT_WAIT_NATIVE_NS
+                while (nativeGenerationInFlight && System.nanoTime() < deadline) {
+                    Thread.sleep(10)
+                }
+                // TOCTOU guard: between the poll above and the native call a
+                // new generation could start (its generationActive CAS succeeds
+                // because cancel() cleared the flag eagerly). Hold the SAME
+                // AtomicBoolean every generation path CAS-gates on, so the
+                // reset is mutually exclusive with generation ENTRY — no decode
+                // can begin while we clear the KV, and one already running was
+                // waited out above. Extremely short under normal use.
+                while (!generationActive.compareAndSet(false, true)) {
+                    if (System.nanoTime() > deadline) break
+                    Thread.sleep(10)
+                }
+                try {
+                    LlamaJniBridge.nativeResetChat(engineHandle)
+                } finally {
+                    generationActive.set(false)
+                }
+            }
+        }
+    }
+
     override fun tokenStream(prompt: String, config: GenerationConfig): Flow<Result<StreamChunk>> =
         callbackFlow {
             if (!isNativeAvailable) {
@@ -252,6 +295,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
                 if (currentModel != null) {
                     _engineState.value = EngineState.Generating(model = currentModel, promptNumber = promptCount)
                 }
+                nativeGenerationInFlight = true
                 try {
                     val statsJson = LlamaJniBridge.nativeGenerate(
                         engineHandle,
@@ -266,6 +310,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
                 } catch (e: Throwable) {
                     trySend(Result.Error(EngineException(e.message ?: "Generation failed", e)))
                 } finally {
+                    nativeGenerationInFlight = false
                     generationActive.set(false)
                     val model = loadedModel
                     if (model != null) {
@@ -333,9 +378,11 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
             if (!generationActive.compareAndSet(false, true)) {
                 return Result.error(EngineException("Generation already in progress"))
             }
+        try {
+            val sb = StringBuilder()
+            val callback = LlamaJniBridge.TokenCallback { delta, _ -> sb.append(delta) }
+            nativeGenerationInFlight = true
             try {
-                val sb = StringBuilder()
-                val callback = LlamaJniBridge.TokenCallback { delta, _ -> sb.append(delta) }
                 withContext(Dispatchers.Default) {
                     val statsJson = LlamaJniBridge.nativeGenerate(
                         engineHandle,
@@ -347,9 +394,12 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
                 }
                 sb.toString()
             } finally {
-                generationActive.set(false)
+                nativeGenerationInFlight = false
             }
+        } finally {
+            generationActive.set(false)
         }
+    }
 
     /**
      * Multi-turn chat generation: sends the FULL message history to the native
@@ -372,17 +422,22 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
         try {
             val sb = StringBuilder()
             val callback = LlamaJniBridge.TokenCallback { delta, _ -> sb.append(delta) }
-            withContext(Dispatchers.Default) {
-                val statsJson = LlamaJniBridge.nativeGenerateChat(
-                    engineHandle,
-                    json.encodeToString(ListSerializer(ChatPromptMessage.serializer()), messages),
-                    addAssistant,
-                    json.encodeToString(GenerationConfig.serializer(), config),
-                    callback
-                )
-                _stats.value = json.decodeFromString(EngineStats.serializer(), statsJson)
+            nativeGenerationInFlight = true
+            try {
+                withContext(Dispatchers.Default) {
+                    val statsJson = LlamaJniBridge.nativeGenerateChat(
+                        engineHandle,
+                        json.encodeToString(ListSerializer(ChatPromptMessage.serializer()), messages),
+                        addAssistant,
+                        json.encodeToString(GenerationConfig.serializer(), config),
+                        callback
+                    )
+                    _stats.value = json.decodeFromString(EngineStats.serializer(), statsJson)
+                }
+                sb.toString()
+            } finally {
+                nativeGenerationInFlight = false
             }
-            sb.toString()
         } finally {
             generationActive.set(false)
         }
@@ -428,6 +483,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
             if (currentModel != null) {
                 _engineState.value = EngineState.Generating(model = currentModel, promptNumber = promptCount)
             }
+            nativeGenerationInFlight = true
             try {
                 val statsJson = LlamaJniBridge.nativeGenerateChat(
                     engineHandle,
@@ -443,6 +499,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
             } catch (e: Throwable) {
                 trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
             } finally {
+                nativeGenerationInFlight = false
                 generationActive.set(false)
                 val model = loadedModel
                 if (model != null) {
@@ -587,5 +644,12 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
     companion object {
         const val LLAMA_VERSION = "0.0.0"
         const val DEFAULT_MAX_CONTEXT = 32768
+
+        /**
+         * Bounded wait in [resetChat] for an in-flight native generation to
+         * unwind before clearing the KV cache (5s). A cancelled decode should
+         * exit far sooner; the bound only guards a hung backend.
+         */
+        private const val RESET_CHAT_WAIT_NATIVE_NS = 5_000_000_000L
     }
 }

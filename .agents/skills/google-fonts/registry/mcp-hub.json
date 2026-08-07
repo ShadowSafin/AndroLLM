@@ -1,0 +1,14 @@
+{
+  "name": "google-fonts-mcp",
+  "description": "Typography system generator with 1,923 Google Fonts, 73 proven pairings, and 8 modular scales",
+  "repository": "https://github.com/sliday/google-fonts-skill",
+  "install": "uvx google-fonts-mcp",
+  "tools": [
+    "search_fonts",
+    "generate_typography_system",
+    "lookup_font",
+    "list_scales",
+    "list_pairings"
+  ],
+  "tags": ["typography", "fonts", "css", "tailwind", "google-fonts", "design"]
+}

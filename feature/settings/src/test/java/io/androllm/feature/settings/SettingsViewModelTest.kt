@@ -39,6 +39,10 @@ class SettingsViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         every { context.getExternalFilesDir(any()) } returns
             java.io.File(System.getProperty("java.io.tmpdir"), "androllm_test_logs")
+        every { context.getExternalFilesDir(null) } returns
+            java.io.File(System.getProperty("java.io.tmpdir"), "androllm_test_external")
+        every { context.filesDir } returns
+            java.io.File(System.getProperty("java.io.tmpdir"), "androllm_test_files")
         every { memoryManager.settings } returns flowOf(MemorySettings())
         coEvery { memoryManager.currentSettings() } returns MemorySettings()
         coEvery { memoryManager.getInspectorStats() } returns MemoryInspectorStats()

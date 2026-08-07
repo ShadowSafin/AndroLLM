@@ -31,6 +31,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "llama.h"
@@ -514,19 +515,45 @@ static common_params_sampling buildSamplingParams(const GenConfig &cfg) {
 
 struct LlamaEngine {
     // ── owned resources (RAII) ──
-    common_init_result_ptr  initResult;   // owns model, ctx, internal samplers
-    common_sampler         *sampler;      // clone we reconfigure per-request
+    // initResult owns the MODEL only (loaded with model_only=true). The
+    // llama_context is owned separately by ctxOwner so it can be destroyed and
+    // (the upstream lifecycle — reused across turns, see ai_chat.cpp)
+    // on the GPU — no stateful inference object survives between requests.
+    common_init_result_ptr  initResult;   // owns model (model_only load)
+    llama_context_ptr       ctxOwner;     // owns llama_context — created once at load, reused
+    common_sampler         *sampler;      // fresh per request (never reused)
     common_chat_templates_ptr chatTmpls;
 
-    // ── non-owning accessors (valid while initResult is alive) ──
+    // ── non-owning accessors (valid while initResult/ctxOwner are alive) ──
     llama_model            *model;
     llama_context          *ctx;
+
+    // ── session fallback / recovery counters (survive reloads, reset on load) ──
+    int  recoveryCount = 0;      // times the wrapper escalated a corrupt run
+    bool cpuSessionFallback = false; // true once GPU recovery failed → CPU session
+
+    // ── Vulkan device-lost handling ──
+    // Set by decode_safe() the moment a VK_ERROR_DEVICE_LOST surfaces from the
+    // backend (vk::DeviceLostError thrown inside ggml-vulkan). The generation
+    // wrapper then skips the cheap context-recreation stage and goes straight
+    // to a FULL backend teardown + reload — a lost device poisons the whole
+    // backend, not just one context. Cleared after a successful recovery.
+    bool vulkanDeviceLost = false;
+    // vulkanDeviceLostRecoveries is declared below (atomic — written from
+    // decode_safe without the mutex, read under stateMutex by stats/debug).
 
     // ── config ──
     llama_context_params    ctxParams{};
     bool                    useFlashAttention = true;
     std::atomic<bool>       cancel{false};
     JavaVM                 *jvm = nullptr;
+
+    // ── thread safety ──
+    // Guards the ctx/model pointers against the stats/debug JNI readers
+    // (which run on Dispatchers.Default) racing the generation thread that
+    // destroys/recreates the context between responses. All other engine state
+    // is owned by the single generation thread.
+    std::mutex stateMutex;
 
     // ── GPU stats ──
     int gpuLayersUsed = 0;
@@ -558,6 +585,25 @@ struct LlamaEngine {
     int  loadBatchSize = 2048;
     int  loadGpuLayers = -1;
     std::string lastRecoveryReason;  // set when the latest attempt was corrupted
+
+    // ── Vulkan diagnostics (per-generation + last-generation aggregates) ──
+    // lastContextCreateMs: time to build a fresh llama_context (pipelines,
+    //   descriptor pools, command pools, buffers) from the resident model.
+    // lastCleanupMs: time to free the previous context's GPU state.
+    // decodeCount / decodeTotalMs: llama_decode calls + wall time in the last
+    //   generation (fence waits are inside llama_decode — this is the closest
+    //   observable proxy for queue submit + fence wait cost).
+    // NOTE: the counters below are written from the generation thread WITHOUT
+    // the mutex (decode_safe) and only read under stateMutex by stats/debug —
+    // they are atomic so the cross-thread reads are well-defined.
+    int64_t lastContextCreateMs = 0;   // written under stateMutex (createEngineContext)
+    int64_t lastCleanupMs = 0;         // context teardown cost (createEngineContext frees old ctx)
+    std::atomic<int64_t> decodeCount = 0;
+    std::atomic<int64_t> decodeTotalMs = 0;
+    std::atomic<int> vulkanDeviceLostRecoveries = 0; // incremented in decode_safe
+    // Kept so memory/context stats stay meaningful between generations, when
+    // the context has been released (contextSizeBytes would otherwise read 0).
+    size_t cachedContextSizeBytes = 0;
 
     // ── runtime ──
     int promptCount = 0;
@@ -597,6 +643,17 @@ struct LlamaEngine {
 
     ~LlamaEngine() { destroy(); unloadEmbedding(); }
 
+    /**
+     * NOTE: there is deliberately NO per-generation context release. Upstream
+     * lifecycle (examples/llama.android ai_chat.cpp, tools/server) creates ONE
+     * llama_context at load and REUSES it across turns; the KV cache is managed
+     * in-place (llama_memory_clear per conversation, llama_memory_seq_rm/add
+     * for context shifting). Tearing the context down after every response
+     * causes the repeated Vulkan resource churn (command pools, descriptor
+     * pools, pipeline state, GPU buffers) that mobile drivers watchdog into
+     * VK_ERROR_DEVICE_LOST. The context is freed only on destroy()/unload.
+     */
+
     void unloadEmbedding() {
         embedModel = nullptr;
         embedCtx = nullptr;
@@ -606,10 +663,16 @@ struct LlamaEngine {
 
     void destroy() {
         cancel.store(true);
+        std::lock_guard<std::mutex> lock(stateMutex);
+        // Preserve the context size for stats before the context is freed.
+        if (ctx) cachedContextSizeBytes = llama_state_get_size(ctx);
         // Clear non-owning pointers before releasing owners
         model = nullptr;
         ctx = nullptr;
         if (sampler) { common_sampler_free(sampler); sampler = nullptr; }
+        // The context references the model's backends — free it before the
+        // model (releases KV cache, compute buffers, GPU command state).
+        ctxOwner.reset();
         chatTmpls.reset();
         initResult.reset();
         promptCount = 0;
@@ -633,6 +696,12 @@ struct LlamaEngine {
         lastFirstTokenMs = 0;
         lastStopReason.clear();
         peakMemoryBytes = 0;
+        lastContextCreateMs = 0;
+        lastCleanupMs = 0;
+        decodeCount = 0;
+        decodeTotalMs = 0;
+        // NOTE: vulkanDeviceLost / vulkanDeviceLostRecoveries survive destroy()
+        // (reloadEngineContext calls destroy() during recovery).
     }
 
     void trackMemory() {
@@ -833,6 +902,7 @@ static std::string statsJson(
 
 // Every logit must be finite. NaN/INF means the compute path is broken
 // (typically the GPU backend). Checked after every decode, before sampling.
+// Returns true when every logit in the current decode is finite (no NaN/INF).
 static bool logits_are_finite(llama_context * ctx, const llama_vocab * vocab) {
     const float * logits = llama_get_logits_ith(ctx, -1);
     if (!logits) return false;
@@ -843,12 +913,25 @@ static bool logits_are_finite(llama_context * ctx, const llama_vocab * vocab) {
     return true;
 }
 
+// Returns the index of the first non-finite logit (NaN or +-INF), or -1 when
+// all logits are finite or unavailable. Feeds the corruption diagnostics.
+static int first_bad_logit_index(llama_context * ctx, const llama_vocab * vocab) {
+    const float * logits = llama_get_logits_ith(ctx, -1);
+    if (!logits) return -1;
+    const int n = llama_vocab_n_tokens(vocab);
+    for (int i = 0; i < n; i++) {
+        if (!std::isfinite(logits[i])) return i;
+    }
+    return -1;
+}
+
 static bool token_is_valid(const llama_vocab * vocab, llama_token id) {
     return id >= 0 && id < llama_vocab_n_tokens(vocab);
 }
 
 // Dumps the corruption context: backend, sampler state, last sampled token
-// ids and KV position. Called the moment a corrupt attempt is detected.
+// ids, KV position/context/batch size and the first bad logit index. Called
+// the moment a corrupt attempt is detected.
 static void dump_corruption(LlamaEngine * eng, const char * where, const std::string & detail) {
     std::ostringstream o;
     o << "[" << where << "] " << detail
@@ -862,15 +945,152 @@ static void dump_corruption(LlamaEngine * eng, const char * where, const std::st
         o << eng->lastGeneratedTokens[i];
     }
     if (eng->ctx) {
+        const llama_vocab * vocab = llama_model_get_vocab(eng->model);
+        const int bad = first_bad_logit_index(eng->ctx, vocab);
+        if (bad >= 0) {
+            const float v = llama_get_logits_ith(eng->ctx, -1)[bad];
+            o << " first_bad_logit=" << bad
+              << " (" << (std::isnan(v) ? "NaN" : (v > 0 ? "+INF" : "-INF")) << ")";
+        }
         o << " kv_pos=" << llama_memory_seq_pos_max(llama_get_memory(eng->ctx), 0)
-          << "/" << llama_n_ctx(eng->ctx);
+          << "/" << llama_n_ctx(eng->ctx)
+          << " batch=" << llama_n_batch(eng->ctx)
+          << " seq=0";
     }
+    o << " recovery_count=" << eng->recoveryCount;
     LOGE("%s", o.str().c_str());
 }
 
-// Destroys and rebuilds the inference context from the stored load
-// configuration. useGpu=false forces the CPU backend (runtime fallback after
-// GPU corruption). Returns true on success; on failure the engine is left
+// Wraps llama_decode so a failure thrown by the Vulkan backend is converted
+// into the engine's recovery signal instead of escaping the JNI boundary and
+// hard-failing (or crashing) the generation.
+//
+// ggml-vulkan uses Vulkan-Hpp, which throws C++ exceptions on every VkResult
+// error — e.g. vk::DeviceLostError on VK_ERROR_DEVICE_LOST (logcat shows
+// "vk::Queue::submit: ErrorDeviceLost"), vk::OutOfDeviceMemoryError, etc.
+// These are all std::system_error subclasses, so catching std::system_error
+// here intercepts every backend failure without depending on vulkan.hpp.
+// Returns the llama_decode() result (0 on success) or -1 when an exception
+// was caught. On a backend exception, *errOut carries the reason and the
+// device-lost flag / recovery telemetry are updated.
+static int decode_safe(LlamaEngine * eng, llama_context * ctx, llama_batch batch) {
+    auto t0 = std::chrono::steady_clock::now();
+    int rc = -1;
+    try {
+        rc = llama_decode(ctx, batch);
+    } catch (const std::system_error & e) {
+        const int code = e.code().value();
+#ifdef GGML_USE_VULKAN
+        if (code == (int)VK_ERROR_DEVICE_LOST) {
+            eng->vulkanDeviceLost = true;
+            eng->vulkanDeviceLostRecoveries++;
+            eng->lastRecoveryReason = std::string("vulkan device lost (") + e.what() + ")";
+        } else
+#endif
+        {
+            eng->lastRecoveryReason = std::string("backend error (") + e.what() + ")";
+        }
+        LOGW("[Decode] %s", eng->lastRecoveryReason.c_str());
+    } catch (const std::exception & e) {
+        eng->lastRecoveryReason = std::string("decode exception: ") + e.what();
+        LOGW("[Decode] %s", eng->lastRecoveryReason.c_str());
+    } catch (...) {
+        eng->lastRecoveryReason = "decode exception (unknown)";
+        LOGW("[Decode] %s", eng->lastRecoveryReason.c_str());
+    }
+    eng->decodeCount++;
+    eng->decodeTotalMs += std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - t0).count();
+    // A successful decode proves the device is usable again — clear the
+    // device-lost flag so a later unrelated error doesn't force an unnecessary
+    // full backend reload (the flag only means "the device was lost once").
+    if (rc == 0) eng->vulkanDeviceLost = false;
+    return rc;
+}
+
+// Builds the llama_context_params used both at load and for every per-
+// generation context recreation. It reconstructs the same common_params the
+// original load used and lets llama.cpp convert them, so the recreated context
+// is byte-for-byte identical to the one from nativeLoadModel (same context
+// length, batch/ubatch, flash attention, F16 KV cache, thread config).
+static llama_context_params buildContextParams(const LlamaEngine * eng) {
+    // Reproduce the exact common_params nativeLoadModel built, so the
+    // recreated context is byte-identical to the one from the original load.
+    common_params params;
+    params.n_ctx           = eng->loadCtxLen <= 0 ? 0 : eng->loadCtxLen;
+    params.n_batch         = std::max(1024, eng->loadBatchSize);
+    params.n_ubatch        = std::min(params.n_batch, 512);
+    params.cache_type_k    = GGML_TYPE_F16;
+    params.cache_type_v    = GGML_TYPE_F16;
+    params.flash_attn_type = eng->useFlashAttention ? LLAMA_FLASH_ATTN_TYPE_AUTO
+                                                    : LLAMA_FLASH_ATTN_TYPE_DISABLED;
+    // NOTE: cpuparams stay at their defaults (auto) — identical to the
+    // original load, which never overrode them either.
+    return common_context_params_to_llama(params);
+}
+
+// Creates a brand-new llama_context from the RESIDENT model. This is the
+// lifecycle helper: frees any old context (KV cache, compute buffers, command
+// pools, sequence/batch state) is freed and a fresh one is built. The model
+// and its GPU weight buffers stay loaded — no disk re-read. Returns true on
+// success; on failure the engine is left with no context and *outErr carries
+// the reason.
+static bool createEngineContext(LlamaEngine * eng, std::string * outErr = nullptr) {
+    auto fail = [&](const std::string & m) {
+        if (outErr) *outErr = m;
+        return false;
+    };
+    if (!eng->model) return fail("no model loaded");
+    std::lock_guard<std::mutex> lock(eng->stateMutex);
+
+    // Time the teardown of the previous context (KV cache, compute buffers,
+    // command pools, descriptor pools freed) — the cleanup-duration diagnostic.
+    if (eng->ctxOwner) {
+        auto tClean = std::chrono::steady_clock::now();
+        eng->ctxOwner.reset();
+        eng->ctx = nullptr;
+        eng->lastCleanupMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - tClean).count();
+    }
+
+    // Context creation can itself throw (e.g. vk::OutOfDeviceMemoryError or a
+    // DeviceLost while the backend rebuilds pipelines on a dead device). Route
+    // that through the fail path so the recovery ladder escalates (GPU reload
+    // → CPU) instead of letting the exception escape the JNI boundary.
+    auto tCreate = std::chrono::steady_clock::now();
+    try {
+        eng->ctxOwner.reset(llama_init_from_model(eng->model, buildContextParams(eng)));
+    } catch (const std::system_error & e) {
+        return fail(std::string("context init: ") + e.what());
+    } catch (const std::exception & e) {
+        return fail(std::string("context init: ") + e.what());
+    } catch (...) {
+        return fail("context init failed (unknown)");
+    }
+    eng->ctx = eng->ctxOwner.get();
+    eng->lastContextCreateMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - tCreate).count();
+    if (!eng->ctx) return fail("context creation failed");
+    eng->cachedContextSizeBytes = llama_state_get_size(eng->ctx);
+
+    // Fresh context: empty KV cache, sequence ids, positions, batch indices.
+    eng->chatPosition = 0;
+    eng->systemPromptEnd = 0;
+    eng->lastPromptTokens.clear();
+    eng->lastGeneratedTokens.clear();
+    eng->lastPromptText.clear();
+    eng->lastFirstTokenMs = 0;
+    eng->lastStopReason.clear();
+    LOGI("[Context] created (create=%lldms cleanup=%lldms)",
+         (long long)eng->lastContextCreateMs, (long long)eng->lastCleanupMs);
+    return true;
+}
+
+// Full backend teardown + reload from the stored model path. Destroys the
+// model (and with it the Vulkan backend: command pools, descriptor sets,
+// pipelines, staging buffers) and recreates it — used as the corruption
+// recovery ladder's escalation step, and as the CPU session fallback
+// (useGpu=false). Returns true on success; on failure the engine is left
 // unloaded and *outErr carries the reason.
 static bool reloadEngineContext(LlamaEngine * eng, bool useGpu, std::string * outErr = nullptr) {
     auto fail = [&](const std::string & m) {
@@ -894,7 +1114,9 @@ static bool reloadEngineContext(LlamaEngine * eng, bool useGpu, std::string * ou
 
     common_init_result_ptr result;
     try {
-        result = common_init_from_params(params);
+        // Model-only load: the context is created separately by
+        // createEngineContext() so the context can be rebuilt on recovery.
+        result = common_init_from_params(params, /*model_only=*/true);
     } catch (const std::exception &e) {
         return fail(std::string("context reload failed: ") + e.what());
     } catch (...) {
@@ -903,9 +1125,12 @@ static bool reloadEngineContext(LlamaEngine * eng, bool useGpu, std::string * ou
     if (!result) return fail("context reload returned null");
 
     eng->model = result->model();
-    eng->ctx   = result->context();
-    if (!eng->model || !eng->ctx) return fail("context reload produced no model/context");
+    if (!eng->model) return fail("context reload produced no model");
     eng->initResult = std::move(result);
+
+    if (!createEngineContext(eng, outErr)) {
+        return fail(outErr && !outErr->empty() ? *outErr : "context creation failed");
+    }
 
     try {
         eng->chatTmpls = common_chat_templates_init(eng->model, "");
@@ -922,6 +1147,7 @@ static bool reloadEngineContext(LlamaEngine * eng, bool useGpu, std::string * ou
     if (!useGpu) {
         // "init failed" wording keeps MemoryStats.isCpuFallback true in Kotlin.
         eng->backendReason = "CPU fallback after GPU runtime corruption (init failed during recovery)";
+        eng->cpuSessionFallback = true;
     } else {
         eng->backendReason = "Vulkan active after context recovery (" +
                              std::to_string(eng->gpuLayersUsed) + "/" +
@@ -954,12 +1180,15 @@ static std::string doGenerate(
     eng->promptCount++;
     eng->cancel.store(false);
     eng->trackMemory();
+    eng->decodeCount = 0;
+    eng->decodeTotalMs = 0;
 
     llama_memory_t mem = llama_get_memory(eng->ctx);
     const uint32_t nCtx = llama_n_ctx(eng->ctx);
     const int n_batch = llama_n_batch(eng->ctx);
-    LOGI("doGenerate START gen=%d promptCount=%d nCtx=%u n_batch=%d sysPromptEnd=%d",
-         s_gen_counter, eng->promptCount, nCtx, n_batch, (int)eng->systemPromptEnd);
+    LOGI("doGenerate START gen=%d promptCount=%d backend=%s ctx=%u batch=%d seq=0 sysPromptEnd=%d",
+         s_gen_counter, eng->promptCount, eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU",
+         nCtx, n_batch, (int)eng->systemPromptEnd);
 
     auto t0 = clock::now();
 
@@ -1032,9 +1261,10 @@ static std::string doGenerate(
                 LOGI("[Prefill] batch %d: n=%zu first_pos=%d last_pos=%d",
                      batchCount, n, (int)(pos0 + (i - from)), (int)(pos0 + (i - from) + n - 1));
             }
-            if (llama_decode(eng->ctx, batch) != 0) {
+            if (decode_safe(eng, eng->ctx, batch) != 0) {
                 ok = false;
-                LOGE("[Prefill] FAILED at batch %d token_idx=%zu", batchCount, i);
+                LOGE("[Prefill] FAILED at batch %d token_idx=%zu (%s)",
+                     batchCount, i, eng->lastRecoveryReason.c_str());
                 break;
             }
         }
@@ -1056,7 +1286,9 @@ static std::string doGenerate(
 
     if (!prefillOk) {
         llama_batch_free(batch);
-        eng->lastRecoveryReason = "prefill decode failed";
+        // Preserve a backend-exception reason (device lost etc.) if decode_safe
+        // already recorded one; only fall back to the generic reason otherwise.
+        if (eng->lastRecoveryReason.empty()) eng->lastRecoveryReason = "prefill decode failed";
         eng->lastStopReason = "corrupted";
         eng->chatPosition = 0;
         dump_corruption(eng, "prefill_decode", eng->lastRecoveryReason);
@@ -1071,13 +1303,19 @@ static std::string doGenerate(
     // token is emitted so the recovery retry re-streams nothing.
     if (!logits_are_finite(eng->ctx, vocab)) {
         llama_batch_free(batch);
-        eng->lastRecoveryReason = "prefill logits corrupted (NaN/INF)";
+        const int bad = first_bad_logit_index(eng->ctx, vocab);
+        const float bv = bad >= 0 ? llama_get_logits_ith(eng->ctx, -1)[bad] : 0.f;
+        eng->lastRecoveryReason = "prefill logits corrupted (NaN/INF) at idx " +
+            std::to_string(bad) + " (" + (std::isnan(bv) ? "NaN" : "INF") + ")";
         eng->lastStopReason = "corrupted";
         eng->chatPosition = 0;
         dump_corruption(eng, "logits", eng->lastRecoveryReason);
         return statsJson(tokens.size(), 0, 0, 0, 0.f,
                          eng->peakMemoryBytes, 0, "corrupted");
     }
+
+    LOGI("[Prefill] END backend=%s tokens=%zu ctx=%u batch=%d seq=0 rc=0",
+         eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU", tokens.size(), nCtx, n_batch);
 
     // Context-overflow guard: never budget more generated tokens than the
     // cache can hold. The mid-run shift still discards old context when the
@@ -1260,8 +1498,10 @@ static std::string doGenerate(
         // Feed token back for next step (upstream pattern: persistent batch + common_batch_add)
         common_batch_clear(batch);
         common_batch_add(batch, id, llama_memory_seq_pos_max(mem, 0) + 1, {0}, true);
-        if (llama_decode(eng->ctx, batch) != 0) {
-            eng->lastRecoveryReason = std::string("decode failed at step ") + std::to_string(i);
+        if (decode_safe(eng, eng->ctx, batch) != 0) {
+            // Preserve a backend-exception reason (device lost etc.) if already set.
+            if (eng->lastRecoveryReason.empty())
+                eng->lastRecoveryReason = std::string("decode failed at step ") + std::to_string(i);
             eng->lastStopReason = "corrupted";
             eng->chatPosition = 0;
             dump_corruption(eng, "decode", eng->lastRecoveryReason);
@@ -1301,6 +1541,29 @@ static std::string doGenerate(
 
     eng->trackMemory();
 
+    // Vulkan diagnostics — logged after every generation (the on-device audit):
+    // context create/cleanup cost, decode (submit+fence) count and average
+    // wait, live GPU heap and recovery telemetry.
+    {
+        size_t vkFree = 0, vkTotal = 0;
+#ifdef GGML_USE_VULKAN
+        if (eng->gpuLayersUsed > 0) {
+            try { ggml_backend_vk_get_device_memory(0, &vkFree, &vkTotal); }
+            catch (...) {}
+        }
+#endif
+        const int64_t decAvg = eng->decodeCount > 0
+            ? eng->decodeTotalMs / eng->decodeCount : 0;
+        LOGI("[VulkanDiag] backend=%s ctxCreate=%lldms cleanup=%lldms decodeCalls=%lld decodeAvg=%lldms "
+             "gpuFree=%.1fMB gpuTotal=%.1fMB recovery=%d devLostRecovered=%d",
+             eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU",
+             (long long)eng->lastContextCreateMs, (long long)eng->lastCleanupMs,
+             (long long)eng->decodeCount, (long long)decAvg,
+             vkTotal ? (double)vkFree / (1024.0 * 1024.0) : 0.0,
+             vkTotal ? (double)vkTotal / (1024.0 * 1024.0) : 0.0,
+             eng->recoveryCount, eng->vulkanDeviceLostRecoveries.load());
+    }
+
     // Flush any remaining buffered bytes at the end of the stream
     if (!pendingUtf8.empty()) {
         jstring jpiece = to_jstring(env, pendingUtf8);
@@ -1314,6 +1577,14 @@ static std::string doGenerate(
     env->CallVoidMethod(callback, onToken, empty, JNI_TRUE);
     env->DeleteLocalRef(empty);
 
+    // Context stays resident across turns (upstream lifecycle — one context
+    // reused; see ai_chat.cpp). The KV cache is NOT cleared here: it holds the
+    // conversation and is shifted in-place on overflow (mid-run shift) or
+    // cleared in-place per new conversation (nativeResetChat / full re-render).
+    // Transient per-decode buffers (staging, scratch, command buffers) are
+    // already released inside llama_decode/graph cleanup — nothing extra is
+    // needed after EOS. The UI only ever sees the finished callback above;
+    // this runs on the same background thread as generation, never the UI.
     return statsJson(tokens.size(), generated, promptMs, genMs, tps,
                      eng->peakMemoryBytes, eng->lastFirstTokenMs,
                      eng->lastStopReason);
@@ -1366,6 +1637,8 @@ static std::string doGenerateChat(
     eng->promptCount++;
     eng->cancel.store(false);
     eng->trackMemory();
+    eng->decodeCount = 0;
+    eng->decodeTotalMs = 0;
 
     llama_memory_t mem = llama_get_memory(eng->ctx);
     const uint32_t nCtx = llama_n_ctx(eng->ctx);
@@ -1537,14 +1810,18 @@ static std::string doGenerateChat(
                 }
             }
         }
-        if (llama_decode(eng->ctx, batch) != 0) {
+        if (decode_safe(eng, eng->ctx, batch) != 0) {
             prefillOk = false;
-            LOGE("[Prefill] FAILED at token_idx=%zu", i);
+            LOGE("[Prefill] FAILED at token_idx=%zu (%s)",
+                 i, eng->lastRecoveryReason.c_str());
             break;
         }
     }
 
-    if (!prefillOk && isContinuation) {
+    // A backend exception (device lost, out-of-device-memory) already poisons
+    // the device — a full re-render on the SAME broken backend would fail too.
+    // Skip the doomed retry and go straight to the recovery ladder.
+    if (!prefillOk && isContinuation && eng->lastRecoveryReason.empty()) {
         // The diff did not fit into the cache (and the shift could not make
         // room): fall back to a full re-render from a cleared cache.
         LOGW("[Chat] diff prefill failed - falling back to full re-render");
@@ -1575,7 +1852,7 @@ static std::string doGenerateChat(
                     common_batch_add(batch, tokens[i + j], (llama_pos)(i + j), {0},
                                      (i + j == tokens.size() - 1));
                 }
-                if (llama_decode(eng->ctx, batch) != 0) {
+                if (decode_safe(eng, eng->ctx, batch) != 0) {
                     prefillOk = false;
                     break;
                 }
@@ -1586,7 +1863,9 @@ static std::string doGenerateChat(
     if (!prefillOk) {
         llama_batch_free(batch);
         rollback();
-        eng->lastRecoveryReason = "prefill decode failed after full re-render";
+        // Preserve a backend-exception reason (device lost etc.) if already set.
+        if (eng->lastRecoveryReason.empty())
+            eng->lastRecoveryReason = "prefill decode failed after full re-render";
         eng->lastStopReason = "corrupted";
         eng->chatPosition = 0;
         dump_corruption(eng, "prefill_decode", eng->lastRecoveryReason);
@@ -1602,13 +1881,19 @@ static std::string doGenerateChat(
     if (!logits_are_finite(eng->ctx, vocab)) {
         llama_batch_free(batch);
         rollback();
-        eng->lastRecoveryReason = "prefill logits corrupted (NaN/INF)";
+        const int bad = first_bad_logit_index(eng->ctx, vocab);
+        const float bv = bad >= 0 ? llama_get_logits_ith(eng->ctx, -1)[bad] : 0.f;
+        eng->lastRecoveryReason = "prefill logits corrupted (NaN/INF) at idx " +
+            std::to_string(bad) + " (" + (std::isnan(bv) ? "NaN" : "INF") + ")";
         eng->lastStopReason = "corrupted";
         eng->chatPosition = 0;
         dump_corruption(eng, "logits", eng->lastRecoveryReason);
         return statsJson(tokens.size(), 0, 0, 0, 0.f,
                          eng->peakMemoryBytes, 0, "corrupted");
     }
+
+    LOGI("[Prefill] END backend=%s tokens=%zu ctx=%u batch=%d seq=0 rc=0",
+         eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU", tokens.size(), nCtx, n_batch);
 
     // Context-overflow guard: never budget more generated tokens than the
     // cache can hold (the mid-run shift still discards old context when the
@@ -1789,8 +2074,10 @@ static std::string doGenerateChat(
         // Feed token back for next step (upstream pattern: persistent batch + common_batch_add)
         common_batch_clear(batch);
         common_batch_add(batch, id, llama_memory_seq_pos_max(mem, 0) + 1, {0}, true);
-        if (llama_decode(eng->ctx, batch) != 0) {
-            eng->lastRecoveryReason = std::string("decode failed at step ") + std::to_string(i);
+        if (decode_safe(eng, eng->ctx, batch) != 0) {
+            // Preserve a backend-exception reason (device lost etc.) if already set.
+            if (eng->lastRecoveryReason.empty())
+                eng->lastRecoveryReason = std::string("decode failed at step ") + std::to_string(i);
             eng->lastStopReason = "corrupted";
             aborted = true; // the partial turn must not survive into the next one
             dump_corruption(eng, "decode", eng->lastRecoveryReason);
@@ -1846,6 +2133,29 @@ static std::string doGenerateChat(
 
     eng->trackMemory();
 
+    // Vulkan diagnostics — logged after every generation (the on-device audit):
+    // context create/cleanup cost, decode (submit+fence) count and average
+    // wait, live GPU heap and recovery telemetry.
+    {
+        size_t vkFree = 0, vkTotal = 0;
+#ifdef GGML_USE_VULKAN
+        if (eng->gpuLayersUsed > 0) {
+            try { ggml_backend_vk_get_device_memory(0, &vkFree, &vkTotal); }
+            catch (...) {}
+        }
+#endif
+        const int64_t decAvg = eng->decodeCount > 0
+            ? eng->decodeTotalMs / eng->decodeCount : 0;
+        LOGI("[VulkanDiag] backend=%s ctxCreate=%lldms cleanup=%lldms decodeCalls=%lld decodeAvg=%lldms "
+             "gpuFree=%.1fMB gpuTotal=%.1fMB recovery=%d devLostRecovered=%d",
+             eng->gpuLayersUsed > 0 ? "VULKAN" : "CPU",
+             (long long)eng->lastContextCreateMs, (long long)eng->lastCleanupMs,
+             (long long)eng->decodeCount, (long long)decAvg,
+             vkTotal ? (double)vkFree / (1024.0 * 1024.0) : 0.0,
+             vkTotal ? (double)vkTotal / (1024.0 * 1024.0) : 0.0,
+             eng->recoveryCount, eng->vulkanDeviceLostRecoveries.load());
+    }
+
     // Flush any remaining buffered bytes at the end of the stream
     if (!pendingUtf8.empty()) {
         jstring jpiece = to_jstring(env, pendingUtf8);
@@ -1859,6 +2169,14 @@ static std::string doGenerateChat(
     env->CallVoidMethod(callback, onToken, empty, JNI_TRUE);
     env->DeleteLocalRef(empty);
 
+    // Context stays resident across turns (upstream lifecycle — one context
+    // reused; see ai_chat.cpp). The KV cache is NOT cleared here: it holds the
+    // conversation and is shifted in-place on overflow (mid-run shift) or
+    // cleared in-place per new conversation (nativeResetChat / full re-render).
+    // Transient per-decode buffers (staging, scratch, command buffers) are
+    // already released inside llama_decode/graph cleanup — nothing extra is
+    // needed after EOS. The UI only ever sees the finished callback above;
+    // this runs on the same background thread as generation, never the UI.
     return statsJson(tokens.size(), generated, promptMs, genMs, tps,
                      eng->peakMemoryBytes, eng->lastFirstTokenMs,
                      eng->lastStopReason);
@@ -1887,13 +2205,92 @@ static std::string generateWithRecovery(
     const GenConfig & cfg,
     GenKind kind) {
 
-    int stage = 0; // 0: current backend, 1: fresh context (same backend), 2: CPU
+    // Recovery ladder — matches the upstream context lifecycle (one context
+    // created at load and REUSED across turns; see examples/llama.android
+    // ai_chat.cpp and tools/server). The KV cache is cleared in-place
+    // (llama_memory_clear) per conversation and shifted in-place on overflow;
+    // the context object itself is NOT torn down between generations.
+    //   stage 0 — reuse the RESIDENT llama_context (created at load, kept
+    //             alive across turns; KV cleared in-place per conversation).
+    //   stage 1 — corruption detected: recreate ONLY the llama_context from the
+    //             resident model (fresh KV cache, compute buffers, command
+    //             pools; model weights stay on GPU).
+    //   stage 2 — full backend teardown: destroy model + Vulkan backend, reload
+    //             once on GPU (buffers, descriptor sets, pipelines recreated).
+    //   stage 3 — CPU session: full teardown + reload on CPU; cpuSessionFallback
+    //             notifies the UI so the user sees the amber fallback warning.
+    //
+    // A DeviceLost poisons the WHOLE backend, not just one context — skip the
+    // cheap context-recreation stage and go straight to a full backend reload.
+    int stage = eng->vulkanDeviceLost ? 2 : 0;
     for (;;) {
+        std::string err;
+        if (stage == 0) {
+            // Reuse the resident context: nothing to rebuild on the happy path.
+            // Only create it if it was released (e.g. after an unload/load or
+            // a context created before this wrapper existed).
+            if (!eng->ctx) {
+                if (!createEngineContext(eng, &err)) {
+                    LOGW("[Recovery] context creation failed (%s)", err.c_str());
+                    if (!reloadEngineContext(eng, true, &err)) {
+                        if (!reloadEngineContext(eng, false, &err)) {
+                            throw_java(env, "Recovery failed: " + err);
+                            return "{}";
+                        }
+                        stage = 3;
+                    } else {
+                        stage = 2;
+                    }
+                }
+            }
+        } else if (stage == 1) {
+            if (!createEngineContext(eng, &err)) {
+                // Even cheap context recreation failed (e.g. the GPU died):
+                // escalate straight to a full backend reload on GPU, then CPU.
+                LOGW("[Recovery] context recreation failed (%s)", err.c_str());
+                if (!reloadEngineContext(eng, true, &err)) {
+                    if (!reloadEngineContext(eng, false, &err)) {
+                        throw_java(env, "Recovery failed: " + err);
+                        return "{}";
+                    }
+                    stage = 3;
+                } else {
+                    stage = 2;
+                }
+            }
+            eng->vulkanDeviceLost = false;  // fresh context = fresh backend state
+        } else if (stage == 2) {
+            if (!reloadEngineContext(eng, true, &err)) {
+                // The GPU reload itself failed (driver-level): recover on CPU.
+                if (!reloadEngineContext(eng, false, &err)) {
+                    throw_java(env, "Recovery failed: " + err);
+                    return "{}";
+                }
+                LOGW("[Recovery] GPU reload failed (%s) - recovered on CPU", err.c_str());
+                stage = 3;
+            } else {
+                LOGW("[Recovery] GPU backend reloaded (stage 2)");
+            }
+            eng->vulkanDeviceLost = false;  // backend recreated → device usable again
+        } else { // stage == 3 — CPU session
+            if (!reloadEngineContext(eng, false, &err)) {
+                throw_java(env, "Recovery failed: " + err);
+                return "{}";
+            }
+            eng->vulkanDeviceLost = false;
+        }
+
         // Fresh sampler per attempt: a corrupted sampler state can never leak
         // into the next attempt (grammar, penalties, top-k/p/min-p, temp...).
         common_params_sampling sp = buildSamplingParams(cfg);
-        common_sampler_free(eng->sampler);
-        eng->sampler = common_sampler_init(eng->model, sp);
+        {
+            // Sampler is read by nativeGetDebugInfo (common_sampler_print)
+            // under stateMutex from the stats thread — swap it under the same
+            // lock so a stats poll can never deref a freed sampler.
+            std::lock_guard<std::mutex> lock(eng->stateMutex);
+            common_sampler_free(eng->sampler);
+            eng->sampler = common_sampler_init(eng->model, sp);
+        }
         if (!eng->sampler) {
             throw_java(env, "Sampler creation failed");
             return "{}";
@@ -1905,31 +2302,19 @@ static std::string generateWithRecovery(
             ? doGenerateChat(eng, env, callback, mid, msgsJson, addAssistant, cfg)
             : doGenerate(eng, env, callback, mid, prompt, cfg);
 
-        if (eng->lastRecoveryReason.empty()) return stats;  // clean run
+        if (eng->lastRecoveryReason.empty()) {
+            eng->vulkanDeviceLost = false;
+            return stats;  // clean run
+        }
 
-        if (stage >= 2) {
+        if (stage >= 3) {
             throw_java(env, "Inference corrupted after recovery retries: " + eng->lastRecoveryReason);
             return "{}";
         }
-        const bool useGpu = stage == 0 && eng->gpuLayersUsed > 0;
         const std::string reason = eng->lastRecoveryReason;
-        std::string err;
-        if (!reloadEngineContext(eng, useGpu, &err)) {
-            // The backend rebuild itself failed (e.g. the GPU driver died):
-            // fall straight to a CPU rebuild before giving up.
-            if (useGpu) {
-                std::string err2;
-                if (reloadEngineContext(eng, false, &err2)) {
-                    LOGW("[Recovery] GPU reload failed (%s) - recovered on CPU", err.c_str());
-                    stage = 2;  // the next attempt runs on the fresh CPU context
-                    continue;
-                }
-            }
-            throw_java(env, "Recovery failed: " + err);
-            return "{}";
-        }
-        LOGW("[Recovery] recreated context backend=%s stage=%d reason=%s",
-             useGpu ? "GPU" : "CPU", stage, reason.c_str());
+        LOGW("[Recovery] stage=%d backend=%s reason=%s",
+             stage, eng->gpuLayersUsed > 0 ? "GPU" : "CPU", reason.c_str());
+        eng->recoveryCount++;
         stage++;
     }
 }
@@ -2414,17 +2799,19 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeLoadModel(
         eng->backendReason = "Vulkan unavailable: " + vk.reason;
     }
 
-    // ── Load model via official llama.cpp ──
+    // ── Load model via official llama.cpp (model-only; the context is created
+    //    separately by createEngineContext so it can be recreated per
+    //    generation without touching the GPU-resident weights) ──
     common_init_result_ptr result;
     try {
-        result = common_init_from_params(params);
+        result = common_init_from_params(params, /*model_only=*/true);
     } catch (const std::exception &e) {
         if (params.n_gpu_layers != 0) {
             LOGW("[Load] GPU failed (%s) - retrying CPU", e.what());
             params.n_gpu_layers = 0;
             selectedGpuLayers = 0;
             eng->backendReason = std::string("GPU init failed: ") + e.what();
-            try { result = common_init_from_params(params); }
+            try { result = common_init_from_params(params, /*model_only=*/true); }
             catch (const std::exception &e2) {
                 throw_java(env, std::string("Model load failed: ") + e2.what()); return;
             }
@@ -2436,7 +2823,7 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeLoadModel(
             params.n_gpu_layers = 0;
             selectedGpuLayers = 0;
             eng->backendReason = "GPU init failed (unknown)";
-            try { result = common_init_from_params(params); }
+            try { result = common_init_from_params(params, /*model_only=*/true); }
             catch (...) { throw_java(env, "Model load failed (CPU fallback)"); return; }
         } else {
             throw_java(env, "Model load failed"); return;
@@ -2447,23 +2834,37 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeLoadModel(
         throw_java(env, "Model init returned null"); return;
     }
 
-    // ── Install a loaded result into the engine ──
+    // ── Install a loaded model into the engine ──
     auto install_result = [&](common_init_result_ptr & r, const char * failMsg) -> bool {
         eng->model = r->model();
-        eng->ctx   = r->context();
-        if (!eng->model || !eng->ctx) {
-            eng->model = nullptr; eng->ctx = nullptr;
+        if (!eng->model) {
             r.reset();
             throw_java(env, failMsg);
             return false;
         }
-        eng->sampler = common_sampler_clone(r->sampler(0));
+        eng->initResult = std::move(r);
+
+        // Brand-new llama_context from the resident model (empty KV cache,
+        // compute buffers and sequence state — fresh for the first generation).
+        std::string cerr;
+        if (!createEngineContext(eng, &cerr)) {
+            throw_java(env, failMsg);
+            return false;
+        }
+        // Fresh initial sampler (the per-generation wrapper replaces it).
+        common_params_sampling sp0 = buildSamplingParams(GenConfig());
+        eng->sampler = common_sampler_init(eng->model, sp0);
         if (!eng->sampler) {
-            r.reset();
             throw_java(env, "Sampler creation failed");
             return false;
         }
-        eng->initResult = std::move(r);
+        // Fresh load: reset session fallback / recovery counters. The recovery
+        // reason is deliberately preserved across destroy() (the wrapper reads
+        // it after reloadEngineContext), so it must be cleared here explicitly
+        // — otherwise a fresh clean load would still report the old reason.
+        eng->cpuSessionFallback = false;
+        eng->recoveryCount = 0;
+        eng->lastRecoveryReason.clear();
         try {
             eng->chatTmpls = common_chat_templates_init(eng->model, "");
             if (!eng->chatTmpls) {
@@ -2735,7 +3136,9 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGenerate(
 try {
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
-    if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
+    // NOTE: no ctx check — the context was released after the previous
+    // generation and is recreated inside generateWithRecovery() below.
+    if (!eng || !eng->model || !eng->sampler) {
         throw_java(env, "Engine not initialized"); return to_jstring(env, "{}");
     }
 
@@ -2787,7 +3190,9 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGenerateChat(
 try {
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
-    if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
+    // NOTE: no ctx check — the context was released after the previous
+    // generation and is recreated inside generateWithRecovery() below.
+    if (!eng || !eng->model || !eng->sampler) {
         throw_java(env, "Engine not initialized"); return to_jstring(env, "{}");
     }
 
@@ -2860,7 +3265,9 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeBenchmark(
 try {
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
-    if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
+    // NOTE: no ctx check — the context was released after the previous
+    // generation and is recreated inside generateWithRecovery() below.
+    if (!eng || !eng->model || !eng->sampler) {
         throw_java(env, "Engine not initialized"); return to_jstring(env, "{}");
     }
 
@@ -2916,7 +3323,9 @@ JNIEXPORT jlong JNICALL
 Java_io_androllm_engine_jni_LlamaJniBridge_nativeMemoryPeak(
     JNIEnv *, jobject, jlong handle) {
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
-    return eng ? (jlong)eng->peakMemoryBytes : 0;
+    if (!eng) return 0;
+    std::lock_guard<std::mutex> lock(eng->stateMutex);
+    return (jlong)eng->peakMemoryBytes;
 }
 
 // ── nativeVulkanAvailable ──────────────────────────────────────────────────
@@ -2927,6 +3336,23 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeVulkanAvailable(
     return checkVulkan().ok ? JNI_TRUE : JNI_FALSE;
 }
 
+// Runs the "Hi" probe on the current engine context: decodes the prompt and
+// verifies every logit is finite. Returns true only when the backend produced
+// a valid result — used by the warm-up recovery ladder to validate each
+// recreated context / reloaded backend before accepting it.
+static bool warmupProbe(LlamaEngine * eng) {
+    const llama_vocab * vocab = llama_model_get_vocab(eng->model);
+    const bool addBos = llama_vocab_get_add_bos(vocab);
+    std::vector<llama_token> toks = common_tokenize(eng->ctx, "Hi", addBos, true);
+
+    llama_batch batch = llama_batch_init((int32_t)toks.size(), 0, 1);
+    for (size_t i = 0; i < toks.size(); i++)
+        common_batch_add(batch, toks[i], (llama_pos)i, {0}, true);
+    const int rc = decode_safe(eng, eng->ctx, batch);
+    llama_batch_free(batch);
+    return rc == 0 && logits_are_finite(eng->ctx, vocab);
+}
+
 // ── nativeWarmUp ───────────────────────────────────────────────────────────
 
 JNIEXPORT jstring JNICALL
@@ -2935,11 +3361,26 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeWarmUp(
 try {
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
-    if (!eng || !eng->model || !eng->ctx || !eng->sampler) {
+    // NOTE: no ctx check — the context is released after every generation and
+    // recreated here (mirrors nativeGenerate). Warm-up only runs right after
+    // load in practice, but must not hard-fail if called again later.
+    if (!eng || !eng->model || !eng->sampler) {
         throw_java(env, "Engine not initialized"); return to_jstring(env, "{}");
+    }
+    if (!eng->ctx) {
+        std::string cerr;
+        if (!createEngineContext(eng, &cerr)) {
+            throw_java(env, "Warm-up context creation failed: " + cerr);
+            return to_jstring(env, "{}");
+        }
     }
 
     auto t0 = std::chrono::steady_clock::now();
+
+    // Snapshot the device-lost state BEFORE the first probe decode: decode_safe
+    // clears the flag on rc==0, which would otherwise defeat the device-lost-
+    // aware ladder start below (a fresh context can't fix a lost backend).
+    const bool devLostAtWarmup = eng->vulkanDeviceLost;
 
     llama_memory_clear(llama_get_memory(eng->ctx), true);
 
@@ -2950,42 +3391,89 @@ try {
     llama_batch batch = llama_batch_init(toks.size(), 0, 1);
     for (size_t i = 0; i < toks.size(); i++)
         common_batch_add(batch, toks[i], (llama_pos)i, {0}, true);
-    int rc = llama_decode(eng->ctx, batch);
+    int rc = decode_safe(eng, eng->ctx, batch);
     llama_batch_free(batch);
-    if (rc != 0) { throw_java(env, "Warm-up decode failed"); return to_jstring(env, "{}"); }
+    if (rc != 0) {
+        throw_java(env, "Warm-up decode failed: " +
+            (eng->lastRecoveryReason.empty() ? "decode error" : eng->lastRecoveryReason));
+        return to_jstring(env, "{}");
+    }
 
     if (!logits_are_finite(eng->ctx, vocab)) {
         // The GPU pipeline is producing corrupted results: recreate the context
         // on the same backend once; if it is still corrupt, fall back to CPU.
-        // Warm-up is a shader/command-pool pass, so a recovered run skips the
-        // trailing sample (the real decode loop verifies itself on first use).
+        // Each recreated context / reloaded backend is validated by the "Hi"
+        // probe before the trailing sample below runs.
         LOGW("[WarmUp] logits corrupted (NaN/INF) - recreating context");
         std::string err;
-        bool useGpu = eng->gpuLayersUsed > 0;
-        for (int attempt = 0; attempt < 2; attempt++) {
-            if (!reloadEngineContext(eng, useGpu, &err)) {
-                throw_java(env, std::string("Warm-up recovery failed: ") + err);
-                return to_jstring(env, "{}");
+
+        // Recovery ladder (mirrors generateWithRecovery):
+        //   stage 0 — recreate ONLY the llama_context from the resident model
+        //             (fresh KV cache, compute buffers, command state). Cheap:
+        //             the model weights stay on the GPU.
+        //   stage 1 — full backend teardown + reload on GPU (Vulkan buffers,
+        //             descriptor sets, pipelines recreated).
+        //   stage 2 — CPU session: full teardown + reload on CPU. Final try.
+        // Each stage re-runs the "Hi" probe and only succeeds when the decode
+        // returns 0 AND every logit is finite (no NaN/INF). When the device was
+        // lost, a fresh context cannot fix the backend — start at the full
+        // backend reload (mirrors generateWithRecovery).
+        int warmStage = devLostAtWarmup ? 1 : 0;
+        for (;;) {
+            if (warmStage == 0) {
+                if (createEngineContext(eng, &err)) {
+                    if (warmupProbe(eng)) {
+                        LOGI("[WarmUp] context recreated backend=%s",
+                             eng->gpuLayersUsed > 0 ? "GPU" : "CPU");
+                        break;
+                    }
+                    LOGW("[WarmUp] recreated context failed probe - escalating");
+                } else {
+                    LOGW("[WarmUp] context recreation failed (%s)", err.c_str());
+                }
+                warmStage = 1;
+            } else if (warmStage == 1) {
+                if (reloadEngineContext(eng, eng->gpuLayersUsed > 0, &err)) {
+                    if (warmupProbe(eng)) {
+                        LOGI("[WarmUp] recovered backend=%s",
+                             eng->gpuLayersUsed > 0 ? "GPU" : "CPU");
+                        break;
+                    }
+                    LOGW("[WarmUp] GPU reload still corrupt - falling back to CPU");
+                } else {
+                    LOGW("[WarmUp] GPU reload failed (%s) - recovering on CPU", err.c_str());
+                }
+                warmStage = 2;
+            } else { // stage 2 — CPU session, final attempt
+                if (!reloadEngineContext(eng, false, &err)) {
+                    throw_java(env, std::string("Warm-up recovery failed: ") + err);
+                    return to_jstring(env, "{}");
+                }
+                if (!warmupProbe(eng)) {
+                    throw_java(env, "Warm-up corrupted after backend recovery");
+                    return to_jstring(env, "{}");
+                }
+                LOGI("[WarmUp] recovered backend=CPU");
+                break;
             }
-            common_params_sampling sp = buildSamplingParams(GenConfig());
-            eng->sampler = common_sampler_init(eng->model, sp);
-            const llama_vocab *v = llama_model_get_vocab(eng->model);
-            llama_memory_clear(llama_get_memory(eng->ctx), true);
-            std::vector<llama_token> tt = common_tokenize(eng->ctx, "Hi", llama_vocab_get_add_bos(v), true);
-            llama_batch bb = llama_batch_init((int32_t)tt.size(), 0, 1);
-            for (size_t j = 0; j < tt.size(); j++)
-                common_batch_add(bb, tt[j], (llama_pos)j, {0}, true);
-            const int rc2 = llama_decode(eng->ctx, bb);
-            llama_batch_free(bb);
-            if (rc2 == 0 && logits_are_finite(eng->ctx, v)) {
-                LOGI("[WarmUp] context recreated backend=%s",
-                     eng->gpuLayersUsed > 0 ? "GPU" : "CPU");
-                return to_jstring(env, "{\"warmUpTimeMs\":0,\"tokensPerSecond\":0}");
-            }
-            useGpu = false;  // next attempt forces CPU
         }
-        throw_java(env, "Warm-up corrupted on CPU after recovery");
-        return to_jstring(env, "{}");
+
+        // Any reload destroyed the old sampler — recreate it fresh for the
+        // warm-up sample below (same pattern as the generation wrapper).
+        common_params_sampling sp = buildSamplingParams(GenConfig());
+        {
+            // Same lock as generateWithRecovery: the stats thread reads the
+            // sampler (common_sampler_print) under stateMutex.
+            std::lock_guard<std::mutex> lock(eng->stateMutex);
+            common_sampler_free(eng->sampler);
+            eng->sampler = common_sampler_init(eng->model, sp);
+        }
+
+        // The ladder recovered (each stage only succeeds after a valid probe) —
+        // clear the stale corruption reason so stats/debug don't keep reporting
+        // the warm-up failure on the next clean run.
+        eng->lastRecoveryReason.clear();
+        eng->vulkanDeviceLost = false;
     }
 
     if (eng->gpuLayersUsed > 0 && !eng->gpuInferenceVerified) {
@@ -2996,7 +3484,7 @@ try {
     llama_token tok = common_sampler_sample(eng->sampler, eng->ctx, -1);
     common_sampler_accept(eng->sampler, tok, true);
     llama_batch next = llama_batch_get_one(&tok, 1);
-    llama_decode(eng->ctx, next);
+    decode_safe(eng, eng->ctx, next);
 
     auto t1 = std::chrono::steady_clock::now();
     int64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
@@ -3027,18 +3515,25 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetMemoryStats(
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
     if (!eng) return to_jstring(env, "{}");
+    std::lock_guard<std::mutex> lock(eng->stateMutex);
 
     size_t mSz = eng->model ? llama_model_size(eng->model) : 0;
-    size_t cSz = eng->ctx ? llama_state_get_size(eng->ctx) : 0;
+    // The context was released after the last generation — report the cached
+    // context size so the developer view stays meaningful between responses.
+    size_t cSz = eng->ctx ? llama_state_get_size(eng->ctx) : eng->cachedContextSizeBytes;
     size_t gpuUsed = eng->gpuMemoryAllocatedBytes;
 
 #ifdef GGML_USE_VULKAN
-    if (eng->gpuLayersUsed > 0 && gpuUsed == 0) {
+    // Refresh the live GPU heap whenever we have no resident context to account
+    // for (released after generation) or no tracked allocation.
+    if (eng->gpuLayersUsed > 0 && (gpuUsed == 0 || eng->ctx == nullptr)) {
         gpuUsed = mSz * eng->gpuLayersUsed / std::max(1, eng->totalLayers) + cSz;
         size_t f = 0, t = 0;
-        ggml_backend_vk_get_device_memory(0, &f, &t);
-        eng->gpuMemoryFreeBytes = f;
-        eng->gpuMemoryTotalBytes = t;
+        try {
+            ggml_backend_vk_get_device_memory(0, &f, &t);
+            eng->gpuMemoryFreeBytes = f;
+            eng->gpuMemoryTotalBytes = t;
+        } catch (...) {}
     }
 #endif
 
@@ -3063,6 +3558,14 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetMemoryStats(
       << "\",\"gpuInferenceVerified\":" << (eng->gpuInferenceVerified ? "true" : "false")
       << ",\"vulkanValidationStatus\":\"" << json_escape(eng->vulkanValidationStatus)
       << "\",\"vulkanValidationDetail\":\"" << json_escape(eng->vulkanValidationDetail)
+      << ",\"recoveryCount\":" << eng->recoveryCount
+      << ",\"lastRecoveryReason\":\"" << json_escape(eng->lastRecoveryReason)
+      << "\",\"cpuSessionFallback\":" << (eng->cpuSessionFallback ? "true" : "false")
+      << ",\"lastContextCreateMs\":" << eng->lastContextCreateMs
+      << ",\"lastCleanupMs\":" << eng->lastCleanupMs
+      << ",\"decodeCount\":" << eng->decodeCount
+      << ",\"decodeAvgMs\":" << (eng->decodeCount > 0 ? eng->decodeTotalMs / eng->decodeCount : 0)
+      << ",\"vulkanDeviceLostRecoveries\":" << eng->vulkanDeviceLostRecoveries
       << "}";
     return to_jstring(env, o.str());
 }
@@ -3075,6 +3578,11 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetDebugInfo(
 
     auto *eng = reinterpret_cast<LlamaEngine *>(handle);
     if (!eng || !eng->model) return to_jstring(env, "{}");
+    std::lock_guard<std::mutex> lock(eng->stateMutex);
+    // NOTE: the ctx/model pointers are safe under this lock. The lastPrompt*
+    // vector reads below are best-effort diagnostics — they can be mutated by
+    // an in-flight generation on the engine thread (diagnostic-only race; the
+    // engine thread never touches them from this JNI path).
 
     const llama_model *m = eng->model;
     const llama_vocab *v = llama_model_get_vocab(m);
@@ -3117,12 +3625,20 @@ Java_io_androllm_engine_jni_LlamaJniBridge_nativeGetDebugInfo(
       << ",\"stopReason\":\"" << json_escape(eng->lastStopReason)
       << "\",\"promptText\":\"" << json_escape(eng->lastPromptText)
       << "\",\"modelSizeBytes\":" << llama_model_size(m)
-      << ",\"contextSizeBytes\":" << (c ? llama_state_get_size(c) : 0)
+      << ",\"contextSizeBytes\":" << (c ? llama_state_get_size(c) : eng->cachedContextSizeBytes)
       << ",\"peakMemoryBytes\":" << eng->peakMemoryBytes
       << ",\"backendReason\":\"" << json_escape(eng->backendReason)
       << "\",\"gpuInferenceVerified\":" << (eng->gpuInferenceVerified ? "true" : "false")
       << ",\"vulkanValidationStatus\":\"" << json_escape(eng->vulkanValidationStatus)
       << "\",\"vulkanValidationDetail\":\"" << json_escape(eng->vulkanValidationDetail)
+      << ",\"recoveryCount\":" << eng->recoveryCount
+      << ",\"lastRecoveryReason\":\"" << json_escape(eng->lastRecoveryReason)
+      << "\",\"cpuSessionFallback\":" << (eng->cpuSessionFallback ? "true" : "false")
+      << ",\"lastContextCreateMs\":" << eng->lastContextCreateMs
+      << ",\"lastCleanupMs\":" << eng->lastCleanupMs
+      << ",\"decodeCount\":" << eng->decodeCount
+      << ",\"decodeAvgMs\":" << (eng->decodeCount > 0 ? eng->decodeTotalMs / eng->decodeCount : 0)
+      << ",\"vulkanDeviceLostRecoveries\":" << eng->vulkanDeviceLostRecoveries
       << "}";
     return to_jstring(env, o.str());
 }

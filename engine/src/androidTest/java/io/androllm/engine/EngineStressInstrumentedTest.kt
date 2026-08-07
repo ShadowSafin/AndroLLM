@@ -400,4 +400,101 @@ class EngineStressInstrumentedTest {
         assertFalse("corrupted output after cancel", text.contains(REPLACEMENT_CHAR))
         assertTrue("cancel was never exercised", cancelled.get())
     }
+
+    /**
+     * Vulkan device-lost / GPU-cache stress (requirements checklist):
+     * 100 consecutive "hello" generations (30 tokens each) with full context
+     * cleanup between them. Asserts:
+     *
+     *  - every turn succeeds (no crash, no failed generation)
+     *  - no U+FFFD tokenizer corruption and no decode errors
+     *  - the engine returns to [EngineState.Ready] after every turn
+     *  - a HEALTHY backend must never escalate a recovery: recoveryCount and
+     *    vulkanDeviceLostRecoveries stay 0 (any >0 means the device-lost
+     *    path fired — a pass for recovery, a FAIL for raw stability)
+     *  - free GPU memory does not shrink monotonically across the run (a
+     *    per-turn leak would show up as a steadily declining heap)
+     */
+    @Test
+    fun `100 consecutive hello generations with cleanup stay stable and leak free`() = runBlocking {
+        Log.i(TAG, "Vulkan stability: 100x hello / 30 tokens with per-turn cleanup")
+        engine.loadStressModel()
+
+        var failures = 0
+        var corrupted = 0
+        var decodeErrors = 0
+        val freeSamples = mutableListOf<Long>()
+
+        for (i in 1..100) {
+            val history = mutableListOf(
+                ChatPromptMessage(role = "user", content = "hello")
+            )
+            val text = try {
+                engine.generateChat(
+                    history,
+                    addAssistant = true,
+                    config = GenerationConfig(maxTokens = 30, temperature = 0.2f, seed = SEED)
+                ).getOrNull()
+            } catch (e: Exception) {
+                Log.e(TAG, "iteration $i: generation failed — ${e.message}")
+                failures++
+                null
+            }
+            if (text.isNullOrEmpty()) {
+                failures++
+                continue
+            }
+            if (text.contains(REPLACEMENT_CHAR)) {
+                corrupted++
+                Log.e(TAG, "iteration $i: replacement char: ${text.take(40)}")
+            }
+
+            val stats = engine.stats.first()
+            if (stats?.stopReason == "decode_error") {
+                decodeErrors++
+                Log.e(TAG, "iteration $i: decode_error")
+            }
+
+            val ready = engineReadyState()
+            if (ready == null) {
+                Log.e(TAG, "iteration $i: engine not Ready — ${engine.engineState.first()}")
+                failures++
+            } else {
+                ready.memoryStats?.gpuMemoryFreeBytes?.takeIf { it > 0 }?.let { freeSamples += it }
+            }
+        }
+
+        // Fresh load resets recovery counters — a healthy backend stays at 0.
+        val info = engine.getDebugInfo().getOrNull()
+        val recoveries = info?.recoveryCount ?: -1
+        val devLost = info?.vulkanDeviceLostRecoveries ?: -1
+
+        Log.i(
+            TAG,
+            "VULKAN 100x DONE: failures=$failures corrupted=$corrupted decodeErrors=$decodeErrors " +
+                "recoveryCount=$recoveries devLostRecovered=$devLost freeSamples=${freeSamples.take(6)}..."
+        )
+
+        assertEquals("generation failures: $failures", 0, failures)
+        assertEquals("tokenizer corruption (U+FFFD): $corrupted", 0, corrupted)
+        assertEquals("decode errors: $decodeErrors", 0, decodeErrors)
+
+        // Any recovery escalation on a supposedly healthy backend is a finding:
+        // NaN/INF or DeviceLost paths fired and the wrapper recovered. On a
+        // stable device these MUST be zero across 100 turns.
+        assertEquals("recovery escalated during 100x hello: $recoveries", 0, recoveries)
+        assertEquals("device-lost recovered during 100x hello: $devLost", 0, devLost)
+
+        // Free GPU memory sampled across the run must be stable: allow a modest
+        // 64MB drift (allocator noise), but a real per-turn leak would shrink
+        // the free heap far faster than that.
+        if (freeSamples.size >= 3) {
+            val first = freeSamples.first()
+            val last = freeSamples.last()
+            assertTrue(
+                "GPU free memory shrank across the run: first=${first}B last=${last}B",
+                last >= first - (64L * 1024 * 1024)
+            )
+        }
+    }
 }

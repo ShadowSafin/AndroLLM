@@ -243,7 +243,16 @@ class ChatViewModel @Inject constructor(
                     // in the next prompt).
                     pendingLocalMessageIds.removeAll(dbIds)
                     val pending = _messages.value.filter { it.id in pendingLocalMessageIds }
-                    _messages.value = (dbMessages + pending).sortedBy { it.timestamp }
+                    val merged = (dbMessages + pending).sortedBy { it.timestamp }
+                    // PERFORMANCE: skip the write when nothing actually changed.
+                    // appendAssistantMessage() already wrote the identical list
+                    // locally (the pending-message pattern); the DB echo that
+                    // confirms it is data-class-equal, so writing again would
+                    // trigger a SECOND full recomposition + markdown re-parse
+                    // of the long assistant response for no change.
+                    if (merged != _messages.value) {
+                        _messages.value = merged
+                    }
                 }
         }
     }
@@ -251,6 +260,11 @@ class ChatViewModel @Inject constructor(
     fun loadConversation(conversationId: String?) {
         val id = conversationId ?: ""
         _currentConversationId.value = id
+        // Loading a specific conversation (e.g. deep-linked from Home/Models)
+        // is a conversation boundary: the engine keeps ONE resident context,
+        // so entering a different conversation must never decode against the
+        // previous one's cached prefix. Same reset as selectConversation.
+        resetEngineChatState()
     }
 
     private var initialPromptConsumed = false
@@ -277,11 +291,36 @@ class ChatViewModel @Inject constructor(
             )
             conversationRepository.upsert(newConv)
             _currentConversationId.value = newId
+            // New conversation = fresh native chat state (messages + KV cache).
+            resetEngineChatState()
         }
     }
 
     fun selectConversation(id: String) {
         _currentConversationId.value = id
+        // Switching conversations must reset the native engine's chat state
+        // (messages + KV cache): the engine keeps one resident context and
+        // continues from its KV across turns, so a new conversation must never
+        // decode against the previous one's cached prefix. Matches upstream
+        // ai_chat.cpp reset_long_term_states() on new session.
+        resetEngineChatState()
+    }
+
+    /**
+     * Cancels any in-flight generation and resets the native engine's chat
+     * state (messages + KV cache) at a conversation boundary. Cancel-first
+     * ordering matters: a conversation switch can happen while a decode is
+     * running (the composer is disabled but the drawer stays interactive), and
+     * clearing the KV cache mid-decode would race the active generation on the
+     * shared resident context. The native loop checks the cancel flag between
+     * decodes, so awaiting [EngineRepository.cancelGeneration] before
+     * [EngineRepository.resetChat] closes that window.
+     */
+    private fun resetEngineChatState() {
+        viewModelScope.launch {
+            engineRepository.cancelGeneration()
+            engineRepository.resetChat()
+        }
     }
 
     private fun generateFromHistory(history: List<ChatMessage>) {
@@ -380,6 +419,15 @@ class ChatViewModel @Inject constructor(
                 val newConv = Conversation(id = id, title = title, createdAt = now, updatedAt = now)
                 conversationRepository.upsert(newConv)
                 _currentConversationId.value = id
+                // A brand-new conversation (created from a blank active id —
+                // e.g. after deleting the previous one) must never decode
+                // against the previous conversation's resident KV cache or
+                // chat state. Reset natively BEFORE the first turn starts:
+                // awaited inline so generateFromHistory below can never race
+                // the reset (the send guard already rejected in-flight work,
+                // so the cancel here is a harmless no-op).
+                engineRepository.cancelGeneration()
+                engineRepository.resetChat()
             }
 
             val userMessage = ChatMessage(
@@ -467,7 +515,12 @@ class ChatViewModel @Inject constructor(
     fun duplicateConversation(conversationId: String) {
         viewModelScope.launch {
             val result = conversationRepository.duplicateConversation(conversationId)
-            result.getOrNull()?.let { _currentConversationId.value = it.id }
+            result.getOrNull()?.let {
+                _currentConversationId.value = it.id
+                // Duplicate starts a new conversation — reset native chat state
+                // so it never continues from the source conversation's KV.
+                resetEngineChatState()
+            }
         }
     }
 
@@ -476,6 +529,10 @@ class ChatViewModel @Inject constructor(
             conversationRepository.deleteById(conversationId)
             if (_currentConversationId.value == conversationId) {
                 _currentConversationId.value = ""
+                // The active conversation is gone — clear the resident native
+                // chat state (messages + KV cache) so the next sendMessage()
+                // that opens a fresh conversation starts from a clean slate.
+                resetEngineChatState()
             }
         }
     }
@@ -540,6 +597,12 @@ class ChatViewModel @Inject constructor(
             _cloudGenerating.value = true
             _cloudStreamingText.value = ""
             val buffer = StringBuilder()
+            // Throttle UI emissions to ~60fps. Publishing on EVERY delta forces
+            // a full recomposition + markdown re-parse of the streaming bubble
+            // per token, and buffer.toString() copies the ENTIRE accumulated
+            // response each time (O(n²) garbage that spikes GC right after the
+            // generation ends). Local streaming already throttles this way.
+            var lastEmitTime = 0L
             try {
                 val requestMessages = messages.map { CloudChatMessage(role = it.role, content = it.content) }
                 cloudGateway.streamChat(
@@ -549,7 +612,11 @@ class ChatViewModel @Inject constructor(
                     when (event) {
                         is CloudStreamEvent.Delta -> {
                             buffer.append(event.text)
-                            _cloudStreamingText.value = buffer.toString()
+                            val now = System.currentTimeMillis()
+                            if (now - lastEmitTime >= 16L) {
+                                lastEmitTime = now
+                                _cloudStreamingText.value = buffer.toString()
+                            }
                         }
                         // Reasoning/tool deltas are not surfaced in the plain
                         // chat UI yet — they are dropped at the gateway edge.
@@ -600,6 +667,17 @@ class ChatViewModel @Inject constructor(
     companion object {
         /** Budget for memory retrieval on the send path (retrieval is <20ms when warm). */
         private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 400L
+
+        /**
+         * Settle window before the post-response memory pipeline starts.
+         * Local extraction/summarization run a full llama.cpp inference pass on
+         * the shared chat model whose native threads saturate every CPU core —
+         * starting it too early makes the app feel frozen right after the
+         * response. Waiting until the UI + GC burst has settled keeps the
+         * completion moment responsive. The job is also cancelled the moment a
+         * new chat turn starts, so the user never waits on it.
+         */
+        private const val MEMORY_PIPELINE_SETTLE_MS = 2_000L
     }
 
     /**
@@ -619,7 +697,7 @@ class ChatViewModel @Inject constructor(
 
         memoryPipelineJob?.cancel()
         memoryPipelineJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(800L) // let the response UI settle before spending CPU
+            delay(MEMORY_PIPELINE_SETTLE_MS) // let the response UI settle before spending CPU
             // Memory defers to chat: never start extraction while a chat turn
             // is in flight (sendMessage cancels this job, but this guards the
             // window where a generation starts after the delay elapses).
@@ -629,7 +707,8 @@ class ChatViewModel @Inject constructor(
             }
             val history = _messages.value
             val recent = history.takeLast(6).map { it.role.name.lowercase() to it.content }
-            memoryManager.processExchange(
+            val tracer = io.androllm.core.utils.StageTracer("memory pipeline (post-response)")
+            val result = memoryManager.processExchange(
                 MemoryExchange(
                     conversationId = convId,
                     userMessage = userMessage,
@@ -638,6 +717,14 @@ class ChatViewModel @Inject constructor(
                     messageCount = history.size
                 )
             )
+            tracer.mark("processExchange")
+            result.getOrNull()?.let { s ->
+                android.util.Log.i(
+                    "AndroLLM.Perf",
+                    "[PostGen] memory: +${s.inserted} ~${s.updated} -${s.skipped} extracted=${s.extracted} summarized=${s.summarized}"
+                )
+            }
+            tracer.finish()
         }
     }
 
@@ -667,6 +754,11 @@ class ChatViewModel @Inject constructor(
         val convId = _currentConversationId.value
         if (convId.isBlank()) return
 
+        // Post-generation performance audit: every stage below is timed so the
+        // exact cost of completing a response is visible in logcat
+        // (tag AndroLLM.Perf). Anything >100ms total is suspicious.
+        val tracer = io.androllm.core.utils.StageTracer("generation finished")
+
         val message = ChatMessage(
             id = UUID.randomUUID().toString(),
             conversationId = convId,
@@ -684,9 +776,13 @@ class ChatViewModel @Inject constructor(
         // Track the id so the DB observer merges it back in until the async
         // upsert is confirmed by a Room emission.
         pendingLocalMessageIds += message.id
+        tracer.mark("local emit")
 
         viewModelScope.launch {
             messageRepository.upsert(message.toCoreMessage())
+            // Spans the full schedule→commit window, i.e. the SQLite write cost.
+            tracer.mark("room upsert")
+            tracer.finish()
         }
     }
 

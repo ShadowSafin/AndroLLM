@@ -114,5 +114,58 @@ class MemoryStatsValidationTest {
         assertEquals("", stats.vulkanValidationDetail)
         assertEquals("Hybrid", stats.executionMode)
         assertFalse(stats.isCpuFallback)
+        assertEquals(0, stats.recoveryCount)
+        assertEquals("", stats.lastRecoveryReason)
+        assertFalse(stats.cpuSessionFallback)
+    }
+
+    @Test
+    fun `runtime recovery fields are parsed and exposed`() {
+        val stats = json.decodeFromString(
+            MemoryStats.serializer(),
+            """
+            {
+              "gpuLayersOffloaded": 14,
+              "totalLayers": 18,
+              "backend": "vulkan",
+              "backendReason": "Vulkan active (14/18 layers)",
+              "gpuInferenceVerified": true,
+              "recoveryCount": 2,
+              "lastRecoveryReason": "prefill logits corrupted (NaN/INF) at idx 4123 (NaN)",
+              "cpuSessionFallback": false
+            }
+            """.trimIndent()
+        )
+
+        // Still GPU/Hybrid (recovery happened but the backend stayed Vulkan).
+        assertTrue(stats.isGpuAccelerated)
+        assertFalse(stats.isCpuSessionFallback)
+        assertEquals(2, stats.recoveryCount)
+        assertTrue(stats.lastRecoveryReason.contains("NaN/INF"))
+    }
+
+    @Test
+    fun `cpu session fallback is reported separately from validation`() {
+        val stats = json.decodeFromString(
+            MemoryStats.serializer(),
+            """
+            {
+              "gpuLayersOffloaded": 0,
+              "totalLayers": 18,
+              "backend": "cpu",
+              "backendReason": "CPU fallback after GPU runtime corruption (init failed during recovery)",
+              "vulkanValidationStatus": "skipped",
+              "recoveryCount": 3,
+              "lastRecoveryReason": "logits corrupted (NaN/INF) at step 5",
+              "cpuSessionFallback": true
+            }
+            """.trimIndent()
+        )
+
+        assertFalse(stats.isGpuAccelerated)
+        assertTrue(stats.isCpuFallback)
+        assertTrue(stats.isCpuSessionFallback)
+        assertEquals("CPU only", stats.executionMode)
+        assertEquals(3, stats.recoveryCount)
     }
 }

@@ -154,8 +154,16 @@ fun ProfileScreen(
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         CloudUsageBar(
                             label = "Model Storage",
-                            valueText = "${StorageUtils.formatBytes(data.storageUsedBytes)} of ${StorageUtils.formatBytes(data.storageTotalBytes)}",
-                            fraction = if (data.storageTotalBytes > 0) data.storageUsedBytes.toFloat() / data.storageTotalBytes else 0f,
+                            valueText = if (data.storageFreeBytes > 0) {
+                                "${StorageUtils.formatBytes(data.storageFreeBytes)} free"
+                            } else {
+                                "${StorageUtils.formatBytes(data.storageUsedBytes)} of ${StorageUtils.formatBytes(data.storageTotalBytes)}"
+                            },
+                            fraction = if (data.storageTotalBytes > 0) {
+                                data.storageFreeBytes.toFloat() / data.storageTotalBytes
+                            } else {
+                                0f
+                            },
                             accent = LampAmber
                         )
                     }

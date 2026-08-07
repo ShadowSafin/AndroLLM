@@ -100,6 +100,14 @@ interface EngineRepository {
     suspend fun cancelGeneration(): Result<Unit>
 
     /**
+     * Resets the native engine's conversational state (messages + KV cache).
+     * Must be called when switching to a different conversation so the next
+     * turn never continues from a stale KV prefix (upstream ai_chat.cpp calls
+     * reset_long_term_states() on new session).
+     */
+    suspend fun resetChat(): Result<Unit>
+
+    /**
      * Full diagnostics of the loaded model and the last generation, or null
      * when unavailable. Used by the hidden debug panel.
      */

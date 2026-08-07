@@ -51,11 +51,15 @@ data class DeviceMetrics(
     val androidVersion: String,
     val isVulkanSupported: Boolean,
     val totalStorageBytes: Long,
-    val usedStorageBytes: Long
+    val usedStorageBytes: Long,
+    /** Real free space on the filesystem hosting the models directory. */
+    val freeStorageBytes: Long = 0L
 ) {
     val usedRamMb: Long get() = (totalRamMb - availableRamMb).coerceAtLeast(0L)
     val ramUsageFraction: Float get() = if (totalRamMb > 0) usedRamMb.toFloat() / totalRamMb else 0f
-    val storageUsageFraction: Float get() = if (totalStorageBytes > 0) usedStorageBytes.toFloat() / totalStorageBytes else 0f
+
+    /** Fraction of the storage filesystem still free, for the Model Storage bar. */
+    val storageFreeFraction: Float get() = if (totalStorageBytes > 0) freeStorageBytes.toFloat() / totalStorageBytes else 0f
 }
 
 /**

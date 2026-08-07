@@ -131,6 +131,8 @@ class NoOpInferenceEngine : InferenceEngine {
             )
         }
 
+    override suspend fun resetChat(): Result<Unit> = Result.Success(Unit)
+
     override suspend fun getDebugInfo(): Result<EngineDebugInfo?> = Result.Success(null)
 
     override fun release() {
@@ -230,7 +232,11 @@ class DefaultEngineRepository @Inject constructor(
 
         _generationState.value = GenerationState.Generating(prompt = prompt, streamingText = "", generatedTokens = 0L)
 
-        var fullText = ""
+        // PERFORMANCE: append into a StringBuilder instead of `fullText += delta`.
+        // Per-token String concatenation copies the ENTIRE accumulated response
+        // on every token (O(n²) total garbage) — the GC spike lands right after
+        // the generation ends and can freeze the UI for seconds.
+        val fullTextBuilder = StringBuilder()
         var lastEmitTime = 0L
         var tokenCount = 0L
         try {
@@ -240,7 +246,7 @@ class DefaultEngineRepository @Inject constructor(
                         is Result.Success -> {
                             val chunk = result.data
                             if (chunk.delta.isNotEmpty() && !chunk.finished) {
-                                fullText += chunk.delta
+                                fullTextBuilder.append(chunk.delta)
                                 // Prefer the native token counter when the backend reports it;
                                 // otherwise count emitted deltas (1 delta = 1 token piece).
                                 if (chunk.generatedTokens > 0) tokenCount = chunk.generatedTokens else tokenCount++
@@ -249,7 +255,7 @@ class DefaultEngineRepository @Inject constructor(
                                     lastEmitTime = now
                                     _generationState.value = GenerationState.Generating(
                                         prompt = prompt,
-                                        streamingText = fullText,
+                                        streamingText = fullTextBuilder.toString(),
                                         generatedTokens = tokenCount
                                     )
                                 }
@@ -270,14 +276,14 @@ class DefaultEngineRepository @Inject constructor(
                 return Result.Success(Unit)
             }
             val stats = engine.stats.firstOrNull()
-            _generationState.value = GenerationState.Completed(text = fullText, stats = stats)
+            _generationState.value = GenerationState.Completed(text = fullTextBuilder.toString(), stats = stats)
             Result.Success(Unit)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             _generationState.value = GenerationState.Failed(
                 message = e.message ?: "Generation failed",
-                partialText = fullText
+                partialText = fullTextBuilder.toString()
             )
             Result.Error(e)
         }
@@ -298,7 +304,10 @@ class DefaultEngineRepository @Inject constructor(
         val lastUser = messages.lastOrNull { it.role == "user" }?.content ?: "(chat)"
         _generationState.value = GenerationState.Generating(prompt = lastUser, streamingText = "", generatedTokens = 0L)
 
-        var fullText = ""
+        // PERFORMANCE: StringBuilder append instead of `fullText += delta` (see
+        // [generate]) to avoid the O(n²) String-copy garbage spike after the
+        // generation finishes.
+        val fullTextBuilder = StringBuilder()
         var lastEmitTime = 0L
         var tokenCount = 0L
         try {
@@ -308,14 +317,14 @@ class DefaultEngineRepository @Inject constructor(
                         is Result.Success -> {
                             val chunk = result.data
                             if (chunk.delta.isNotEmpty() && !chunk.finished) {
-                                fullText += chunk.delta
+                                fullTextBuilder.append(chunk.delta)
                                 if (chunk.generatedTokens > 0) tokenCount = chunk.generatedTokens else tokenCount++
                                 val now = System.currentTimeMillis()
                                 if (now - lastEmitTime >= 16L) {
                                     lastEmitTime = now
                                     _generationState.value = GenerationState.Generating(
                                         prompt = lastUser,
-                                        streamingText = fullText,
+                                        streamingText = fullTextBuilder.toString(),
                                         generatedTokens = tokenCount
                                     )
                                 }
@@ -339,18 +348,18 @@ class DefaultEngineRepository @Inject constructor(
                 // instead of persisting a corrupted partial response.
                 _generationState.value = GenerationState.Failed(
                     message = "Decode error — try again",
-                    partialText = fullText
+                    partialText = fullTextBuilder.toString()
                 )
                 return Result.error("Decode error")
             }
-            _generationState.value = GenerationState.Completed(text = fullText, stats = stats)
+            _generationState.value = GenerationState.Completed(text = fullTextBuilder.toString(), stats = stats)
             Result.Success(Unit)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             _generationState.value = GenerationState.Failed(
                 message = e.message ?: "Generation failed",
-                partialText = fullText
+                partialText = fullTextBuilder.toString()
             )
             Result.Error(e)
         }
@@ -380,6 +389,10 @@ class DefaultEngineRepository @Inject constructor(
         cancelRequested.set(true)
         engine.cancel()
         _generationState.value = GenerationState.Cancelled
+    }
+
+    override suspend fun resetChat(): Result<Unit> = io.androllm.core.common.runCatching {
+        engine.resetChat()
     }
 
     override suspend fun getDebugInfo(): Result<EngineDebugInfo?> = engine.getDebugInfo()

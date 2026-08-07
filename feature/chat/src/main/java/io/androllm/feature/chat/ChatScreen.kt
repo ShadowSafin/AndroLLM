@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,12 +25,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
@@ -34,6 +41,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.AlertDialog
@@ -50,6 +58,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -64,9 +73,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -81,16 +92,16 @@ import io.androllm.core.models.Conversation
 import io.androllm.core.models.MessageRole
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudChip
-import io.androllm.core.ui.theme.DeskHairline
 import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.DeskWalnutRaised
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.models.EngineModelInfo
 import io.androllm.engine.models.GenerationConfig
 import io.androllm.feature.chat.export.ConversationExporter
 import io.androllm.feature.chat.export.ConversationSharer
 import io.androllm.feature.chat.export.ExportFormat
 import io.androllm.feature.chat.ui.components.ComposeInputArea
-import io.androllm.feature.chat.ui.components.MessageBubble
+import io.androllm.feature.chat.ui.components.GenerationStatsPanel
+import io.androllm.feature.chat.ui.components.MessageCard
 import io.androllm.feature.chat.ui.components.NewChatEmptyState
 import io.androllm.feature.chat.ui.components.NoModelLoadedCard
 import io.androllm.feature.chat.ui.components.SearchOverlay
@@ -125,6 +136,8 @@ fun ChatScreen(
     var exportDialogOpen by remember { mutableStateOf(false) }
     var debugDialogOpen by remember { mutableStateOf(false) }
     var samplerSheetOpen by remember { mutableStateOf(false) }
+    var multiSelectIds by remember { mutableStateOf(setOf<String>()) }
+    var statsExpanded by remember { mutableStateOf(false) }
 
     val debugInfo by viewModel.debugInfo.collectAsStateWithLifecycle()
     val genConfig by viewModel.genConfig.collectAsStateWithLifecycle()
@@ -232,6 +245,11 @@ fun ChatScreen(
                     val messages = successState?.messages ?: emptyList()
                     val streamingText = successState?.streamingText
                     val isGenerating = successState?.isGenerating == true
+                    val liveTokenCount = (successState?.generationState as? io.androllm.engine.api.GenerationState.Generating)?.generatedTokens ?: 0L
+                    // Stable timestamp for the streaming bubble — a fresh
+                    // System.currentTimeMillis() per token would recreate the
+                    // time formatter on every ~16ms recomposition.
+                    val streamingTimestamp = remember { System.currentTimeMillis() }
 
                     val isAtBottom by remember {
                         derivedStateOf {
@@ -272,51 +290,116 @@ fun ChatScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(messages, key = { it.id }) { msg ->
-                                    MessageBubble(
+                                    // PERFORMANCE: stable per-item callbacks. Fresh
+                                    // lambdas per recomposition would force every
+                                    // visible bubble to recompose on every uiState
+                                    // emission (each streamed token, both
+                                    // post-generation writes) — re-running layout
+                                    // + markdown measurement for messages that
+                                    // have not changed. remember(msg.id) gives
+                                    // each message ONE lambda instance, so
+                                    // Compose can skip unchanged items.
+                                    //
+                                    // The lambdas must still observe the CURRENT
+                                    // message: a Room echo (bookmark toggle,
+                                    // prompt edit) delivers a new ChatMessage
+                                    // with the same id, so reading fields via
+                                    // rememberUpdatedState keeps the stable
+                                    // closure fresh without ever re-creating it.
+                                    val currentMsg by rememberUpdatedState(msg)
+                                    val selectionActive = multiSelectIds.isNotEmpty()
+                                    val onRegenerate = remember(msg.id) { { viewModel.regenerateLastResponse() } }
+                                    val onEditPrompt = remember(msg.id) {
+                                        {
+                                            editPromptMsgOpen = currentMsg
+                                            editPromptText = currentMsg.content
+                                        }
+                                    }
+                                    val onDelete = remember(msg.id) { { viewModel.deleteMessage(currentMsg.id) } }
+                                    val onBookmarkToggle = remember(msg.id) {
+                                        { viewModel.toggleBookmarkMessage(currentMsg.id, currentMsg.isBookmarked) }
+                                    }
+                                    val onSelectToggle = remember(msg.id) {
+                                        {
+                                            multiSelectIds =
+                                                if (currentMsg.id in multiSelectIds) multiSelectIds - currentMsg.id
+                                                else multiSelectIds + currentMsg.id
+                                        }
+                                    }
+                                    val onLongPress = remember(msg.id) {
+                                        { multiSelectIds = multiSelectIds + currentMsg.id }
+                                    }
+                                    MessageCard(
                                         message = msg,
+                                        showBadge = msg.id == messages.lastOrNull()?.id,
                                         markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
                                         codeWrapping = successState?.userPreferences?.codeWrapping ?: false,
-                                        isBookmarked = msg.isBookmarked,
-                                        onRegenerate = { viewModel.regenerateLastResponse() },
-                                        onEditPrompt = {
-                                            editPromptMsgOpen = msg
-                                            editPromptText = msg.content
-                                        },
-                                        onDelete = { viewModel.deleteMessage(msg.id) },
-                                        onBookmarkToggle = { viewModel.toggleBookmarkMessage(msg.id, msg.isBookmarked) }
+                                        cloudMode = successState?.cloudMode == true,
+                                        messageAnimations = successState?.userPreferences?.messageAnimations ?: true,
+                                        selected = currentMsg.id in multiSelectIds,
+                                        selectionActive = selectionActive,
+                                        onRegenerate = onRegenerate,
+                                        onEditPrompt = onEditPrompt,
+                                        onDelete = onDelete,
+                                        onBookmarkToggle = onBookmarkToggle,
+                                        onClick = onSelectToggle,
+                                        onLongPress = onLongPress
                                     )
                                 }
 
                                 if (isGenerating && !streamingText.isNullOrEmpty()) {
                                     item(key = "streaming_bubble") {
-                                        MessageBubble(
+                                        MessageCard(
                                             message = ChatMessage(
                                                 id = "streaming",
                                                 conversationId = successState?.conversationId ?: "",
                                                 role = MessageRole.ASSISTANT,
                                                 content = streamingText,
-                                                timestamp = System.currentTimeMillis()
+                                                timestamp = streamingTimestamp
                                             ),
                                             isStreaming = true,
+                                            showBadge = true,
                                             markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
-                                            codeWrapping = successState?.userPreferences?.codeWrapping ?: false
+                                            codeWrapping = successState?.userPreferences?.codeWrapping ?: false,
+                                            cloudMode = successState?.cloudMode == true,
+                                            messageAnimations = false,
+                                            onStop = { viewModel.cancelGeneration() }
                                         )
                                     }
                                 }
 
                                 if (isGenerating && streamingText.isNullOrEmpty()) {
                                     item(key = "thinking_indicator") {
-                                        TypingAndThinkingIndicator()
+                                        TypingAndThinkingIndicator(
+                                            cloudMode = successState?.cloudMode == true,
+                                            statusText = if (successState?.cloudMode == true) "Preparing cloud response…" else "Thinking…"
+                                        )
+                                    }
+                                }
+
+                                val lastIsAssistant = messages.lastOrNull()?.let { it.role == MessageRole.ASSISTANT } == true
+                                if (!isGenerating && lastIsAssistant && messages.isNotEmpty()) {
+                                    item(key = "smart_replies") {
+                                        SmartReplyChips(
+                                            onSend = { chip -> viewModel.sendMessage(chip) }
+                                        )
                                     }
                                 }
                             }
                         }
 
-                        ChatStatsBar(
-                            contextLength = (successState?.engineState as? EngineState.Ready)?.model?.contextLength ?: 0,
+                        GenerationStatsPanel(
                             stats = successState?.performanceStats,
-                            liveTokenCount = (successState?.generationState as? io.androllm.engine.api.GenerationState.Generating)?.generatedTokens ?: 0L,
-                            isGenerating = isGenerating
+                            contextLength = (successState?.engineState as? EngineState.Ready)?.model?.contextLength ?: 0,
+                            usedTokens = (successState?.performanceStats?.promptTokens ?: 0L) +
+                                if (isGenerating) liveTokenCount else (successState?.performanceStats?.generatedTokens ?: 0L),
+                            isGenerating = isGenerating,
+                            cloudMode = successState?.cloudMode == true,
+                            model = (successState?.engineState as? EngineState.Ready)?.model,
+                            liveTokenCount = liveTokenCount,
+                            expanded = statsExpanded,
+                            onToggleExpanded = { statsExpanded = !statsExpanded },
+                            modifier = Modifier.padding(bottom = 6.dp)
                         )
 
                         ComposeInputArea(
@@ -328,6 +411,30 @@ fun ChatScreen(
                             },
                             onStopGeneration = { viewModel.cancelGeneration() },
                             isGenerating = isGenerating
+                        )
+                    }
+
+                    if (multiSelectIds.isNotEmpty()) {
+                        SelectionActionBar(
+                            count = multiSelectIds.size,
+                            onCopy = {
+                                val text = messages
+                                    .filter { it.id in multiSelectIds }
+                                    .joinToString("\n\n---\n\n") { it.content }
+                                copyTextToClipboard(context, text, "Copied ${multiSelectIds.size} messages")
+                            },
+                            onShare = {
+                                val text = messages
+                                    .filter { it.id in multiSelectIds }
+                                    .joinToString("\n\n---\n\n") { it.content }
+                                ConversationSharer.shareText(context, text, "Share messages")
+                            },
+                            onDelete = {
+                                multiSelectIds.forEach { viewModel.deleteMessage(it) }
+                                multiSelectIds = emptySet()
+                            },
+                            onClose = { multiSelectIds = emptySet() },
+                            modifier = Modifier.align(Alignment.TopCenter)
                         )
                     }
 
@@ -498,6 +605,13 @@ fun ChatScreen(
                         DebugRow("GPU verified", info.gpuInferenceVerified.toString())
                         DebugRow("Vulkan validation", info.vulkanValidationStatus)
                         DebugRow("Validation detail", info.vulkanValidationDetail.ifBlank { "—" })
+                        DebugRow("Recovery count", info.recoveryCount.toString())
+                        DebugRow("Last recovery", info.lastRecoveryReason.ifBlank { "—" })
+                        DebugRow("CPU session", info.cpuSessionFallback.toString())
+                        DebugRow("Vulkan ctx create", "${info.lastContextCreateMs} ms")
+                        DebugRow("Vulkan cleanup", "${info.lastCleanupMs} ms")
+                        DebugRow("Decodes", "${info.decodeCount} · avg ${info.decodeAvgMs} ms")
+                        DebugRow("DeviceLost recovered", info.vulkanDeviceLostRecoveries.toString())
                         DebugRow("Model size", "%.1f MB".format(info.modelSizeBytes / (1024.0 * 1024.0)))
                         DebugRow("Context size", "%.1f MB".format(info.contextSizeBytes / (1024.0 * 1024.0)))
                         DebugRow("Peak RAM", "%.1f MB".format(info.peakMemoryBytes / (1024.0 * 1024.0)))
@@ -522,97 +636,116 @@ fun ChatScreen(
 }
 
 /**
- * Live generation + context window stats above the composer.
- * Every value is real engine telemetry: native tokens/sec, prompt/generated
- * token counts, timing, and stop reason.
+ * Suggested follow-up chips rendered under the last completed assistant
+ * message. Tapping one sends it as a new user turn.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ChatStatsBar(
-    contextLength: Int,
-    stats: io.androllm.engine.models.EngineStats?,
-    liveTokenCount: Long,
-    isGenerating: Boolean
-) {
-    if (contextLength <= 0 && stats == null && !isGenerating) return
+private fun SmartReplyChips(onSend: (String) -> Unit) {
+    val suggestions = remember {
+        listOf(
+            "Explain this in more detail",
+            "Give me a concrete example",
+            "Summarise the key points",
+            "What are the trade-offs?"
+        )
+    }
 
-    val usedTokens = (stats?.promptTokens ?: 0L) + if (isGenerating) liveTokenCount else (stats?.generatedTokens ?: 0L)
-    val contextFraction = if (contextLength > 0) usedTokens.toFloat() / contextLength else 0f
-    val liveTps = stats?.tokensPerSecond ?: 0f
-
-    androidx.compose.material3.Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = io.androllm.core.ui.theme.DeskSlipShape,
-        color = DeskWalnutRaised,
-        border = androidx.compose.foundation.BorderStroke(1.dp, DeskHairline)
+            .padding(top = 2.dp, bottom = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (contextLength > 0) {
-                        "CONTEXT $usedTokens / $contextLength"
-                    } else {
-                        "ENGINE ACTIVE"
-                    },
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.2.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = io.androllm.core.ui.theme.DeskInk
-                    )
-                )
-                if (isGenerating) {
+        Text(
+            text = "FOLLOW UP",
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 1.6.sp,
+                color = io.androllm.core.ui.theme.DeskInkFaint
+            )
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            suggestions.forEach { suggestion ->
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = io.androllm.core.ui.theme.DeskWalnutRaised.copy(alpha = 0.85f),
+                    border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline),
+                    modifier = Modifier
+                        .shadow(1.dp, RoundedCornerShape(999.dp))
+                        .clickable { onSend(suggestion) }
+                ) {
                     Text(
-                        text = "$liveTokenCount tokens • ${String.format("%.1f", liveTps)} tok/s",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.2.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = io.androllm.core.ui.theme.LampDeep
-                        )
-                    )
-                } else if (stats != null && stats.generatedTokens > 0) {
-                    Text(
-                        text = buildString {
-                            append(String.format("%.1f", stats.tokensPerSecond)).append(" tok/s")
-                            append(" · ").append(stats.promptTokens + stats.generatedTokens).append(" tokens")
-                            if (stats.totalTimeMs > 0) append(" · ").append(String.format("%.1f", stats.totalTimeMs / 1000f)).append("s")
-                            if (stats.firstTokenMs > 0) append(" · first ").append(String.format("%.1f", stats.firstTokenMs / 1000f)).append("s")
-                            if (stats.stopReason.isNotBlank()) append(" · ").append(stats.stopReason)
-                        },
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.2.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = io.androllm.core.ui.theme.DeskInk
-                        )
-                    )
-                } else {
-                    Text(
-                        text = "IDLE",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.2.sp,
-                            color = io.androllm.core.ui.theme.DeskInkFaint
-                        )
+                        text = suggestion,
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = io.androllm.core.ui.theme.DeskInk,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                     )
                 }
             }
+        }
+    }
+}
 
-            if (contextLength > 0) {
-                Spacer(modifier = Modifier.height(6.dp))
-                androidx.compose.material3.LinearProgressIndicator(
-                    progress = { contextFraction.coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp),
-                    color = if (contextFraction > 0.85f) io.androllm.core.ui.theme.EmberRed else io.androllm.core.ui.theme.LampAmber,
-                    trackColor = io.androllm.core.ui.theme.LampAmber.copy(alpha = 0.15f)
+/** Floating bar with bulk actions while messages are selected. */
+@Composable
+private fun SelectionActionBar(
+    count: Int,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onDelete: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = io.androllm.core.ui.theme.DeskWalnutRaised,
+        border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline),
+        shadowElevation = 4.dp,
+        modifier = modifier.padding(12.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Close selection",
+                    tint = io.androllm.core.ui.theme.DeskInk
                 )
+            }
+            Text(
+                text = if (count == 1) "1 selected" else "$count selected",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = io.androllm.core.ui.theme.DeskInk
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 4.dp)
+            )
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "Copy selected", tint = io.androllm.core.ui.theme.DeskInk)
+            }
+            IconButton(onClick = onShare) {
+                Icon(Icons.Default.Share, contentDescription = "Share selected", tint = io.androllm.core.ui.theme.DeskInk)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete selected", tint = io.androllm.core.ui.theme.EmberRed)
             }
         }
     }
+}
+
+private fun copyTextToClipboard(context: android.content.Context, text: String, toast: String) {
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Messages", text))
+    android.widget.Toast.makeText(context, toast, android.widget.Toast.LENGTH_SHORT).show()
 }
 
 @Composable

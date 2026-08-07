@@ -1838,6 +1838,16 @@ private fun ModelStatusDashboard(
                     MemoryStatRow("KV cache", "%.0f MB (included in allocation)".format(stats.contextSizeMb()))
                 }
 
+                // ── Runtime recovery / CPU session fallback (collapsible) ──
+                if (stats.cpuSessionFallback || stats.recoveryCount > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    RuntimeRecoveryDiagnostics(
+                        cpuSessionFallback = stats.cpuSessionFallback,
+                        recoveryCount = stats.recoveryCount,
+                        lastRecoveryReason = stats.lastRecoveryReason
+                    )
+                }
+
                 // ── Diagnostics: Vulkan correctness self-test (collapsible) ──
                 if (stats.vulkanValidationFailed) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1926,6 +1936,72 @@ private fun LedgerStatRow(
  * The self-test result is diagnostic-only and never affects which backend is
  * actually executing inference.
  */
+@Composable
+private fun RuntimeRecoveryDiagnostics(
+    cpuSessionFallback: Boolean,
+    recoveryCount: Int,
+    lastRecoveryReason: String
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Surface(
+        color = if (cpuSessionFallback) Color(0xFFC7442F).copy(alpha = 0.10f)
+                else Color(0xFFE0A33D).copy(alpha = 0.12f),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(
+            1.dp,
+            if (cpuSessionFallback) Color(0xFFC7442F).copy(alpha = 0.4f)
+            else Color(0xFFE0A33D).copy(alpha = 0.4f)
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (cpuSessionFallback) "⚠ Running on CPU for this session"
+                               else "⚠ Runtime recovery occurred",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (cpuSessionFallback) Color(0xFFB3261E) else Color(0xFFB3573E)
+                    )
+                    Text(
+                        text = if (cpuSessionFallback)
+                            "GPU recovery failed — inference continues on CPU. Vulkan buffers were recreated and the prompt retried before falling back."
+                        else
+                            "A corrupted inference run was detected and automatically recovered (context recreated, backend reloaded).",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF8A5A00),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text(
+                    text = if (expanded) "Hide Details ▲" else "Show Details ▾",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFB3573E)
+                )
+            }
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Recoveries: $recoveryCount\nLast reason: ${lastRecoveryReason.ifBlank { "—" }}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = io.androllm.core.ui.theme.DeskInk
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun VulkanValidationDiagnostics(detail: String) {
     var expanded by remember { mutableStateOf(false) }

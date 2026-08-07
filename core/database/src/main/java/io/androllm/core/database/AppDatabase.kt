@@ -57,6 +57,11 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     AppConstants.DATABASE_NAME
                 )
+                    // PERFORMANCE: explicit WAL so reads never block on the
+                    // post-response message write and vice versa. Room defaults
+                    // to AUTOMATIC (WAL on API 16+) — pin it so writes stay
+                    // cheap even when readers are active (chat observer flows).
+                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()

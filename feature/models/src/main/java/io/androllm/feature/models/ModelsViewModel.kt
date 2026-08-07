@@ -47,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -106,6 +107,11 @@ class ModelsViewModel @Inject constructor(
     private val _catalogSort = MutableStateFlow(CatalogSortOption.TRENDING)
     private val _catalogRefreshError = MutableStateFlow<String?>(null)
 
+    // Storage stats — computed OFF the main thread (walking the models
+    // directories can take hundreds of ms when many GGUF files are present).
+    private val _storageStats = MutableStateFlow<StorageStats?>(null)
+    val storageStats: StateFlow<StorageStats?> = _storageStats.asStateFlow()
+
     val hardwareInfo: DeviceHardwareInfo = DeviceInfoCollector.collectDeviceInfo(context)
 
     val uiState: StateFlow<UiState<ModelsData>> = combine(
@@ -137,9 +143,10 @@ class ModelsViewModel @Inject constructor(
         combine(
             _selectedRemoteDetails,
             _readmeText,
-            _isLoadingDetails
-        ) { remoteDetails, readme, isLoadingDetails ->
-            Triple(remoteDetails, readme, isLoadingDetails)
+            _isLoadingDetails,
+            _storageStats
+        ) { remoteDetails, readme, isLoadingDetails, storageStats ->
+            listOf(remoteDetails, readme, isLoadingDetails, storageStats)
         },
         combine(
             catalogRepository.state,
@@ -170,7 +177,10 @@ class ModelsViewModel @Inject constructor(
         val remoteModels = group3[2] as List<RemoteModelSummary>
         val isSearchingRemote = group3[3] as Boolean
 
-        val (remoteDetails, readme, isLoadingDetails) = group4
+        val remoteDetails = group4[0] as RemoteModelDetails?
+        val readme = group4[1] as String?
+        val isLoadingDetails = group4[2] as Boolean
+        val storageStats = group4[3] as StorageStats?
 
         @Suppress("UNCHECKED_CAST")
         val catalogState = group5[0] as CatalogState
@@ -214,7 +224,7 @@ class ModelsViewModel @Inject constructor(
                 loadingModelId = loadingId,
                 importing = importing,
                 errorMessage = error,
-                storageStats = StorageUtils.getStorageStats(context),
+                storageStats = storageStats,
                 hardwareInfo = hardwareInfo,
                 benchmarkReport = benchReport,
                 isBenchmarking = isBenchmarking,
@@ -241,6 +251,24 @@ class ModelsViewModel @Inject constructor(
             engineRepository.initialize()
         }
         searchHuggingFace("")
+        refreshStorageStats()
+    }
+
+    /**
+     * Re-computes model storage usage on a background dispatcher (walking the
+     * models directories can be slow with many GGUF files — never on main).
+     * Never throws — a storage read must not take down the screen (or leak an
+     * uncaught coroutine exception in tests with unusable mock File objects).
+     * Runs entirely on IO: the coroutine must not need the Main dispatcher to
+     * resume after a test teardown (StateFlow writes are thread-safe).
+     */
+    fun refreshStorageStats() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val stats = runCatching { StorageUtils.getStorageStats(context) }.getOrNull()
+            if (stats != null) {
+                _storageStats.value = stats
+            }
+        }
     }
 
     fun selectTab(tab: ModelsTab) {

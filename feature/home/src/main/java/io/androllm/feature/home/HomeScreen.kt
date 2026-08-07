@@ -311,11 +311,11 @@ private fun SystemStatusRow(telemetry: HomeTelemetry) {
                 title = "Model Storage",
                 icon = Icons.Filled.Storage,
                 value = if (storage != null) {
-                    "${StorageUtils.formatBytes(storage.usedStorageBytes)} of ${StorageUtils.formatBytes(storage.totalStorageBytes)}"
+                    "${StorageUtils.formatBytes(storage.freeStorageBytes)} free"
                 } else {
                     "—"
                 },
-                fraction = storage?.storageUsageFraction ?: 0f,
+                fraction = storage?.storageFreeFraction ?: 0f,
                 accent = LampDeep
             )
         }

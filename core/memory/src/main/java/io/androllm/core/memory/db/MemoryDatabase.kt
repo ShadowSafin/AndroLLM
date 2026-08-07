@@ -77,6 +77,10 @@ abstract class MemoryDatabase : RoomDatabase() {
                     MemoryDatabase::class.java,
                     NAME
                 )
+                    // PERFORMANCE: explicit WAL so the post-response memory
+                    // writes (insert + embeddings + summaries) never block the
+                    // chat UI's readers.
+                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                     .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration()
                     .build()

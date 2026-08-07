@@ -33,6 +33,12 @@ android {
     buildFeatures {
         compose = false
     }
+    testOptions {
+        // android.util.Log and friends return default values in JVM unit tests
+        // instead of throwing "not mocked", so repositories can log timing
+        // telemetry (AndroLLM.Perf) without breaking tests.
+        unitTests.isReturnDefaultValues = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE,NOTICE}"

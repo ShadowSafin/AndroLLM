@@ -1,0 +1,115 @@
+# Google Fonts Skill — Showcase Gallery
+
+100 pre-made typography systems using Google Fonts.
+Each project includes CSS custom properties, Tailwind config, and Google Fonts embed links.
+
+## Gallery Index
+- https://sliday.github.io/google-fonts-skill/
+
+## Machine-Readable Data
+- https://sliday.github.io/google-fonts-skill/showcase.json
+
+## Project Types
+saas, blog, ecommerce, marketing, portfolio, documentation, enterprise, luxury, wellness, education, gaming, restaurant, creative
+
+## Individual Projects
+- Maison Aurélie: Playfair Display + Inter | major-third | https://sliday.github.io/google-fonts-skill/pages/maison-aur-lie.html
+- Aether Analytics: Poppins + Open Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/aether-analytics.html
+- Nimbus CRM: Space Grotesk + DM Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/nimbus-crm.html
+- The Quiet Reader: Cormorant Garamond + Libre Baskerville | major-third | https://sliday.github.io/google-fonts-skill/pages/the-quiet-reader.html
+- Pylon Project Hub: Inter | major-second | https://sliday.github.io/google-fonts-skill/pages/pylon-project-hub.html
+- Gradient Metrics: Fredoka + Nunito | minor-third | https://sliday.github.io/google-fonts-skill/pages/gradient-metrics.html
+- Launchpad Agency: Bebas Neue + Source Sans 3 | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/launchpad-agency.html
+- Bloom Wellness: Lora + Raleway | minor-third | https://sliday.github.io/google-fonts-skill/pages/bloom-wellness.html
+- Clearpath Dashboard: JetBrains Mono + IBM Plex Sans | major-third | https://sliday.github.io/google-fonts-skill/pages/clearpath-dashboard.html
+- Studio Kōen: Abril Fatface + Merriweather | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/studio-k-en.html
+- Signal Creative: Outfit + Work Sans | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/signal-creative.html
+- Velvet & Gold: Cormorant + Montserrat | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/velvet-gold.html
+- Synapse Ops: Plus Jakarta Sans | major-second | https://sliday.github.io/google-fonts-skill/pages/synapse-ops.html
+- Margin Notes: Newsreader + Roboto | major-third | https://sliday.github.io/google-fonts-skill/pages/margin-notes.html
+- Atelier Blanc: Caveat + Quicksand | major-third | https://sliday.github.io/google-fonts-skill/pages/atelier-blanc.html
+- Cornerstone Partners: Lexend + Source Sans 3 | minor-third | https://sliday.github.io/google-fonts-skill/pages/cornerstone-partners.html
+- Folio Works: Space Mono | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/folio-works.html
+- Offset Gallery: Syne + Manrope | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/offset-gallery.html
+- Meridian Cloud: Varela Round + Nunito Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/meridian-cloud.html
+- Beacon Data: Satoshi + General Sans | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/beacon-data.html
+- Cascade Flow: Be Vietnam Pro + Noto Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/cascade-flow.html
+- Château Blanc: Noto Serif JP + Noto Sans JP | major-third | https://sliday.github.io/google-fonts-skill/pages/ch-teau-blanc.html
+- Noir Atelier: Noto Sans KR | major-third | https://sliday.github.io/google-fonts-skill/pages/noir-atelier.html
+- Half Light Journal: Noto Serif TC + Noto Sans TC | major-third | https://sliday.github.io/google-fonts-skill/pages/half-light-journal.html
+- Vertex Platform: Noto Sans SC | minor-third | https://sliday.github.io/google-fonts-skill/pages/vertex-platform.html
+- Verso Magazine: Noto Naskh Arabic + Noto Sans Arabic | major-third | https://sliday.github.io/google-fonts-skill/pages/verso-magazine.html
+- Ember & Vine: Noto Sans Thai | major-third | https://sliday.github.io/google-fonts-skill/pages/ember-vine.html
+- Longform Weekly: Noto Sans Hebrew | major-third | https://sliday.github.io/google-fonts-skill/pages/longform-weekly.html
+- Atlas Consulting: EB Garamond + Lato | major-third | https://sliday.github.io/google-fonts-skill/pages/atlas-consulting.html
+- Onyx Workspace: Figtree + Noto Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/onyx-workspace.html
+- Keystone Financial: IBM Plex Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/keystone-financial.html
+- L'Essence Studio: Cinzel + Josefin Sans | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/l-essence-studio.html
+- The Olive Press: Playfair Display SC + Karla | major-third | https://sliday.github.io/google-fonts-skill/pages/the-olive-press.html
+- Opulent Living: Poiret One + Didact Gothic | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/opulent-living.html
+- The Serif Post: Libre Bodoni + Public Sans | major-third | https://sliday.github.io/google-fonts-skill/pages/the-serif-post.html
+- Helios Admin: Orbitron + Exo 2 | major-third | https://sliday.github.io/google-fonts-skill/pages/helios-admin.html
+- Neon Rift: Russo One + Chakra Petch | minor-third | https://sliday.github.io/google-fonts-skill/pages/neon-rift.html
+- Darkroom Portfolio: Amatic SC + Cabin | major-third | https://sliday.github.io/google-fonts-skill/pages/darkroom-portfolio.html
+- Parallax Studios: Clash Display + Satoshi | minor-third | https://sliday.github.io/google-fonts-skill/pages/parallax-studios.html
+- Willow & Thread: Rubik + Nunito Sans | major-third | https://sliday.github.io/google-fonts-skill/pages/willow-thread.html
+- Bright Minds Academy: Crimson Pro + Atkinson Hyperlegible | major-third | https://sliday.github.io/google-fonts-skill/pages/bright-minds-academy.html
+- Stratus Monitor: Fira Code + Fira Sans | major-second | https://sliday.github.io/google-fonts-skill/pages/stratus-monitor.html
+- Chromatic Studio: Righteous + Poppins | minor-third | https://sliday.github.io/google-fonts-skill/pages/chromatic-studio.html
+- Grain & Grit: Archivo + Space Grotesk | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/grain-grit.html
+- Scholar Hub: Baloo 2 + Comic Neue | major-third | https://sliday.github.io/google-fonts-skill/pages/scholar-hub.html
+- Anthem Brands: Great Vibes + Cormorant Infant | major-third | https://sliday.github.io/google-fonts-skill/pages/anthem-brands.html
+- Prism Insights: Exo + Roboto Mono | major-second | https://sliday.github.io/google-fonts-skill/pages/prism-insights.html
+- Spectrum Studio: Atkinson Hyperlegible | major-third | https://sliday.github.io/google-fonts-skill/pages/spectrum-studio.html
+- Pulse Digital: Barlow Condensed + Barlow | major-second | https://sliday.github.io/google-fonts-skill/pages/pulse-digital.html
+- Gilt & Grace: Bodoni Moda + Jost | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/gilt-grace.html
+- Lattice Systems: Share Tech Mono + Fira Code | major-second | https://sliday.github.io/google-fonts-skill/pages/lattice-systems.html
+- Phantom Arcade: Press Start 2P + VT323 | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/phantom-arcade.html
+- Catalyst Group: Lexend Mega + Public Sans | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/catalyst-group.html
+- Curiosity Lab: EB Garamond + Crimson Text | major-third | https://sliday.github.io/google-fonts-skill/pages/curiosity-lab.html
+- Atheneum Collection: Inter | major-third | https://sliday.github.io/google-fonts-skill/pages/atheneum-collection.html
+- Noise Machine: Syncopate + Space Mono | major-third | https://sliday.github.io/google-fonts-skill/pages/noise-machine.html
+- Horizon Marketing: Anton + Epilogue | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/horizon-marketing.html
+- The Ivory Room: Playfair Display + Source Serif 4 | major-third | https://sliday.github.io/google-fonts-skill/pages/the-ivory-room.html
+- Orbit Control: Inter | major-second | https://sliday.github.io/google-fonts-skill/pages/orbit-control.html
+- Canopy Cloud: Calistoga + Inter | major-second | https://sliday.github.io/google-fonts-skill/pages/canopy-cloud.html
+- Trellis Board: JetBrains Mono | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/trellis-board.html
+- Waveform Audio: Space Grotesk | major-second | https://sliday.github.io/google-fonts-skill/pages/waveform-audio.html
+- Basecamp Metrics: Inter | major-second | https://sliday.github.io/google-fonts-skill/pages/basecamp-metrics.html
+- Conduit AI: Roboto | major-second | https://sliday.github.io/google-fonts-skill/pages/conduit-ai.html
+- Lightbox Creative: Space Grotesk | major-third | https://sliday.github.io/google-fonts-skill/pages/lightbox-creative.html
+- Spire Analytics: Inter + Playfair Display | major-third | https://sliday.github.io/google-fonts-skill/pages/spire-analytics.html
+- Quarry Data: Cormorant Garamond + Crimson Pro | major-third | https://sliday.github.io/google-fonts-skill/pages/quarry-data.html
+- Voxel Storm: Orbitron + JetBrains Mono | major-second | https://sliday.github.io/google-fonts-skill/pages/voxel-storm.html
+- Ridgeline Ops: Space Grotesk + Inter | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/ridgeline-ops.html
+- Keyframe Studio: Nunito + DM Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/keyframe-studio.html
+- Helix Pipeline: Plus Jakarta Sans | major-second | https://sliday.github.io/google-fonts-skill/pages/helix-pipeline.html
+- Cobalt Scheduler: Kalam + Patrick Hand | minor-third | https://sliday.github.io/google-fonts-skill/pages/cobalt-scheduler.html
+- Drift Insights: Plus Jakarta Sans | major-second | https://sliday.github.io/google-fonts-skill/pages/drift-insights.html
+- Archway Platform: Archivo | minor-third | https://sliday.github.io/google-fonts-skill/pages/archway-platform.html
+- DevDocs Hub: Arimo | major-second | https://sliday.github.io/google-fonts-skill/pages/devdocs-hub.html
+- Daybreak Stories: Barlow | major-third | https://sliday.github.io/google-fonts-skill/pages/daybreak-stories.html
+- Timber Stack: DM Sans | minor-second | https://sliday.github.io/google-fonts-skill/pages/timber-stack.html
+- Apex Ventures: Figtree | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/apex-ventures.html
+- Ink & Paper: Fira Sans | major-third | https://sliday.github.io/google-fonts-skill/pages/ink-paper.html
+- Copper Market: Google Sans | minor-third | https://sliday.github.io/google-fonts-skill/pages/copper-market.html
+- Summit Advisory: Inter | major-second | https://sliday.github.io/google-fonts-skill/pages/summit-advisory.html
+- Aperture Design: Kanit | minor-third | https://sliday.github.io/google-fonts-skill/pages/aperture-design.html
+- The Morning Dispatch: Lato | major-third | https://sliday.github.io/google-fonts-skill/pages/the-morning-dispatch.html
+- Campfire Workspace: Lora | major-second | https://sliday.github.io/google-fonts-skill/pages/campfire-workspace.html
+- Still Water Spa: Manrope | minor-third | https://sliday.github.io/google-fonts-skill/pages/still-water-spa.html
+- Open Lectures: Merriweather | major-third | https://sliday.github.io/google-fonts-skill/pages/open-lectures.html
+- Mosaic Hub: Montserrat | minor-second | https://sliday.github.io/google-fonts-skill/pages/mosaic-hub.html
+- Blackstone Digital: Mulish | major-second | https://sliday.github.io/google-fonts-skill/pages/blackstone-digital.html
+- Soleil Maison: Playfair Display + Inter | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/soleil-maison.html
+- Circuit Logic: Poppins + Open Sans | perfect-fifth | https://sliday.github.io/google-fonts-skill/pages/circuit-logic.html
+- Harness Deploy: Space Grotesk + DM Sans | golden-ratio | https://sliday.github.io/google-fonts-skill/pages/harness-deploy.html
+- Penumbra Review: Cormorant Garamond + Libre Baskerville | minor-second | https://sliday.github.io/google-fonts-skill/pages/penumbra-review.html
+- Relay Sync: Inter | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/relay-sync.html
+- Pivot Table: Fredoka + Nunito | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/pivot-table.html
+- Forge & Flame: Bebas Neue + Source Sans 3 | perfect-fifth | https://sliday.github.io/google-fonts-skill/pages/forge-flame.html
+- Breathe Studio: Lora + Raleway | golden-ratio | https://sliday.github.io/google-fonts-skill/pages/breathe-studio.html
+- Fulcrum Dashboard: JetBrains Mono + IBM Plex Sans | perfect-fourth | https://sliday.github.io/google-fonts-skill/pages/fulcrum-dashboard.html
+- Contrast Works: Abril Fatface + Merriweather | augmented-fourth | https://sliday.github.io/google-fonts-skill/pages/contrast-works.html
+- Wavelength Co: Outfit + Work Sans | perfect-fifth | https://sliday.github.io/google-fonts-skill/pages/wavelength-co.html
+- Marquis Estate: Cormorant + Montserrat | minor-second | https://sliday.github.io/google-fonts-skill/pages/marquis-estate.html

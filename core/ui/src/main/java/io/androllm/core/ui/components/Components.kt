@@ -38,7 +38,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -388,7 +387,7 @@ fun LoadingIndicator(modifier: Modifier = Modifier) {
 }
 
 /**
- * The wordmark: serif letters set in ink above the parchment.
+ * The wordmark: the desk's voice set in ink above the parchment.
  */
 @Composable
 fun DeskWordmark(
@@ -399,7 +398,6 @@ fun DeskWordmark(
         text = "AndroLLM",
         modifier = modifier,
         style = MaterialTheme.typography.headlineMedium.copy(
-            fontFamily = FontFamily.Serif,
             fontWeight = FontWeight.SemiBold,
             fontSize = size.value.sp,
             color = DeskPaper

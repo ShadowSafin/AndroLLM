@@ -32,6 +32,12 @@ android {
     buildFeatures {
         compose = false
     }
+    testOptions {
+        // android.util.Log returns default values in JVM unit tests so the
+        // StageTracer timing utility can be exercised (and the chat modules
+        // can use it) without throwing "not mocked".
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {

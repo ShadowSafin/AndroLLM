@@ -34,7 +34,28 @@ data class MemoryStats(
     // result that NEVER determines the active execution backend — the runtime
     // backend is derived from [backend] + [gpuLayersOffloaded] only.
     val vulkanValidationStatus: String = "skipped", // "passed" | "failed" | "skipped"
-    val vulkanValidationDetail: String = ""
+    val vulkanValidationDetail: String = "",
+    // Runtime corruption recovery telemetry. recoveryCount is how many times
+    // the generation wrapper escalated a corrupted run (NaN/INF logits, invalid
+    // token ids, decode failures, degenerate repetition). lastRecoveryReason
+    // carries the most recent corruption detail. cpuSessionFallback is true
+    // once GPU recovery failed and the session permanently serves on CPU.
+    val recoveryCount: Int = 0,
+    val lastRecoveryReason: String = "",
+    val cpuSessionFallback: Boolean = false,
+    // Vulkan diagnostics from the last generation (native_api.cpp):
+    // lastContextCreateMs — time to build a fresh llama_context (pipelines,
+    //   descriptor pools, command pools, buffers) from the resident model.
+    // lastCleanupMs — time to free the previous context's GPU state after EOS.
+    // decodeCount / decodeAvgMs — llama_decode calls and average submit+fence
+    //   wait in the last generation (fence waits are inside llama_decode).
+    // vulkanDeviceLostRecoveries — VK_ERROR_DEVICE_LOST events caught and
+    //   recovered (full backend reload) instead of crashing.
+    val lastContextCreateMs: Long = 0,
+    val lastCleanupMs: Long = 0,
+    val decodeCount: Long = 0,
+    val decodeAvgMs: Long = 0,
+    val vulkanDeviceLostRecoveries: Int = 0
 ) {
     val totalNativeBytes: Long get() = modelSizeBytes + contextSizeBytes
 
@@ -53,6 +74,9 @@ data class MemoryStats(
         isGpuAccelerated -> "GPU only"
         else -> "CPU only"
     }
+
+    /** True once the session permanently fell back to CPU after GPU recovery failed. */
+    val isCpuSessionFallback: Boolean get() = cpuSessionFallback
 
     /**
      * True only when the model genuinely fell back to CPU at runtime.

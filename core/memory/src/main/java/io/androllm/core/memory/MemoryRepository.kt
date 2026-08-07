@@ -253,9 +253,11 @@ class MemoryRepository @Inject constructor(
             val items = withContext(Dispatchers.IO) {
                 intelligence.extract(exchange, settings).getOrNull().orEmpty()
             }
-            lastExtractionMs = System.currentTimeMillis() - t0
+            val extractMs = System.currentTimeMillis() - t0
+            lastExtractionMs = extractMs
             totalExtractions++
 
+            val writeT0 = System.currentTimeMillis()
             var inserted = 0
             var updated = 0
             var skipped = 0
@@ -269,9 +271,21 @@ class MemoryRepository @Inject constructor(
                 }
             }
             linkExchangeMemories(writtenIds)
+            val writeMs = System.currentTimeMillis() - writeT0
 
+            val summarizeT0 = System.currentTimeMillis()
             val summarized = maybeSummarize(exchange, settings)
+            val summarizeMs = System.currentTimeMillis() - summarizeT0
+
             logger.info("Exchange processed: +$inserted ~$updated -$skipped summarized=$summarized")
+            // Post-generation audit: per-stage cost of the deferred memory
+            // pipeline. Embedding cost is inside the DB stage (writeMemory) and
+            // additionally tracked as lastEmbeddingMs (inspector stats).
+            android.util.Log.i(
+                "AndroLLM.Perf",
+                "[MemoryPostGen] extract=${extractMs}ms db+embed=${writeMs}ms summarize=${summarizeMs}ms " +
+                    "embedLast=${lastEmbeddingMs}ms total=${System.currentTimeMillis() - t0}ms"
+            )
             MemoryWriteSummary(
                 inserted = inserted,
                 updated = updated,

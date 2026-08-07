@@ -1,0 +1,209 @@
+# Google Fonts MCP — Complete Agent Reference
+
+> 1,923 fonts, 73 pairings, 8 scales. Install: `uvx google-fonts-mcp`
+> Repo: https://github.com/sliday/google-fonts-skill
+> Gallery: https://sliday.github.io/google-fonts-skill/
+
+## Type Scales (8)
+
+| Scale | Ratio | Best For | Mood |
+|-------|-------|----------|------|
+| minor-second | 1.067 | Dense UI, dashboards, data-heavy apps | compact, functional, dense |
+| major-second | 1.125 | Apps, admin panels, documentation | balanced, professional, readable |
+| minor-third | 1.2 | Balanced content, general purpose, portfolios | calm, balanced, approachable |
+| major-third | 1.25 | Blogs, content sites, long-form reading | readable, approachable, editorial |
+| perfect-fourth | 1.333 | Marketing sites, editorial, landing pages | bold, confident, structured |
+| augmented-fourth | 1.414 | Editorial, magazines, expressive designs | dramatic, expressive, bold |
+| perfect-fifth | 1.5 | Display-heavy, posters, hero sections | powerful, commanding, dramatic |
+| golden-ratio | 1.618 | Hero sections, artistic, maximum impact | luxurious, aspirational, grand |
+
+## Font Pairings (73)
+
+| Pairing | Heading | Body | Category | Contrast | Scale | Best For |
+|---------|---------|------|----------|----------|-------|----------|
+| Classic Elegant | Playfair Display | Inter | Serif + Sans | Structure | major-third | Luxury brands, fashion, spa, beauty, editorial, magazines, h |
+| Modern Professional | Poppins | Open Sans | Sans + Sans | Proportion | minor-third | SaaS, corporate sites, business apps, startups, professional |
+| Tech Startup | Space Grotesk | DM Sans | Sans + Sans | Proportion | minor-third | Tech companies, startups, SaaS, developer tools, AI products |
+| Editorial Classic | Cormorant Garamond | Libre Baskerville | Serif + Serif | Era | major-third | Publishing, blogs, news sites, literary magazines, book cove |
+| Minimal Swiss | Inter | Inter | Sans + Sans | Weight | major-second | Dashboards, admin panels, documentation, enterprise apps, de |
+| Playful Creative | Fredoka | Nunito | Display + Sans | Weight | minor-third | Children's apps, educational, gaming, creative tools, entert |
+| Bold Statement | Bebas Neue | Source Sans 3 | Display + Sans | Weight | perfect-fourth | Marketing sites, portfolios, agencies, event pages, sports |
+| Wellness Calm | Lora | Raleway | Serif + Sans | Structure | minor-third | Health apps, wellness, spa, meditation, yoga, organic brands |
+| Developer Mono | JetBrains Mono | IBM Plex Sans | Mono + Sans | Structure | major-third | Developer tools, documentation, code editors, tech blogs, CL |
+| Retro Vintage | Abril Fatface | Merriweather | Display + Serif | Weight | perfect-fourth | Vintage brands, breweries, restaurants, creative portfolios, |
+| Geometric Modern | Outfit | Work Sans | Sans + Sans | Proportion | perfect-fourth | General purpose, portfolios, agencies, modern brands, landin |
+| Luxury Serif | Cormorant | Montserrat | Serif + Sans | Structure | augmented-fourth | Fashion brands, luxury e-commerce, jewelry, high-end service |
+| Friendly SaaS | Plus Jakarta Sans | Plus Jakarta Sans | Sans + Sans | Weight | major-second | SaaS products, web apps, dashboards, B2B, productivity tools |
+| News Editorial | Newsreader | Roboto | Serif + Sans | Structure | major-third | News sites, blogs, magazines, journalism, content-heavy site |
+| Handwritten Charm | Caveat | Quicksand | Script + Sans | Structure | major-third | Personal blogs, invitations, creative portfolios, lifestyle  |
+| Corporate Trust | Lexend | Source Sans 3 | Sans + Sans | Proportion | minor-third | Enterprise, government, healthcare, finance, accessibility-f |
+| Brutalist Raw | Space Mono | Space Mono | Mono + Mono | Weight | perfect-fourth | Brutalist designs, developer portfolios, experimental, tech  |
+| Fashion Forward | Syne | Manrope | Sans + Sans | Proportion | augmented-fourth | Fashion brands, creative agencies, art galleries, design stu |
+| Soft Rounded | Varela Round | Nunito Sans | Sans + Sans | Proportion | minor-third | Children's products, pet apps, friendly brands, wellness, so |
+| Premium Sans | Satoshi | General Sans | Sans + Sans | Proportion | perfect-fourth | Premium brands, modern agencies, SaaS, portfolios, startups |
+| Vietnamese Friendly | Be Vietnam Pro | Noto Sans | Sans + Sans | Proportion | minor-third | Vietnamese sites, multilingual apps, international products |
+| Japanese Elegant | Noto Serif JP | Noto Sans JP | Serif + Sans | Structure | major-third | Japanese sites, Japanese restaurants, cultural sites, anime/ |
+| Korean Modern | Noto Sans KR | Noto Sans KR | Sans + Sans | Weight | major-third | Korean sites, K-beauty, K-pop, Korean businesses, multilingu |
+| Chinese Traditional | Noto Serif TC | Noto Sans TC | Serif + Sans | Structure | major-third | Traditional Chinese sites, cultural content, Taiwan/Hong Kon |
+| Chinese Simplified | Noto Sans SC | Noto Sans SC | Sans + Sans | Weight | minor-third | Simplified Chinese sites, mainland China market, business ap |
+| Arabic Elegant | Noto Naskh Arabic | Noto Sans Arabic | Serif + Sans | Structure | major-third | Arabic sites, Middle East market, Islamic content, bilingual |
+| Thai Modern | Noto Sans Thai | Noto Sans Thai | Sans + Sans | Weight | major-third | Thai sites, Southeast Asia, tourism, Thai restaurants |
+| Hebrew Modern | Noto Sans Hebrew | Noto Sans Hebrew | Sans + Sans | Weight | major-third | Hebrew sites, Israeli market, Jewish content, bilingual site |
+| Legal Professional | EB Garamond | Lato | Serif + Sans | Structure | major-third | Law firms, legal services, contracts, formal documents, gove |
+| Medical Clean | Figtree | Noto Sans | Sans + Sans | Proportion | minor-third | Healthcare, medical clinics, pharma, health apps, accessibil |
+| Financial Trust | IBM Plex Sans | IBM Plex Sans | Sans + Sans | Weight | minor-third | Banks, finance, insurance, investment, fintech, enterprise |
+| Real Estate Luxury | Cinzel | Josefin Sans | Serif + Sans | Structure | augmented-fourth | Real estate, luxury properties, architecture, interior desig |
+| Restaurant Menu | Playfair Display SC | Karla | Serif + Sans | Structure | major-third | Restaurants, cafes, food blogs, culinary, hospitality |
+| Art Deco | Poiret One | Didact Gothic | Display + Sans | Weight | augmented-fourth | Vintage events, art deco themes, luxury hotels, classic cock |
+| Magazine Style | Libre Bodoni | Public Sans | Serif + Sans | Structure | major-third | Magazines, online publications, editorial content, journalis |
+| Crypto/Web3 | Orbitron | Exo 2 | Sans + Sans | Proportion | major-third | Crypto platforms, NFT, blockchain, web3, futuristic tech |
+| Gaming Bold | Russo One | Chakra Petch | Display + Sans | Weight | minor-third | Gaming, esports, action games, competitive sports, entertain |
+| Indie/Craft | Amatic SC | Cabin | Display + Sans | Weight | major-third | Craft brands, indie products, artisan, handmade, organic pro |
+| Startup Bold | Clash Display | Satoshi | Sans + Sans | Proportion | minor-third | Startups, pitch decks, product launches, bold brands |
+| E-commerce Clean | Rubik | Nunito Sans | Sans + Sans | Proportion | major-third | E-commerce, online stores, product pages, retail, shopping |
+| Academic/Research | Crimson Pro | Atkinson Hyperlegible | Serif + Sans | Structure | major-third | Universities, research papers, academic journals, educationa |
+| Dashboard Data | Fira Code | Fira Sans | Mono + Sans | Structure | major-second | Dashboards, analytics, data visualization, admin panels |
+| Music/Entertainment | Righteous | Poppins | Display + Sans | Weight | minor-third | Music platforms, entertainment, events, festivals, performer |
+| Minimalist Portfolio | Archivo | Space Grotesk | Sans + Sans | Proportion | perfect-fourth | Design portfolios, creative professionals, minimalist brands |
+| Kids/Education | Baloo 2 | Comic Neue | Display + Sans | Weight | major-third | Children's apps, educational games, kid-friendly content |
+| Wedding/Romance | Great Vibes | Cormorant Infant | Script + Serif | Structure | major-third | Wedding sites, invitations, romantic brands, bridal |
+| Science/Tech | Exo | Roboto Mono | Sans + Sans | Proportion | major-second | Science, research, tech documentation, data-heavy sites |
+| Accessibility First | Atkinson Hyperlegible | Atkinson Hyperlegible | Sans + Sans | Weight | major-third | Accessibility-critical sites, government, healthcare, inclus |
+| Sports/Fitness | Barlow Condensed | Barlow | Sans + Sans | Proportion | major-second | Sports, fitness, gyms, athletic brands, competition |
+| Luxury Minimalist | Bodoni Moda | Jost | Serif + Sans | Structure | augmented-fourth | Luxury minimalist brands, high-end fashion, premium products |
+| Tech/HUD Mono | Share Tech Mono | Fira Code | Mono + Mono | Structure | major-second | Sci-fi interfaces, developer tools, cybersecurity, dashboard |
+| Pixel Retro | Press Start 2P | VT323 | Display + Sans | Weight | perfect-fourth | Pixel art games, retro websites, creative portfolios |
+| Neubrutalist Bold | Lexend Mega | Public Sans | Display + Sans | Weight | perfect-fourth | Neubrutalist designs, Gen Z brands, bold marketing |
+| Academic/Archival | EB Garamond | Crimson Text | Serif + Serif | Era | major-third | University sites, archives, research papers, history |
+| Spatial Clear | Inter | Inter | Sans + Sans | Weight | major-third | Spatial computing, AR/VR, glassmorphism interfaces |
+| Kinetic Motion | Syncopate | Space Mono | Display + Mono | Weight | major-third | Music festivals, automotive, high-energy brands |
+| Gen Z Brutal | Anton | Epilogue | Display + Sans | Weight | perfect-fourth | Gen Z marketing, streetwear, viral campaigns |
+| Minimalist Monochrome Editorial | Playfair Display | Source Serif 4 | Serif + Serif + Mono (Triple Stack) | Proportion | major-third | Luxury fashion mobile apps, editorial publications, digital  |
+| Modern Dark Cinema (Inter System) | Inter | Inter | Sans + Mono | Weight | major-second | Developer tools, fintech/trading, AI dashboards, streaming p |
+| SaaS Mobile Boutique (Calistoga + Inter) | Calistoga | Inter | Display Serif + Sans + Mono | Proportion | major-second | B2B SaaS mobile, fintech apps, analytics dashboards, marketi |
+| Terminal CLI Monospace | JetBrains Mono | JetBrains Mono | Mono + Mono (Single Family) | Weight | perfect-fourth | Developer tools, Web3/blockchain apps, hacker aesthetic, sci |
+| Kinetic Brutalism (Space Grotesk) | Space Grotesk | Space Grotesk | Geometric Sans (Single Dominant) | Weight | major-second | Music/culture apps, sports platforms, brand flagship mobile, |
+| Flat Design Mobile (System Bold) | Inter | Inter | Sans + Sans | Weight | major-second | Cross-platform apps, dashboards, system UI, onboarding, mark |
+| Material You MD3 (Roboto System) | Roboto | Roboto | Sans (System Default) | Weight | major-second | Android apps, cross-platform tools, productivity software, d |
+| Neo Brutalism Mobile (Space Grotesk Heavy) | Space Grotesk | Space Grotesk | Geometric Sans (Bold-Only) | Weight | major-third | Creative tools, Gen-Z marketing, e-commerce for youth cultur |
+| Bold Typography Mobile (Inter-Tight Poster) | Inter | Playfair Display | Sans + Serif (Display) + Mono | Proportion | major-third | Creative brand flagships, reading platforms, event apps, fla |
+| Academia Mobile (Cormorant + Crimson + Cinzel) | Cormorant Garamond | Crimson Pro | Serif + Book Serif + Engraved (Triple Stack) | Proportion | major-third | Knowledge management apps, scholarly reading tools, personal |
+| Cyberpunk Mobile (Orbitron + JetBrains Mono) | Orbitron | JetBrains Mono | Tech Display + Mono | Proportion | major-second | Gaming companion apps, fintech/crypto, data visualization, d |
+| Web3 Bitcoin DeFi (Space Grotesk + Inter + Mono) | Space Grotesk | Inter | Geometric Sans + Sans + Mono (Triple) | Proportion | perfect-fourth | DeFi protocols and wallets, NFT platforms, metaverse social  |
+| Claymorphism Mobile (Nunito + DM Sans) | Nunito | DM Sans | Display Rounded + Geometric Sans | Proportion | minor-third | Children education apps, teen social, brand mascot apps, cre |
+| Enterprise SaaS Mobile (Plus Jakarta Sans) | Plus Jakarta Sans | Plus Jakarta Sans | Geometric Sans (Single Family) | Weight | major-second | B2B SaaS apps, productivity tools, government and finance mo |
+| Sketch Hand-Drawn Mobile (Kalam + Patrick Hand) | Kalam | Patrick Hand | Handwritten + Handwritten (Dual) | Proportion | minor-third | Journaling apps, prototype tools, children's picturebook app |
+| Neumorphism Mobile (Plus Jakarta Sans + System) | Plus Jakarta Sans | Plus Jakarta Sans | Geometric Sans (System Fallback) | Weight | major-second | Smart home controls, minimal tools, aesthetic dashboards, he |
+
+## Top Body Fonts — Tier A
+
+| Family | Category | Personality | Contrast | Weight Range | Variable | Mood | Best For |
+|--------|----------|-------------|----------|-------------|----------|------|----------|
+| Roboto | Sans Serif | Neo Grotesque | Low | 100-900 | Yes | Business|Competent|Calm | Corporate, editorial, dashboards |
+| Open Sans | Sans Serif | Humanist | Low | 300-800 | Yes | Competent|Business|Calm | Education, healthcare, government, acces |
+| Google Sans | Sans Serif | Geometric | Medium | 400-700 | Yes | Business|Competent|Calm | SaaS, tech, apps, UI |
+| Noto Sans JP | Sans Serif | Humanist | Low | 100-900 | Yes | Business|Calm|Competent | Education, healthcare, government, acces |
+| Inter | Sans Serif | Neo Grotesque | Low | 100-900 | Yes | Competent|Business|Calm | Corporate, editorial, dashboards |
+| Montserrat | Sans Serif | Geometric | Low | 100-900 | Yes | Calm|Business|Rugged | SaaS, tech, apps, UI |
+| Poppins | Sans Serif | Geometric | Low | 100-900 | No | Calm|Business|Rugged | SaaS, tech, apps, UI |
+| Lato | Sans Serif | Humanist | Low | 100-900 | No | Competent|Calm|Business | Education, healthcare, government, acces |
+| Roboto Condensed | Sans Serif | Neo Grotesque | Low | 100-900 | Yes | Business|Calm|Competent | Corporate, editorial, dashboards |
+| Arimo | Sans Serif |  | Medium | 400-700 | Yes | Business|Calm|Rugged | General purpose |
+| Oswald | Sans Serif | Grotesque | Low | 200-700 | Yes | Business|Calm|Rugged | General purpose, web body text |
+| Noto Sans | Sans Serif | Humanist | Low | 100-900 | Yes | Business|Calm|Competent | Education, healthcare, government, acces |
+| Raleway | Sans Serif | Geometric | Low | 100-900 | Yes | Calm|Business|Loud | SaaS, tech, apps, UI |
+| Nunito | Sans Serif | Rounded | Low | 200-1000 | Yes | Calm|Business|Competent | Friendly apps, children, casual UI |
+| Nunito Sans | Sans Serif | Rounded | Low | 200-1000 | Yes | Calm|Business|Competent | Friendly apps, children, casual UI |
+| DM Sans | Sans Serif | Geometric | Low | 100-1000 | Yes | Calm|Business|Rugged | SaaS, tech, apps, UI |
+| Rubik | Sans Serif | Neo Grotesque | Medium | 300-900 | Yes | Calm|Business|Rugged | Corporate, editorial, dashboards |
+| Ubuntu | Sans Serif | Neo Grotesque | Low | 300-700 | No | Calm|Business|Competent | Corporate, editorial, dashboards |
+| Roboto Slab | Serif | Geometric | Low | 100-900 | Yes | Competent|Business|Rugged | General purpose |
+| Noto Sans KR | Sans Serif | Humanist | Low | 100-900 | Yes | Business|Calm|Competent | Education, healthcare, government, acces |
+| Merriweather | Serif | Old Style Garalde | High | 300-900 | Yes | Competent|Sincere|Business | General purpose |
+| Work Sans | Sans Serif | Neo Grotesque | Low | 100-900 | Yes | Calm|Business|Competent | Corporate, editorial, dashboards |
+| Archivo | Sans Serif | Grotesque | Low | 100-900 | Yes | Competent|Calm|Business | General purpose, web body text |
+| PT Sans | Sans Serif | Humanist | Low | 400-700 | No | Calm|Business|Competent | Education, healthcare, government, acces |
+| Quicksand | Sans Serif | Geometric | Low | 300-700 | Yes | Calm|Business|Rugged | SaaS, tech, apps, UI |
+| Manrope | Sans Serif | Neo Grotesque | Low | 200-800 | Yes | Calm|Business|Rugged | Corporate, editorial, dashboards |
+| Lora | Serif | Transitional | Medium | 400-700 | Yes | Business|Competent|Sincere | News, editorial, long-form reading |
+| Mulish | Sans Serif | Geometric | Low | 200-1000 | Yes | Calm|Business|Competent | SaaS, tech, apps, UI |
+| Kanit | Sans Serif | Humanist | Low | 100-900 | No | Calm|Rugged|Loud | Education, healthcare, government, acces |
+| Noto Sans TC | Sans Serif | Humanist | Low | 100-900 | Yes | Business|Calm|Competent | Education, healthcare, government, acces |
+| Outfit | Sans Serif | Geometric | Low | 100-900 | Yes | Calm|Business|Rugged | SaaS, tech, apps, UI |
+| Figtree | Sans Serif | Geometric | Low | 300-900 | Yes | Calm|Business|Rugged | SaaS, tech, apps, UI |
+| Fira Sans | Sans Serif | Humanist | Low | 100-900 | No | Business|Competent|Calm | Education, healthcare, government, acces |
+| Barlow | Sans Serif | Grotesque | Low | 100-900 | No | Calm|Rugged|Loud | General purpose, web body text |
+| Prompt | Sans Serif | Geometric | Low | 100-900 | No | Calm|Sincere|Business | SaaS, tech, apps, UI |
+
+## Top Body Fonts — Tier B (top 30)
+
+| Family | Category | Personality | Weight Range | Variable | Best For |
+|--------|----------|-------------|-------------|----------|----------|
+| IBM Plex Sans | Sans Serif | Neo Grotesque | 100-700 | Yes | Corporate, editorial, dashboards |
+| Heebo | Sans Serif | Grotesque | 100-900 | Yes | General purpose, web body text |
+| Noto Serif | Serif | Transitional | 100-900 | Yes | News, editorial, long-form reading |
+| Karla | Sans Serif | Grotesque | 200-800 | Yes | General purpose, web body text |
+| Jost | Sans Serif | Geometric | 100-900 | Yes | SaaS, tech, apps, UI |
+| Source Sans 3 | Sans Serif | Humanist | 200-900 | Yes | Education, healthcare, government, acces |
+| PT Serif | Serif | Transitional | 400-700 | No | News, editorial, long-form reading |
+| Hind Siliguri | Sans Serif | Humanist | 300-700 | No | Education, healthcare, government, acces |
+| Plus Jakarta Sans | Sans Serif | Geometric | 200-800 | Yes | SaaS, tech, apps, UI |
+| Cairo | Sans Serif | Superellipse | 200-1000 | Yes | General purpose |
+| Libre Baskerville | Serif | Transitional | 400-700 | Yes | News, editorial, long-form reading |
+| Noto Sans SC | Sans Serif | Humanist | 100-900 | Yes | Education, healthcare, government, acces |
+| Noto Serif JP | Serif | Transitional | 200-900 | Yes | News, editorial, long-form reading |
+| Libre Franklin | Sans Serif | Grotesque | 100-900 | Yes | General purpose, web body text |
+| EB Garamond | Serif | Old Style Garalde | 400-800 | Yes | General purpose |
+| Public Sans | Sans Serif | Grotesque | 100-900 | Yes | General purpose, web body text |
+| Nanum Gothic | Sans Serif | Humanist | 400-800 | No | Education, healthcare, government, acces |
+| Schibsted Grotesk | Sans Serif | Grotesque | 400-900 | Yes | General purpose, web body text |
+| Bitter | Serif | Scotch | 100-900 | Yes | General purpose |
+| Space Grotesk | Sans Serif | Neo Grotesque | 300-700 | Yes | Corporate, editorial, dashboards |
+| Roboto Flex | Sans Serif | Neo Grotesque | 100-1000 | Yes | Corporate, editorial, dashboards |
+| Barlow Condensed | Sans Serif | Grotesque | 100-900 | No | General purpose, web body text |
+| Cabin | Sans Serif | Humanist | 400-700 | Yes | Education, healthcare, government, acces |
+| Assistant | Sans Serif | Geometric | 200-800 | Yes | SaaS, tech, apps, UI |
+| Noto Sans Telugu | Sans Serif | Humanist | 100-900 | Yes | Education, healthcare, government, acces |
+| Anek Telugu | Sans Serif | Humanist | 100-800 | Yes | Education, healthcare, government, acces |
+| Mukta | Sans Serif | Humanist | 200-800 | No | Education, healthcare, government, acces |
+| Hind | Sans Serif | Humanist | 300-700 | No | Education, healthcare, government, acces |
+| Lexend | Sans Serif | Geometric | 100-900 | Yes | SaaS, tech, apps, UI |
+| Oxygen | Sans Serif | Humanist | 300-700 | No | Education, healthcare, government, acces |
+
+## MCP Tools
+
+### search_fonts
+- query: str — description, mood, or use case
+- mode: single (default) | pair | scale
+- tier: A | B | C (single mode only)
+- max_results: int (default 5)
+
+### generate_typography_system
+- heading: str — heading font name
+- body: str (optional, defaults to heading)
+- scale: minor-second | major-second | minor-third | major-third | perfect-fourth | augmented-fourth | perfect-fifth | golden-ratio
+- base: int (default 16)
+- format: css | tailwind | embed | all
+- Returns: {css, tailwind, embed}
+
+### lookup_font
+- name: str — exact font name
+
+### list_scales
+- Returns all 8 scales
+
+### list_pairings
+- category: str (optional) — filter by contrast type
+
+## Quick Decision Guide
+
+| Project Type | Mode | Scale | Search |
+|-------------|------|-------|--------|
+| SaaS / Dashboard | single | major-second | clean professional geometric |
+| Blog / Content | pair | major-third | editorial readable |
+| Marketing / Landing | pair | perfect-fourth | bold modern confident |
+| Luxury / Fashion | pair | augmented-fourth | elegant premium serif |
+| Documentation | single | minor-third | readable accessible humanist |
+| E-commerce | pair | minor-third | clean friendly conversion |
+| Portfolio | pair | perfect-fourth | creative distinctive |
+| Enterprise / Gov | single | major-second | trustworthy accessible corporate |

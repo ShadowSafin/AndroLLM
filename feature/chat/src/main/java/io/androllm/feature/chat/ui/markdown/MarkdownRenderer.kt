@@ -2,6 +2,7 @@ package io.androllm.feature.chat.ui.markdown
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,6 +55,7 @@ sealed interface MarkdownNode {
     data class BulletList(val items: List<String>) : MarkdownNode
     data class NumberedList(val items: List<String>) : MarkdownNode
     data class Table(val headers: List<String>, val rows: List<List<String>>) : MarkdownNode
+    data class Callout(val kind: String, val text: String) : MarkdownNode
     data object HorizontalRule : MarkdownNode
     data class ImagePlaceholder(val altText: String, val url: String) : MarkdownNode
     data class MathBlock(val expression: String) : MarkdownNode
@@ -86,6 +88,7 @@ fun MarkdownRenderer(
                 is MarkdownNode.BulletList -> BulletListItem(node.items, textColor)
                 is MarkdownNode.NumberedList -> NumberedListItem(node.items, textColor)
                 is MarkdownNode.Table -> TableItem(node)
+                is MarkdownNode.Callout -> CalloutItem(node, textColor)
                 is MarkdownNode.HorizontalRule -> HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -372,6 +375,24 @@ private fun parseMarkdown(text: String): List<MarkdownNode> {
             continue
         }
 
+        // AI section cards — callouts in the style of GitHub alerts and bold
+        // lead-ins (**Tip:**, **Note:**, **Warning:**, **Example:**) and emoji
+        // prefixes (💡, ⚠️, 📝). Rendered as tinted cards, not quotes.
+        val callout = parseCallout(line)
+        if (callout != null) {
+            val kind = callout.first
+            val textBuilder = StringBuilder(callout.second)
+            i++
+            // Gather following quoted lines as the card body.
+            while (i < lines.size && lines[i].trimStart().startsWith(">")) {
+                val rest = lines[i].trimStart().removePrefix(">").trim()
+                if (rest.isNotBlank()) textBuilder.append('\n').append(rest)
+                i++
+            }
+            nodes.add(MarkdownNode.Callout(kind, textBuilder.toString().trim()))
+            continue
+        }
+
         // Blockquote check
         if (line.trimStart().startsWith(">")) {
             val quoteText = line.trimStart().removePrefix(">").trim()
@@ -439,6 +460,111 @@ private fun parseMarkdown(text: String): List<MarkdownNode> {
 /**
  * Formats inline bold (**), italic (*), strikethrough (~~), inline code (`code`), and links ([text](url)).
  */
+private val CALLOUT_ALIASES = mapOf(
+    "tip" to "Tip",
+    "note" to "Note",
+    "warning" to "Warning",
+    "warn" to "Warning",
+    "caution" to "Warning",
+    "important" to "Important",
+    "info" to "Note",
+    "example" to "Example",
+    "question" to "Note",
+    "danger" to "Warning"
+)
+
+/**
+ * Detects an AI section card at the start of [line]. Returns (kind, text) or
+ * null. Recognises GitHub alert syntax `> [!TIP]`, bold lead-ins such as
+ * `**Tip:** ...` / `**Note:** ...`, and emoji prefixes.
+ */
+private fun parseCallout(line: String): Pair<String, String>? {
+    val trimmed = line.trim()
+    if (trimmed.isEmpty()) return null
+
+    // GitHub alerts: > [!NOTE] rest
+    val alert = Regex("^>\\s*\\[!\\s*([A-Za-z]+)\\]\\s*(.*)$").find(trimmed)
+    if (alert != null) {
+        val kind = CALLOUT_ALIASES[alert.groupValues[1].lowercase()] ?: return null
+        return kind to alert.groupValues[2].trim()
+    }
+
+    // Bold lead-ins: **Tip:** text / **Note:** text
+    val bold = Regex("^\\*\\*([A-Za-z]+)\\s*:\\*\\*\\s*(.+)$").find(trimmed)
+    if (bold != null) {
+        val kind = CALLOUT_ALIASES[bold.groupValues[1].lowercase()] ?: return null
+        return kind to bold.groupValues[2].trim()
+    }
+
+    // Emoji prefixes: 💡, ⚠️, 📝, ❗, ✨
+    val emojiKind = when {
+        trimmed.startsWith("💡") || trimmed.startsWith("✨") || trimmed.startsWith("📌") -> "Tip"
+        trimmed.startsWith("⚠️") || trimmed.startsWith("❗") || trimmed.startsWith("🔴") -> "Warning"
+        trimmed.startsWith("📝") || trimmed.startsWith("📖") -> "Note"
+        trimmed.startsWith("🎯") || trimmed.startsWith("🧩") || trimmed.startsWith("🖼️") -> "Example"
+        else -> null
+    }
+    if (emojiKind != null) {
+        // Strip every leading non-alphanumeric code point (emoji + variation
+        // selectors such as U+FE0F) plus following whitespace.
+        val body = trimmed.replaceFirst(Regex("^[^\\p{L}\\p{N}]+\\s*"), "")
+        return emojiKind to body
+    }
+
+    return null
+}
+
+private data class CalloutPalette(
+    val bg: Color,
+    val border: Color,
+    val accent: Color,
+    val glyph: String
+)
+
+@Composable
+private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color) {
+    val palette = when (callout.kind) {
+        "Tip" -> CalloutPalette(Color(0xFFEDF4E6), Color(0xFFA9BF8A), Color(0xFF5F7D3E), "💡")
+        "Warning" -> CalloutPalette(Color(0xFFFBF0DC), Color(0xFFDDB968), Color(0xFF92681E), "⚠️")
+        "Example" -> CalloutPalette(Color(0xFFFBE9E0), Color(0xFFE3B39A), Color(0xFFA85E3E), "✨")
+        else -> CalloutPalette(Color(0xFFE9EFF4), Color(0xFFA7BFD4), Color(0xFF52708C), "📌")
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        color = palette.bg,
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, palette.border)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = palette.glyph, fontSize = 13.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = callout.kind.uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 1.4.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.accent
+                    )
+                )
+            }
+            if (callout.text.isNotBlank()) {
+                Spacer(modifier = Modifier.height(5.dp))
+                Text(
+                    text = parseFormattedText(callout.text, textColor),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        lineHeight = 21.sp,
+                        color = textColor.copy(alpha = 0.92f)
+                    )
+                )
+            }
+        }
+    }
+}
+
 private fun parseFormattedText(text: String, defaultColor: Color): AnnotatedString {
     return buildAnnotatedString {
         var currentIndex = 0

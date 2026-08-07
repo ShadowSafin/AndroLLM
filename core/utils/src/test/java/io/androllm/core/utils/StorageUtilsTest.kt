@@ -44,4 +44,28 @@ class StorageUtilsTest {
         assertTrue(DeviceUtils.getCpuCoreCount() > 0)
         assertTrue(DeviceUtils.getDeviceModel().isNotBlank())
     }
+
+    @Test
+    fun `storage stats report the real free space, not total minus models`() {
+        // Old bug: availableBytes was (total - modelsUsed), ignoring all other
+        // data on the filesystem. Now freeBytes is the source of truth.
+        val stats = StorageStats(totalBytes = 128L * 1024 * 1024 * 1024, usedBytes = 4L * 1024 * 1024 * 1024, freeBytes = 2L * 1024 * 1024 * 1024)
+        assertEquals(2L * 1024 * 1024 * 1024, stats.availableBytes)
+        assertEquals(2L * 1024 * 1024 * 1024, stats.freeBytes)
+    }
+
+    @Test
+    fun `storage stats fall back gracefully when free space is unknown`() {
+        // freeBytes == 0 (e.g. pre-fix data): fall back to total - used, clamped.
+        val stats = StorageStats(totalBytes = 100L, usedBytes = 30L)
+        assertEquals(70L, stats.availableBytes)
+        assertEquals(0f, StorageStats(totalBytes = 100L, usedBytes = 200L).availableBytes.toFloat())
+    }
+
+    @Test
+    fun `free fraction drives the model storage usage bar`() {
+        val stats = StorageStats(totalBytes = 100L, usedBytes = 10L, freeBytes = 25L)
+        assertEquals(0.25f, stats.freeFraction)
+        assertEquals(0f, StorageStats(totalBytes = 0L, usedBytes = 0L).freeFraction)
+    }
 }

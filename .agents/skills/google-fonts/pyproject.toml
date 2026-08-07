@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "google-fonts-mcp"
+version = "1.3.0"
+description = "MCP server for Google Fonts typography system generation"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Stas Kulesh", email = "stas@sliday.com" }]
+keywords = ["mcp", "typography", "google-fonts", "font-pairing", "css", "tailwind"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Fonts",
+]
+dependencies = ["fastmcp>=2.0.0", "rich>=13.0.0"]
+
+[project.scripts]
+google-fonts-mcp = "google_fonts_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/sliday/google-fonts-skill"
+Repository = "https://github.com/sliday/google-fonts-skill"
+Documentation = "https://sliday.github.io/google-fonts-skill/"
+"Gallery" = "https://sliday.github.io/google-fonts-skill/"
+"Agent Reference" = "https://sliday.github.io/google-fonts-skill/llms-full.txt"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/google_fonts_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "pyproject.toml", "README.md", "LICENSE"]

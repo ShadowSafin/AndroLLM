@@ -105,6 +105,7 @@ class ChatViewModelStabilizationTest {
             version = "1",
             backend = BackendType.CPU
         )
+        coEvery { engineRepository.resetChat() } returns io.androllm.core.common.Result.Success(Unit)
         return ChatViewModel(
             engineRepository,
             conversationRepository,

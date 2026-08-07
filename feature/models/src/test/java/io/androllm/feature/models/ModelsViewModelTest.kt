@@ -66,6 +66,7 @@ class ModelsViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         coEvery { engineRepository.initialize() } returns Result.Success(Unit)
         every { engineRepository.engineState } returns engineState
+        every { engineRepository.performanceStats } returns MutableStateFlow(null)
         every { modelRepository.observeAllModels() } returns flowOf(emptyList())
         every { repositoryRegistry.getActiveProvider() } returns repositoryProvider
         every { repositoryProvider.searchModels(any()) } returns flowOf(Result.Success(emptyList()))

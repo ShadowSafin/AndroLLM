@@ -105,6 +105,7 @@ class ProfileViewModel @Inject constructor(
                 favoriteModels = models.filter { it.isFavorite },
                 storageUsedBytes = device?.usedStorageBytes ?: 0L,
                 storageTotalBytes = device?.totalStorageBytes ?: 0L,
+                storageFreeBytes = device?.freeStorageBytes ?: 0L,
                 tokensPerSecond = history.lastOrNull()?.tokensPerSecond ?: 0f,
                 vulkanSupported = device?.isVulkanSupported == true
             )
@@ -294,6 +295,7 @@ data class ProfileData(
     val favoriteModels: List<Model> = emptyList(),
     val storageUsedBytes: Long = 0L,
     val storageTotalBytes: Long = 0L,
+    val storageFreeBytes: Long = 0L,
     val tokensPerSecond: Float = 0f,
     val vulkanSupported: Boolean = false
 )

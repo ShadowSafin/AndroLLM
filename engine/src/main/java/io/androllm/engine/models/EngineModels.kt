@@ -178,7 +178,24 @@ data class EngineDebugInfo(
     // Vulkan correctness self-test diagnostics (diagnostic only — never used
     // to determine the active execution backend).
     val vulkanValidationStatus: String = "skipped", // "passed" | "failed" | "skipped"
-    val vulkanValidationDetail: String = ""
+    val vulkanValidationDetail: String = "",
+    // Runtime corruption recovery telemetry (see MemoryStats for semantics).
+    val recoveryCount: Int = 0,
+    val lastRecoveryReason: String = "",
+    val cpuSessionFallback: Boolean = false,
+    // Vulkan diagnostics from the last generation (native_api.cpp):
+    // lastContextCreateMs — time to build a fresh llama_context (pipelines,
+    //   descriptor pools, command pools, buffers) from the resident model.
+    // lastCleanupMs — time to free the previous context's GPU state after EOS.
+    // decodeCount / decodeAvgMs — llama_decode calls and average submit+fence
+    //   wait in the last generation (fence waits are inside llama_decode).
+    // vulkanDeviceLostRecoveries — VK_ERROR_DEVICE_LOST events that were
+    //   caught and recovered (full backend reload) instead of crashing.
+    val lastContextCreateMs: Long = 0,
+    val lastCleanupMs: Long = 0,
+    val decodeCount: Long = 0,
+    val decodeAvgMs: Long = 0,
+    val vulkanDeviceLostRecoveries: Int = 0
 )
 
 /**

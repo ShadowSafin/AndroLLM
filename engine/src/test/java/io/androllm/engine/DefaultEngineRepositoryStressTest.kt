@@ -139,6 +139,9 @@ class DefaultEngineRepositoryStressTest {
         override fun benchmark(iterations: Int): Flow<io.androllm.core.common.Result<io.androllm.engine.models.BenchmarkResult>> =
             flow { }
 
+        override suspend fun resetChat(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+
         override suspend fun getDebugInfo(): io.androllm.core.common.Result<io.androllm.engine.models.EngineDebugInfo?> =
             io.androllm.core.common.Result.Success(null)
 

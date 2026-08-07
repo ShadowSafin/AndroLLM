@@ -68,6 +68,13 @@ interface InferenceEngine {
     suspend fun unloadModel(): Result<Unit>
 
     /**
+     * Resets the engine's conversational state (messages + KV cache). Called on
+     * conversation switch so a new conversation never continues from a stale
+     * KV prefix (mirrors upstream ai_chat.cpp reset_long_term_states()).
+     */
+    suspend fun resetChat(): Result<Unit>
+
+    /**
      * Streams tokens for the given prompt. The flow emits one element per token
      * and completes when generation finishes. Cancel the flow (or call [cancel])
      * to stop generation.
