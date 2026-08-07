@@ -152,3 +152,4 @@ coverage/
 # Local scratch / tooling
 .impeccable/
 META-INF/
+skills-lock.json
