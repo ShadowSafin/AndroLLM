@@ -2,315 +2,539 @@
 
 ### Private AI. Native Android. Your Models. Your Choice.
 
-A production-grade Android application that runs local GGUF language models, connects to cloud AI providers via LiteLLM, maintains persistent memory, supports offline voice interaction, and delivers a modern Material 3 interface — all in one app.
+A production-grade AI platform for Android that brings local GGUF model inference, GPU acceleration, cloud provider integration, persistent memory, and hands-free voice interaction into one unified application.
+
+---
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ShadowSafin/AndroLLM/main/app/src/main/res/drawable/ic_launcher_image.png" width="140" alt="AndroLLM Logo" />
+</p>
+
+<p align="center">
+  <strong>Run powerful language models directly on your device.</strong><br/>
+  Zero cloud dependency. Zero data leaves your phone — unless you choose otherwise.
+</p>
+
+<p align="center">
+  <a href="#-features"><strong>Features</strong></a> ·
+  <a href="#-architecture"><strong>Architecture</strong></a> ·
+  <a href="#-getting-started"><strong>Getting Started</strong></a> ·
+  <a href="#-voice-assistant"><strong>Voice</strong></a> ·
+  <a href="#-cloud-providers"><strong>Cloud</strong></a> ·
+  <a href="#-memory"><strong>Memory</strong></a> ·
+  <a href="#-documentation"><strong>Docs</strong></a> ·
+  <a href="#-contributing"><strong>Contributing</strong></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-3F89D7?style=for-the-badge&logo=android&logoColor=white" alt="Android"/>
+  <img src="https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin"/>
+  <img src="https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=for-the-badge&logo=jetable-compose&logoColor=white" alt="Jetpack Compose"/>
+  <img src="https://img.shields.io/badge/Material%203-6750A4?style=for-the-badge&logo=material-design&logoColor=white" alt="Material 3"/>
+  <img src="https://img.shields.io/badge/License-Apache%202.0-yellow?style=for-the-badge" alt="License"/>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/minSdk-26-3DDC84?style=for-the-badge&logo=android" alt="minSdk"/>
+  <img src="https://img.shields.io/badge/targetSdk-34-3DDC84?style=for-the-badge&logo=android" alt="targetSdk"/>
+  <img src="https://img.shields.io/badge/Kotlin-2.1.20-7F52FF?style=for-the-badge" alt="Kotlin Version"/>
+  <img src="https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white" alt="Gradle"/>
+  <img src="https://img.shields.io/badge/Hilt-2.57.1-EF6C00?style=for-the-badge" alt="Hilt"/>
+  <img src="https://img.shields.io/badge/Room-2.8.4-4DD0E1?style=for-the-badge" alt="Room"/>
+</p>
 
 ---
 
 ## ✨ What Makes AndroLLM Different
 
-Most mobile AI apps either require the cloud or are limited demos. AndroLLM is a **full product** — private by default, extensible when you need more power.
+Most mobile AI apps either route everything through the cloud or ship as a lightweight demo. **AndroLLM is a complete, production-quality product**:
 
-| | Most Mobile AI Apps | AndroLLM |
+| | Typical Mobile AI Apps | AndroLLM |
 |---|---|---|
-| **Local LLMs** | None or limited | Full llama.cpp + GGUF support |
-| **GPU Acceleration** | Rare | Vulkan offloading on capable devices |
+| **Local LLMs** | None or limited experiments | Full llama.cpp + GGUF support |
+| **GPU Acceleration** | Rarely available | Vulkan offloading with CPU fallback |
+| **Multi-turn Chat** | None or re-prefill every turn | KV-cache persistence, diff-based continuation |
 | **Cloud Providers** | One proprietary backend | Any LiteLLM-compatible endpoint |
-| **Persistent Memory** | None | Vector embeddings + retrieval |
-| **Voice Assistant** | None or cloud-only | Fully offline: wake word → ASR → LLM → TTS |
-| **Your Data** | Sent to provider's servers | Stays on device unless you opt in |
+| **Persistent Memory** | None | Vector embeddings + hybrid retrieval |
+| **Voice Assistant** | Cloud-dependent | Fully offline: wake word → ASR → LLM → TTS |
+| **Your Data** | Sent to provider servers | Stays on-device by default |
 
 ---
 
-## 🚀 Quick Start
+## 🧠 Features
 
-```bash
-# Requires: Android Studio, JDK 17, NDK r26, Vulkan SDK (for debug builds)
-git clone https://github.com/your-org/androllm.git
-cd androllm
-./gradlew assembleDebug
-```
+<table>
+<tr>
+<td width="50%">
 
-📖 [Building Guide](BUILDING.md)
+### ⚡ Local Inference Engine
 
----
+Run GGUF language models entirely on-device through a **vendored llama.cpp** build. No internet required after model download.
 
-## 🔧 Architecture at a Glance
+- Full C++ llama.cpp engine with JNI bridge (~3,700 lines)
+- GGUF validation and memory estimation before load
+- Streaming token output at up to 60 fps
+- Multi-turn conversations via KV-cache persistence
+- JSON and constrained decoding support
+- Automatic context shift when approaching limits
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Presentation Layer                       │
-│         Jetpack Compose · Material 3 · Hilt Navigation       │
-├─────────────────────────────────────────────────────────────┤
-│                         Chat Layer                           │
-│   ChatViewModel · Streaming UI · Markdown · Memory Context   │
-├──────────────┬──────────────────────────────────────────────┤
-│  Local Runtime│          Cloud Gateway                       │
-│              │                                              │
-│  llama.cpp   │  LiteLLM Client (Retrofit + OkHttp)          │
-│      ↓       │        ↓                                     │
-│   GGUF Model │  Provider Manager + KeyCipher                │
-│              │        ↓                                     │
-│  Vulkan/CPU  │  SSE Streaming + Retry Policy                │
-├──────────────┴──────────────────────────────────────────────┤
-│                    Support Layer                             │
-│  Memory (embeddings/vector search) · Voice (sherpa-onnx)    │
-│  Database (Room) · Auth (Firebase) · Network (Ktor)         │
-└─────────────────────────────────────────────────────────────┘
-```
+</td>
+<td width="50%">
 
----
+### 🎮 Vulkan GPU Acceleration
 
-## 🧠 Core Features
+Compile-ready Vulkan backend for hardware-accelerated inference on supported devices.
 
-### Local AI Engine
-Run open-source language models directly on your device through a **vendored llama.cpp** build. Supports GGUF format with automatic CPU↔Vulkan backend selection.
+- Shader compilation at build time (host Vulkan SDK required)
+- Runtime GPU-vs-CPU correctness validation
+- Automatic fallback to ARM64 NEON + KleidiAI microkernels
+- Corruption recovery: NaN/INF logits, invalid tokens, device-lost escalation
+- Real-time diagnostics: `gpuFree`, `gpuTotal`, `recoveryCount`
 
-- **GGUF** models from HuggingFace or any source
-- **Vulkan GPU acceleration** on devices with Adreno/Mali/Apple Silicon GPUs
-- **CPU fallback** for devices without Vulkan support
-- Streaming token output with real-time markdown rendering
-- Multi-turn conversations using KV-cache persistence
+</td>
+</tr>
+<tr>
+<td width="50%">
 
-### Cloud AI Integration
-Connect to any OpenAI-compatible provider through a **LiteLLM proxy** or direct API.
+### ☁️ Cloud Provider Integration
 
-- Google Gemini, Anthropic Claude, OpenAI GPT, xAI Grok, Meta Llama
-- Encrypted API key storage via Android Keystore (AES-256/GCM)
+Connect to any OpenAI-compatible API through a unified LiteLLM proxy layer.
+
+- Google Gemini · Anthropic Claude · OpenAI GPT · xAI Grok · Meta Llama
+- Encrypted API keys via Android Keystore (AES-256/GCM)
+- SSE streaming with exponential backoff retry (IOException, 408, 429, 5xx)
 - Automatic health monitoring and provider failover
-- Custom provider configuration
+- Model discovery via `/v1/models` endpoint
+- Custom providers with per-model overrides
 
-### Persistent Memory
-The app remembers what matters across conversations.
+</td>
+<td width="50%">
 
-- SQLite-backed storage with vector embeddings
-- Automatic extraction of facts, preferences, and context
-- Hybrid search: keyword match + cosine similarity
-- Works with both local and cloud models
-- Full data deletion on demand
+### 🧩 Persistent Memory
 
-### Offline Voice Assistant
-Say **"Hey Andro"** and interact hands-free, completely offline.
+Remember facts across conversations — locally or via cloud embeddings.
 
-| Pipeline Stage | Technology | Runs Offline? |
-|---|---|---|
-| Wake Word | sherpa-onnx KWS (zipformer2) | ✅ Yes |
-| Speech Recognition | sherpa-onnx streaming ASR (en-20M int8) | ✅ Yes |
-| Voice Activity Detection | Energy-based VAD | ✅ Yes |
-| Text-to-Speech | Piper VITS (sherpa-onnx) | ✅ Yes |
+- SQLite-backed storage with in-memory vector index
+- Hybrid search: cosine similarity + keyword matching
+- Automatic extraction of preferences, facts, projects, opinions
+- Model-independent: memories work with any loaded model
+- Background indexing via WorkManager
+- Full privacy: data stays on device unless cloud embedding is enabled
 
-The voice service runs as a foreground service with system overlay and barge-in support.
+</td>
+</tr>
+<tr>
+<td width="50%">
 
-### Privacy-First Design
-- All local inference happens on-device — no network requests during generation
-- Firebase authentication is optional; guest mode works without signing in
-- API keys are encrypted in the Android Keystore; never stored in plaintext
-- Memory data lives in a local Room database; user controls what gets shared
+### 🎙️ Offline Voice Assistant
 
-### Modern UI / UX
-Built on the **"Parchment Ledger"** design system — warm, editorial aesthetics with terracotta accents.
+Hands-free interaction entirely on-device. Say **"Hey Andro"** and chat naturally.
+
+- Wake word: sherpa-onnx KWS zipformer2 (~3 MB)
+- Speech recognition: sherpa-onnx streaming ASR en-20M (~8 MB)
+- Text-to-speech: Piper VITS-LJSpeech (~114 MB, lazy-loaded)
+- Energy-based VAD for barge-in detection
+- 12 local voice commands (mute, settings, new chat, etc.)
+- Foreground service with system overlay and persistent notification
+
+</td>
+<td width="50%">
+
+### 💎 Premium UI / UX
+
+"The Parchment Ledger" design system — warm, editorial, calm.
 
 - Jetpack Compose with Material 3
-- Adaptive navigation (bottom bar on phone, rail on tablet/foldable)
-- Streaming text with 60fps throttling
-- Markdown rendering with code block syntax highlighting
-- Dark and light themes
+- Adaptive navigation: bottom bar (phone) → rail (tablet/foldable)
+- Real-time markdown rendering with syntax-highlighted code blocks
+- Streaming text at ~60 fps with stable item callbacks
+- Light & dark themes with terracotta accent (`#D97757`)
+- Conversation drawer, model parameter sheet, search overlay
+
+</td>
+</tr>
+</table>
 
 ---
 
-## 📊 Technical Overview
+## 🏗️ Architecture
 
-| Category | Technology |
-|---|---|
-| **Language** | Kotlin 2.1.20 |
-| **UI Framework** | Jetpack Compose 1.7.2 / Material 3 |
-| **Architecture** | MVVM + Clean Architecture + Repository Pattern |
-| **DI** | Hilt (Dagger) 2.57.1 |
-| **Navigation** | Navigation Compose 2.8.4 |
-| **Async** | Kotlin Coroutines 1.8.0 + Flow |
-| **Database** | Room 2.8.4 (WAL mode, 4 entities, version 5) |
-| **Preferences** | DataStore Preferences 1.1.1 |
-| **Native Inference** | llama.cpp (vendored upstream, stock) + JNI |
-| **GPU Backend** | Vulkan via ggml (build-time enabled) |
-| **Voice ASR/TTS/KWS** | sherpa-onnx 1.13.4 (ONNX Runtime Mobile) |
-| **Networking** | Ktor 3.0.3 + Retrofit + OkHttp 4.12.0 |
-| **Authentication** | Firebase Auth 34.12.0 (Google + GitHub OAuth) |
-| **Secrets Storage** | Android Keystore (AES-256/GCM) via KeyCipher |
-| **Logging** | Timber 5.0.1 |
-| **Image Loading** | Coil 2.6.0 |
-| **Min SDK** | 28 (Android 9) |
-| **Target SDK** | 34 |
+```mermaid
+flowchart TB
+    USER(["👤 User"])
 
----
+    subgraph PRESENTATION["Presentation Layer"]
+        COMPOSE["💎 Jetpack Compose UI<br/>Material 3 · Adaptive Nav"]
+        VIEWMODELS["📐 ViewModels<br/>StateFlow · Combine"]
+    end
 
-## 🏗️ Project Structure
+    subgraph CHAT["Chat Layer"]
+        STREAM["⚡ Streaming Engine<br/>Token flow · Markdown · Memory context"]
+    end
 
-AndroLLM uses a **multi-module Gradle project** with 26 modules organized into three tiers:
+    subgraph ROUTING["Model Router"]
+        ROUTER["🧠 InferenceRouter<br/>Local ↔ Cloud selection"]
+    end
 
-```
-AndroLLM/
-├── app/                          # Main application (entry point, DI, navigation)
-│
-├── core/                         # Shared library modules (11 modules)
-│   ├── common/                   # BaseViewModel, Result, UiState, extensions
-│   ├── ui/                       # Theme, color tokens, shared composable components
-│   ├── database/                 # Room entities, DAOs, repositories, migrations
-│   ├── datastore/                # Preferences DataStore wrappers
-│   ├── navigation/               # Route constants, navigation helpers
-│   ├── models/                   # Domain models, model catalog engine & search
-│   ├── network/                  # Ktor client factory, Hugging Face API, downloads
-│   ├── cloud/                    # LiteLLM client, provider manager, key encryption
-│   ├── utils/                    # Permissions, storage, connectivity, logging
-│   ├── telemetry/                # Performance telemetry & history
-│   ├── memory/                   # Vector memory: embeddings, retrieval, summarization
-│   └── voice/                    # sherpa-onnx: ASR, TTS, VAD, wake word engines
-│
-├── engine/                       # LLM inference engine
-│   ├── src/main/java/            # Kotlin API: InferenceEngine, EngineRepository
-│   └── src/main/cpp/             # Native layer
-│       ├── native_api.cpp        # JNI bridge (~3700 lines)
-│       └── llama.cpp/            # Vendored upstream llama.cpp (stock, unpatched)
-│
-├── feature/                      # Feature modules (10 modules)
-│   ├── home/                     # Home screen, recent chats, quick actions
-│   ├── chat/                     # Chat UI, streaming, markdown, drawer
-│   ├── models/                   # Model catalog, download manager, benchmarks
-│   ├── settings/                 # App settings, voice config, memory settings
-│   ├── voice/                    # Foreground service, overlay UI, state machine
-│   ├── splash/                   # Animated splash screen
-│   ├── onboarding/               # First-run onboarding flow
-│   ├── profile/                  # User profile with Firebase sync
-│   ├── prompts/                  # Prompt library
-│   ├── developer/                # Developer tools & diagnostics
-│   └── cloud/                    # Cloud provider management & model browsing
-│
-├── docs/                         # Internal documentation module
-├── gradle/                       # Version catalog (libs.versions.toml)
-└── tools/                        # Build helper scripts
-```
+    subgraph LOCAL["Local Runtime"]
+        LLAMA["🔥 llama.cpp<br/>Vendored upstream C++"]
+        GGUF["📦 GGUF Models<br/>Validation + Quantization"]
+        GPU["🎮 Vulkan Backend<br/>GPU offload + fallback"]
+        MEMORY["🧠 Persistent Memory<br/>Embeddings + Retrieval"]
+    end
 
----
+    subgraph CLOUD["Cloud Gateway"]
+        LITELLM["☁️ LiteLLM Client<br/>Retrofit + OkHttp SSE"]
+        PROVIDERS["🔗 Provider Manager<br/>Health monitor + KeyCipher"]
+    end
 
-## 🎙️ Voice Assistant Pipeline
+    subgraph VOICE["Voice Pipeline"]
+        KWS["🎤 Wake Word<br/>sherpa-onnx KWS"]
+        ASR["🗣️ ASR<br/>Streaming recognizer"]
+        TTS["🔊 TTS<br/>Piper VITS-LJS"]
+        VAD["📊 VAD<br/>Barge-in detection"]
+    end
 
-```
-[Microphone @ 16kHz mono]
-         │
-         ▼
-  AudioRecorder (200ms chunks → Channel<FloatArray>)
-         │
-    ┌────┴────┐
-    │  LISTEN │ ← SherpaOnnxWakeWordEngine (KWS zipformer2)
-    │  PHASE  │   Detects: "Hey Andro" / "Okay Andro"
-    └────┬────┘
-         │ WAKE_DETECTED
-         ▼
-    ┌───────────┐ ← SherpaOnnxStreamingRecognizer (en-20M int8)
-    │  ASR      │   Streaming speech → text
-    │  PHASE    │
-    └─────┬─────┘
-          │ Transcript
-          ▼
-    ┌──────────────┐
-    │ Command Router│  "mute", "settings", "new chat"... (12 local commands)
-    └───────┬──────┘
-            │
-     ┌──────┴──────┐
-     │   LLM       │ ← Local: llama.cpp GGUF
-     │   Routing   │ ← Cloud: LiteLLM (Gemini, Claude, GPT, etc.)
-     └──────┬──────┘
-            │ Streamed response
-            ▼
-     ┌──────────────┐ ← SentenceAssembler (split on . ! ? newline)
-     │  TTS Play    │ ← PiperSpeechSynthesizer (VITS-LJSpeech @ 22050Hz)
-     │  + VAD Barge │ ← Energy-based VAD (threshold 0.005 RMS)
-     └──────────────┘
+    subgraph PERSISTENCE["Data Layer"]
+        ROOM["💾 Room Database<br/>4 entities · WAL mode"]
+        DS["📝 DataStore<br/>Preferences"]
+        KEYSTORE["🔐 Android Keystore<br/>AES-256/GCM encryption"]
+    end
+
+    subgraph AUTH["Authentication"]
+        FIREBASE["☁️ Firebase Auth<br/>Google + GitHub OAuth"]
+    end
+
+    USER --> COMPOSE
+    COMPOSE --> VIEWMODELS
+    VIEWMODELS --> STREAM
+    STREAM --> ROUTER
+    ROUTER --> LOCAL
+    ROUTER --> CLOUD
+    LOCAL --> LLAMA
+    LLAMA --> GGUF
+    LLAMA --> GPU
+    STREAM --> MEMORY
+    CLOUD --> LITELLM
+    LITELLM --> PROVIDERS
+    USER --- VOICE
+    VOICE --> KWS
+    KWS --> ASR
+    ASR --> ROUTER
+    ROUTER --> TTS
+    TTS --> VAD
+    VAD --> KWS
+    MEMORY --> ROOM
+    VIEWMODELS --> DS
+    PROVIDERS --> KEYSTORE
+    VIEWMODELS --> AUTH
+    AUTH --> FIREBASE
 ```
 
 ---
 
-## 🧩 Memory System
+## 📦 Technology Stack
 
-```
-User Message → MemoryManager.processExchange()
-                    │
-                    ├── IntelligenceRouter.extract()
-                    │       ├── Cloud path: via LiteLLM embedding endpoint
-                    │       └── Local path: local LLM-based extraction
-                    │
-                    ├── EmbeddingRouter.embed()
-                    │       ├── Cloud path: via cloud provider embeddings API
-                    │       └── Local path: separate llama.cpp embedding model handle
-                    │
-                    ├── CosineVectorIndex.upsert()  ← in-memory brute-force search
-                    └── Room DB: MemoryEntity + EmbeddingEntity (BLOB)
-```
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=kotlin,android,gradle,firebase,sqlite,timber&perline=6" width="420" alt="Core Technologies"/>
+</p>
 
-Memory is **model-independent**: memories extracted with one model can be retrieved by another. The system works without embeddings (keyword/recency fallback).
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=ktor,okhttp,coilmcp&perline=3" width="280" alt="Networking & Images"/>
+</p>
+
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=cpp,vulkan,onnx&perline=3" width="280" alt="Native & ML Runtimes"/>
+</p>
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Language** | Kotlin 2.1.20 | Primary development language |
+| **UI Framework** | Jetpack Compose 1.7.2 + Material 3 | Declarative, modern Android UI |
+| **Architecture** | MVVM + Clean Architecture + Repository Pattern | Separation of concerns |
+| **DI Container** | Hilt (Dagger) 2.57.1 | Compile-time dependency injection |
+| **Navigation** | Navigation Compose 2.8.4 | Type-safe screen routing |
+| **Async** | Kotlin Coroutines 1.8.0 + Flow | Structured concurrency |
+| **Database** | Room 2.8.4 (WAL mode, v5 schema) | Local SQL persistence |
+| **Preferences** | DataStore Preferences 1.1.1 | Reactive key-value storage |
+| **Inference Engine** | llama.cpp (vendored, stock upstream) | Local GGUF model execution |
+| **GPU Backend** | ggml Vulkan (build-time enabled) | Hardware-accelerated inference |
+| **Voice Stack** | sherpa-onnx 1.13.4 (ONNX Runtime Mobile) | ASR, TTS, KWS, VAD |
+| **Networking** | Ktor 3.0.3 + Retrofit + OkHttp 4.12.0 | HTTP client for downloads & APIs |
+| **Auth** | Firebase Auth 34.12.0 | Google Sign-In + GitHub OAuth |
+| **Secrets** | Android Keystore (AES-256/GCM) | API key encryption |
+| **Logging** | Timber 5.0.1 | Structured logging |
+| **Testing** | JUnit 4 · mockk · Turbine · Espresso | 51 test classes across 19 modules |
+| **Code Quality** | Spotless · Detekt | Formatting + static analysis |
 
 ---
 
-## ⚡ Performance
-
-Token generation speed depends on:
-
-- **Model size** (quantization and parameter count)
-- **Backend** (Vulkan GPU vs. ARM64 CPU with KleidiAI microkernels)
-- **Context length** (larger context = more KV cache = slower)
-- **Device thermal state** (throttling reduces clock speeds)
-
-Benchmark your model with the built-in **Developer Diagnostics** screen. No pre-set benchmarks are claimed.
-
----
-
-## 📦 Installation
-
-### From Source
-```bash
-git clone <repo-url>
-cd AndroLLM
-# Build debug APK
-./gradlew assembleDebug
-# Build release APK (requires keystore configured in local.properties or gradle.properties)
-./gradlew assembleRelease
-```
-
-See [Building Guide](BUILDING.md) for full environment setup.
+## 🔧 Getting Started
 
 ### Prerequisites
-- **Android Studio** Hedgehog or newer
-- **JDK 17** (via Gradle toolchain / foojay-resolver)
-- **Android SDK** with API 34 platform
-- **NDK** 26.1.10909125 (for the `engine` module)
-- **Vulkan SDK** (required for host-side shader compilation; install from [LunarG](https://vulkan.lunarg.com/))
+
+| Requirement | Minimum | Recommended |
+|---|---|---|
+| Android Studio | Hedgehog (2023.1.1) | Latest stable |
+| JDK | 17 | 17 (auto-managed by Gradle) |
+| Android SDK | API 34 | API 34 |
+| NDK | r26 (26.1.10909125) | r26 |
+| CMake | 3.22.1+ | Bundled with Android Studio |
+| Vulkan SDK | Latest | For host-side shader compilation |
+
+### Build & Install
+
+```bash
+# Clone the repository
+git clone https://github.com/ShadowSafin/AndroLLM.git
+cd AndroLLM
+
+# Build debug APK
+./gradlew assembleDebug
+
+# Install on connected device
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+📖 [Full Building Guide](BUILDING.md) · [Development Workflow](DEVELOPMENT.md)
+
+### First Run
+
+1. **Install** the APK on an arm64-v8a device (8 GB+ RAM recommended)
+2. **Sign in** with Google or GitHub (optional — guest mode works fully)
+3. **Browse models** in the Catalog tab — filters by your device's RAM
+4. **Download and load** a model (Qwen2.5-1.5B-Q4_K_M is a good starting point)
+5. **Start chatting** — messages stream in real-time with markdown rendering
+6. **Enable voice** in Settings → Voice Assistant and say "Hey Andro"
 
 ---
 
-## 🔐 Authentication
+## 🎙️ Voice Assistant
 
-AndroLLM supports optional Firebase authentication:
+Complete offline voice pipeline — no internet required:
 
-- **Google Sign-In** via Credential Manager + Google Identity Services
-- **GitHub Sign-In** via Firebase OAuth (scopes: `read:user`, `user:email`)
+```
+[Microphone @ 16kHz]
+       │
+       ▼
+  Wake Word Detection
+  "Hey Andro" / "Okay Andro"
+  (sherpa-onnx KWS, ~3 MB)
+       │
+       ▼
+  Streaming ASR
+  English speech → text
+  (zipformer-en-20M int8, ~8 MB)
+       │
+       ▼
+  Command Router ───► 12 local commands
+       │
+       ▼
+  LLM Generation ───► Local GGUF or Cloud API
+       │
+       ▼
+  TTS Playback
+  Piper VITS-LJS @ 22050Hz
+  (~114 MB, lazy-loaded)
+       │
+       ▼
+  Barge-in via VAD ──► Interrupt and re-listen
+```
 
-Authentication enables cloud sync and advanced features but is **not required** — you can use the app as a guest.
+**Supported voice commands:** mute, unmute, stop speaking, new chat, open settings,
+open models, switch theme, delete conversation, summarize chat, enable/disable offline
+mode and voice.
 
-📖 [Firebase Auth Documentation](FIREBASE_AUTH.md)
+📖 [Voice Architecture Deep Dive](docs/voice/voice-assistant.md)
 
 ---
 
-## 📚 Full Documentation Index
+## ☁️ Cloud Providers
+
+Add any LiteLLM-compatible endpoint from Settings → Cloud Providers:
+
+| Provider | Status | Notes |
+|---|---|---|
+| Google Gemini | ✅ Supported | Via LiteLLM proxy |
+| Anthropic Claude | ✅ Supported | Via LiteLLM proxy |
+| OpenAI GPT | ✅ Supported | Native OpenAI API |
+| xAI Grok | ✅ Supported | OpenAI-compatible endpoint |
+| Meta Llama | ✅ Supported | Via self-hosted LiteLLM |
+| Mistral | ✅ Supported | OpenAI-compatible API |
+| Custom LiteLLM | ✅ Supported | Any OpenAI-compatible router |
+
+API keys are encrypted with **AES-256/GCM via Android Keystore** — they never touch shared preferences or plaintext storage.
+
+📖 [Cloud Provider Architecture](docs/cloud/cloud-providers.md)
+
+---
+
+## 🧠 Memory System
+
+Memories extracted from conversations are stored locally and injected into future contexts:
+
+```
+Conversation exchange
+        │
+        ├──▶ Extract facts & preferences
+        │       (JSON schema: category, content, importance, tags)
+        │
+        ├──▶ Embed content
+        │       ├── Cloud path: LiteLLM embeddings API
+        │       └── Local path: dedicated llama.cpp embedding handle
+        │
+        ├──▶ Store in SQLite + CosineVectorIndex
+        │
+        └──▶ Future conversation:
+                Hybrid search (vector + keyword)
+                → Inject into system prompt
+```
+
+Works fully offline. Falls back to keyword/recency sorting when embeddings are unavailable.
+
+📖 [Memory Architecture](docs/memory/memory-architecture.md)
+
+---
+
+## 📊 Model Support
+
+**Format:** GGUF (primary). The app validates headers before loading and supports 137
+architectures including `llama`, `gemma2`, `qwen2`, `deepseek`, `mistral`, `phi3`, and more.
+
+| Quantization | Bits | Use Case |
+|---|---|---|
+| Q8_0 | ~8 | Best quality · 8 GB+ RAM |
+| **Q5_K_M** | ~5.5 | **Recommended balance** · 4–8 GB RAM |
+| **Q4_K_M** | ~4.5 | **Sweet spot for mobile** · 2–4 GB RAM |
+| IQ3_XS | ~3.25 | Very constrained · < 2 GB available |
+
+📖 [Model Support Guide](MODEL_SUPPORT.md)
+
+---
+
+## 🔐 Privacy & Security
+
+| Aspect | Implementation |
+|---|---|
+| **Local inference** | Runs entirely on-device; zero network transmission |
+| **API key storage** | AES-256/GCM encrypted in Android Keystore |
+| **Database** | Room in app-private sandbox (`/data/data/io.androllm.app/`) |
+| **Network** | HTTPS-only; cleartext disabled (`usesCleartextTraffic=false`) |
+| **Permissions** | Minimal set; requested lazily (not at launch) |
+| **Voice audio** | Processed entirely on-device; no server transmission |
+| **Analytics** | None. Zero telemetry or crash reporting services. |
+| **Guest mode** | Full functionality without any authentication |
+
+See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for full details.
+
+---
+
+## 📚 Documentation
 
 | Document | Description |
 |---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Complete system architecture overview |
-| [BUILDING.md](BUILDING.md) | Step-by-step build instructions |
-| [MODEL_SUPPORT.md](MODEL_SUPPORT.md) | Supported GGUF models and formats |
-| [VOICE_ASSISTANT.md](docs/voice/voice-assistant.md) | Deep dive into the offline voice stack |
-| [MEMORY.md](MEMORY.md) | Memory system, embeddings, and retrieval |
-| [VULKAN.md](docs/ai/vulkan.md) | Vulkan GPU acceleration details |
-| [CLOUD_PROVIDERS.md](docs/cloud/cloud-providers.md) | Cloud AI provider architecture |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Complete system architecture with diagrams |
+| [BUILDING.md](BUILDING.md) | Environment setup and build instructions |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development guidelines and code style |
+| [TESTING.md](TESTING.md) | Test strategy, frameworks, and conventions |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | IDE setup, debugging, profiling guide |
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and solutions |
 | [FAQ.md](FAQ.md) | Frequently asked questions |
+| [PERFORMANCE.md](PERFORMANCE.md) | Token speed, RAM, Vulkan, battery guidance |
+| [MODEL_SUPPORT.md](MODEL_SUPPORT.md) | GGUF formats, architectures, quantizations |
+| [ROADMAP.md](ROADMAP.md) | Completed, planned, and future features |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [RELEASE_PROCESS.md](RELEASE_PROCESS.md) | Build, sign, and publish procedures |
+| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | 26-module dependency graph |
+
+### Deep-Dive Documentation (`docs/`)
+
+```
+docs/
+├── getting-started/first-run.md        # Installation and first-time setup
+├── ai/                                 # AI engine internals
+│   ├── llama-cpp.md                    # Native engine, JNI bridge, multi-turn strategy
+│   ├── gguf.md                         # GGUF format specification and validation
+│   └── vulkan.md                       # GPU acceleration and corruption recovery
+├── voice/voice-assistant.md            # Full voice pipeline: KWS → ASR → TTS
+├── cloud/cloud-providers.md            # LiteLLM client, streaming, security
+├── memory/memory-architecture.md       # Embeddings, retrieval, vector index
+├── ui/                                 # UI architecture
+│   ├── ui-architecture.md              # Design system, components, theming
+│   └── chat-architecture.md            # Streaming, markdown, state management
+├── backend/                            # Data layer
+│   ├── database.md                     # Room schema v5, migrations, DAOs
+│   ├── networking.md                   # Ktor + Retrofit stacks
+│   └── firebase-auth.md                # Google + GitHub auth flow
+├── security/security-architecture.md   # 4-layer security model
+├── development/error-handling.md       # Result/UiState patterns, recovery
+├── android/permissions.md              # All declared permissions reference
+└── INDEX.md                            # Complete documentation index
+```
+
+---
+
+## 🛠️ Project Structure
+
+**26 Gradle modules** organized into three tiers:
+
+```
+AndroLLM/
+├── app/                          # Entry point, navigation host, auth
+├── core/                         # 11 shared library modules
+│   ├── common/      Base types (Result, UiState, BaseViewModel)
+│   ├── ui/          Compose theme, design system, shared components
+│   ├── database/    Room DB (4 entities, version 5, WAL mode)
+│   ├── datastore/   Preferences DataStore
+│   ├── navigation/  Route constants and extensions
+│   ├── models/      Domain models + catalog engine (137 architectures)
+│   ├── network/     Ktor client + HuggingFace API
+│   ├── cloud/       LiteLLM client + provider manager + KeyCipher
+│   ├── utils/       Permissions, storage, connectivity helpers
+│   ├── telemetry/   Performance metrics storage
+│   ├── memory/      Vector memory system with embeddings
+│   └── voice/       sherpa-onnx ASR/TTS/KWS/VAD engines
+├── engine/                       # llama.cpp native engine + JNI bridge
+│   ├── cpp/native_api.cpp        ~3,700 lines JNI bridge
+│   └── cpp/llama.cpp/            Vendored stock upstream llama.cpp
+├── feature/                      # 11 independent feature modules
+│   ├── home/    Home screen, recent chats, quick actions
+│   ├── chat/    Chat UI, streaming, markdown, drawer
+│   ├── models/  Model catalog browser, downloader, benchmark
+│   ├── voice/   Foreground service, overlay UI, state machine
+│   ├── settings/ App settings, voice config, memory controls
+│   ├── splash/  Animated splash screen
+│   ├── onboarding/ First-run onboarding flow
+│   ├── profile/ User profile with Firebase sync
+│   ├── prompts/ Prompt library
+│   ├── developer/ Developer tools and diagnostics
+│   └── cloud/   Cloud provider management and model browsing
+├── docs/                         # Internal documentation module
+└── gradle/libs.versions.toml     # Centralized version catalog
+```
+
+Feature modules depend **only** on `core:*` modules — never on each other.
+
+---
+
+## 🚧 Roadmap Highlights
+
+| Status | Feature |
+|---|---|
+| ✅ | llama.cpp native engine with Vulkan backend |
+| ✅ | GGUF model catalog with 137 architecture support |
+| ✅ | Cloud provider abstraction via LiteLLM |
+| ✅ | Persistent memory with vector embeddings |
+| ✅ | Offline voice assistant (wake word → ASR → TTS) |
+| ✅ | Firebase Auth (Google + GitHub) |
+| ✅ | 51 test classes across 19 modules |
+| 🚧 | Multi-language ASR (Chinese, Japanese, Korean) |
+| 🚧 | Function calling / tool use support |
+| 🚧 | CI/CD pipeline |
+| 🔮 | QNN/NPU backend (Snapdragon) |
+| 🔮 | Multi-modal vision models |
+
+See [ROADMAP.md](ROADMAP.md) for the full list.
 
 ---
 
@@ -324,17 +548,17 @@ We welcome contributions of all kinds — bug reports, documentation fixes, new 
 
 ## 📄 License
 
-This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE.md).
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE.md) for details.
+Third-party component licenses are listed in [LICENSES.md](LICENSES.md).
 
 ---
 
 ## 🔗 References
 
-- [llama.cpp documentation](https://github.com/ggerganov/llama.cpp)
-- [sherpa-onnx documentation](https://k2-fsa.github.io/sherpa/onnx/)
-- [Jetpack Compose documentation](https://developer.android.com/jetpack/compose)
-- [Material 3 documentation](https://m3.material.io/)
-- [Vulkan documentation](https://www.khronos.org/vulkan/)
-- [Firebase Authentication](https://firebase.google.com/docs/auth)
-- [LiteLLM documentation](https://litellm.vercel.app/)
-- [Android Keystore documentation](https://developer.android.com/privacy-and-security/keystore)
+- [llama.cpp](https://github.com/ggerganov/llama.cpp) — Local LLM inference engine
+- [sherpa-onnx](https://k2-fsa.github.io/sherpa/onnx/) — Offline voice processing
+- [Jetpack Compose](https://developer.android.com/jetpack/compose) — Modern Android UI
+- [Material 3](https://m3.material.io/) — Design system
+- [Firebase Auth](https://firebase.google.com/docs/auth) — Authentication
+- [LiteLLM](https://litellm.vercel.app/) — Cloud provider abstraction
+- [Android Keystore](https://developer.android.com/privacy-and-security/keystore) — Secure key storage
