@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -441,8 +442,9 @@ fun FirebaseAuthScreen(
                     text = "Continue with Google",
                     onClick = ::googleSignIn,
                     gradient = Brush.horizontalGradient(
-                        listOf(io.androllm.core.ui.theme.LampGlow.copy(alpha = 0.22f), io.androllm.core.ui.theme.LampAmber.copy(alpha = 0.14f))
+                        listOf(Color(0xFFFFFFFF), Color(0xFFF8F9FA))
                     ),
+                    textColor = Color(0xFF1F1F1F),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     GoogleGlyph(size = 20.dp)
@@ -455,15 +457,16 @@ fun FirebaseAuthScreen(
                     text = "Continue with GitHub",
                     onClick = ::githubSignIn,
                     gradient = Brush.horizontalGradient(
-                        listOf(io.androllm.core.ui.theme.DeskWalnutRaised, io.androllm.core.ui.theme.DeskWalnutDeep)
+                        listOf(Color(0xFF24292E), Color(0xFF181717))
                     ),
+                    textColor = Color(0xFFFFFFFF),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     androidx.compose.material3.Icon(
                         imageVector = GitHubIcon,
-                        contentDescription = null,
-                        tint = io.androllm.core.ui.theme.DeskPaper,
-                        modifier = Modifier.width(20.dp).height(20.dp)
+                        contentDescription = "GitHub",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -523,6 +526,7 @@ private fun ProviderButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     gradient: Brush,
+    textColor: Color = io.androllm.core.ui.theme.DeskPaper,
     glyph: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
@@ -564,7 +568,7 @@ private fun ProviderButton(
                 text = text,
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = io.androllm.core.ui.theme.DeskPaper
+                    color = textColor
                 )
             )
         }

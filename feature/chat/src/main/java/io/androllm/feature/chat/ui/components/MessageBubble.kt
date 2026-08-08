@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
@@ -49,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.androllm.core.models.MessageOrigin
 import io.androllm.core.models.MessageRole
 import io.androllm.core.ui.components.LampDot
 import io.androllm.core.ui.theme.DeskHairline
@@ -161,6 +163,18 @@ fun MessageBubble(
                             Icon(
                                 imageVector = Icons.Default.Bookmark,
                                 contentDescription = "Bookmarked",
+                                tint = io.androllm.core.ui.theme.LampDeep.copy(alpha = 0.9f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                        if (isUser && message.origin == MessageOrigin.VOICE) {
+                            // 🎤 voice origin — the user spoke this prompt after
+                            // the wake word fired. Visually identical to a
+                            // typed message, just a small mic chip in the
+                            // header.
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Voice",
                                 tint = io.androllm.core.ui.theme.LampDeep.copy(alpha = 0.9f),
                                 modifier = Modifier.size(12.dp)
                             )

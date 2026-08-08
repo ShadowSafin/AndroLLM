@@ -1,4 +1,4 @@
-﻿package io.androllm.feature.settings
+package io.androllm.feature.settings
 
 import android.content.Context
 import android.net.Uri
@@ -19,8 +19,14 @@ import io.androllm.core.models.ThemeMode
 import io.androllm.core.utils.LogUtils
 import io.androllm.core.utils.ShareUtils
 import io.androllm.core.utils.StorageUtils
+import io.androllm.core.voice.VoiceSettingsStore
+import io.androllm.core.voice.model.VoiceSettings
+import io.androllm.feature.voice.VoiceAssistant
+import io.androllm.feature.voice.VoiceAssistantController
+import io.androllm.feature.voice.ui.OverlayPermission
 import java.io.File
 import javax.inject.Inject
+import timber.log.Timber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +36,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import io.androllm.core.voice.wakeword.WakeWordEngine
+
 /**
  * ViewModel for the settings screen.
  */
@@ -37,7 +45,10 @@ import kotlinx.coroutines.withContext
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
-    private val memoryManager: MemoryManager
+    private val memoryManager: MemoryManager,
+    private val voiceSettingsStore: VoiceSettingsStore,
+    private val voiceController: VoiceAssistantController,
+    private val wakeWordEngine: WakeWordEngine
 ) : BaseViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<SettingsData>>(UiState.Loading())
@@ -58,6 +69,16 @@ class SettingsViewModel @Inject constructor(
     private val _storageStats = MutableStateFlow<io.androllm.core.utils.StorageStats?>(null)
     val storageStats: StateFlow<io.androllm.core.utils.StorageStats?> = _storageStats.asStateFlow()
 
+    // ── Voice assistant ──
+
+    private val _voiceSettings = MutableStateFlow(VoiceSettings())
+    val voiceSettings: StateFlow<VoiceSettings> = _voiceSettings.asStateFlow()
+
+    /** Live assistant phase (drives the settings section status line). */
+    val voiceState: StateFlow<io.androllm.feature.voice.VoiceUiState> = voiceController.state
+
+    val overlayGranted: Boolean get() = OverlayPermission.isGranted(context)
+
     /** Firebase is optional â€” the settings header must still work offline as a guest. */
     private val auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
 
@@ -75,6 +96,42 @@ class SettingsViewModel @Inject constructor(
         observeMemorySettings()
         refreshMemoryStats()
         refreshStorageStats()
+        observeVoiceSettings()
+    }
+
+    // ── Voice assistant ──
+
+    private fun observeVoiceSettings() {
+        viewModelScope.launch {
+            voiceSettingsStore.settings.collect { _voiceSettings.value = it }
+        }
+    }
+
+    fun updateVoiceSettings(settings: VoiceSettings) {
+        viewModelScope.launch {
+            voiceSettingsStore.update { settings }
+        }
+    }
+
+    fun startVoiceAssistant() {
+        viewModelScope.launch {
+            // Persist the master switch BEFORE the service reads it, then start.
+            if (!_voiceSettings.value.enabled) {
+                voiceSettingsStore.update { it.copy(enabled = true) }
+            }
+            VoiceAssistant.start(context)
+        }
+    }
+
+    fun stopVoiceAssistant() {
+        viewModelScope.launch {
+            voiceSettingsStore.update { it.copy(enabled = false) }
+            VoiceAssistant.stop(context)
+        }
+    }
+
+    fun openOverlayPermissionSettings() {
+        OverlayPermission.openSettings(context)
     }
 
     override fun onCleared() {
@@ -317,6 +374,23 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val current = (_uiState.value as? UiState.Success)?.data?.typingIndicator ?: true
             settingsRepository.updateSettings { it.copy(typingIndicator = !current) }
+        }
+    }
+
+    fun testWakeEngine() {
+        viewModelScope.launch {
+            Timber.i("TEST WAKE ENGINE: Initializing Wake Word Model...")
+            val ready = wakeWordEngine.ensureInitialized()
+            Timber.i("TEST WAKE ENGINE: Model initialized=$ready")
+            if (ready) {
+                wakeWordEngine.startSession(listOf("hey andro"))
+                val syntheticChunk = FloatArray(3200) { 1000.0f * kotlin.math.sin(it.toDouble() * 0.1).toFloat() }
+                for (i in 1..20) {
+                    val res = wakeWordEngine.feed(syntheticChunk)
+                    Timber.i("TEST WAKE ENGINE: Chunk #$i feed result='$res'")
+                }
+                Timber.i("TEST WAKE ENGINE: Completed synthetic test feed pass.")
+            }
         }
     }
 

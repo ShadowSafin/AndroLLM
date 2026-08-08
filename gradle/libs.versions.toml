@@ -54,6 +54,9 @@ timber = "5.0.1"
 # Permissions
 accompanistPermissions = "0.32.0"
 
+# Voice assistant (sherpa-onnx: wake word + streaming ASR + offline TTS)
+sherpaOnnx = "1.13.4"
+
 # Testing
 junit = "4.13.2"
 junitJupiter = "5.10.2"
@@ -168,6 +171,9 @@ timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "tim
 
 # Permissions
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
+
+# Voice assistant (sherpa-onnx)
+sherpa-onnx = { group = "com.github.k2-fsa", name = "sherpa-onnx", version.ref = "sherpaOnnx" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

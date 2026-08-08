@@ -23,7 +23,10 @@ data class SettingsEntity(
     @ColumnInfo(name = "first_launch")
     val firstLaunch: Boolean = true,
     @ColumnInfo(name = "model_path")
-    val modelPath: String? = null
+    val modelPath: String? = null,
+    /** Keystore-encrypted Gemini API key used by the voice assistant. */
+    @ColumnInfo(name = "gemini_api_key_encrypted")
+    val geminiApiKeyEncrypted: String = ""
 )
 
 /**
@@ -35,7 +38,8 @@ fun SettingsEntity.toDomain(): AppSettings = AppSettings(
     storagePath = storagePath,
     developerMode = developerMode,
     firstLaunch = firstLaunch,
-    modelPath = modelPath
+    modelPath = modelPath,
+    geminiApiKeyEncrypted = geminiApiKeyEncrypted
 )
 
 /**
@@ -47,5 +51,6 @@ fun AppSettings.toEntity(): SettingsEntity = SettingsEntity(
     storagePath = storagePath,
     developerMode = developerMode,
     firstLaunch = firstLaunch,
-    modelPath = modelPath
+    modelPath = modelPath,
+    geminiApiKeyEncrypted = geminiApiKeyEncrypted
 )

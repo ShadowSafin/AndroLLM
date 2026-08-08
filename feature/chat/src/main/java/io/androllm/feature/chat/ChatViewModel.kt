@@ -17,6 +17,7 @@ import io.androllm.core.memory.model.MemoryContext
 import io.androllm.core.memory.model.MemoryExchange
 import io.androllm.core.models.Conversation
 import io.androllm.core.models.Message
+import io.androllm.core.models.MessageOrigin
 import io.androllm.core.models.MessageRole
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
@@ -849,7 +850,8 @@ data class ChatMessage(
     val role: MessageRole,
     val content: String,
     val timestamp: Long,
-    val isBookmarked: Boolean = false
+    val isBookmarked: Boolean = false,
+    val origin: MessageOrigin = MessageOrigin.TYPED
 )
 
 /** Internal bundle for the extra chat state flows feeding [ChatUiState]. */
@@ -869,7 +871,8 @@ private fun Message.toChatMessage(): ChatMessage = ChatMessage(
     role = role,
     content = content,
     timestamp = timestamp,
-    isBookmarked = isBookmarked
+    isBookmarked = isBookmarked,
+    origin = origin
 )
 
 private fun MessageRole.toTemplateRole(): String = when (this) {
@@ -884,5 +887,6 @@ private fun ChatMessage.toCoreMessage(): Message = Message(
     role = role,
     content = content,
     timestamp = timestamp,
-    isBookmarked = isBookmarked
+    isBookmarked = isBookmarked,
+    origin = origin
 )

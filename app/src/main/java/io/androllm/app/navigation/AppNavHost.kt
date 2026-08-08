@@ -43,7 +43,9 @@ import kotlinx.coroutines.flow.first
 @Composable
 fun AppNavHost(
     preferencesDataStore: PreferencesDataStore,
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    pendingRoute: String? = null,
+    onPendingRouteConsumed: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     // Null until resolved — routing waits for this rather than assuming a value.
@@ -67,6 +69,16 @@ fun AppNavHost(
     fun isSignedInToFirebase(): Boolean =
         runCatching { FirebaseAuth.getInstance().currentUser != null }.getOrDefault(false)
 
+    // Voice-command deep links (e.g. "Hey Andro, open settings") navigate
+    // straight to the requested screen once the graph is up. Consumed once so
+    // recomposition never re-navigates.
+    LaunchedEffect(pendingRoute) {
+        pendingRoute?.let { route ->
+            navController.navigate(route) { launchSingleTop = true }
+            onPendingRouteConsumed()
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH
@@ -74,16 +86,16 @@ fun AppNavHost(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onFinished = {
-                    if (isSignedInToFirebase()) {
-                        navigateClearing(Routes.HOME)
-                    } else {
-                        // Wait for the onboarding flag (never route on a guess).
-                        scope.launch {
-                            val done = onboardingCompleted
-                                ?: preferencesDataStore.onboardingCompleted.first()
-                            navigateClearing(if (done) Routes.AUTH else Routes.ONBOARDING)
-                        }
+                if (isSignedInToFirebase()) {
+                    navigateClearing(pendingRoute ?: Routes.HOME)
+                } else {
+                    // Wait for the onboarding flag (never route on a guess).
+                    scope.launch {
+                        val done = onboardingCompleted
+                            ?: preferencesDataStore.onboardingCompleted.first()
+                        navigateClearing(pendingRoute ?: if (done) Routes.AUTH else Routes.ONBOARDING)
                     }
+                }
                 }
             )
         }
@@ -91,7 +103,7 @@ fun AppNavHost(
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
                 onFinished = {
-                    navigateClearing(if (isSignedInToFirebase()) Routes.HOME else Routes.AUTH)
+                    navigateClearing(pendingRoute ?: if (isSignedInToFirebase()) Routes.HOME else Routes.AUTH)
                 }
             )
         }
@@ -99,14 +111,14 @@ fun AppNavHost(
         composable(Routes.AUTH) {
             FirebaseAuthScreen(
                 onAuthSuccess = { isNewUser ->
-                    navigateClearing(if (isNewUser) Routes.PROFILE_SETUP else Routes.HOME)
+                    navigateClearing(pendingRoute ?: if (isNewUser) Routes.PROFILE_SETUP else Routes.HOME)
                 }
             )
         }
 
         composable(Routes.PROFILE_SETUP) {
             ProfileSetupScreen(
-                onDone = { navigateClearing(Routes.HOME) }
+                onDone = { navigateClearing(pendingRoute ?: Routes.HOME) }
             )
         }
 

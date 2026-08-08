@@ -107,6 +107,9 @@ fun SettingsScreen(
     val memoryStats by viewModel.memoryStats.collectAsStateWithLifecycle()
     val memoryMessage by viewModel.memoryMessage.collectAsStateWithLifecycle()
     val storageStats by viewModel.storageStats.collectAsStateWithLifecycle()
+    val voiceSettings by viewModel.voiceSettings.collectAsStateWithLifecycle()
+    val voiceState by viewModel.voiceState.collectAsStateWithLifecycle()
+    val overlayGranted = viewModel.overlayGranted
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
     var reduceMotion by remember { mutableStateOf(false) }
@@ -253,7 +256,21 @@ fun SettingsScreen(
                     )
                 }
 
-                // 7. Cloud Providers (LiteLLM gateway)
+                // 7. Voice Assistant (always-on wake word)
+                item {
+                    SectionHeader(title = "Voice Assistant")
+                    VoiceAssistantSection(
+                        settings = voiceSettings,
+                        liveState = voiceState,
+                        overlayGranted = overlayGranted,
+                        onUpdate = { viewModel.updateVoiceSettings(it) },
+                        onStart = { viewModel.startVoiceAssistant() },
+                        onStop = { viewModel.stopVoiceAssistant() },
+                        onOpenOverlayPermission = { viewModel.openOverlayPermissionSettings() }
+                    )
+                }
+
+                // 8. Cloud Providers (LiteLLM gateway)
                 item {
                     SectionHeader(title = "Cloud Providers")
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -491,7 +508,7 @@ private fun FirebaseAuthCard(
 }
 
 @Composable
-private fun SettingRow(
+internal fun SettingRow(
     icon: ImageVector,
     title: String,
     value: String? = null,

@@ -7,6 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import io.androllm.core.common.AppConstants
 import io.androllm.core.models.Message
+import io.androllm.core.models.MessageOrigin
 import io.androllm.core.models.MessageRole
 
 /**
@@ -37,7 +38,10 @@ data class MessageEntity(
     @ColumnInfo(name = "model_id")
     val modelId: String? = null,
     @ColumnInfo(name = "is_bookmarked")
-    val isBookmarked: Boolean = false
+    val isBookmarked: Boolean = false,
+    /** Persisted as enum name; defaults to [MessageOrigin.TYPED] for legacy rows. */
+    @ColumnInfo(name = "origin")
+    val origin: String = MessageOrigin.TYPED.name
 )
 
 /**
@@ -51,7 +55,8 @@ fun MessageEntity.toDomain(): Message = Message(
     timestamp = timestamp,
     isPending = isPending,
     modelId = modelId,
-    isBookmarked = isBookmarked
+    isBookmarked = isBookmarked,
+    origin = runCatching { MessageOrigin.valueOf(origin) }.getOrDefault(MessageOrigin.TYPED)
 )
 
 /**
@@ -65,5 +70,6 @@ fun Message.toEntity(): MessageEntity = MessageEntity(
     timestamp = timestamp,
     isPending = isPending,
     modelId = modelId,
-    isBookmarked = isBookmarked
+    isBookmarked = isBookmarked,
+    origin = origin.name
 )

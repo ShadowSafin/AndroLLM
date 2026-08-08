@@ -1,4 +1,4 @@
-﻿package io.androllm.feature.developer
+package io.androllm.feature.developer
 
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Developer Mode ViewModel â€” every graph is backed by real session telemetry
+ * Developer Mode ViewModel — every graph is backed by real session telemetry
  * from [TelemetryRepository] and the native engine. No fabricated data.
  */
 @HiltViewModel
@@ -163,4 +163,3 @@ data class DeveloperData(
     val generationLatencies: List<Float> get() = generations.map { it.totalTimeMs.toFloat() }
     val generationSpeeds: List<Float> get() = generations.map { it.tokensPerSecond }
 }
-

@@ -30,6 +30,12 @@ object Routes {
     const val ARG_PROVIDER_ID = "providerId"
 
     /**
+     * Intent extra carried by voice-command deep links: the route to open
+     * (e.g. [SETTINGS] or [MODELS]). Consumed by MainActivity.
+     */
+    const val EXTRA_NAV_ROUTE = "extra_nav_route"
+
+    /**
      * Builds the route for a specific conversation.
      */
     fun chatDetail(conversationId: String): String = "chat/$conversationId"

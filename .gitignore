@@ -156,3 +156,6 @@ skills-lock.json
 
 # Agent skills (never commit)
 .agents/
+
+# Bundled voice models (sherpa-onnx) — downloaded by downloadVoiceModels
+app/src/main/assets/voice/

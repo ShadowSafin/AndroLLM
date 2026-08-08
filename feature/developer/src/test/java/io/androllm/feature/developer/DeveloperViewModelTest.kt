@@ -1,4 +1,4 @@
-﻿package io.androllm.feature.developer
+package io.androllm.feature.developer
 
 import io.androllm.core.common.UiState
 import io.androllm.core.memory.MemoryManager
@@ -132,5 +132,3 @@ class DeveloperViewModelTest {
             isGenerating = false
         )
 }
-
-

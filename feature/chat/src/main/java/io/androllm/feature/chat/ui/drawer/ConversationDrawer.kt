@@ -102,8 +102,8 @@ fun ConversationDrawerContent(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    io.androllm.core.ui.components.CloudBugdroidLogo(size = 34.dp, showMoon = false)
-                    Spacer(modifier = Modifier.width(12.dp))
+                    io.androllm.core.ui.components.CloudBugdroidLogo(size = 28.dp, showMoon = false)
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
                             text = "AndroLLM",

@@ -10,7 +10,7 @@ object AppConstants {
     const val DATASTORE_NAME = "preferences.pb"
 
     object Database {
-        const val VERSION = 3
+        const val VERSION = 5
         const val CONVERSATION_TABLE = "conversations"
         const val MESSAGE_TABLE = "messages"
         const val SETTINGS_TABLE = "settings"

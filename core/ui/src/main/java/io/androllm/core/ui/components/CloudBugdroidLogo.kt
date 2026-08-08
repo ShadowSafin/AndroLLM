@@ -21,7 +21,10 @@ fun CloudBugdroidLogo(
     size: Dp = 120.dp,
     showMoon: Boolean = true
 ) {
-    Box(modifier = modifier.size(size)) {
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = androidx.compose.ui.Alignment.Center
+    ) {
         Image(
             painter = painterResource(R.drawable.logo),
             contentDescription = "AndroLLM logo",

@@ -1,5 +1,6 @@
 package io.androllm.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,11 +31,20 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var preferencesDataStore: PreferencesDataStore
 
+    /** Route requested by a voice command (e.g. "open settings"). */
+    private var pendingRoute: String? = null
+    private var pendingRouteSetter: ((String?) -> Unit)? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        pendingRoute = intent.getStringExtra(io.androllm.core.navigation.Routes.EXTRA_NAV_ROUTE)
         setContent {
+            val routeState = androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(pendingRoute)
+            }
+            pendingRouteSetter = { routeState.value = it }
             val themeMode by preferencesDataStore.theme.collectAsState(initial = ThemeMode.SYSTEM)
             val accentHex by preferencesDataStore.accentColor.collectAsState(initial = null)
             val darkTheme = when (themeMode) {
@@ -49,8 +59,20 @@ class MainActivity : ComponentActivity() {
                 darkTheme = darkTheme,
                 accentColor = accentColor
             ) {
-                AppNavHost(preferencesDataStore = preferencesDataStore)
+                AppNavHost(
+                    preferencesDataStore = preferencesDataStore,
+                    pendingRoute = routeState.value,
+                    onPendingRouteConsumed = { pendingRouteSetter?.invoke(null) }
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Voice commands arriving while the app is already open (SINGLE_TOP).
+        pendingRoute = intent.getStringExtra(io.androllm.core.navigation.Routes.EXTRA_NAV_ROUTE)
+        pendingRouteSetter?.invoke(pendingRoute)
     }
 }

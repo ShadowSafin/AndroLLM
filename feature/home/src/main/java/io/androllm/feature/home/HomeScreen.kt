@@ -97,8 +97,8 @@ fun HomeScreen(
                     modifier = Modifier.statusBarsPadding(),
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CloudBugdroidLogo(size = 38.dp, showMoon = false)
-                            Spacer(modifier = Modifier.width(12.dp))
+                            CloudBugdroidLogo(size = 30.dp, showMoon = false)
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
                                     text = stringResource(R.string.home_title),

@@ -70,6 +70,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:cloud"))
     implementation(project(":core:memory"))
+    implementation(project(":core:voice"))
     implementation(project(":core:utils"))
     
     // Feature modules
@@ -83,6 +84,7 @@ dependencies {
     implementation(project(":feature:prompts"))
     implementation(project(":feature:developer"))
     implementation(project(":feature:cloud"))
+    implementation(project(":feature:voice"))
     
     // Engine & Docs
     api(project(":engine"))
@@ -178,6 +180,7 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
+    androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.compose.ui.test.junit4)
@@ -191,4 +194,99 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.incremental", "true")
     arg("room.expandProjection", "true")
+}
+
+// ── Voice models (sherpa-onnx) ───────────────────────────────────────────────
+// The wake word / ASR / TTS ONNX models are bundled into the APK. They are
+// large, so they live in app/src/main/assets/voice/ (gitignored) and are
+// fetched by this task on machines where they are missing. The task is wired
+// into preBuild so a fresh clone still produces a complete APK.
+val voiceAssetsDir = file("src/main/assets/voice")
+val voiceKwsDir = file("$voiceAssetsDir/kws")
+val voiceAsrDir = file("$voiceAssetsDir/asr")
+val voiceTtsDir = file("$voiceAssetsDir/tts")
+
+tasks.register("downloadVoiceModels") {
+    group = "voice"
+    description = "Downloads + extracts the bundled sherpa-onnx voice models (wake word, ASR, TTS)"
+    onlyIf { !voiceAssetsDir.exists() }
+
+    doLast {
+        val asrBase = "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17/resolve/main"
+        val asrFiles = mapOf(
+            "encoder.onnx" to "encoder-epoch-99-avg-1.int8.onnx",
+            "decoder.onnx" to "decoder-epoch-99-avg-1.int8.onnx",
+            "joiner.onnx" to "joiner-epoch-99-avg-1.int8.onnx",
+            "tokens.txt" to "tokens.txt"
+        )
+        val kwsTarball = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2"
+        val ttsTarball = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-ljs.tar.bz2"
+        val tmp = buildDir.resolve("voice-models")
+        tmp.mkdirs()
+        voiceKwsDir.mkdirs()
+        voiceAsrDir.mkdirs()
+        voiceTtsDir.mkdirs()
+
+        fun download(url: String, target: File) {
+            if (target.exists() && target.length() > 1000) return
+            logger.lifecycle("downloadVoiceModels: fetching ${url.substringAfterLast('/')}")
+            exec { commandLine("curl", "-sL", "--retry", "3", "-o", target.absolutePath, url) }
+        }
+
+        // Streaming ASR — int8 files only (smallest complete English model).
+        asrFiles.forEach { (name, remote) ->
+            val target = File(voiceAsrDir, name)
+            download("$asrBase/$remote", target)
+        }
+
+        // KWS + TTS — release tarballs, extract the files we need.
+        val kwsTar = File(tmp, "kws.tar.bz2")
+        download(kwsTarball, kwsTar)
+        exec { commandLine("tar", "-xjf", kwsTar.absolutePath, "-C", tmp.absolutePath) }
+        val kwsDir = File(tmp, "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20")
+        fun copyFrom(src: File, target: File, vararg names: String) {
+            names.forEach { n ->
+                val f = File(src, n)
+                if (f.exists()) f.copyTo(File(target, f.name), overwrite = true)
+            }
+        }
+        copyFrom(kwsDir, voiceKwsDir,
+            "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
+            "decoder-epoch-13-avg-2-chunk-16-left-64.onnx",
+            "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
+            "tokens.txt")
+        // Normalize to the names the app code references.
+        File(voiceKwsDir, "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx").renameTo(File(voiceKwsDir, "encoder.onnx"))
+        File(voiceKwsDir, "decoder-epoch-13-avg-2-chunk-16-left-64.onnx").renameTo(File(voiceKwsDir, "decoder.onnx"))
+        File(voiceKwsDir, "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx").renameTo(File(voiceKwsDir, "joiner.onnx"))
+        // The zh-en KWS model uses ARPABET phoneme tokens: ship the keywords
+        // already tokenized ("HEY ANDROID" / "OKAY ANDROID" -> phones + @name).
+        // Several pronunciation variants per phrase so the model has a fair
+        // chance of matching live-mic speech (the decoder emits whichever
+        // phone sequence the user actually utters).
+        File(voiceKwsDir, "keywords.txt").writeText(
+            "HH EY1 AE1 N D R OY2 D @HEY_ANDROID\n" +
+                "HH EY1 AH0 N D R OY2 D @HEY_ANDROID\n" +
+                "HH EY1 AE1 N D R OY1 D @HEY_ANDROID\n" +
+                "HH EY1 AH0 N D R OY1 D @HEY_ANDROID\n" +
+                "HH EY1 AE1 N D R IY1 D @HEY_ANDROID\n" +
+                "OW2 K EY1 AE1 N D R OY2 D @OKAY_ANDROID\n" +
+                "OW2 K EY1 AH0 N D R OY2 D @OKAY_ANDROID\n" +
+                "OW2 K EY1 AE1 N D R OY1 D @OKAY_ANDROID\n" +
+                "OW0 K EY1 AE1 N D R OY2 D @OKAY_ANDROID\n" +
+                "OW0 K EY1 AH0 N D R OY2 D @OKAY_ANDROID\n"
+        )
+
+        val ttsTar = File(tmp, "tts.tar.bz2")
+        download(ttsTarball, ttsTar)
+        exec { commandLine("tar", "-xjf", ttsTar.absolutePath, "-C", tmp.absolutePath) }
+        copyFrom(File(tmp, "vits-ljs"), voiceTtsDir, "vits-ljs.onnx", "tokens.txt", "lexicon.txt")
+        File(voiceTtsDir, "vits-ljs.onnx").renameTo(File(voiceTtsDir, "model.onnx"))
+
+        logger.lifecycle("downloadVoiceModels: done (${voiceAssetsDir.walkTopDown().filter { it.isFile }.count()} files)")
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("downloadVoiceModels")
 }

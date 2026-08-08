@@ -18,7 +18,14 @@ data class AppSettings(
     val codeWrapping: Boolean = false,
     val messageAnimations: Boolean = true,
     val autoScroll: Boolean = true,
-    val typingIndicator: Boolean = true
+    val typingIndicator: Boolean = true,
+    /**
+     * Keystore-encrypted Gemini API key used by the voice assistant for
+     * Speech-to-Text and Text-to-Speech. Independent of the selected chat
+     * provider — the voice assistant always talks to Gemini for STT/TTS, but
+     * the chat engine still routes through the user's chosen model.
+     */
+    val geminiApiKeyEncrypted: String = ""
 )
 
 @Serializable

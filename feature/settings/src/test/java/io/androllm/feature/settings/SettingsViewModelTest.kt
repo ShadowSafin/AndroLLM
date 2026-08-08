@@ -1,4 +1,4 @@
-﻿package io.androllm.feature.settings
+package io.androllm.feature.settings
 
 import android.content.Context
 import io.androllm.core.common.UiState
@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -24,6 +25,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+import io.androllm.core.voice.VoiceSettingsStore
+import io.androllm.core.voice.model.VoiceSettings
+import io.androllm.feature.voice.VoiceAssistantController
+import io.androllm.feature.voice.VoiceUiState
+
+import io.androllm.core.voice.wakeword.WakeWordEngine
+
 /**
  * Tests for the settings screen ViewModel.
  */
@@ -33,6 +41,9 @@ class SettingsViewModelTest {
     private val context: Context = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
     private val memoryManager: MemoryManager = mockk(relaxed = true)
+    private val voiceSettingsStore: VoiceSettingsStore = mockk(relaxed = true)
+    private val voiceController: VoiceAssistantController = mockk(relaxed = true)
+    private val wakeWordEngine: WakeWordEngine = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -46,6 +57,9 @@ class SettingsViewModelTest {
         every { memoryManager.settings } returns flowOf(MemorySettings())
         coEvery { memoryManager.currentSettings() } returns MemorySettings()
         coEvery { memoryManager.getInspectorStats() } returns MemoryInspectorStats()
+        every { voiceSettingsStore.settings } returns flowOf(VoiceSettings())
+        coEvery { voiceSettingsStore.current() } returns VoiceSettings()
+        every { voiceController.state } returns MutableStateFlow(VoiceUiState())
     }
 
     @After
@@ -59,7 +73,7 @@ class SettingsViewModelTest {
             AppSettings(theme = ThemeMode.DARK, developerMode = true)
         )
 
-        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager)
+        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager, voiceSettingsStore, voiceController, wakeWordEngine)
 
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Success)
@@ -72,7 +86,7 @@ class SettingsViewModelTest {
     fun `defaults are used when no settings exist`() = runTest {
         every { settingsRepository.observeSettings() } returns flowOf(AppSettings())
 
-        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager)
+        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager, voiceSettingsStore, voiceController, wakeWordEngine)
 
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Success)
