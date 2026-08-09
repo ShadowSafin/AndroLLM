@@ -15,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseAuth
+import io.androllm.app.auth.AuthSession
 import io.androllm.app.auth.FirebaseAuthScreen
 import io.androllm.app.auth.UsernameAuthScreen
 import io.androllm.app.profile.ProfileSetupScreen
@@ -70,6 +71,9 @@ fun AppNavHost(
     fun isSignedInToFirebase(): Boolean =
         runCatching { FirebaseAuth.getInstance().currentUser != null }.getOrDefault(false)
 
+    fun isLoggedInToAuth(): Boolean =
+        AuthSession.isLoggedIn()
+
     // Voice-command deep links (e.g. "Hey Andro, open settings") navigate
     // straight to the requested screen once the graph is up. Consumed once so
     // recomposition never re-navigates.
@@ -87,7 +91,7 @@ fun AppNavHost(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onFinished = {
-                if (isSignedInToFirebase()) {
+                if (isSignedInToFirebase() || isLoggedInToAuth()) {
                     navigateClearing(pendingRoute ?: Routes.HOME)
                 } else {
                     // Wait for the onboarding flag (never route on a guess).
@@ -104,7 +108,7 @@ fun AppNavHost(
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
                 onFinished = {
-                    navigateClearing(pendingRoute ?: if (isSignedInToFirebase()) Routes.HOME else Routes.AUTH)
+                    navigateClearing(pendingRoute ?: if (isSignedInToFirebase() || isLoggedInToAuth()) Routes.HOME else Routes.AUTH)
                 }
             )
         }

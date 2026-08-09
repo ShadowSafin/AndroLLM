@@ -46,6 +46,7 @@ class AndroLLMApplication : Application(), WorkConfiguration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        io.androllm.app.auth.AuthSession.init(this)
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
