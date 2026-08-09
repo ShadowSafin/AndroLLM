@@ -30,16 +30,23 @@ jobs:
           sudo apt-get install -y -qq glslc
           glslc --version | head -1
 
-      - name: Build debug APK
+      - name: Build release APK (signed)
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/keystore/androllm-release.p12
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon
+          mkdir -p keystore
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > keystore/androllm-release.p12
+          ./gradlew :app:assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: androllm-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: androllm-release-apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
       - name: Upload test report on failure

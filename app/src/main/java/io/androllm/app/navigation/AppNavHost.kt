@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseAuth
 import io.androllm.app.auth.FirebaseAuthScreen
+import io.androllm.app.auth.UsernameAuthScreen
 import io.androllm.app.profile.ProfileSetupScreen
 import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.navigation.Routes
@@ -109,7 +110,7 @@ fun AppNavHost(
         }
 
         composable(Routes.AUTH) {
-            FirebaseAuthScreen(
+            UsernameAuthScreen(
                 onAuthSuccess = { isNewUser ->
                     navigateClearing(pendingRoute ?: if (isNewUser) Routes.PROFILE_SETUP else Routes.HOME)
                 }
