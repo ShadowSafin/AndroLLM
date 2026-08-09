@@ -16,10 +16,15 @@ object AuthSession {
 
     @Volatile
     private var appContext: Context? = null
+    @Volatile
+    private var cipher: io.androllm.core.cloud.security.KeyCipher? = null
 
     /** Wajib dipanggil sekali di Application.onCreate(). */
     fun init(context: Context) {
         appContext = context.applicationContext
+        runCatching {
+            cipher = io.androllm.core.cloud.security.AndroidKeyCipher(context.applicationContext)
+        }
     }
 
     private fun prefs(): SharedPreferences {
@@ -27,15 +32,21 @@ object AuthSession {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     }
 
+    private fun encrypt(s: String): String =
+        runCatching { cipher?.encrypt(s) ?: s }.getOrDefault(s)
+
+    private fun decrypt(s: String): String =
+        runCatching { cipher?.decrypt(s) ?: s }.getOrDefault(s)
+
     fun save(token: String, username: String, displayName: String = "") {
         prefs().edit()
-            .putString(KEY_TOKEN, token)
+            .putString(KEY_TOKEN, encrypt(token))
             .putString(KEY_USERNAME, username)
             .putString(KEY_DISPLAY, displayName)
             .apply()
     }
 
-    fun token(): String? = prefs().getString(KEY_TOKEN, null)
+    fun token(): String? = prefs().getString(KEY_TOKEN, null)?.let { decrypt(it) }
 
     fun username(): String? = prefs().getString(KEY_USERNAME, null)
 

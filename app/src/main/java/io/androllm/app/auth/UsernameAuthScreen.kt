@@ -50,6 +50,7 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
     var loggedOut by remember { mutableStateOf(false) }
     var updateMsg by remember { mutableStateOf<String?>(null) }
     var isChecking by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<Float?>(null) }
     val alreadyLoggedIn = AuthSession.isLoggedIn() && !loggedOut
 
     fun checkUpdate() {
@@ -64,12 +65,16 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
                 updateMsg = "Versi baru ${info.latestVersion} tersedia!"
                 // auto-download + install kalau izin ada
                 if (Updater.canRequestInstall(context)) {
-                    Toast.makeText(context, "Mengunduh pembaruan…", Toast.LENGTH_SHORT).show()
-                    val apk = Updater.downloadApk(info.apkUrl, context)
+                    downloadProgress = 0f
+                    val apk = Updater.downloadApk(info.apkUrl, context, info.sha256) { p ->
+                        downloadProgress = p
+                    }
+                    downloadProgress = null
                     if (apk != null) {
+                        Toast.makeText(context, "Pembaruan siap — install", Toast.LENGTH_SHORT).show()
                         Updater.installApk(context, apk)
                     } else {
-                        updateMsg = "Gagal mengunduh. Coba lagi."
+                        updateMsg = "Gagal mengunduh (signature/network). Coba lagi."
                     }
                 } else {
                     Toast.makeText(context, "Izinkan install aplikasi untuk auto-update", Toast.LENGTH_LONG).show()
@@ -209,9 +214,12 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
         val current = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "1.0"
         val info = Updater.checkForUpdate(current)
         if (info.hasUpdate && Updater.canRequestInstall(context)) {
-            val apk = Updater.downloadApk(info.apkUrl, context)
+            val apk = Updater.downloadApk(info.apkUrl, context, info.sha256) { p ->
+                downloadProgress = p
+            }
+            downloadProgress = null
             if (apk != null) {
-                Toast.makeText(context, "Pembaruan ${info.latestVersion} tersedia — mengunduh…", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Pembaruan ${info.latestVersion} siap — install", Toast.LENGTH_LONG).show()
                 Updater.installApk(context, apk)
             }
         }
@@ -324,6 +332,18 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
 
         TextButton(onClick = { checkUpdate() }, enabled = !isChecking) {
             Text(if (isChecking) "Mengecek…" else "Cek Pembaruan", color = Color(0xFF8B949E), fontSize = 12.sp)
+        }
+
+        downloadProgress?.let { p ->
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { p },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                color = Color(0xFF2EA043),
+                trackColor = Color(0xFF30363D)
+            )
+            Spacer(Modifier.height(4.dp))
+            Text("Mengunduh… ${(p * 100).toInt()}%", color = Color(0xFF8B949E), fontSize = 11.sp)
         }
 
         Spacer(Modifier.height(12.dp))
