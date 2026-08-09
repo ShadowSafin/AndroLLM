@@ -31,8 +31,12 @@ object Updater {
         val hasUpdate: Boolean,
         val latestVersion: String = "",
         val apkUrl: String = "",
+<<<<<<< HEAD
         val notes: String = "",
         val sha256: String = ""
+=======
+        val notes: String = ""
+>>>>>>> origin/main
     )
 
     suspend fun checkForUpdate(currentVersion: String): UpdateInfo = withContext(Dispatchers.IO) {
@@ -48,6 +52,7 @@ object Updater {
             val json = JSONObject(text)
             val tag = json.optString("tag_name", "")
             val latestVer = tag.removePrefix("v")
+<<<<<<< HEAD
             var apkUrl = ""
             var sha256 = ""
             json.optJSONArray("assets")?.let { arr ->
@@ -60,14 +65,25 @@ object Updater {
                     }
                 }
             }
+=======
+            val apkUrl = json.optJSONArray("assets")?.let { arr ->
+                (0 until arr.length()).firstOrNull { i ->
+                    arr.getJSONObject(i).optString("name", "").endsWith(".apk")
+                }?.let { arr.getJSONObject(it).optString("browser_download_url", "") }
+            } ?: ""
+>>>>>>> origin/main
             val notes = json.optString("body", "")
 
             UpdateInfo(
                 hasUpdate = compareVersions(latestVer, currentVersion) > 0,
                 latestVersion = latestVer,
                 apkUrl = apkUrl,
+<<<<<<< HEAD
                 notes = notes,
                 sha256 = sha256
+=======
+                notes = notes
+>>>>>>> origin/main
             )
         } catch (e: Exception) {
             UpdateInfo(false)
@@ -86,6 +102,7 @@ object Updater {
         return 0
     }
 
+<<<<<<< HEAD
     /** Download APK dari URL ke cache dir, verifikasi SHA-256 kalau disediakan. */
     suspend fun downloadApk(
         apkUrl: String,
@@ -93,10 +110,15 @@ object Updater {
         expectedSha256: String = "",
         onProgress: (Float) -> Unit = {}
     ): File? = withContext(Dispatchers.IO) {
+=======
+    /** Download APK dari URL ke cache dir. */
+    suspend fun downloadApk(apkUrl: String, context: Context): File? = withContext(Dispatchers.IO) {
+>>>>>>> origin/main
         try {
             val outFile = File(context.cacheDir, "androllm-update.apk")
             val conn = URL(apkUrl).openConnection() as HttpURLConnection
             conn.connectTimeout = 20000
+<<<<<<< HEAD
             conn.readTimeout = 120000
             conn.instanceFollowRedirects = true
             if (conn.responseCode !in 200..299) return@withContext null
@@ -126,6 +148,17 @@ object Updater {
                     return@withContext null
                 }
             }
+=======
+            conn.readTimeout = 30000
+            conn.instanceFollowRedirects = true
+            if (conn.responseCode !in 200..299) return@withContext null
+            conn.inputStream.use { input ->
+                FileOutputStream(outFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            conn.disconnect()
+>>>>>>> origin/main
             outFile
         } catch (e: Exception) {
             null
