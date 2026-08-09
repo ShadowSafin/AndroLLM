@@ -27,7 +27,7 @@ jobs:
       - name: Install Vulkan shader compiler (glslc)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq glslang-tools
+          sudo apt-get install -y -qq glslc
           glslc --version | head -1
 
       - name: Build debug APK
