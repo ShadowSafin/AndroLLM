@@ -1,4 +1,4 @@
-package io.androllm.feature.settings
+﻿package io.androllm.feature.settings
 
 import android.content.Context
 import io.androllm.core.common.UiState
@@ -30,6 +30,8 @@ import io.androllm.core.voice.model.VoiceSettings
 import io.androllm.feature.voice.VoiceAssistantController
 import io.androllm.feature.voice.VoiceUiState
 
+import io.androllm.core.voice.stt.WhisperModelManager
+import io.androllm.core.voice.stt.WhisperSpeechRecognizer
 import io.androllm.core.voice.wakeword.WakeWordEngine
 
 /**
@@ -44,6 +46,8 @@ class SettingsViewModelTest {
     private val voiceSettingsStore: VoiceSettingsStore = mockk(relaxed = true)
     private val voiceController: VoiceAssistantController = mockk(relaxed = true)
     private val wakeWordEngine: WakeWordEngine = mockk(relaxed = true)
+    private val whisperModelManager: WhisperModelManager = mockk(relaxed = true)
+    private val whisperSpeechRecognizer: WhisperSpeechRecognizer = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -73,7 +77,7 @@ class SettingsViewModelTest {
             AppSettings(theme = ThemeMode.DARK, developerMode = true)
         )
 
-        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager, voiceSettingsStore, voiceController, wakeWordEngine)
+        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager, voiceSettingsStore, voiceController, wakeWordEngine, whisperModelManager, whisperSpeechRecognizer)
 
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Success)
@@ -86,7 +90,7 @@ class SettingsViewModelTest {
     fun `defaults are used when no settings exist`() = runTest {
         every { settingsRepository.observeSettings() } returns flowOf(AppSettings())
 
-        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager, voiceSettingsStore, voiceController, wakeWordEngine)
+        val viewModel = SettingsViewModel(context, settingsRepository, memoryManager, voiceSettingsStore, voiceController, wakeWordEngine, whisperModelManager, whisperSpeechRecognizer)
 
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Success)

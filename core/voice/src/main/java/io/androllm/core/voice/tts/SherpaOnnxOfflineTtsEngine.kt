@@ -77,7 +77,12 @@ class SherpaOnnxOfflineTtsEngine @Inject constructor(
         if (!ensureInitialized()) return null
         val t = tts ?: return null
         return runCatching {
-            val audio: GeneratedAudio = t.generate(text, 0, speed.coerceIn(0.5f, 2.0f))
+            // The VITS lexicon has NO digit/symbol tokens — "10 + 10 = 20"
+            // otherwise fails as OOV and returns silence. Always convert to
+            // natural words first ("ten plus ten equals twenty").
+            val spoken = EnglishTtsNormalizer.normalize(text)
+            if (spoken.isBlank()) return null
+            val audio: GeneratedAudio = t.generate(spoken, 0, speed.coerceIn(0.5f, 2.0f))
             audio.samples
         }.onFailure { Timber.e(it, "TTS synth failed") }.getOrNull()
     }

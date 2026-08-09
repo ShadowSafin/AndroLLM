@@ -19,13 +19,13 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import io.androllm.core.voice.VoiceSettingsStore
 import io.androllm.feature.voice.VoiceAssistantController
 
 /**
- * Hosts [VoiceOverlay] in a system overlay window
- * (`TYPE_APPLICATION_OVERLAY`) so the floating assistant sheet appears above
- * whatever the user is doing — the "floating assistant sheet, no full screen"
- * requirement.
+ * Hosts [VoiceOverlay] in a full-screen system overlay window
+ * (`TYPE_APPLICATION_OVERLAY`) so the Gemini Live-style floating assistant
+ * appears above whatever the user is doing.
  *
  * Requires the "Display over other apps" permission ([OverlayPermission]);
  * when it is missing [show] no-ops and the assistant keeps running via its
@@ -36,10 +36,14 @@ import io.androllm.feature.voice.VoiceAssistantController
  * install a small [OverlayWindowOwner] (lifecycle + saved state + view model)
  * on the view tree so [ComposeView] can resolve its recomposer.
  */
-class VoiceOverlayWindow(private val context: Context) {
+class VoiceOverlayWindow(
+    private val context: Context,
+    private val settingsStore: VoiceSettingsStore
+) {
 
     private var view: ComposeView? = null
     private var owner: OverlayWindowOwner? = null
+    private var showPending = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     val isShowing: Boolean get() = view != null
@@ -48,46 +52,54 @@ class VoiceOverlayWindow(private val context: Context) {
      * Adds the overlay window. WindowManager calls must happen on the main
      * thread, so everything is posted there. Returns true when the overlay
      * was (or is being) shown; false when the overlay permission is missing.
+     *
+     * Idempotent: repeated calls while a window is already added OR still
+     * queued on the main thread are no-ops. (Without the [showPending]
+     * guard, rapid state emissions can post multiple addView calls and stack
+     * duplicate overlay windows.)
      */
     fun show(controller: VoiceAssistantController): Boolean {
-        if (view != null) return true
+        if (view != null || showPending) return true
         if (!OverlayPermission.isGranted(context)) return false
 
+        showPending = true
         mainHandler.post {
-            if (view != null) return@post
-            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            val owner = OverlayWindowOwner()
-            val composeView = ComposeView(context).apply {
-                setViewTreeLifecycleOwner(owner)
-                setViewTreeViewModelStoreOwner(owner)
-                setViewTreeSavedStateRegistryOwner(owner)
-                setContent {
-                    io.androllm.core.ui.theme.AndroLLMTheme {
-                        VoiceOverlay(controller = controller, onDismiss = { hide() })
+            if (view == null) {
+                val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                val owner = OverlayWindowOwner()
+                val composeView = ComposeView(context).apply {
+                    setViewTreeLifecycleOwner(owner)
+                    setViewTreeViewModelStoreOwner(owner)
+                    setViewTreeSavedStateRegistryOwner(owner)
+                    setContent {
+                        io.androllm.core.ui.theme.AndroLLMTheme {
+                            VoiceOverlay(controller = controller, settingsStore = settingsStore)
+                        }
                     }
                 }
-            }
-            owner.onCreate()
+                owner.onCreate()
 
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                android.graphics.PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.BOTTOM
-                y = 24
-            }
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    android.graphics.PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP
+                    y = 0
+                }
 
-            if (runCatching { wm.addView(composeView, params) }.isSuccess) {
-                view = composeView
-                this@VoiceOverlayWindow.owner = owner
-            } else {
-                owner.destroy()
+                if (runCatching { wm.addView(composeView, params) }.isSuccess) {
+                    view = composeView
+                    this@VoiceOverlayWindow.owner = owner
+                } else {
+                    owner.destroy()
+                }
             }
+            showPending = false
         }
         return true
     }

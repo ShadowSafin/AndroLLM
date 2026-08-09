@@ -16,7 +16,7 @@ object VoiceModels {
     const val KWS_TOKENS = "voice/kws/tokens.txt"
     const val KWS_KEYWORDS = "voice/kws/keywords.txt"
 
-    /** Streaming ASR — sherpa-onnx-streaming-zipformer-en-20M (int8). */
+    /** Streaming ASR — sherpa-onnx-streaming-zipformer-en-2023-06-26 (zipformer2, chunk-16-left-128, int8 encoder). */
     const val ASR_ENCODER = "voice/asr/encoder.onnx"
     const val ASR_DECODER = "voice/asr/decoder.onnx"
     const val ASR_JOINER = "voice/asr/joiner.onnx"

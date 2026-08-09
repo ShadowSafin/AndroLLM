@@ -276,10 +276,92 @@ fun VoiceAssistantSection(
                 )
                 ToggleRow(
                     icon = Icons.Filled.RecordVoiceOver,
-                    title = "Auto-read answers",
-                    subtitle = "Speak responses aloud",
+                    title = "Voice responses",
+                    subtitle = "Speak responses aloud (streaming TTS)",
                     checked = settings.autoReadAnswers,
                     onCheckedChange = { onUpdate(settings.copy(autoReadAnswers = it)) }
+                )
+                ToggleRow(
+                    icon = Icons.Filled.Mic,
+                    title = "Auto-open overlay",
+                    subtitle = "Show the floating assistant when \"Hey Andro\" fires",
+                    checked = settings.autoOpenOverlay,
+                    onCheckedChange = { onUpdate(settings.copy(autoOpenOverlay = it)) }
+                )
+                ToggleRow(
+                    icon = Icons.Filled.Speed,
+                    title = "Play start sound",
+                    subtitle = "Chime when the assistant starts listening",
+                    checked = settings.playStartSound,
+                    onCheckedChange = { onUpdate(settings.copy(playStartSound = it)) }
+                )
+                ToggleRow(
+                    icon = Icons.Filled.Speed,
+                    title = "Play end sound",
+                    subtitle = "Chime when a reply finishes",
+                    checked = settings.playEndSound,
+                    onCheckedChange = { onUpdate(settings.copy(playEndSound = it)) }
+                )
+
+                // Overlay transparency
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "Overlay transparency  ${((1f - settings.overlayTransparency) * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    )
+                    Slider(
+                        value = settings.overlayTransparency,
+                        onValueChange = { onUpdate(settings.copy(overlayTransparency = it)) },
+                        valueRange = VoiceSettings.MIN_OVERLAY_TRANSPARENCY..VoiceSettings.MAX_OVERLAY_TRANSPARENCY,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Overlay size
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "Overlay size  ${(settings.overlaySize * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    )
+                    Slider(
+                        value = settings.overlaySize,
+                        onValueChange = { onUpdate(settings.copy(overlaySize = it)) },
+                        valueRange = VoiceSettings.MIN_OVERLAY_SIZE..VoiceSettings.MAX_OVERLAY_SIZE,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Animation speed
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = "Animation speed  ${settings.animationSpeed}x",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    )
+                    Slider(
+                        value = settings.animationSpeed,
+                        onValueChange = { onUpdate(settings.copy(animationSpeed = it)) },
+                        valueRange = VoiceSettings.MIN_ANIMATION_SPEED..VoiceSettings.MAX_ANIMATION_SPEED,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                SettingRow(
+                    icon = Icons.Filled.RecordVoiceOver,
+                    title = "Voice language",
+                    value = settings.language.ifBlank { "en" },
+                    onClick = {
+                        val next = VoiceLanguages.next(settings.language)
+                        onUpdate(settings.copy(language = next))
+                    }
+                )
+                SettingRow(
+                    icon = Icons.Filled.RecordVoiceOver,
+                    title = "TTS voice",
+                    value = settings.ttsVoice.ifBlank { "Kore" },
+                    onClick = {
+                        val next = TtsVoices.next(settings.ttsVoice)
+                        onUpdate(settings.copy(ttsVoice = next))
+                    }
                 )
                 ToggleRow(
                     icon = Icons.Filled.Speed,
@@ -327,7 +409,7 @@ fun VoiceAssistantSection(
                             style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper)
                         )
                         Text(
-                            text = "ONNX Status: ${liveState.onnxStatus}",
+                            text = "STT Engine: ${liveState.onnxStatus}",
                             style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper)
                         )
                         Text(
@@ -481,4 +563,24 @@ private fun WakePhraseDialog(
             TextButton(onClick = onDismiss) { Text("Cancel", color = DeskInkFaint) }
         }
     )
+}
+
+/** Supported ASR languages — tap the row to cycle. */
+private object VoiceLanguages {
+    private val codes = listOf("en", "zh", "es", "fr", "de", "ja", "ko", "ru")
+
+    fun next(current: String): String {
+        val idx = codes.indexOf(current.lowercase())
+        return if (idx in codes.indices) codes[(idx + 1) % codes.size] else codes.first()
+    }
+}
+
+/** Gemini TTS voices — tap the row to cycle. */
+private object TtsVoices {
+    private val voices = listOf("Kore", "Puck", "Fenrir", "Aoede", "Charon")
+
+    fun next(current: String): String {
+        val idx = voices.indexOf(current)
+        return if (idx in voices.indices) voices[(idx + 1) % voices.size] else voices.first()
+    }
 }

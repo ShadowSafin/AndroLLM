@@ -4,8 +4,8 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import io.androllm.core.voice.asr.SherpaRecognizer
 import io.androllm.core.voice.asr.SpeechRecognizer
+import io.androllm.core.voice.stt.WhisperSpeechRecognizer
 import io.androllm.core.voice.tts.OfflineTtsEngine
 import io.androllm.core.voice.tts.PiperSpeechSynthesizer
 import io.androllm.core.voice.tts.SpeechSynthesizer
@@ -18,9 +18,9 @@ import javax.inject.Singleton
 /**
  * Hilt bindings for the 100% offline voice-assistant engines.
  *
- * Wake-word detection (OpenWakeWord), streaming speech recognition (Sherpa-ONNX ASR),
- * voice activity detection (Sherpa VAD), and text-to-speech (Piper TTS) are all
- * powered by ONNX runtime mobile.
+ * Wake-word detection (sherpa-onnx KWS), speech-to-text (whisper.cpp),
+ * voice activity detection (energy/Silero), and text-to-speech (Piper/sherpa)
+ * all run fully on-device.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -32,7 +32,7 @@ abstract class VoiceModule {
 
     @Binds
     @Singleton
-    abstract fun bindSpeechRecognizer(impl: SherpaRecognizer): SpeechRecognizer
+    abstract fun bindSpeechRecognizer(impl: WhisperSpeechRecognizer): SpeechRecognizer
 
     @Binds
     @Singleton

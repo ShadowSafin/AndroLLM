@@ -53,9 +53,12 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.timber)
 
-    // sherpa-onnx: wake word (KeywordSpotter), streaming ASR (OnlineRecognizer)
-    // and offline TTS (OfflineTts) — Apache 2.0, fully on-device.
+    // sherpa-onnx: wake word (KeywordSpotter) and offline TTS (OfflineTts) —
+    // Apache 2.0, fully on-device. (Speech-to-Text is whisper.cpp via :whisper.)
     implementation(libs.sherpa.onnx)
+
+    // whisper.cpp native bridge for high-accuracy offline speech recognition.
+    implementation(project(":whisper"))
 
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)

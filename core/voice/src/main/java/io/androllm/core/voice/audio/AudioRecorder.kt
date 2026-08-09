@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.SystemClock
 import io.androllm.core.voice.model.VoiceModels
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.channels.Channel
@@ -35,6 +36,18 @@ class AudioRecorder(
 
     val isRecording: Boolean get() = recording.get()
 
+    /** Actual sample rate the device granted (query after [start] succeeds). */
+    @Volatile var actualSampleRate: Int = sampleRate
+        private set
+
+    /** Actual capture buffer size in bytes (query after [start] succeeds). */
+    @Volatile var bufferSizeBytes: Int = 0
+        private set
+
+    /** Capture source in use (MediaRecorder.AudioSource.*). */
+    @Volatile var source: Int = MediaRecorder.AudioSource.MIC
+        private set
+
     /**
      * Starts the capture loop. Returns false when the microphone is not
      * available (permission missing / no mic).
@@ -49,31 +62,58 @@ class AudioRecorder(
         )
         if (minBuffer <= 0) return false
 
-        // VOICE_RECOGNITION hands noise suppression + echo cancellation to the
-        // system DSP; plain MIC is used when the user disabled both.
+        // Default = the device's plain/default microphone (AudioSource.MIC) —
+        // exactly what the official sherpa-onnx Android example feeds into the
+        // recognizer and what streaming ASR models are most accurate on. When
+        // the user explicitly enables system noise suppression / echo
+        // cancellation, capture switches to VOICE_RECOGNITION (the system DSP
+        // does the NS/EC); that source is aggressive on some OEM builds and can
+        // mangle consonants, so if it fails to open we fall back to MIC.
         val source = if (noiseSuppression || echoCancellation) {
             MediaRecorder.AudioSource.VOICE_RECOGNITION
         } else {
             MediaRecorder.AudioSource.MIC
         }
-        val record = AudioRecord(
-            source,
-            sampleRate,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            minBuffer.coerceAtLeast(chunkSamples * 2)
-        )
-        if (record.state != AudioRecord.STATE_INITIALIZED) {
-            record.release()
-            return false
+        val bufferSize = minBuffer.coerceAtLeast(chunkSamples * 2)
+        var selectedSource = source
+        var record = createRecord(selectedSource, bufferSize)
+        if (record == null && selectedSource != MediaRecorder.AudioSource.MIC) {
+            android.util.Log.w(
+                "AudioRecorder",
+                "VOICE_RECOGNITION unavailable — falling back to the default MIC source"
+            )
+            selectedSource = MediaRecorder.AudioSource.MIC
+            record = createRecord(selectedSource, bufferSize)
         }
+        if (record == null) return false
+        // Diagnostic: confirm the device actually honors the requested rate.
+        android.util.Log.i(
+            "AudioRecorder",
+            String.format(
+                "AudioRecord ready: requested %dHz mono PCM16 | actual sampleRate=%d | source=%s",
+                sampleRate, record.sampleRate, sourceLabel(selectedSource)
+            )
+        )
         audioRecord = record
+        this.source = selectedSource
+        this.actualSampleRate = record.sampleRate
+        this.bufferSizeBytes = bufferSize
         recording.set(true)
 
         recordThread = Thread({
             val buf = ShortArray(chunkSamples)
             val floatBuf = FloatArray(chunkSamples)
             record.startRecording()
+            val startedAt = SystemClock.elapsedRealtime()
+            android.util.Log.i(
+                "AudioRecorder",
+                String.format(
+                    "Recording started: %dHz MONO PCM16 | source=%s | buffer=%dB (%dms) | chunk=%d samples",
+                    record.sampleRate, sourceLabel(selectedSource),
+                    bufferSize, bufferSize * 1000 / (record.sampleRate * 2),
+                    chunkSamples
+                )
+            )
             try {
                 while (recording.get() && !Thread.currentThread().isInterrupted) {
                     val read = record.read(buf, 0, buf.size)
@@ -99,12 +139,42 @@ class AudioRecorder(
                 runCatching { record.stop() }
                 runCatching { record.release() }
                 audioRecord = null
+                android.util.Log.i(
+                    "AudioRecorder",
+                    String.format(
+                        "Recording stopped after %dms (capture thread ended)",
+                        SystemClock.elapsedRealtime() - startedAt
+                    )
+                )
             }
         }, "voice-capture")
         recordThread?.isDaemon = true
         recordThread?.start()
         return true
     }
+
+    private fun sourceLabel(source: Int): String =
+        if (source == MediaRecorder.AudioSource.VOICE_RECOGNITION) "VOICE_RECOGNITION" else "MIC"
+
+    /**
+     * Builds an [AudioRecord] for [source]. Returns null when the source cannot
+     * be opened (missing permission / unsupported source) so the caller can
+     * fall back to the default [MediaRecorder.AudioSource.MIC].
+     */
+    private fun createRecord(source: Int, bufferSize: Int): AudioRecord? =
+        runCatching {
+            val r = AudioRecord(
+                source,
+                sampleRate,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufferSize
+            )
+            if (r.state == AudioRecord.STATE_INITIALIZED) r else {
+                r.release()
+                null
+            }
+        }.getOrNull()
 
     fun stop() {
         if (!recording.compareAndSet(true, false)) return

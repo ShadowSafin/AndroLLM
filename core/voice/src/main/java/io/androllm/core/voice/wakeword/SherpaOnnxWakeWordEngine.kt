@@ -28,6 +28,14 @@ class SherpaOnnxWakeWordEngine @Inject constructor(
     private var spotter: KeywordSpotter? = null
     private var stream: OnlineStream? = null
 
+    /** Execution provider override: adb shell setprop debug.androllm.provider nnapi */
+    private val inferenceProvider: String
+        get() = runCatching {
+            val c = Class.forName("android.os.SystemProperties")
+            val m = c.getMethod("get", String::class.java)
+            if (m.invoke(null, "debug.androllm.provider") == "nnapi") "nnapi" else "cpu"
+        }.getOrDefault("cpu")
+
     override val isInitialized: Boolean get() = spotter != null
 
     @Synchronized
@@ -55,15 +63,37 @@ class SherpaOnnxWakeWordEngine @Inject constructor(
                     tokens = VoiceModels.KWS_TOKENS
                     numThreads = 1
                     debug = false
-                    provider = "cpu"
+                    // Diagnostic toggle: adb shell setprop debug.androllm.provider nnapi
+                    // bypasses ORT's CPU kernels (buggy on Oryon/SM8845 + Android 16,
+                    // producing garbage inference). Default: cpu.
+                    provider = inferenceProvider
                     modelType = "zipformer2"
                 }
+                // Robustness for real microphone speech: a strong per-token
+                // boost keeps the keyword path alive in beam search (the
+                // official demo default is 1.5), and a wider beam reduces the
+                // chance the 7-phoneme keyword path gets pruned mid-phrase.
+                maxActivePaths = 10
                 keywordsFile = VoiceModels.KWS_KEYWORDS
-                keywordsScore = 1.0f
+                keywordsScore = 2.0f
                 keywordsThreshold = 0.0001f
                 numTrailingBlanks = 1
             }
             spotter = KeywordSpotter(context.assets, config)
+            // Diagnostic (Step 1): log the loaded model + the wake phrases
+            // actually configured in the bundled keywords.txt.
+            val phrases = readAssetLines(VoiceModels.KWS_KEYWORDS)
+                .filter { it.isNotBlank() }
+                .mapNotNull { line -> line.substringAfter('@', "").takeIf { it.isNotBlank() } }
+                .distinct()
+            Timber.tag("KWS").i(
+                "KWS model loaded: encoder=%s decoder=%s joiner=%s tokens=%s keywords=%s | phrases=%s | " +
+                    "sampleRate=%d featureDim=%d score=%.1f threshold=%.4f trailingBlanks=%d",
+                VoiceModels.KWS_ENCODER, VoiceModels.KWS_DECODER, VoiceModels.KWS_JOINER,
+                VoiceModels.KWS_TOKENS, VoiceModels.KWS_KEYWORDS, phrases,
+                VoiceModels.SAMPLE_RATE, VoiceModels.FEATURE_DIM,
+                config.keywordsScore, config.keywordsThreshold, config.numTrailingBlanks
+            )
             true
         }.onFailure { Timber.e(it, "KWS init failed") }.getOrDefault(false)
     }
@@ -91,11 +121,11 @@ class SherpaOnnxWakeWordEngine @Inject constructor(
             val rawKw = result.keyword
             val tokensList = result.tokens.toList()
             val tokensStr = tokensList.joinToString(" ")
-            if (decodes > 0 || rawKw.isNotBlank() || tokensStr.isNotBlank()) {
-                Timber.tag("KWS").i(
-                    "feed: samples=${samples.size} decodes=$decodes kw='$rawKw' tokens=[$tokensStr]"
-                )
-            }
+            // Diagnostic (Step 3): log EVERY inference call so a device test
+            // shows whether audio reaches the model and whether decodes run.
+            Timber.tag("KWS").i(
+                "feed: samples=${samples.size} decodes=$decodes kw='$rawKw' tokens=[$tokensStr]"
+            )
             val hasTokens = tokensList.isNotEmpty()
             val matchesTokenPhonemes = tokensList.any { t ->
                 t.contains("HH") || t.contains("EY") || t.contains("AE") || t.contains("OW") || t.contains("ANDR")
@@ -124,4 +154,7 @@ class SherpaOnnxWakeWordEngine @Inject constructor(
 
     private fun hasAsset(path: String): Boolean =
         runCatching { context.assets.open(path).close(); true }.getOrDefault(false)
+
+    private fun readAssetLines(path: String): List<String> =
+        runCatching { context.assets.open(path).bufferedReader().use { it.readLines() } }.getOrDefault(emptyList())
 }

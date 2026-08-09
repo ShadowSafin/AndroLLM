@@ -1,4 +1,4 @@
-package io.androllm.core.voice.asr
+﻿package io.androllm.core.voice.asr
 
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -10,7 +10,7 @@ import javax.inject.Singleton
 @Singleton
 class SherpaRecognizer @Inject constructor(
     private val recognizer: SherpaOnnxStreamingRecognizer
-) : SpeechRecognizer {
+) : StreamingSpeechRecognizer {
 
     override val isInitialized: Boolean
         get() = recognizer.isInitialized
@@ -37,6 +37,14 @@ class SherpaRecognizer @Inject constructor(
 
     override fun finalText(): String {
         return recognizer.finalText()
+    }
+
+    override fun lastTokenCount(): Int {
+        return recognizer.lastTokenCount()
+    }
+
+    override fun estimatedConfidence(): Float {
+        return recognizer.estimatedConfidence()
     }
 
     override fun reset() {

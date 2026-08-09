@@ -1,4 +1,4 @@
-package io.androllm.core.voice.asr
+﻿package io.androllm.core.voice.asr
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -12,14 +12,14 @@ import timber.log.Timber
 /**
  * Cloud-backed speech recognizer powered by Google Gemini.
  *
- * The voice assistant always talks to Gemini for speech-to-text — independent
+ * The voice assistant always talks to Gemini for speech-to-text â€” independent
  * of which chat provider the user selected for reasoning. This implementation
  * buffers audio chunks for the current utterance and sends them to Gemini at
  * the endpoint (silence-based turn end), returning the transcript text.
  *
  * The current implementation does not stream partial transcripts; partial
  * feedback would require either a streaming Gemini endpoint or per-chunk
- * calls. The voice service still surfaces interim `Listening…` UI through
+ * calls. The voice service still surfaces interim `Listeningâ€¦` UI through
  * [io.androllm.core.voice.vad.Vad] until the final transcript arrives.
  */
 @Singleton
@@ -27,7 +27,7 @@ class GeminiStreamingRecognizer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val gemini: GeminiVoiceClient,
     private val keyProvider: GeminiApiKeyProvider
-) : SpeechRecognizer {
+) : StreamingSpeechRecognizer {
 
     private var buffer: FloatArray = FloatArray(0)
     private var lastPartial: String = ""
@@ -64,7 +64,7 @@ class GeminiStreamingRecognizer @Inject constructor(
             kotlinx.coroutines.runBlocking { keyProvider.get() }
         }.getOrNull()
         if (apiKey.isNullOrBlank()) {
-            Timber.tag("KWS").w("Gemini STT skipped — no API key configured")
+            Timber.tag("KWS").w("Gemini STT skipped â€” no API key configured")
             lastPartial = ""
             return ""
         }

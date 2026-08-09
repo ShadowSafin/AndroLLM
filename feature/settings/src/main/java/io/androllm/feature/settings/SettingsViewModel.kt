@@ -21,6 +21,10 @@ import io.androllm.core.utils.ShareUtils
 import io.androllm.core.utils.StorageUtils
 import io.androllm.core.voice.VoiceSettingsStore
 import io.androllm.core.voice.model.VoiceSettings
+import io.androllm.core.voice.stt.WhisperModel
+import io.androllm.core.voice.stt.WhisperModelManager
+import io.androllm.core.voice.stt.WhisperModels
+import io.androllm.core.voice.stt.WhisperSpeechRecognizer
 import io.androllm.feature.voice.VoiceAssistant
 import io.androllm.feature.voice.VoiceAssistantController
 import io.androllm.feature.voice.ui.OverlayPermission
@@ -48,7 +52,9 @@ class SettingsViewModel @Inject constructor(
     private val memoryManager: MemoryManager,
     private val voiceSettingsStore: VoiceSettingsStore,
     private val voiceController: VoiceAssistantController,
-    private val wakeWordEngine: WakeWordEngine
+    private val wakeWordEngine: WakeWordEngine,
+    private val whisperModelManager: WhisperModelManager,
+    private val whisperSpeechRecognizer: WhisperSpeechRecognizer
 ) : BaseViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<SettingsData>>(UiState.Loading())
@@ -74,6 +80,82 @@ class SettingsViewModel @Inject constructor(
     private val _voiceSettings = MutableStateFlow(VoiceSettings())
     val voiceSettings: StateFlow<VoiceSettings> = _voiceSettings.asStateFlow()
 
+    // ── Whisper speech recognition ──
+
+    private val _whisperModels = MutableStateFlow<List<WhisperModel>>(WhisperModels.ALL)
+    val whisperModels: StateFlow<List<WhisperModel>> = _whisperModels.asStateFlow()
+
+    /** ids of fully downloaded models. */
+    private val _whisperInstalled = MutableStateFlow<Set<String>>(emptySet())
+    val whisperInstalled: StateFlow<Set<String>> = _whisperInstalled.asStateFlow()
+
+    /** (modelId, progress 0..1) while downloading. */
+    private val _whisperDownload = MutableStateFlow<Pair<String, Float>?>(null)
+    val whisperDownload: StateFlow<Pair<String, Float>?> = _whisperDownload.asStateFlow()
+
+    /** One-line status message for the section. */
+    private val _whisperMessage = MutableStateFlow<String?>(null)
+    val whisperMessage: StateFlow<String?> = _whisperMessage.asStateFlow()
+
+    /** Active model id (== settings.whisperModel) when loaded. */
+    val whisperActiveModelId: String? get() = _voiceSettings.value.whisperModel
+
+    /** Bytes consumed by downloaded whisper models on disk. */
+    val whisperStorageBytes: Long get() = whisperModelManager.storageInstalledSizeBytes()
+
+    fun refreshWhisperModels() {
+        _whisperInstalled.value = whisperModelManager.installedModels().map { it.id }.toSet()
+    }
+
+    fun whisperIsInstalled(id: String): Boolean = id in _whisperInstalled.value
+
+    fun downloadWhisperModel(id: String) {
+        val model = WhisperModels.byId(id) ?: return
+        if (_whisperDownload.value?.first == id) return
+        viewModelScope.launch {
+            _whisperDownload.value = id to 0f
+            _whisperMessage.value = "Downloading ${model.displayName}…"
+            runCatching {
+                whisperModelManager.download(model) { done, total ->
+                    _whisperDownload.value = id to (if (total > 0) done.toFloat() / total else 0f)
+                }
+            }.onSuccess {
+                refreshWhisperModels()
+                _whisperMessage.value = "${model.displayName} installed."
+            }.onFailure {
+                _whisperMessage.value = "Download failed: ${it.message}"
+            }
+            _whisperDownload.value = null
+        }
+    }
+
+    fun deleteWhisperModel(id: String) {
+        val model = WhisperModels.byId(id) ?: return
+        viewModelScope.launch {
+            whisperModelManager.delete(model)
+            refreshWhisperModels()
+            _whisperMessage.value = "${model.displayName} deleted."
+            if (_voiceSettings.value.whisperModel == id) {
+                updateVoiceSettings(_voiceSettings.value.copy(whisperModel = WhisperModels.recommendedForDevice(deviceRamGb()).id))
+            }
+        }
+    }
+
+    fun selectWhisperModel(id: String) {
+        if (!whisperIsInstalled(id)) return
+        updateVoiceSettings(_voiceSettings.value.copy(whisperModel = id))
+        _whisperMessage.value = "Speech model set to ${WhisperModels.byId(id)?.displayName}."
+    }
+
+    private fun deviceRamGb(): Long =
+        (Runtime.getRuntime().maxMemory() / (1024L * 1024L * 1024L)).coerceAtLeast(1L)
+
+    /** Live helper for a subscriber-free recompute (called from init). */
+    private fun refreshWhisperFromInit() {
+        refreshWhisperModels()
+    }
+
+
     /** Live assistant phase (drives the settings section status line). */
     val voiceState: StateFlow<io.androllm.feature.voice.VoiceUiState> = voiceController.state
 
@@ -97,6 +179,7 @@ class SettingsViewModel @Inject constructor(
         refreshMemoryStats()
         refreshStorageStats()
         observeVoiceSettings()
+        refreshWhisperFromInit()
     }
 
     // ── Voice assistant ──

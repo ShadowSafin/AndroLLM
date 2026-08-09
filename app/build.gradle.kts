@@ -56,6 +56,20 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE,NOTICE}"
         }
+        jniLibs {
+            // Oryon-SoC workaround (Snapdragon 8 Elite / 8s Gen 4, SME): ONNX
+            // Runtime 1.27.0 (bundled in the sherpa-onnx AAR) miscomputes
+            // streaming-zipformer encoders there -> silent KWS/ASR failure
+            // (k2-fsa/sherpa-onnx#3845). We ship ORT 1.28.0 plus patched
+            // sherpa libs from app/src/main/jniLibs/: the sherpa JNI's only
+            // versioned ORT reference (OrtGetApiBase@VERS_1.27.0) is patched
+            // to be unversioned so it binds to 1.28's default-versioned
+            // symbol. See tools/patch_ver.py. Remove once sherpa bumps ORT.
+            pickFirsts += "**/libonnxruntime.so"
+            pickFirsts += "**/libsherpa-onnx-jni.so"
+            pickFirsts += "**/libsherpa-onnx-c-api.so"
+            pickFirsts += "**/libsherpa-onnx-cxx-api.so"
+        }
     }
 }
 
@@ -203,40 +217,25 @@ ksp {
 // into preBuild so a fresh clone still produces a complete APK.
 val voiceAssetsDir = file("src/main/assets/voice")
 val voiceKwsDir = file("$voiceAssetsDir/kws")
-val voiceAsrDir = file("$voiceAssetsDir/asr")
 val voiceTtsDir = file("$voiceAssetsDir/tts")
 
 tasks.register("downloadVoiceModels") {
     group = "voice"
-    description = "Downloads + extracts the bundled sherpa-onnx voice models (wake word, ASR, TTS)"
+    description = "Downloads + extracts the bundled sherpa-onnx voice models (wake word, TTS). Speech-to-text uses whisper.cpp, whose ggml models are downloaded in-app."
     onlyIf { !voiceAssetsDir.exists() }
 
     doLast {
-        val asrBase = "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17/resolve/main"
-        val asrFiles = mapOf(
-            "encoder.onnx" to "encoder-epoch-99-avg-1.int8.onnx",
-            "decoder.onnx" to "decoder-epoch-99-avg-1.int8.onnx",
-            "joiner.onnx" to "joiner-epoch-99-avg-1.int8.onnx",
-            "tokens.txt" to "tokens.txt"
-        )
         val kwsTarball = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2"
         val ttsTarball = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-ljs.tar.bz2"
         val tmp = buildDir.resolve("voice-models")
         tmp.mkdirs()
         voiceKwsDir.mkdirs()
-        voiceAsrDir.mkdirs()
         voiceTtsDir.mkdirs()
 
         fun download(url: String, target: File) {
             if (target.exists() && target.length() > 1000) return
             logger.lifecycle("downloadVoiceModels: fetching ${url.substringAfterLast('/')}")
             exec { commandLine("curl", "-sL", "--retry", "3", "-o", target.absolutePath, url) }
-        }
-
-        // Streaming ASR — int8 files only (smallest complete English model).
-        asrFiles.forEach { (name, remote) ->
-            val target = File(voiceAsrDir, name)
-            download("$asrBase/$remote", target)
         }
 
         // KWS + TTS — release tarballs, extract the files we need.
@@ -250,6 +249,12 @@ tasks.register("downloadVoiceModels") {
                 if (f.exists()) f.copyTo(File(target, f.name), overwrite = true)
             }
         }
+        // Int8 encoder/joiner + fp32 decoder (official pairing). NOTE: this
+        // model's int8 encoder produced zero detections on Oryon SoCs
+        // (Snapdragon 8 Elite/8s Gen 4) with the ONNX Runtime 1.27.0 bundled in
+        // the sherpa-onnx AAR — ORT 1.27.0 miscomputes zipformer2 encoders
+        // there (k2-fsa/sherpa-onnx#3845). The app overrides libonnxruntime.so
+        // with 1.28.0 via jniLibs, which fixes it; keep that override in place.
         copyFrom(kwsDir, voiceKwsDir,
             "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
             "decoder-epoch-13-avg-2-chunk-16-left-64.onnx",
@@ -260,12 +265,37 @@ tasks.register("downloadVoiceModels") {
         File(voiceKwsDir, "decoder-epoch-13-avg-2-chunk-16-left-64.onnx").renameTo(File(voiceKwsDir, "decoder.onnx"))
         File(voiceKwsDir, "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx").renameTo(File(voiceKwsDir, "joiner.onnx"))
         // The zh-en KWS model uses ARPABET phoneme tokens: ship the keywords
-        // already tokenized ("HEY ANDROID" / "OKAY ANDROID" -> phones + @name).
-        // Several pronunciation variants per phrase so the model has a fair
-        // chance of matching live-mic speech (the decoder emits whichever
-        // phone sequence the user actually utters).
+        // already tokenized ("HEY ANDRO" / "OKAY ANDRO" / "ANDRO" /
+        // "HEY ANDROID" / "OKAY ANDROID" -> phones + @name). Several
+        // pronunciation variants per phrase so the model has a fair chance of
+        // matching live-mic speech (the decoder emits whichever phone sequence
+        // the user actually utters).
+        //
+        // IMPORTANT: sherpa-onnx keyword-file format is
+        //   <tokens> @<name> [:boost] [#threshold]
+        // where ':' is the boost score and '#' is the trigger threshold. Do
+        // NOT repeat ':' (e.g. ":1.0 :0.0001" silently overwrites the boost
+        // with the last value and the threshold is dropped). Omitting both is
+        // fine: KeywordSpotterConfig.keywordsScore / keywordsThreshold apply.
         File(voiceKwsDir, "keywords.txt").writeText(
-            "HH EY1 AE1 N D R OY2 D @HEY_ANDROID\n" +
+            "HH EY1 AE1 N D R OW0 @HEY_ANDRO\n" +
+                "HH EY1 AE1 N D R OW1 @HEY_ANDRO\n" +
+                "HH EY1 AE1 N D R OW2 @HEY_ANDRO\n" +
+                "HH EY1 AE1 N D R OY2 @HEY_ANDRO\n" +
+                "HH EY1 AE1 N D R OY1 @HEY_ANDRO\n" +
+                "HH EY1 AH0 N D R OW0 @HEY_ANDRO\n" +
+                "HH EY1 AH0 N D R OW1 @HEY_ANDRO\n" +
+                "HH EY1 AE0 N D R OW0 @HEY_ANDRO\n" +
+                "OW2 K EY1 AE1 N D R OW0 @OKAY_ANDRO\n" +
+                "OW2 K EY1 AH0 N D R OW0 @OKAY_ANDRO\n" +
+                "OW2 K EY1 AE1 N D R OW1 @OKAY_ANDRO\n" +
+                "OW0 K EY1 AE1 N D R OW0 @OKAY_ANDRO\n" +
+                "OW1 K EY1 AE1 N D R OW0 @OKAY_ANDRO\n" +
+                "AE1 N D R OW0 @ANDRO\n" +
+                "AH0 N D R OW0 @ANDRO\n" +
+                "AE1 N D R OW1 @ANDRO\n" +
+                "AE0 N D R OW0 @ANDRO\n" +
+                "HH EY1 AE1 N D R OY2 D @HEY_ANDROID\n" +
                 "HH EY1 AH0 N D R OY2 D @HEY_ANDROID\n" +
                 "HH EY1 AE1 N D R OY1 D @HEY_ANDROID\n" +
                 "HH EY1 AH0 N D R OY1 D @HEY_ANDROID\n" +

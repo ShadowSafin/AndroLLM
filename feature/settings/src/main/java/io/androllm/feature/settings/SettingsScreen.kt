@@ -109,6 +109,11 @@ fun SettingsScreen(
     val storageStats by viewModel.storageStats.collectAsStateWithLifecycle()
     val voiceSettings by viewModel.voiceSettings.collectAsStateWithLifecycle()
     val voiceState by viewModel.voiceState.collectAsStateWithLifecycle()
+    val whisperModels by viewModel.whisperModels.collectAsStateWithLifecycle()
+    val whisperInstalled by viewModel.whisperInstalled.collectAsStateWithLifecycle()
+    val whisperDownload by viewModel.whisperDownload.collectAsStateWithLifecycle()
+    val whisperMessage by viewModel.whisperMessage.collectAsStateWithLifecycle()
+    val whisperStorageBytes = viewModel.whisperStorageBytes
     val overlayGranted = viewModel.overlayGranted
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
@@ -267,6 +272,23 @@ fun SettingsScreen(
                         onStart = { viewModel.startVoiceAssistant() },
                         onStop = { viewModel.stopVoiceAssistant() },
                         onOpenOverlayPermission = { viewModel.openOverlayPermissionSettings() }
+                    )
+                }
+
+                // 7b. Speech Recognition (whisper.cpp)
+                item {
+                    SectionHeader(title = "Speech Recognition")
+                    SpeechRecognitionSection(
+                        settings = voiceSettings,
+                        models = whisperModels,
+                        installedIds = whisperInstalled,
+                        download = whisperDownload,
+                        message = whisperMessage,
+                        storageBytes = whisperStorageBytes,
+                        onSelectModel = { viewModel.selectWhisperModel(it) },
+                        onDownloadModel = { viewModel.downloadWhisperModel(it) },
+                        onDeleteModel = { viewModel.deleteWhisperModel(it) },
+                        onUpdate = { viewModel.updateVoiceSettings(it) }
                     )
                 }
 

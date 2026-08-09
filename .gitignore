@@ -153,9 +153,17 @@ coverage/
 .impeccable/
 META-INF/
 skills-lock.json
+scratch/
 
 # Agent skills (never commit)
 .agents/
 
 # Bundled voice models (sherpa-onnx) — downloaded by downloadVoiceModels
 app/src/main/assets/voice/
+
+# Oryon-SoC workaround binaries — REQUIRED for wake-word/ASR on Snapdragon
+# 8 Elite / 8s Gen 4 (k2-fsa/sherpa-onnx#3845). Overrides the AAR's
+# libonnxruntime.so with 1.28.0 + version-patched sherpa libs; see
+# tools/patch_ver.py and the jniLibs comment in app/build.gradle.kts.
+!app/src/main/jniLibs/
+!app/src/main/jniLibs/**

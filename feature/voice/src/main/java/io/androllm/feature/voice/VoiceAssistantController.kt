@@ -2,8 +2,12 @@ package io.androllm.feature.voice
 
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
@@ -45,8 +49,51 @@ data class VoiceUiState(
     val framesReceived: Long = 0L,
     val inferenceFps: Float = 0f,
     val micOwner: String = "None",
-    val onnxStatus: String = "Idle"
+    val onnxStatus: String = "Idle",
+
+    // ── Gemini Live-style overlay ──────────────────────────────────────────
+    /** Human-readable active model label (e.g. "gpt-4o" / "llama-3.1-8b"). */
+    val modelName: String = "",
+    /** Provider label (e.g. "Local GGUF", "Gemini", "OpenAI", "OpenRouter"). */
+    val modelProvider: String = "",
+    /** TTS output muted (overlay mute button). */
+    val muted: Boolean = false,
+    /** Elapsed ms of the current thinking/generating turn (timer chip). */
+    val elapsedMs: Long = 0L,
+    /** True while a wake→answer turn is in flight (drives overlay visibility). */
+    val turnActive: Boolean = false,
+    /** User dismissed the overlay for this turn; don't re-show until next wake. */
+    val overlayDismissed: Boolean = false,
+
+    // ── Word-level karaoke highlighting (sentence currently being spoken) ──
+    /** Start char offset (inclusive) of the spoken chunk inside [answerText]. */
+    val spokenStart: Int = -1,
+    /** End char offset (exclusive) of the spoken chunk inside [answerText]. */
+    val spokenEnd: Int = -1,
+    /** Index of the word currently being spoken within the chunk (-1 = none). */
+    val spokenWordIndex: Int = -1
 )
+
+/**
+ * Buttons pressed on the floating overlay. The overlay never touches the
+ * service directly — it emits an intent here and the service reacts.
+ */
+sealed interface VoiceOverlayEvent {
+    /** Cancel the in-flight generation + stop TTS. */
+    data object Cancel : VoiceOverlayEvent
+
+    /** Toggle spoken answers on/off for this session. */
+    data object ToggleMute : VoiceOverlayEvent
+
+    /** Open the normal chat screen (keyboard button). */
+    data object OpenChat : VoiceOverlayEvent
+
+    /** Open the conversation that holds this turn's transcript + answer. */
+    data object OpenConversation : VoiceOverlayEvent
+
+    /** Close the overlay; the assistant keeps listening in the background. */
+    data object Close : VoiceOverlayEvent
+}
 
 /**
  * Single source of truth for everything the voice assistant shows.
@@ -56,6 +103,17 @@ class VoiceAssistantController @Inject constructor() {
 
     private val _state = MutableStateFlow(VoiceUiState())
     val state: StateFlow<VoiceUiState> = _state.asStateFlow()
+
+    /** Overlay → service intents (buffered, drop-oldest so the UI never blocks). */
+    private val _overlayEvents = MutableSharedFlow<VoiceOverlayEvent>(
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val overlayEvents: SharedFlow<VoiceOverlayEvent> = _overlayEvents.asSharedFlow()
+
+    fun emitOverlayEvent(event: VoiceOverlayEvent) {
+        _overlayEvents.tryEmit(event)
+    }
 
     fun setActive(active: Boolean) {
         _state.value = _state.value.copy(active = active, error = null)
@@ -83,6 +141,53 @@ class VoiceAssistantController @Inject constructor() {
 
     fun setError(message: String?) {
         _state.value = _state.value.copy(error = message)
+    }
+
+    fun setModelInfo(provider: String, name: String) {
+        _state.value = _state.value.copy(modelProvider = provider, modelName = name)
+    }
+
+    fun setMuted(muted: Boolean) {
+        _state.value = _state.value.copy(muted = muted)
+    }
+
+    fun setElapsedMs(ms: Long) {
+        _state.value = _state.value.copy(elapsedMs = ms)
+    }
+
+    /**
+     * Marks the answer range currently being spoken (for word highlighting).
+     * Also resets the word cursor so a new chunk never renders with the
+     * previous chunk's stale word index.
+     */
+    fun setSpokenRange(start: Int, end: Int) {
+        _state.value = _state.value.copy(spokenStart = start, spokenEnd = end, spokenWordIndex = 0)
+    }
+
+    /** Advances the karaoke cursor to [index] within the spoken chunk. */
+    fun setSpokenWordIndex(index: Int) {
+        _state.value = _state.value.copy(spokenWordIndex = index)
+    }
+
+    /** Clears the spoken-chunk highlight (turn ended / interrupted). */
+    fun clearSpoken() {
+        _state.value = _state.value.copy(spokenStart = -1, spokenEnd = -1, spokenWordIndex = -1)
+    }
+
+    /**
+     * Marks a wake→answer turn as started/finished. Entering a turn resets the
+     * dismissed flag so the overlay can re-open on the next wake word.
+     */
+    fun setTurnActive(active: Boolean) {
+        _state.value = _state.value.copy(
+            turnActive = active,
+            overlayDismissed = if (active) false else _state.value.overlayDismissed
+        )
+    }
+
+    /** User closed the overlay for this turn. */
+    fun dismissOverlay() {
+        _state.value = _state.value.copy(overlayDismissed = true)
     }
 
     fun updateDebugMetrics(
@@ -114,7 +219,11 @@ class VoiceAssistantController @Inject constructor() {
             transcript = "",
             partialTranscript = "",
             answerText = "",
-            error = null
+            error = null,
+            elapsedMs = 0L,
+            spokenStart = -1,
+            spokenEnd = -1,
+            spokenWordIndex = -1
         )
     }
 
