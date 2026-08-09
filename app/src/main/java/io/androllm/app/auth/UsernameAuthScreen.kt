@@ -48,10 +48,10 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loggedOut by remember { mutableStateOf(false) }
-    val alreadyLoggedIn = AuthSession.isLoggedIn(context) && !loggedOut
+    val alreadyLoggedIn = AuthSession.isLoggedIn() && !loggedOut
 
     fun doLogout() {
-        AuthSession.clear(context)
+        AuthSession.clear()
         loggedOut = true
         Toast.makeText(context, "Anda telah keluar", Toast.LENGTH_SHORT).show()
     }
@@ -103,7 +103,7 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
             if (token.isNotEmpty()) {
                 val user = resp.optJSONObject("user")
                 AuthSession.save(
-                    context, token,
+                    token,
                     user?.optString("username") ?: username.trim(),
                     user?.optString("display_name") ?: ""
                 )
@@ -124,7 +124,7 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
             if (token.isNotEmpty()) {
                 val user = resp.optJSONObject("user")
                 AuthSession.save(
-                    context, token,
+                    token,
                     user?.optString("username") ?: username.trim(),
                     user?.optString("display_name") ?: displayName.trim()
                 )
@@ -153,7 +153,7 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                AuthSession.username(context) ?: "",
+                AuthSession.username() ?: "",
                 style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF2EA043))
             )
             Spacer(Modifier.height(24.dp))

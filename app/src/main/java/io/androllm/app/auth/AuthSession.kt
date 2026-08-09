@@ -14,26 +14,36 @@ object AuthSession {
     private const val KEY_USERNAME = "username"
     private const val KEY_DISPLAY = "display_name"
 
-    private fun prefs(ctx: Context): SharedPreferences =
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    @Volatile
+    private var appContext: Context? = null
 
-    fun save(ctx: Context, token: String, username: String, displayName: String = "") {
-        prefs(ctx).edit()
+    /** Wajib dipanggil sekali di Application.onCreate(). */
+    fun init(context: Context) {
+        appContext = context.applicationContext
+    }
+
+    private fun prefs(): SharedPreferences {
+        val ctx = appContext ?: throw IllegalStateException("AuthSession.init() belum dipanggil")
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    }
+
+    fun save(token: String, username: String, displayName: String = "") {
+        prefs().edit()
             .putString(KEY_TOKEN, token)
             .putString(KEY_USERNAME, username)
             .putString(KEY_DISPLAY, displayName)
             .apply()
     }
 
-    fun token(ctx: Context): String? = prefs(ctx).getString(KEY_TOKEN, null)
+    fun token(): String? = prefs().getString(KEY_TOKEN, null)
 
-    fun username(ctx: Context): String? = prefs(ctx).getString(KEY_USERNAME, null)
+    fun username(): String? = prefs().getString(KEY_USERNAME, null)
 
-    fun displayName(ctx: Context): String? = prefs(ctx).getString(KEY_DISPLAY, null)
+    fun displayName(): String? = prefs().getString(KEY_DISPLAY, null)
 
-    fun isLoggedIn(ctx: Context): Boolean = !token(ctx).isNullOrEmpty()
+    fun isLoggedIn(): Boolean = runCatching { !token().isNullOrEmpty() }.getOrDefault(false)
 
-    fun clear(ctx: Context) {
-        prefs(ctx).edit().clear().apply()
+    fun clear() {
+        prefs().edit().clear().apply()
     }
 }

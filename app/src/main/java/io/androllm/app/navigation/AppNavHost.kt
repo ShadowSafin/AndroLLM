@@ -72,7 +72,7 @@ fun AppNavHost(
         runCatching { FirebaseAuth.getInstance().currentUser != null }.getOrDefault(false)
 
     fun isLoggedInToAuth(): Boolean =
-        runCatching { AuthSession.isLoggedIn(context) }.getOrDefault(false)
+        AuthSession.isLoggedIn()
 
     // Voice-command deep links (e.g. "Hey Andro, open settings") navigate
     // straight to the requested screen once the graph is up. Consumed once so
