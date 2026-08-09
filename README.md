@@ -1,4 +1,4 @@
-# 🤖 AndroLLM
+# AndroLLM
 
 ### Private AI. Native Android. Your Models. Your Choice.
 
