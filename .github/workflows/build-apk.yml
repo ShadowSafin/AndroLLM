@@ -24,6 +24,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Install Vulkan shader compiler (glslc)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq glslang-tools
+          glslc --version | head -1
+
       - name: Build debug APK
         run: |
           chmod +x gradlew
