@@ -48,7 +48,38 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loggedOut by remember { mutableStateOf(false) }
+    var updateMsg by remember { mutableStateOf<String?>(null) }
+    var isChecking by remember { mutableStateOf(false) }
     val alreadyLoggedIn = AuthSession.isLoggedIn() && !loggedOut
+
+    fun checkUpdate() {
+        if (isChecking) return
+        isChecking = true
+        updateMsg = null
+        scope.launch {
+            val current = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+            val info = Updater.checkForUpdate(current)
+            isChecking = false
+            if (info.hasUpdate) {
+                updateMsg = "Versi baru ${info.latestVersion} tersedia!"
+                // auto-download + install kalau izin ada
+                if (Updater.canRequestInstall(context)) {
+                    Toast.makeText(context, "Mengunduh pembaruan…", Toast.LENGTH_SHORT).show()
+                    val apk = Updater.downloadApk(info.apkUrl, context)
+                    if (apk != null) {
+                        Updater.installApk(context, apk)
+                    } else {
+                        updateMsg = "Gagal mengunduh. Coba lagi."
+                    }
+                } else {
+                    Toast.makeText(context, "Izinkan install aplikasi untuk auto-update", Toast.LENGTH_LONG).show()
+                    Updater.openInstallPermissionSettings(context)
+                }
+            } else {
+                updateMsg = "Sudah versi terbaru ($current)"
+            }
+        }
+    }
 
     fun doLogout() {
         AuthSession.clear()
@@ -173,6 +204,19 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
         return
     }
 
+    LaunchedEffect(Unit) {
+        // Auto-check update saat masuk (tidak mengganggu — cuma toast kalau ada baru)
+        val current = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "1.0"
+        val info = Updater.checkForUpdate(current)
+        if (info.hasUpdate && Updater.canRequestInstall(context)) {
+            val apk = Updater.downloadApk(info.apkUrl, context)
+            if (apk != null) {
+                Toast.makeText(context, "Pembaruan ${info.latestVersion} tersedia — mengunduh…", Toast.LENGTH_LONG).show()
+                Updater.installApk(context, apk)
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -270,7 +314,19 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
+
+        updateMsg?.let {
+            Text(it, color = Color(0xFF2EA043), fontSize = 12.sp, textAlign = TextAlign.Center)
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        TextButton(onClick = { checkUpdate() }, enabled = !isChecking) {
+            Text(if (isChecking) "Mengecek…" else "Cek Pembaruan", color = Color(0xFF8B949E), fontSize = 12.sp)
+        }
+
+        Spacer(Modifier.height(12.dp))
 
         TextButton(onClick = { isRegister = !isRegister; error = null }) {
             Text(
