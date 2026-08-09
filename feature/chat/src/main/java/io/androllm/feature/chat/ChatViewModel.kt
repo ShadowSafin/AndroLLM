@@ -337,6 +337,13 @@ class ChatViewModel @Inject constructor(
             }
 
             val messages = buildList {
+                // Bahasa default: minta model menjawab dalam Bahasa Indonesia.
+                // ponytail: hardcode "id" default; hubungkan ke setting language
+                // saat UI language picker dibangun.
+                add(ChatPromptMessage(
+                    role = "system",
+                    content = "Kamu adalah asisten AI AndroLLM. Selalu jawab dalam Bahasa Indonesia kecuali diminta lain. Jawab dengan jelas, ringkas, dan membantu."
+                ))
                 if (memoryContext.systemText.isNotBlank()) {
                     add(ChatPromptMessage(role = "system", content = memoryContext.systemText))
                 }
