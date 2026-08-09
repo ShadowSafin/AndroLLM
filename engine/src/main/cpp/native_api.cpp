@@ -722,6 +722,7 @@ struct VulkanInfo {
     size_t freeBytes = 0, totalBytes = 0;
 };
 
+#ifdef GGML_USE_VULKAN
 static std::string vk_ver(uint32_t v) {
     std::ostringstream o;
     o << VK_VERSION_MAJOR(v) << "." << VK_VERSION_MINOR(v) << "." << VK_VERSION_PATCH(v);
@@ -730,7 +731,6 @@ static std::string vk_ver(uint32_t v) {
 
 static VulkanInfo checkVulkan() {
     VulkanInfo info;
-#ifdef GGML_USE_VULKAN
     VkApplicationInfo app{};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app.pApplicationName = "AndroLLM";
@@ -790,7 +790,7 @@ static VulkanInfo checkVulkan() {
     }
 #else
     info.reason = "Vulkan not compiled";
-#endif
+#endif // GGML_USE_VULKAN
     return info;
 }
 
