@@ -57,7 +57,7 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
         isChecking = true
         updateMsg = null
         scope.launch {
-            val current = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            val current = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
             val info = Updater.checkForUpdate(current)
             isChecking = false
             if (info.hasUpdate) {
