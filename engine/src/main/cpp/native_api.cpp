@@ -722,11 +722,13 @@ struct VulkanInfo {
     size_t freeBytes = 0, totalBytes = 0;
 };
 
+#ifdef GGML_USE_VULKAN
 static std::string vk_ver(uint32_t v) {
     std::ostringstream o;
     o << VK_VERSION_MAJOR(v) << "." << VK_VERSION_MINOR(v) << "." << VK_VERSION_PATCH(v);
     return o.str();
 }
+#endif // GGML_USE_VULKAN (vk_ver)
 
 static VulkanInfo checkVulkan() {
     VulkanInfo info;
@@ -789,8 +791,9 @@ static VulkanInfo checkVulkan() {
         info.ok = false; info.reason = "ggml-vulkan init exception";
     }
 #else
+    info.ok = false;
     info.reason = "Vulkan not compiled";
-#endif
+#endif // GGML_USE_VULKAN
     return info;
 }
 
