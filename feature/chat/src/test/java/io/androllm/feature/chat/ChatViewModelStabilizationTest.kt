@@ -11,6 +11,11 @@ import io.androllm.core.memory.model.MemoryContext
 import io.androllm.core.memory.model.MemorySettings
 import io.androllm.core.models.Message
 import io.androllm.core.models.MessageRole
+import io.androllm.core.tools.agent.AgentVariableStore
+import io.androllm.core.tools.coordinator.ToolRunCoordinator
+import io.androllm.core.tools.confirmation.ToolConfirmationManager
+import io.androllm.core.tools.settings.AutomationSettingsStore
+import io.androllm.core.tools.trace.ToolExecutionTraceStore
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.api.GenerationState
@@ -53,6 +58,11 @@ class ChatViewModelStabilizationTest {
     private val preferencesDataStore = mockk<PreferencesDataStore>()
     private val memoryManager = mockk<MemoryManager>(relaxed = true)
     private val cloudGateway = mockk<CloudGateway>(relaxed = true)
+    private val toolCoordinator = mockk<ToolRunCoordinator>(relaxed = true)
+    private val confirmationManager = ToolConfirmationManager()
+    private val automationSettingsStore = mockk<AutomationSettingsStore>(relaxed = true)
+    private val traceStore = ToolExecutionTraceStore()
+    private val variableStore = mockk<AgentVariableStore>(relaxed = true)
 
     private val engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
     private val generationState = MutableStateFlow<GenerationState>(GenerationState.Idle)
@@ -112,7 +122,12 @@ class ChatViewModelStabilizationTest {
             messageRepository,
             preferencesDataStore,
             memoryManager,
-            cloudGateway
+            cloudGateway,
+            toolCoordinator,
+            confirmationManager,
+            automationSettingsStore,
+            traceStore,
+            variableStore
         )
     }
 

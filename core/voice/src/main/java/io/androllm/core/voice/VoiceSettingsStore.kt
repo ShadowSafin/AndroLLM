@@ -76,6 +76,17 @@ class VoiceSettingsStore @Inject constructor(
         val OVERLAY_TRANSPARENCY = floatPreferencesKey("overlay_transparency")
         val OVERLAY_SIZE = floatPreferencesKey("overlay_size")
         val ANIMATION_SPEED = floatPreferencesKey("animation_speed")
+        val TN_ENABLED = booleanPreferencesKey("tn_enabled")
+        val TN_NUMBERS = booleanPreferencesKey("tn_numbers")
+        val TN_DATES = booleanPreferencesKey("tn_dates")
+        val TN_CURRENCY = booleanPreferencesKey("tn_currency")
+        val TN_UNITS = booleanPreferencesKey("tn_units")
+        val TN_MATH = booleanPreferencesKey("tn_math")
+        val TN_EMOJI = booleanPreferencesKey("tn_emoji")
+        val TN_URLS_EMAILS = booleanPreferencesKey("tn_urls_emails")
+        val TN_PHONES = booleanPreferencesKey("tn_phones")
+        val TN_ABBREVIATIONS = booleanPreferencesKey("tn_abbreviations")
+        val TN_DEBUG = booleanPreferencesKey("tn_debug")
     }
 
     private val dataStore: DataStore<Preferences> = context.voiceDataStore
@@ -143,7 +154,18 @@ class VoiceSettingsStore @Inject constructor(
         overlaySize = (p[Keys.OVERLAY_SIZE] ?: VoiceSettings().overlaySize)
             .coerceIn(VoiceSettings.MIN_OVERLAY_SIZE, VoiceSettings.MAX_OVERLAY_SIZE),
         animationSpeed = (p[Keys.ANIMATION_SPEED] ?: VoiceSettings().animationSpeed)
-            .coerceIn(VoiceSettings.MIN_ANIMATION_SPEED, VoiceSettings.MAX_ANIMATION_SPEED)
+            .coerceIn(VoiceSettings.MIN_ANIMATION_SPEED, VoiceSettings.MAX_ANIMATION_SPEED),
+        tnEnabled = p[Keys.TN_ENABLED] ?: VoiceSettings().tnEnabled,
+        tnNumbers = p[Keys.TN_NUMBERS] ?: VoiceSettings().tnNumbers,
+        tnDates = p[Keys.TN_DATES] ?: VoiceSettings().tnDates,
+        tnCurrency = p[Keys.TN_CURRENCY] ?: VoiceSettings().tnCurrency,
+        tnUnits = p[Keys.TN_UNITS] ?: VoiceSettings().tnUnits,
+        tnMath = p[Keys.TN_MATH] ?: VoiceSettings().tnMath,
+        tnEmoji = p[Keys.TN_EMOJI] ?: VoiceSettings().tnEmoji,
+        tnUrlsEmails = p[Keys.TN_URLS_EMAILS] ?: VoiceSettings().tnUrlsEmails,
+        tnPhones = p[Keys.TN_PHONES] ?: VoiceSettings().tnPhones,
+        tnAbbreviations = p[Keys.TN_ABBREVIATIONS] ?: VoiceSettings().tnAbbreviations,
+        tnDebug = p[Keys.TN_DEBUG] ?: VoiceSettings().tnDebug
     )
 
     private fun wakePhrasesFrom(p: Preferences): String {
@@ -197,5 +219,16 @@ class VoiceSettingsStore @Inject constructor(
         p[Keys.OVERLAY_TRANSPARENCY] = s.overlayTransparency
         p[Keys.OVERLAY_SIZE] = s.overlaySize
         p[Keys.ANIMATION_SPEED] = s.animationSpeed
+        p[Keys.TN_ENABLED] = s.tnEnabled
+        p[Keys.TN_NUMBERS] = s.tnNumbers
+        p[Keys.TN_DATES] = s.tnDates
+        p[Keys.TN_CURRENCY] = s.tnCurrency
+        p[Keys.TN_UNITS] = s.tnUnits
+        p[Keys.TN_MATH] = s.tnMath
+        p[Keys.TN_EMOJI] = s.tnEmoji
+        p[Keys.TN_URLS_EMAILS] = s.tnUrlsEmails
+        p[Keys.TN_PHONES] = s.tnPhones
+        p[Keys.TN_ABBREVIATIONS] = s.tnAbbreviations
+        p[Keys.TN_DEBUG] = s.tnDebug
     }
 }

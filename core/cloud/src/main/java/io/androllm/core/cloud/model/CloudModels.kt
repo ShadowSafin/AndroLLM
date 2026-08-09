@@ -87,7 +87,8 @@ data class ProviderSettings(
     val defaultTemperature: Double = 0.8,
     val defaultTopP: Double = 0.95,
     val defaultTopK: Int? = null,
-    val defaultMaxTokens: Int = 512,
+    // High but provider-safe ceiling; most providers cap output around 8k.
+    val defaultMaxTokens: Int = 8192,
     val defaultSeed: Long? = null,
     val defaultStop: List<String> = emptyList()
 )
@@ -111,7 +112,8 @@ data class CloudGenerationConfig(
     val temperature: Double = 0.8,
     val topP: Double = 0.95,
     val topK: Int? = null,
-    val maxTokens: Int = 512,
+    // High but provider-safe ceiling; most providers cap output around 8k.
+    val maxTokens: Int = 8192,
     val seed: Long? = null,
     val stop: List<String> = emptyList(),
     /** "json_object" for structured output (LiteLLM translates per provider). */
@@ -205,7 +207,7 @@ data class CloudChatRequest(
     val temperature: Double = 0.8,
     val top_p: Double = 0.95,
     val top_k: Int? = null,
-    val max_tokens: Int = 512,
+    val max_tokens: Int = 8192,
     val seed: Long? = null,
     val stop: List<String> = emptyList(),
     val stream: Boolean = false,

@@ -21,6 +21,7 @@ import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.navigation.Routes
 import io.androllm.feature.chat.ChatScreen
 import io.androllm.feature.developer.DeveloperScreen
+import io.androllm.feature.developer.ToolDebugScreen
 import io.androllm.feature.home.HomeScreen
 import io.androllm.feature.models.ModelsScreen
 import io.androllm.feature.onboarding.OnboardingScreen
@@ -182,6 +183,10 @@ fun AppNavHost(
 
         composable(Routes.DEVELOPER) {
             DeveloperScreen(navController = navController)
+        }
+
+        composable(Routes.TOOL_DEBUG) {
+            ToolDebugScreen(navController = navController)
         }
 
         composable(Routes.CLOUD_PROVIDERS) {

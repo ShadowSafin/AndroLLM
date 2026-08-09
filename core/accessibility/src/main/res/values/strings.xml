@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_label">AndroLLM UI Automation</string>
+    <string name="accessibility_service_description">Lets AndroLLM read the screen and interact with apps (tap, type, scroll) when you ask it to perform an action that has no native API — like filling a form or navigating a third-party app. The assistant always asks before sending, paying, booking or deleting anything.</string>
+    <string name="accessibility_notification_channel">UI Automation</string>
+    <string name="accessibility_notification_title">AndroLLM UI Automation active</string>
+    <string name="accessibility_notification_text">Controlling apps only when you ask</string>
+</resources>

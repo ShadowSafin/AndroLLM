@@ -63,3 +63,17 @@ object PermissionUtils {
     fun hasCameraPermission(context: Context): Boolean =
         hasPermission(context, Manifest.permission.CAMERA)
 }
+
+/**
+ * Notification-related permission checks (Android 13+ POST_NOTIFICATIONS).
+ */
+object NotificationPermissions {
+
+    /** True when this app may post notifications on this device. */
+    fun canNotify(context: Context): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            PermissionUtils.hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            true
+        }
+}

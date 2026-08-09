@@ -46,6 +46,7 @@ dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:telemetry"))
     implementation(project(":core:memory"))
+    implementation(project(":core:tools"))
     implementation(project(":engine"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material3:material3-window-size-class")

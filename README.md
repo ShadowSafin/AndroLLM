@@ -17,6 +17,7 @@ A production-grade AI platform for Android that brings local GGUF model inferenc
 
 <p align="center">
   <a href="#-features"><strong>Features</strong></a> ·
+  <a href="#-ai-agent"><strong>AI Agent</strong></a> ·
   <a href="#-architecture"><strong>Architecture</strong></a> ·
   <a href="#-getting-started"><strong>Getting Started</strong></a> ·
   <a href="#-voice-assistant"><strong>Voice</strong></a> ·
@@ -150,6 +151,34 @@ Hands-free interaction entirely on-device. Say **"Hey Andro"** and chat naturall
 - Streaming text at ~60 fps with stable item callbacks
 - Light & dark themes with terracotta accent (`#D97757`)
 - Conversation drawer, model parameter sheet, search overlay
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🤖 AI Agent Platform
+
+Understand, plan, and execute multi-step tasks through a capability-based tool system.
+
+- 45+ built-in tools: weather, web search, SMS, calls, email, calendar, alarms, notes, calculator, converters, PDF/Markdown export, GitHub, QR & more
+- Multi-round **plan → execute → re-plan** workflow engine with variables & conditionals
+- Safety gates: per-tool permission toggles + high-risk confirmations (chat card & spoken voice)
+- Contact-name resolution for messaging ("text Mom") and multipart SMS
+- Effectively **unlimited answer length** — generation runs until the model finishes
+
+</td>
+<td width="50%">
+
+### 🧩 MCP & UI Automation
+
+Connect external MCP servers or drive third-party apps directly.
+
+- **MCP (Streamable HTTP)** server import — remote tools become `mcp_<server>_<tool>`
+- **Accessibility engine**: read screens, tap, type, scroll, drag, swipe, pinch
+- Multi-step app tasks (`ui_run`) with LLM or heuristic step planning
+- QR scanning, screenshot, share, and media control tools
+- Strict confirmations for anything that sends, pays, books or deletes
 
 </td>
 </tr>
@@ -296,7 +325,7 @@ cd AndroLLM
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-📖 [Full Building Guide](BUILDING.md) · [Development Workflow](DEVELOPMENT.md)
+📖 [Full Building Guide](documentation/BUILDING.md) · [Development Workflow](documentation/DEVELOPMENT.md)
 
 ### First Run
 
@@ -306,6 +335,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 4. **Download and load** a model (Qwen2.5-1.5B-Q4_K_M is a good starting point)
 5. **Start chatting** — messages stream in real-time with markdown rendering
 6. **Enable voice** in Settings → Voice Assistant and say "Hey Andro"
+7. **Unlock the agent** — enable Tool Calling in Settings → Automation and try a multi-step request
 
 ---
 
@@ -345,7 +375,57 @@ Complete offline voice pipeline — no internet required:
 open models, switch theme, delete conversation, summarize chat, enable/disable offline
 mode and voice.
 
-📖 [Voice Architecture Deep Dive](docs/voice/voice-assistant.md)
+### Voice + Agent
+
+- **Spoken confirmations** — for high-risk actions the assistant asks aloud
+  ("*send the SMS to Mom?*") and listens for yes/no
+- **Multi-step spoken tasks** — voice runs the same tool workflow as chat
+- **Smart TTS** — LLM output is normalized before speaking: numbers, dates,
+  currencies, units, math, emoji, URLs, phones, and out-of-lexicon words
+  ("LLM" → "el el em") are all pronounced correctly; each stage is
+  configurable in Settings → Text Normalization
+
+📖 [Voice Architecture](documentation/voice/voice-assistant.md) · [Text Normalization](documentation/voice/text-normalization.md)
+
+---
+
+## 🤖 AI Agent
+
+Beyond chat, AndroLLM is a full **on-device AI agent**. Enable it in
+**Settings → Automation → Tool Calling**, then ask for multi-step tasks:
+
+> *"Check today's weather and text Mom if it will rain"*
+> *"Search GitHub for LiteLLM and summarize the latest release"*
+> *"Turn on Bluetooth, connect my earbuds, then play my workout playlist"*
+
+### How it works
+
+```
+Your request
+     │
+     ▼
+  PLANNER ─── local GGUF (JSON-grammar) ── or ── cloud (native tool calls)
+     │  picks tools + arguments
+     ▼
+  EXECUTOR ── permission gate → confirmation gate → timeout (20 s)
+     │  (the only place tool code runs)
+     ▼
+  TOOLS ── 45+ built-ins · accessibility · MCP remote tools
+     │
+     ▼
+  RESULTS feed back → re-plan (up to 6 rounds) → grounded final answer
+```
+
+### Capabilities
+
+| Capability | Highlights |
+|---|---|
+| **Tool catalog** | Weather, search, SMS/calls/email (confirmed), calendar, alarms, reminders, clipboard, notes, files, calculator, unit & currency converters, translation, GitHub, media, PDF/Markdown export, QR, and more — [full catalog](documentation/agent/tools.md) |
+| **Workflow engine** | Multi-round plan→execute→re-plan, IF/ELSE & loops via `variable_set`/`variable_get`, live device context (battery, time, clipboard, app) injected every round — [details](documentation/agent/workflow-engine.md) |
+| **Confirmations** | High-risk actions ask first — chat card **and** spoken voice question; modes: High-risk / Always / Never — [details](documentation/agent/agent-platform.md) |
+| **MCP servers** | Import tools from any MCP (Streamable HTTP) server; they become first-class `mcp_<server>_<tool>` capabilities — [details](documentation/agent/mcp.md) |
+| **UI automation** | Drive any app via the accessibility service: tap, type, scroll, swipe, pinch, multi-step tasks — [details](documentation/agent/accessibility-automation.md) |
+| **Transparency** | Every call is trace-logged (Developer → Tool Debug); tools never run silently; retry-once on transient failures |
 
 ---
 
@@ -365,7 +445,7 @@ Add any LiteLLM-compatible endpoint from Settings → Cloud Providers:
 
 API keys are encrypted with **AES-256/GCM via Android Keystore** — they never touch shared preferences or plaintext storage.
 
-📖 [Cloud Provider Architecture](docs/cloud/cloud-providers.md)
+📖 [Cloud Provider Architecture](documentation/cloud/cloud-providers.md)
 
 ---
 
@@ -392,7 +472,7 @@ Conversation exchange
 
 Works fully offline. Falls back to keyword/recency sorting when embeddings are unavailable.
 
-📖 [Memory Architecture](docs/memory/memory-architecture.md)
+📖 [Memory Architecture](documentation/memory/memory-architecture.md)
 
 ---
 
@@ -408,7 +488,7 @@ architectures including `llama`, `gemma2`, `qwen2`, `deepseek`, `mistral`, `phi3
 | **Q4_K_M** | ~4.5 | **Sweet spot for mobile** · 2–4 GB RAM |
 | IQ3_XS | ~3.25 | Very constrained · < 2 GB available |
 
-📖 [Model Support Guide](MODEL_SUPPORT.md)
+📖 [Model Support Guide](documentation/MODEL_SUPPORT.md)
 
 ---
 
@@ -433,30 +513,37 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for full details.
 
 | Document | Description |
 |---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Complete system architecture with diagrams |
-| [BUILDING.md](BUILDING.md) | Environment setup and build instructions |
+| [ARCHITECTURE.md](documentation/ARCHITECTURE.md) | Complete system architecture with diagrams |
+| [BUILDING.md](documentation/BUILDING.md) | Environment setup and build instructions |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development guidelines and code style |
-| [TESTING.md](TESTING.md) | Test strategy, frameworks, and conventions |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | IDE setup, debugging, profiling guide |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and solutions |
-| [FAQ.md](FAQ.md) | Frequently asked questions |
-| [PERFORMANCE.md](PERFORMANCE.md) | Token speed, RAM, Vulkan, battery guidance |
-| [MODEL_SUPPORT.md](MODEL_SUPPORT.md) | GGUF formats, architectures, quantizations |
-| [ROADMAP.md](ROADMAP.md) | Completed, planned, and future features |
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [RELEASE_PROCESS.md](RELEASE_PROCESS.md) | Build, sign, and publish procedures |
-| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | 26-module dependency graph |
+| [TESTING.md](documentation/TESTING.md) | Test strategy, frameworks, and conventions |
+| [DEVELOPMENT.md](documentation/DEVELOPMENT.md) | IDE setup, debugging, profiling guide |
+| [TROUBLESHOOTING.md](documentation/TROUBLESHOOTING.md) | Common issues and solutions |
+| [FAQ.md](documentation/FAQ.md) | Frequently asked questions |
+| [PERFORMANCE.md](documentation/PERFORMANCE.md) | Token speed, RAM, Vulkan, battery guidance |
+| [MODEL_SUPPORT.md](documentation/MODEL_SUPPORT.md) | GGUF formats, architectures, quantizations |
+| [ROADMAP.md](documentation/ROADMAP.md) | Completed, planned, and future features |
+| [CHANGELOG.md](documentation/CHANGELOG.md) | Version history |
+| [RELEASE_PROCESS.md](documentation/RELEASE_PROCESS.md) | Build, sign, and publish procedures |
+| [PROJECT_STRUCTURE.md](documentation/PROJECT_STRUCTURE.md) | 26-module dependency graph |
 
-### Deep-Dive Documentation (`docs/`)
+### Deep-Dive Documentation (`documentation/`)
 
 ```
-docs/
+documentation/
 ├── getting-started/first-run.md        # Installation and first-time setup
 ├── ai/                                 # AI engine internals
 │   ├── llama-cpp.md                    # Native engine, JNI bridge, multi-turn strategy
 │   ├── gguf.md                         # GGUF format specification and validation
 │   └── vulkan.md                       # GPU acceleration and corruption recovery
 ├── voice/voice-assistant.md            # Full voice pipeline: KWS → ASR → TTS
+├── voice/text-normalization.md         # TTS text normalization + OOV spelling
+├── agent/                              # AI agent platform
+│   ├── agent-platform.md               # Planning, executor safety gates, chat/voice
+│   ├── tools.md                        # Complete built-in tool catalog
+│   ├── workflow-engine.md              # Multi-step execution, variables, confirmations
+│   ├── mcp.md                          # MCP server integration
+│   └── accessibility-automation.md     # UI automation, gestures, planners
 ├── cloud/cloud-providers.md            # LiteLLM client, streaming, security
 ├── memory/memory-architecture.md       # Embeddings, retrieval, vector index
 ├── ui/                                 # UI architecture
@@ -481,7 +568,7 @@ docs/
 ```
 AndroLLM/
 ├── app/                          # Entry point, navigation host, auth
-├── core/                         # 11 shared library modules
+├── core/                         # 15 shared library modules
 │   ├── common/      Base types (Result, UiState, BaseViewModel)
 │   ├── ui/          Compose theme, design system, shared components
 │   ├── database/    Room DB (4 entities, version 5, WAL mode)
@@ -493,7 +580,10 @@ AndroLLM/
 │   ├── utils/       Permissions, storage, connectivity helpers
 │   ├── telemetry/   Performance metrics storage
 │   ├── memory/      Vector memory system with embeddings
-│   └── voice/       sherpa-onnx ASR/TTS/KWS/VAD engines
+│   ├── voice/       sherpa-onnx ASR/TTS/KWS/VAD engines
+│   ├── tools/       AI agent: planner, executor, registry, workflow, traces
+│   ├── mcp/         MCP client: connection manager + remote tool adapter
+│   └── accessibility/ UI automation service, gestures, QR scanning
 ├── engine/                       # llama.cpp native engine + JNI bridge
 │   ├── cpp/native_api.cpp        ~3,700 lines JNI bridge
 │   └── cpp/llama.cpp/            Vendored stock upstream llama.cpp
@@ -509,7 +599,7 @@ AndroLLM/
 │   ├── prompts/ Prompt library
 │   ├── developer/ Developer tools and diagnostics
 │   └── cloud/   Cloud provider management and model browsing
-├── docs/                         # Internal documentation module
+├── documentation/               # Internal documentation module
 └── gradle/libs.versions.toml     # Centralized version catalog
 ```
 
@@ -528,13 +618,16 @@ Feature modules depend **only** on `core:*` modules — never on each other.
 | ✅ | Offline voice assistant (wake word → ASR → TTS) |
 | ✅ | Firebase Auth (Google + GitHub) |
 | ✅ | 51 test classes across 19 modules |
+| ✅ | AI agent platform (45+ tools, workflow engine, confirmations) |
+| ✅ | MCP server integration (Streamable HTTP) |
+| ✅ | Accessibility UI automation (gestures, multi-step app tasks) |
+| ✅ | Voice confirmations + TTS text normalization |
 | 🚧 | Multi-language ASR (Chinese, Japanese, Korean) |
-| 🚧 | Function calling / tool use support |
 | 🚧 | CI/CD pipeline |
 | 🔮 | QNN/NPU backend (Snapdragon) |
 | 🔮 | Multi-modal vision models |
 
-See [ROADMAP.md](ROADMAP.md) for the full list.
+See [ROADMAP.md](documentation/ROADMAP.md) for the full list.
 
 ---
 

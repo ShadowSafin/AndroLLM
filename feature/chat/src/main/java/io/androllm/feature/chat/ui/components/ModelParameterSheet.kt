@@ -49,6 +49,7 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
+import kotlin.math.roundToInt
 
 /**
  * The lamp's tuner — Temperature, Top-P, Repeat Penalty, and system personas.
@@ -58,12 +59,16 @@ import io.androllm.core.ui.theme.LampGlow
 @Composable
 fun ModelParameterSheet(
     onDismissRequest: () -> Unit,
-    onApplyParameters: (temp: Float, topP: Float, systemPrompt: String) -> Unit,
+    initialTemperature: Float = 0.7f,
+    initialTopP: Float = 0.9f,
+    initialMaxTokens: Int = 1024,
+    onApplyParameters: (temp: Float, topP: Float, maxTokens: Int, systemPrompt: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState()
-    var temperature by remember { mutableFloatStateOf(0.7f) }
-    var topP by remember { mutableFloatStateOf(0.9f) }
+    var temperature by remember { mutableFloatStateOf(initialTemperature) }
+    var topP by remember { mutableFloatStateOf(initialTopP) }
+    var maxTokens by remember { mutableFloatStateOf(initialMaxTokens.coerceIn(256, 8192).toFloat()) }
     var selectedPreset by remember { mutableStateOf("Default") }
 
     val systemPresets = listOf(
@@ -195,6 +200,52 @@ fun ModelParameterSheet(
                 )
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Max Output Length Slider
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Max Output Length (tokens)",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = DeskPaper
+                        )
+                    )
+                    Text(
+                        text = "%.0f".format(maxTokens),
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = LampGlow
+                        )
+                    )
+                }
+
+                Slider(
+                    value = maxTokens,
+                    onValueChange = { maxTokens = it },
+                    // 8192 is far above any model's context window, so locally
+                    // the answer effectively runs until the model finishes
+                    // (the native engine clamps to the context). Cloud
+                    // providers get the same 8192 ceiling.
+                    valueRange = 256f..8192f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = LampGlow,
+                        activeTrackColor = LampAmber,
+                        inactiveTrackColor = DeskHairline
+                    )
+                )
+                Text(
+                    text = "Answers run until the model finishes (bounded by the context window). Lower this to force shorter replies.",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = DeskInkFaint
+                    )
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             // System Persona Presets
@@ -235,7 +286,7 @@ fun ModelParameterSheet(
                 text = "Apply Engine Parameters",
                 onClick = {
                     val prompt = systemPresets.firstOrNull { it.first == selectedPreset }?.second.orEmpty()
-                    onApplyParameters(temperature, topP, prompt)
+                    onApplyParameters(temperature, topP, maxTokens.roundToInt(), prompt)
                     onDismissRequest()
                 },
                 modifier = Modifier.fillMaxWidth()

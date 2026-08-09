@@ -26,6 +26,8 @@ import io.androllm.core.models.MessageOrigin
 import io.androllm.core.models.MessageRole
 import io.androllm.core.models.ThemeMode
 import io.androllm.core.navigation.Routes
+import io.androllm.core.tools.confirmation.PendingToolConfirmation
+import io.androllm.core.tools.confirmation.ToolConfirmationManager
 import io.androllm.core.voice.VoiceSettingsStore
 import io.androllm.core.voice.asr.SpeechRecognizer
 import io.androllm.core.voice.audio.AudioPlayer
@@ -83,10 +85,13 @@ class VoiceAssistantService : Service() {
     @Inject lateinit var wakeWordEngine: WakeWordEngine
     @Inject lateinit var recognizer: SpeechRecognizer
     @Inject lateinit var ttsEngine: OfflineTtsEngine
+    @Inject lateinit var textNormalization: io.androllm.core.voice.tts.normalize.TextNormalizationEngine
     @Inject lateinit var chatManager: io.androllm.feature.voice.chat.ChatManager
     @Inject lateinit var memoryManager: MemoryManager
     @Inject lateinit var conversationRepository: ConversationRepository
     @Inject lateinit var messageRepository: MessageRepository
+    @Inject lateinit var toolConfirmationManager: ToolConfirmationManager
+    @Inject lateinit var automationSettingsStore: io.androllm.core.tools.settings.AutomationSettingsStore
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var loopJob: Job? = null
@@ -113,6 +118,18 @@ class VoiceAssistantService : Service() {
 
     /** Notification text last posted — dedupe so live metric emissions don't spam. */
     @Volatile private var lastNotifiedText: String? = null
+
+    /**
+     * Suppresses barge-in VAD while the spoken tool confirmation is asking
+     * (the mic would otherwise hear our own question and cancel the turn).
+     */
+    private val confirmationActive = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Last activity instant (answer delta OR tool status). Feeds the
+     * first-token timeout so a long tool execution doesn't look like a stall.
+     */
+    @Volatile private var turnActivityAt: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -174,6 +191,12 @@ class VoiceAssistantService : Service() {
         if (loopJob?.isActive == true) return
         loopJob = scope.launch { runLoop() }
 
+        // Voice-mode confirmations: when a high-risk tool action needs
+        // approval, the executor's awaitDecision() delegates here — we speak
+        // the question and listen for a yes/no reply instead of opening the
+        // chat.
+        toolConfirmationManager.setVoiceResponder { conf -> runVoiceConfirmation(conf) }
+
         // The floating overlay + notification follow the controller state.
         // A single failed emission (window/permission) must never kill the
         // collector coroutine — that would take the whole process down.
@@ -185,6 +208,7 @@ class VoiceAssistantService : Service() {
                     // dismissed it — NOT for the idle wake-word listening
                     // state. Respects settings.autoOpenOverlay.
                     val settings = voiceSettingsStore.current()
+                    textNormalization.onSettingsChanged(settings)
                     val shouldShow = state.active && state.turnActive &&
                         settings.autoOpenOverlay && !state.overlayDismissed
                     if (shouldShow) {
@@ -267,6 +291,9 @@ class VoiceAssistantService : Service() {
     private fun stopLoop() {
         loopJob?.cancel()
         loopJob = null
+        toolConfirmationManager.setVoiceResponder(null)
+        toolConfirmationManager.cancelPending()
+        confirmationActive.set(false)
         stopElapsedTicker()
         recorder?.stop()
         recorder = null
@@ -753,6 +780,8 @@ class VoiceAssistantService : Service() {
         // True while OUR OWN speech is playing; the generation loop skips
         // barge-in VAD then, so the assistant never cuts itself off on echo.
         val speechActive = AtomicBoolean(false)
+        // Live answer text (status callback updates it too).
+        val answer = StringBuilder()
 
         val genJob = scope.launch {
             try {
@@ -765,7 +794,15 @@ class VoiceAssistantService : Service() {
                 chatManager.sendMessageStream(
                     content = transcript,
                     origin = MessageOrigin.VOICE,
-                    lowLatencyMode = settings.lowLatencyMode
+                    lowLatencyMode = settings.lowLatencyMode,
+                    onToolStatus = { status ->
+                        // Tool planning/execution status: keep the first-token
+                        // timeout from firing and surface what is happening on
+                        // the overlay while no answer tokens are streaming.
+                        turnActivityAt = System.currentTimeMillis()
+                        controller.setPhase(VoicePhase.GENERATING)
+                        if (answer.isEmpty()) controller.setAnswer(status)
+                    }
                 ).collect { delta ->
                     deltas.trySend(delta)
                 }
@@ -832,7 +869,6 @@ class VoiceAssistantService : Service() {
             null
         }
 
-        val answer = StringBuilder()
         val assembler = SentenceAssembler()
         // Barge-in while the assistant is thinking: only real speech near the
         // mic (RMS > 0.02) cancels generation. The default 0.005 fires on
@@ -840,14 +876,16 @@ class VoiceAssistantService : Service() {
         val vad = Vad(threshold = GENERATION_BARGE_IN_THRESHOLD)
         var interrupted = false
         var gotFirstDelta = false
-        var lastDeltaAt = System.currentTimeMillis()
+        turnActivityAt = System.currentTimeMillis()
         var lastFlushAt = System.currentTimeMillis()
         while (!genJob.isCompleted || !deltas.isEmpty) {
             // Barge-in VAD — skipped while our own speech is playing (the mic
-            // would otherwise hear the speaker and cancel the answer).
-            if (!speechActive.get()) {
+            // would otherwise hear the speaker and cancel the answer) AND
+            // while the spoken confirmation is asking/listening (the mic is
+            // owned by the confirmation listener then).
+            if (!speechActive.get() && !confirmationActive.get()) {
                 var drained = 0
-                while (drained < 20 && !speechActive.get() && currentCoroutineContext().isActive) {
+                while (drained < 20 && !speechActive.get() && !confirmationActive.get() && currentCoroutineContext().isActive) {
                     val chunk = rec.chunks.tryReceive().getOrNull() ?: break
                     if (vad.process(chunk)) {
                         interrupted = true
@@ -863,7 +901,7 @@ class VoiceAssistantService : Service() {
                 // No delta for a full second: if the provider is silent for
                 // too long (connect stall, dead stream), surface a fallback
                 // instead of letting the overlay sit on "Responding…" forever.
-                if (!gotFirstDelta && System.currentTimeMillis() - lastDeltaAt > FIRST_TOKEN_TIMEOUT_MS) {
+                if (!gotFirstDelta && System.currentTimeMillis() - turnActivityAt > FIRST_TOKEN_TIMEOUT_MS) {
                     Timber.w("Generation: no first token within %d ms — falling back", FIRST_TOKEN_TIMEOUT_MS)
                     break
                 }
@@ -878,7 +916,7 @@ class VoiceAssistantService : Service() {
                 continue
             }
             gotFirstDelta = true
-            lastDeltaAt = System.currentTimeMillis()
+            turnActivityAt = System.currentTimeMillis()
             if (cancelRequested) {
                 interrupted = true
                 break
@@ -1039,6 +1077,71 @@ class VoiceAssistantService : Service() {
         }
         controller.clearSpoken()
         return false
+    }
+
+    /**
+     * Voice-mode confirmation: speaks the question, listens for one reply and
+     * maps it to yes/no. Runs concurrently with the chat confirmation card;
+     * the first decision (spoken or tapped) wins.
+     *
+     * Returns true only when the user clearly said yes, false on a clear
+     * spoken "no", and NULL (abstain) when the voice surface cannot ask
+     * (muted, no TTS, interrupted, or no reply) — in those cases the chat card
+     * stays the decision surface instead of the action being silently denied.
+     */
+    private suspend fun runVoiceConfirmation(conf: PendingToolConfirmation): Boolean? {
+        val rec = recorder ?: return null
+        val settings = voiceSettingsStore.current()
+        if (!settings.autoReadAnswers || controller.state.value.muted) {
+            // No TTS path (muted/silent mode): abstain — the chat card is live
+            // and stays the decision surface.
+            return null
+        }
+        if (!voiceConfirmationsEnabled()) {
+            controller.setAnswer("I need your confirmation for this action. Please approve it in the app.")
+            speakSentences(
+                rec,
+                listOf("I need your confirmation for that action. Please approve it in the app."),
+                settings
+            )
+            return null
+        }
+
+
+        confirmationActive.set(true)
+        try {
+            controller.setAnswer(conf.speakableQuestion)
+            val interrupted = speakSentences(rec, listOf(conf.speakableQuestion), settings)
+            // The overlay Cancel button must abort a pending confirmation too —
+            // otherwise the assistant keeps listening for a yes/no reply after
+            // the user already asked it to stop.
+            if (interrupted || cancelRequested) return null
+            // Listen once for a yes/no answer.
+            controller.setPhase(VoicePhase.RECEIVING_AUDIO)
+            val reply = awaitUtterance(rec, settings) { _, _ -> }
+            Timber.i("Confirmation reply: '%s' for %s", reply?.take(40), conf.toolName)
+            if (cancelRequested) return null
+            // A silent/no-speech reply abstains too — the card can still
+            // decide instead of the action being auto-declined.
+            if (reply.isNullOrBlank()) return null
+            return matchYesNo(reply)
+        } finally {
+            confirmationActive.set(false)
+            controller.setPhase(VoicePhase.GENERATING)
+        }
+    }
+
+    /** Reads the Automation voice-confirmation toggle (never blocks a turn). */
+    private suspend fun voiceConfirmationsEnabled(): Boolean =
+        runCatching { automationSettingsStore.current().voiceConfirmations }.getOrDefault(true)
+
+    /** Maps a spoken reply to yes/no. Any "no"-word wins over "yes". */
+    private fun matchYesNo(reply: String?): Boolean {
+        val t = reply?.trim()?.lowercase() ?: return false
+        val noWords = listOf("no", "nope", "cancel", "don't", "dont", "stop", "never", "forget it", "no thanks")
+        val yesWords = listOf("yes", "yeah", "yep", "yup", "sure", "ok", "okay", "go ahead", "do it", "confirm", "send it", "please")
+        if (noWords.any { t == it || t.startsWith("$it ") || t.contains(" $it ") }) return false
+        return yesWords.any { t == it || t.startsWith("$it ") || t.contains(" $it ") }
     }
 
     /**

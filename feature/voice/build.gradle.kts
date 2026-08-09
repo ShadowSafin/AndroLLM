@@ -49,6 +49,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:memory"))
     implementation(project(":core:cloud"))
+    implementation(project(":core:tools"))
     implementation(project(":core:navigation"))
     implementation(project(":engine"))
 

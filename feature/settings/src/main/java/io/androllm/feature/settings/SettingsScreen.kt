@@ -109,6 +109,10 @@ fun SettingsScreen(
     val storageStats by viewModel.storageStats.collectAsStateWithLifecycle()
     val voiceSettings by viewModel.voiceSettings.collectAsStateWithLifecycle()
     val voiceState by viewModel.voiceState.collectAsStateWithLifecycle()
+    val automationSettings by viewModel.automationSettings.collectAsStateWithLifecycle()
+    val accessibilitySettings by viewModel.accessibilitySettings.collectAsStateWithLifecycle()
+    val mcpServers by viewModel.mcpServers.collectAsStateWithLifecycle()
+    val mcpStates by viewModel.mcpStates.collectAsStateWithLifecycle()
     val whisperModels by viewModel.whisperModels.collectAsStateWithLifecycle()
     val whisperInstalled by viewModel.whisperInstalled.collectAsStateWithLifecycle()
     val whisperDownload by viewModel.whisperDownload.collectAsStateWithLifecycle()
@@ -124,6 +128,13 @@ fun SettingsScreen(
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> viewModel.importMemories(uri) }
+
+    // Tool-calling runtime permissions (SMS, contacts, calls, calendar). The
+    // tools fail fast without them, so Settings → Automation offers a grant
+    // button; rows recompose away once the permission is granted.
+    val automationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { /* nothing to do — the section recomposes from the grant state */ }
 
     LaunchedEffect(memoryMessage) {
         if (memoryMessage != null) {
@@ -275,7 +286,7 @@ fun SettingsScreen(
                     )
                 }
 
-                // 7b. Speech Recognition (whisper.cpp)
+// 7b. Speech Recognition (whisper.cpp)
                 item {
                     SectionHeader(title = "Speech Recognition")
                     SpeechRecognitionSection(
@@ -289,6 +300,50 @@ fun SettingsScreen(
                         onDownloadModel = { viewModel.downloadWhisperModel(it) },
                         onDeleteModel = { viewModel.deleteWhisperModel(it) },
                         onUpdate = { viewModel.updateVoiceSettings(it) }
+                    )
+                }
+
+                // 7c. Text Normalization (LLM output → TTS-ready speech)
+                item {
+                    SectionHeader(title = "Text Normalization")
+                    TextNormalizationSection(
+                        settings = voiceSettings,
+                        onUpdate = { viewModel.updateVoiceSettings(it) }
+                    )
+                }
+
+                // 7d. Automation (Tool Calling — per-tool permission management)
+                item {
+                    SectionHeader(title = "Automation")
+                    AutomationSection(
+                        settings = automationSettings,
+                        tools = viewModel.tools,
+                        onUpdate = { viewModel.updateAutomationSettings(it) },
+                        onRequestPermissions = { perms -> automationPermissionLauncher.launch(perms.toTypedArray()) }
+                    )
+                }
+
+                // 7e. UI Automation (accessibility engine — last-resort UI control)
+                item {
+                    SectionHeader(title = "UI Automation")
+                    AccessibilitySection(
+                        settings = accessibilitySettings,
+                        serviceEnabled = viewModel.accessibilityServiceEnabled,
+                        connected = viewModel.accessibilityConnected,
+                        onUpdate = { viewModel.updateAccessibilitySettings(it) },
+                        onOpenSettings = { viewModel.openAccessibilitySettings() }
+                    )
+                }
+
+                // 7f. MCP Servers (remote tool imports)
+                item {
+                    SectionHeader(title = "MCP Servers")
+                    McpSection(
+                        servers = mcpServers,
+                        states = mcpStates,
+                        onAdd = { name, url, token -> viewModel.addMcpServer(name, url, token) },
+                        onRemove = { viewModel.removeMcpServer(it) },
+                        onToggle = { server, enabled -> viewModel.setMcpServerEnabled(server, enabled) }
                     )
                 }
 

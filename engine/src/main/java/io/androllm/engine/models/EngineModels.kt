@@ -58,7 +58,10 @@ data class ModelLoadConfig(
  */
 @Serializable
 data class GenerationConfig(
-    val maxTokens: Int = 512,
+    // Effectively unlimited: the native engine clamps the actual budget to
+    // the model's context window (nCtx - prompt), so generation stops at the
+    // model's natural end (EOS) or when context fills — never at this cap.
+    val maxTokens: Int = 65536,
     val temperature: Float = 0.8f,
     val topP: Float = 0.95f,
     val topK: Int = 40,

@@ -6,6 +6,9 @@ import io.androllm.core.cloud.CloudGateway
 import io.androllm.core.cloud.model.CloudChatMessage
 import io.androllm.core.cloud.model.CloudGenerationConfig
 import io.androllm.core.cloud.model.CloudStreamEvent
+import io.androllm.core.cloud.model.CloudTool
+import io.androllm.core.cloud.model.CloudToolCall
+import io.androllm.core.cloud.model.CloudToolCallFunction
 import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.getOrNull
 import io.androllm.core.database.repository.ConversationRepository
@@ -16,6 +19,12 @@ import io.androllm.core.memory.MemoryManager
 import io.androllm.core.memory.model.MemoryContext
 import io.androllm.core.memory.model.MemoryExchange
 import io.androllm.core.models.Conversation
+import io.androllm.core.tools.agent.AgentVariableStore
+import io.androllm.core.tools.coordinator.ToolRunCoordinator
+import io.androllm.core.tools.confirmation.PendingToolConfirmation
+import io.androllm.core.tools.confirmation.ToolConfirmationManager
+import io.androllm.core.tools.settings.AutomationSettingsStore
+import io.androllm.core.tools.trace.ToolExecutionTraceStore
 import io.androllm.core.models.Message
 import io.androllm.core.models.MessageOrigin
 import io.androllm.core.models.MessageRole
@@ -57,7 +66,12 @@ class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val preferencesDataStore: PreferencesDataStore,
     private val memoryManager: MemoryManager,
-    private val cloudGateway: CloudGateway
+    private val cloudGateway: CloudGateway,
+    private val toolCoordinator: ToolRunCoordinator,
+    private val confirmationManager: ToolConfirmationManager,
+    private val automationSettingsStore: AutomationSettingsStore,
+    private val traceStore: ToolExecutionTraceStore,
+    private val variableStore: AgentVariableStore
 ) : BaseViewModel() {
 
     private val _currentConversationId = MutableStateFlow<String>("")
@@ -73,10 +87,22 @@ class ChatViewModel @Inject constructor(
     private val _cloudStreamingText = MutableStateFlow<String?>(null)
     private val _cloudDefaultModel = MutableStateFlow("")
 
+    /** Tool action currently awaiting user approval (chat confirmation card). */
+    private val _pendingToolConfirmation = MutableStateFlow<PendingToolConfirmation?>(null)
+    /** One-line activity chip while tools are planning/executing. */
+    private val _toolActivity = MutableStateFlow<String?>(null)
+
     val debugInfo: StateFlow<EngineDebugInfo?> = _debugInfo
     val genConfig: StateFlow<GenerationConfig> = _genConfig
 
     private var cloudJob: Job? = null
+
+    /**
+     * True when the current turn executed at least one tool call. Used by the
+     * never-blank guard: if the model then produces no text, the reply is
+     * grounded in the actual tool result instead of silence.
+     */
+    private var toolsExecutedThisTurn = false
 
     /**
      * Message ids appended to [_messages] locally while their Room upsert is
@@ -113,7 +139,9 @@ class ChatViewModel @Inject constructor(
             _cloudMode,
             _cloudGenerating,
             _cloudStreamingText,
-            _cloudDefaultModel
+            _cloudDefaultModel,
+            _pendingToolConfirmation,
+            _toolActivity
         ) { values: Array<Any?> ->
             @Suppress("UNCHECKED_CAST")
             CloudUiBits(
@@ -123,7 +151,9 @@ class ChatViewModel @Inject constructor(
                 cloudMode = values[3] as Boolean,
                 cloudGenerating = values[4] as Boolean,
                 cloudStreamingText = values[5] as String?,
-                cloudDefaultModel = values[6] as String
+                cloudDefaultModel = values[6] as String,
+                pendingToolConfirmation = values[7] as PendingToolConfirmation?,
+                toolActivity = values[8] as String?
             )
         }
     ) { convData, engineData, searchData ->
@@ -164,7 +194,9 @@ class ChatViewModel @Inject constructor(
             searchQuery = bits.searchQuery,
             isSearchOpen = bits.isSearchOpen,
             cloudMode = bits.cloudMode,
-            cloudDefaultModel = bits.cloudDefaultModel
+            cloudDefaultModel = bits.cloudDefaultModel,
+            pendingToolConfirmation = bits.pendingToolConfirmation,
+            toolActivity = bits.toolActivity
         )
     }.stateIn(
         scope = viewModelScope,
@@ -176,6 +208,7 @@ class ChatViewModel @Inject constructor(
         observeEngine()
         observeActiveMessages()
         observeCloudMode()
+        observeToolConfirmations()
         // Preload the embedding source in the background so the first prompt
         // after enabling memory never pays a multi-second load on the send
         // path. No-op when memory is disabled or cloud embeddings are active.
@@ -195,8 +228,17 @@ class ChatViewModel @Inject constructor(
             engineRepository.generationState.collect { genState ->
                 when (genState) {
                     is GenerationState.Completed -> {
-                        appendAssistantMessage(genState.text)
-                        runMemoryPipeline(genState.text)
+                        var text = genState.text
+                        if (text.isBlank() && toolsExecutedThisTurn) {
+                            // STEP 8/12 — never-blank: tools ran but the model
+                            // produced no text; ground the reply in the real
+                            // tool result instead of staying silent.
+                            text = traceStore.lastTurnSummary()
+                            android.util.Log.w("ChatViewModel", "Local turn empty after tool calls — injected tool-summary reply")
+                        }
+                        toolsExecutedThisTurn = false
+                        appendAssistantMessage(text)
+                        runMemoryPipeline(text)
                     }
                     is GenerationState.Failed -> appendErrorMessage(genState.message)
                     else -> Unit
@@ -212,6 +254,18 @@ class ChatViewModel @Inject constructor(
                 _cloudDefaultModel.value = settings.defaultModelId
             }
         }
+    }
+
+    /** Mirrors the shared confirmation hub into the chat UI state. */
+    private fun observeToolConfirmations() {
+        viewModelScope.launch {
+            confirmationManager.pending.collect { _pendingToolConfirmation.value = it }
+        }
+    }
+
+    /** Approves/denies the pending high-risk tool action from the chat card. */
+    fun confirmToolAction(id: String, approved: Boolean) {
+        if (approved) confirmationManager.confirm(id) else confirmationManager.deny(id)
     }
 
     private fun observeActiveMessages() {
@@ -318,6 +372,8 @@ class ChatViewModel @Inject constructor(
      * [EngineRepository.resetChat] closes that window.
      */
     private fun resetEngineChatState() {
+        // A conversation boundary also drops any unanswered confirmation card.
+        confirmationManager.cancelPending()
         viewModelScope.launch {
             engineRepository.cancelGeneration()
             engineRepository.resetChat()
@@ -371,12 +427,17 @@ class ChatViewModel @Inject constructor(
             android.util.Log.i("ChatViewModel", "generateFromHistory: ${messages.size} messages: ${
                 messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
             }")
+            // Tool planning (local): the model first emits tool calls (JSON,
+            // grammar-constrained); when calls exist they are executed and
+            // their results are injected as a system message before the
+            // answer generation so the model can summarize what happened.
+            val finalMessages = planAndExecuteTools(messages)
             // Stateful multi-turn chat: the native engine diffs [messages]
             // against its accumulated conversation and decodes only the new
             // messages' template diff at the continuing KV position (official
             // llama.cpp pattern). Template errors surface as Failed state.
             engineRepository.generateChat(
-                messages = messages,
+                messages = finalMessages,
                 addAssistant = true,
                 config = _genConfig.value
             )
@@ -411,6 +472,11 @@ class ChatViewModel @Inject constructor(
         cloudJob?.cancel()
 
         viewModelScope.launch {
+            // Pipeline tracing: stamp this turn so every executed tool call
+            // carries its user prompt, and reset the never-blank flag.
+            traceStore.beginTurn(trimmed)
+            toolsExecutedThisTurn = false
+
             var id = _currentConversationId.value
             val isNewConversation = id.isBlank()
             if (isNewConversation) {
@@ -451,6 +517,9 @@ class ChatViewModel @Inject constructor(
             val base = if (isNewConversation) emptyList() else _messages.value
             val currentHistory =
                 base.filterNot { it.id == userMessage.id } + userMessage
+            // Fresh workflow variables for this turn (device facts are
+            // re-collected; tool outputs chain within the turn).
+            variableStore.beginTurn(id)
             generateFromHistory(currentHistory)
         }
     }
@@ -470,6 +539,9 @@ class ChatViewModel @Inject constructor(
                 messageRepository.deleteById(lastAssistantMsg.id)
             }
             val remainingHistory = _messages.value.filter { it.id != lastAssistantMsg?.id }
+            traceStore.beginTurn(remainingHistory.lastOrNull { it.role == MessageRole.USER }?.content)
+            variableStore.beginTurn(_currentConversationId.value)
+            toolsExecutedThisTurn = false
             if (remainingHistory.isNotEmpty()) {
                 generateFromHistory(remainingHistory)
             }
@@ -491,6 +563,9 @@ class ChatViewModel @Inject constructor(
             messageRepository.upsert(updatedMsg.toCoreMessage())
 
             val remainingMsgs = msgs.takeWhile { it.id != messageId } + updatedMsg
+            traceStore.beginTurn(newContent.trim())
+            variableStore.beginTurn(_currentConversationId.value)
+            toolsExecutedThisTurn = false
             generateFromHistory(remainingMsgs)
         }
     }
@@ -553,6 +628,7 @@ class ChatViewModel @Inject constructor(
 
     fun cancelGeneration() {
         cloudJob?.cancel()
+        confirmationManager.cancelPending()
         viewModelScope.launch {
             engineRepository.cancelGeneration()
         }
@@ -587,52 +663,108 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * Streams a chat completion through the LiteLLM proxy. The buffered text
-     * is surfaced as [ChatUiState.Success.streamingText]; on completion the
-     * assistant message is persisted and the memory pipeline runs exactly as
-     * it does for local generation.
+     * Streams a chat completion through the LiteLLM proxy with tool calling.
+     * When the model emits `tool_calls` the calls are executed through
+     * [ToolRunCoordinator] and their results are appended to the OpenAI
+     * history before the next round, up to [AutomationSettingsStore.maxToolRounds].
+     * The buffered text is surfaced as [ChatUiState.Success.streamingText]; on
+     * completion the assistant message is persisted and the memory pipeline
+     * runs exactly as it does for local generation.
      */
     private fun runCloudGeneration(messages: List<ChatPromptMessage>) {
         cloudJob?.cancel()
         cloudJob = viewModelScope.launch {
             _cloudGenerating.value = true
             _cloudStreamingText.value = ""
-            val buffer = StringBuilder()
+            val history = mutableListOf<CloudChatMessage>()
+            history += messages.map { CloudChatMessage(role = it.role, content = it.content) }
+            val tools = runCatching { toolCoordinator.cloudTools() }.getOrDefault(emptyList())
+            // Agent context (device facts + workflow variables) injected in
+            // front of the tool-calling rounds so the model plans with the
+            // real device state instead of asking the user.
+            if (tools.isNotEmpty()) {
+                toolCoordinator.agentContextMessage()?.let {
+                    history.add(0, CloudChatMessage(role = "system", content = it.content))
+                }
+            }
+            val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
+            val answerBuffer = StringBuilder()
             // Throttle UI emissions to ~60fps. Publishing on EVERY delta forces
             // a full recomposition + markdown re-parse of the streaming bubble
             // per token, and buffer.toString() copies the ENTIRE accumulated
             // response each time (O(n²) garbage that spikes GC right after the
             // generation ends). Local streaming already throttles this way.
             var lastEmitTime = 0L
+            var callsExecuted = false
             try {
-                val requestMessages = messages.map { CloudChatMessage(role = it.role, content = it.content) }
-                cloudGateway.streamChat(
-                    messages = requestMessages,
-                    config = cloudGenerationConfig()
-                ).collect { event ->
-                    when (event) {
-                        is CloudStreamEvent.Delta -> {
-                            buffer.append(event.text)
-                            val now = System.currentTimeMillis()
-                            if (now - lastEmitTime >= 16L) {
-                                lastEmitTime = now
-                                _cloudStreamingText.value = buffer.toString()
+                round@ for (round in 0 until maxRounds) {
+                    val roundBuffer = StringBuilder()
+                    val calls = LinkedHashMap<Int, AccumulatedToolCall>()
+                    cloudGateway.streamChat(
+                        messages = history,
+                        config = cloudGenerationConfig(tools = tools)
+                    ).collect { event ->
+                        when (event) {
+                            is CloudStreamEvent.Delta -> {
+                                roundBuffer.append(event.text)
+                                val now = System.currentTimeMillis()
+                                if (now - lastEmitTime >= 16L) {
+                                    lastEmitTime = now
+                                    _cloudStreamingText.value = roundBuffer.toString()
+                                }
                             }
+                            // The model wants tools: accumulate the streaming
+                            // fragments, execute them after the round, and
+                            // feed the results back for the next round.
+                            is CloudStreamEvent.ToolCallDelta -> {
+                                val acc = calls.getOrPut(event.index) {
+                                    AccumulatedToolCall(event.id, event.name.orEmpty())
+                                }
+                                event.id?.let { acc.id = it }
+                                event.name?.let { acc.name = it }
+                                acc.arguments.append(event.arguments)
+                            }
+                            is CloudStreamEvent.Reasoning -> Unit
+                            is CloudStreamEvent.Usage -> Unit
+                            CloudStreamEvent.Done -> Unit
                         }
-                        // Reasoning/tool deltas are not surfaced in the plain
-                        // chat UI yet — they are dropped at the gateway edge.
-                        is CloudStreamEvent.Reasoning -> Unit
-                        is CloudStreamEvent.ToolCallDelta -> Unit
-                        is CloudStreamEvent.Usage -> Unit
-                        CloudStreamEvent.Done -> Unit
                     }
+                    if (calls.isNotEmpty()) {
+                        val cloudCalls = calls.values.map {
+                            CloudToolCall(
+                                index = 0,
+                                id = it.id,
+                                type = "function",
+                                function = CloudToolCallFunction(it.name, it.arguments.toString())
+                            )
+                        }
+                        // Text the model streamed in the SAME message as the
+                        // tool calls is part of the assistant's reply — it must
+                        // not be thrown away or the final answer ends up
+                        // partial (e.g. a chained "search weather, then message
+                        // mom" where the model narrates alongside the calls).
+                        // Keep it for the user AND feed it back to the model
+                        // in history so the next round knows what was said.
+                        val interimText = roundBuffer.toString()
+                        if (interimText.isNotBlank()) answerBuffer.append(interimText)
+                        _toolActivity.value = "Running ${cloudCalls.size} tool call${if (cloudCalls.size == 1) "" else "s"}…"
+                        history += toolCoordinator.executeCloudToolCalls(
+                            cloudCalls,
+                            assistantContent = interimText.takeIf { it.isNotBlank() }
+                        )
+                        callsExecuted = true
+                        _toolActivity.value = null
+                        continue@round
+                    }
+                    answerBuffer.append(roundBuffer)
+                    break@round
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _cloudGenerating.value = false
                 _cloudStreamingText.value = null
-                if (buffer.isEmpty()) {
+                if (answerBuffer.isEmpty()) {
                     appendErrorMessage("Cloud error: ${e.message}")
                 } else {
                     appendErrorMessage("${e.message} — response may be incomplete")
@@ -641,7 +773,12 @@ class ChatViewModel @Inject constructor(
             }
             _cloudGenerating.value = false
             _cloudStreamingText.value = null
-            val text = buffer.toString()
+            var text = answerBuffer.toString()
+            if (text.isBlank() && callsExecuted) {
+                // Never-blank after tool execution (STEP 8/12).
+                text = traceStore.lastTurnSummary()
+                android.util.Log.w("ChatViewModel", "Cloud turn empty after tool calls — injected tool-summary reply")
+            }
             if (text.isNotBlank()) {
                 appendAssistantMessage(text)
                 runMemoryPipeline(text)
@@ -649,16 +786,37 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Runs the LOCAL tool planner when enabled and, when the model wants to
+     * use tools, executes them (with confirmations) and appends the results
+     * as a system message so the answer generation can summarize them.
+     */
+    private suspend fun planAndExecuteTools(messages: List<ChatPromptMessage>): List<ChatPromptMessage> {
+        if (!toolCoordinator.isToolUseEnabled()) return messages
+        // Multi-round local workflow: plan → execute (confirmations + retry) →
+        // feed results back → re-plan, up to the configured round guard. Each
+        // round re-injects the agent context so multi-step tasks can branch on
+        // previous tool outputs and chain variables between tools.
+        return toolCoordinator.runLocalWorkflow(messages) { status ->
+            if (status != null) toolsExecutedThisTurn = true
+            _toolActivity.value = status
+        }
+    }
+
     /** Maps the chat sampler settings onto the OpenAI-compatible request. */
-    private fun cloudGenerationConfig(): CloudGenerationConfig {
+    private fun cloudGenerationConfig(tools: List<CloudTool> = emptyList()): CloudGenerationConfig {
         val gen = _genConfig.value
         return CloudGenerationConfig(
             temperature = gen.temperature.toDouble(),
             topP = gen.topP.toDouble(),
             topK = gen.topK.takeIf { it > 0 },
-            maxTokens = gen.maxTokens,
+            // Local is effectively unlimited (the native engine clamps to the
+            // context window), but cloud providers reject absurd max_tokens —
+            // cap at a high, provider-safe ceiling.
+            maxTokens = gen.maxTokens.coerceIn(1, CLOUD_MAX_OUTPUT_TOKENS),
             seed = gen.seed.takeIf { it >= 0 },
-            stop = gen.stopSequences
+            stop = gen.stopSequences,
+            tools = tools
         )
     }
 
@@ -666,6 +824,12 @@ class ChatViewModel @Inject constructor(
     private var lastProcessedExchangeKey: String? = null
 
     companion object {
+        /**
+         * Ceiling for cloud max_tokens: most providers reject or clamp values
+         * above ~8k, and no reasonable chat answer needs more.
+         */
+        private const val CLOUD_MAX_OUTPUT_TOKENS = 8192
+
         /** Budget for memory retrieval on the send path (retrieval is <20ms when warm). */
         private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 400L
 
@@ -751,6 +915,8 @@ class ChatViewModel @Inject constructor(
     private fun appendAssistantMessage(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
+        // Attach the final assistant text to this turn's tool traces.
+        traceStore.endTurn(trimmed)
 
         val convId = _currentConversationId.value
         if (convId.isBlank()) return
@@ -790,6 +956,7 @@ class ChatViewModel @Inject constructor(
     private fun appendErrorMessage(message: String) {
         val convId = _currentConversationId.value
         if (convId.isBlank()) return
+        traceStore.endTurn("Error: $message")
 
         val errorMessage = ChatMessage(
             id = UUID.randomUUID().toString(),
@@ -835,7 +1002,9 @@ sealed interface ChatUiState {
         val searchQuery: String = "",
         val isSearchOpen: Boolean = false,
         val cloudMode: Boolean = false,
-        val cloudDefaultModel: String = ""
+        val cloudDefaultModel: String = "",
+        val pendingToolConfirmation: PendingToolConfirmation? = null,
+        val toolActivity: String? = null
     ) : ChatUiState
 
     data class Error(val throwable: Throwable) : ChatUiState
@@ -854,6 +1023,16 @@ data class ChatMessage(
     val origin: MessageOrigin = MessageOrigin.TYPED
 )
 
+/** Accumulates a streaming cloud `tool_calls` fragment by index. */
+private class AccumulatedToolCall(
+    initialId: String?,
+    initialName: String
+) {
+    var id: String? = initialId
+    var name: String = initialName
+    val arguments = StringBuilder()
+}
+
 /** Internal bundle for the extra chat state flows feeding [ChatUiState]. */
 private data class CloudUiBits(
     val userPrefs: UserPreferences = UserPreferences(),
@@ -862,7 +1041,9 @@ private data class CloudUiBits(
     val cloudMode: Boolean = false,
     val cloudGenerating: Boolean = false,
     val cloudStreamingText: String? = null,
-    val cloudDefaultModel: String = ""
+    val cloudDefaultModel: String = "",
+    val pendingToolConfirmation: PendingToolConfirmation? = null,
+    val toolActivity: String? = null
 )
 
 private fun Message.toChatMessage(): ChatMessage = ChatMessage(

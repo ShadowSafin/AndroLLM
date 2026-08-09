@@ -24,6 +24,9 @@ object Routes {
     const val CLOUD_PROVIDERS = AppConstants.Navigation.CLOUD_PROVIDERS_ROUTE
     const val CLOUD_MODELS = AppConstants.Navigation.CLOUD_MODELS_ROUTE
 
+    /** Tool Debug: per-call execution log (prompt → tool → result → LLM output). */
+    const val TOOL_DEBUG = "tool-debug"
+
     const val ARG_CONVERSATION_ID = "conversationId"
     const val ARG_MODEL_ID = "modelId"
     const val ARG_PROMPT = "prompt"

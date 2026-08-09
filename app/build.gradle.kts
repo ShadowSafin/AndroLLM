@@ -85,6 +85,9 @@ dependencies {
     implementation(project(":core:cloud"))
     implementation(project(":core:memory"))
     implementation(project(":core:voice"))
+    implementation(project(":core:tools"))
+    implementation(project(":core:accessibility"))
+    implementation(project(":core:mcp"))
     implementation(project(":core:utils"))
     
     // Feature modules
@@ -102,7 +105,7 @@ dependencies {
     
     // Engine & Docs
     api(project(":engine"))
-    implementation(project(":docs"))
+    implementation(project(":documentation"))
     
     // Compose BOM & Compose
     implementation(platform(libs.compose.bom))

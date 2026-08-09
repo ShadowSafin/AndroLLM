@@ -1,6 +1,8 @@
 package io.androllm.feature.chat
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -74,6 +76,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +96,7 @@ import io.androllm.core.models.MessageRole
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.utils.PermissionUtils
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.EngineModelInfo
 import io.androllm.engine.models.GenerationConfig
@@ -105,6 +109,7 @@ import io.androllm.feature.chat.ui.components.MessageCard
 import io.androllm.feature.chat.ui.components.NewChatEmptyState
 import io.androllm.feature.chat.ui.components.NoModelLoadedCard
 import io.androllm.feature.chat.ui.components.SearchOverlay
+import io.androllm.feature.chat.ui.components.ToolConfirmationCard
 import io.androllm.feature.chat.ui.components.TypingAndThinkingIndicator
 import io.androllm.feature.chat.ui.drawer.ConversationDrawerContent
 import kotlinx.coroutines.launch
@@ -138,6 +143,17 @@ fun ChatScreen(
     var samplerSheetOpen by remember { mutableStateOf(false) }
     var multiSelectIds by remember { mutableStateOf(setOf<String>()) }
     var statsExpanded by remember { mutableStateOf(false) }
+    // Tool action approved while its system permission dialog is up; confirmed
+    // once the user answers the dialog (granted or denied — the tool re-checks
+    // and reports clearly either way). rememberSaveable so an activity
+    // recreation (e.g. rotation) mid-dialog still confirms the right action.
+    var pendingApprovalId by rememberSaveable { mutableStateOf<String?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        pendingApprovalId?.let { viewModel.confirmToolAction(it, true) }
+        pendingApprovalId = null
+    }
 
     val debugInfo by viewModel.debugInfo.collectAsStateWithLifecycle()
     val genConfig by viewModel.genConfig.collectAsStateWithLifecycle()
@@ -368,7 +384,42 @@ fun ChatScreen(
                                     }
                                 }
 
-                                if (isGenerating && streamingText.isNullOrEmpty()) {
+                                // Tool activity chip: visible while the planner
+                                // is deciding or tools are executing.
+                                successState?.toolActivity?.let { activity ->
+                                    item(key = "tool_activity") {
+                                        TypingAndThinkingIndicator(
+                                            cloudMode = successState?.cloudMode == true,
+                                            statusText = activity
+                                        )
+                                    }
+                                }
+
+                                // High-risk tool action awaiting approval.
+                                successState?.pendingToolConfirmation?.let { confirmation ->
+                                    item(key = "tool_confirmation") {
+                                        ToolConfirmationCard(
+                                            confirmation = confirmation,
+                                            onApprove = {
+                                                val missing = confirmation.requiredPermissions
+                                                    .filterNot { PermissionUtils.hasPermission(context, it) }
+                                                if (missing.isNotEmpty()) {
+                                                    // The tool needs a runtime permission the user
+                                                    // hasn't granted yet (e.g. SEND_SMS for "message
+                                                    // mom"). Ask for it BEFORE confirming, otherwise
+                                                    // approving would still send nothing.
+                                                    pendingApprovalId = confirmation.id
+                                                    permissionLauncher.launch(missing.toTypedArray())
+                                                } else {
+                                                    viewModel.confirmToolAction(confirmation.id, true)
+                                                }
+                                            },
+                                            onDeny = { viewModel.confirmToolAction(confirmation.id, false) }
+                                        )
+                                    }
+                                }
+
+                                if (isGenerating && streamingText.isNullOrEmpty() && successState?.toolActivity == null) {
                                     item(key = "thinking_indicator") {
                                         TypingAndThinkingIndicator(
                                             cloudMode = successState?.cloudMode == true,
@@ -628,8 +679,13 @@ fun ChatScreen(
     if (samplerSheetOpen) {
         io.androllm.feature.chat.ui.components.ModelParameterSheet(
             onDismissRequest = { samplerSheetOpen = false },
-            onApplyParameters = { temp, topP, systemPrompt ->
-                viewModel.updateGenConfig(genConfig.copy(temperature = temp, topP = topP))
+            initialTemperature = genConfig.temperature,
+            initialTopP = genConfig.topP,
+            initialMaxTokens = genConfig.maxTokens,
+            onApplyParameters = { temp, topP, maxTokens, _ ->
+                viewModel.updateGenConfig(
+                    genConfig.copy(temperature = temp, topP = topP, maxTokens = maxTokens)
+                )
             }
         )
     }

@@ -57,6 +57,14 @@ accompanistPermissions = "0.32.0"
 # Voice assistant (sherpa-onnx: wake word + streaming ASR + offline TTS)
 sherpaOnnx = "1.13.4"
 
+# Model Context Protocol (MCP) client — remote tool servers.
+# 0.10.0 is the newest release built with Kotlin 2.2.x metadata (our toolchain
+# is Kotlin 2.1.20, which can read up to 2.2); 0.13+ needs Kotlin 2.3+.
+mcpKotlinSdk = "0.10.0"
+
+# QR decoding (pure-Java, no Play Services)
+zxing = "3.5.4"
+
 # Testing
 junit = "4.13.2"
 junitJupiter = "5.10.2"
@@ -174,6 +182,15 @@ accompanist-permissions = { group = "com.google.accompanist", name = "accompanis
 
 # Voice assistant (sherpa-onnx)
 sherpa-onnx = { group = "com.github.k2-fsa", name = "sherpa-onnx", version.ref = "sherpaOnnx" }
+
+# MCP
+mcp-kotlin-sdk-client = { group = "io.modelcontextprotocol", name = "kotlin-sdk-client", version.ref = "mcpKotlinSdk" }
+
+# Ktor bundled client plugins (SSE transport used by the MCP SDK)
+ktor-client-plugins = { group = "io.ktor", name = "ktor-client-plugins", version.ref = "ktor" }
+
+# QR
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

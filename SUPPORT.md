@@ -11,9 +11,9 @@ Thank you for using AndroLLM. This document outlines how to get help and support
 Start with the documentation — most common questions are answered there:
 
 - **[README.md](README.md)** — Quick overview and quick start
-- **[FAQ.md](FAQ.md)** — Frequently asked questions
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — Common issues and solutions
-- **`docs/` directory** — Deep technical documentation
+- **[FAQ.md](documentation/FAQ.md)** — Frequently asked questions
+- **[TROUBLESHOOTING.md](documentation/TROUBLESHOOTING.md)** — Common issues and solutions
+- **`documentation/` directory** — Deep technical documentation
 
 ### 2. Issue Tracker
 

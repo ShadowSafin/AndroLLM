@@ -1,5 +1,6 @@
 package io.androllm.feature.developer
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
@@ -115,6 +117,47 @@ fun DeveloperScreen(
                 // Device & engine summary
                 item {
                     DeviceSummaryCard(data = data)
+                }
+
+                // Tool execution log entry point
+                item {
+                    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { navController.navigate(Routes.TOOL_DEBUG) }
+                                .padding(vertical = 16.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Bolt,
+                                contentDescription = null,
+                                tint = LampGlow,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Tool Execution Log",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = DeskPaper
+                                    )
+                                )
+                                Text(
+                                    text = "Every automation call: prompt → tool → result → LLM output",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = DeskInk
+                                    )
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = DeskInk
+                            )
+                        }
+                    }
                 }
 
                 // Throughput

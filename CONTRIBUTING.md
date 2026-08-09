@@ -32,9 +32,9 @@ Thank you for your interest in contributing! This document covers everything you
    # or
    git checkout -b fix/vulkan-device-lost
    # or
-   git checkout -b docs/improve-voice-docs
+   git checkout -b docs/update-voice-docs
    ```
-4. **Install prerequisites** (see [BUILDING.md](BUILDING.md))
+4. **Install prerequisites** (see [BUILDING.md](documentation/BUILDING.md))
 5. **Build and run** the debug APK on a device or emulator
 
 ---
@@ -329,7 +329,7 @@ suspend fun loadModel(modelPath: String, config: GenerationConfig): Result<Engin
 ```
 
 ### New Feature Docs
-New features should have a corresponding `docs/` entry explaining:
+New features should have a corresponding `documentation/` entry explaining:
 - What it does
 - How to configure it
 - Known limitations
@@ -365,7 +365,7 @@ Use the [feature request template](https://github.com/your-org/androllm/issues/n
 ## First-Time Contributor Tips
 
 1. Look for issues labeled `good first issue` — these are scoped for newcomers
-2. Read the [ARCHITECTURE.md](ARCHITECTURE.md) doc to understand the system
+2. Read the [ARCHITECTURE.md](documentation/ARCHITECTURE.md) doc to understand the system
 3. Ask questions in issues — maintainers are happy to help
 4. Start small: a documentation fix, a test addition, a typo correction
 5. Join the conversation in [Discussions](https://github.com/your-org/androllm/discussions)

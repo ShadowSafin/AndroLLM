@@ -9,6 +9,7 @@ import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.androllm.core.voice.model.VoiceModels
+import io.androllm.core.voice.tts.normalize.TextNormalizationEngine
 import javax.inject.Inject
 import javax.inject.Singleton
 import timber.log.Timber
@@ -23,10 +24,18 @@ import timber.log.Timber
  */
 @Singleton
 class SherpaOnnxOfflineTtsEngine @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val textNormalization: TextNormalizationEngine
 ) : OfflineTtsEngine {
 
     private var tts: OfflineTts? = null
+
+    /**
+     * Lowercase word set from the VITS lexicon. Words missing from it are
+     * dropped mid-synthesis by sherpa-onnx ("OOV x, ignore it!"), so we
+     * re-spell them letter-by-letter instead. Built lazily on first init.
+     */
+    private var lexicon: Set<String>? = null
 
     /**
      * Providers tried in order when (re)initializing the model.
@@ -57,6 +66,19 @@ class SherpaOnnxOfflineTtsEngine @Inject constructor(
         }
         for (provider in providerPriority) {
             if (createTts(provider)) {
+                lexicon = try {
+                    val words = context.assets.open(VoiceModels.TTS_LEXICON)
+                        .bufferedReader().useLines { lines ->
+                            lines.map { it.substringBefore(' ').lowercase() }
+                                .filter { it.isNotEmpty() }
+                                .toHashSet()
+                        }
+                    Timber.i("SherpaOnnxOfflineTtsEngine: lexicon loaded (${words.size} words)")
+                    words
+                } catch (t: Throwable) {
+                    Timber.w(t, "TTS lexicon read failed — OOV spelling disabled")
+                    null
+                }
                 Timber.i("SherpaOnnxOfflineTtsEngine: initialized (provider=$provider)")
                 return true
             }
@@ -124,12 +146,16 @@ class SherpaOnnxOfflineTtsEngine @Inject constructor(
         if (!ensureInitialized()) return null
         val t = tts ?: return null
         return runCatching {
-            // The VITS lexicon has NO digit/symbol tokens — "10 + 10 = 20"
-            // otherwise fails as OOV and returns silence. Always convert to
-            // natural words first ("ten plus ten equals twenty").
-            val spoken = EnglishTtsNormalizer.normalize(text)
-            if (spoken.isBlank()) return null
-            val audio: GeneratedAudio = t.generate(spoken, 0, speed.coerceIn(0.5f, 2.0f))
+            // Spoken text = LLM output through the text-normalization
+            // pipeline (numbers, dates, currencies, units, math, emoji,
+            // URLs, phones, abbreviations) — never prompt-modified.
+            val normalized = textNormalization.normalize(text).text
+            if (normalized.isBlank()) return null
+            // Anything still outside the VITS lexicon (brands, jargon) would
+            // be silently dropped by the model — spell it instead ("LLM"→"l l m").
+            val covered = lexicon?.let { EnglishTtsNormalizer.spellOutOfLexicon(normalized, it) } ?: normalized
+            Timber.d("TTS: speaking '${covered}'")
+            val audio: GeneratedAudio = t.generate(covered, 0, speed.coerceIn(0.5f, 2.0f))
             audio.samples
         }.onFailure { Timber.e(it, "TTS synth failed") }.getOrNull()
     }

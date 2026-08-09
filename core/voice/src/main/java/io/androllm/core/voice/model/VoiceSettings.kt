@@ -80,7 +80,32 @@ data class VoiceSettings(
     /** Overlay content scale (0.8 = compact .. 1.2 = large). */
     val overlaySize: Float = 1.0f,
     /** Animation speed multiplier (0.5 = calm .. 2.0 = snappy). */
-    val animationSpeed: Float = 1.0f
+    val animationSpeed: Float = 1.0f,
+
+    // ── Text Normalization (LLM output → TTS-ready speech) ───────────────────
+
+    /** Master switch for the normalization pipeline. */
+    val tnEnabled: Boolean = true,
+    /** Convert numbers (integers, decimals, negatives, %, ordinals, versions, IP). */
+    val tnNumbers: Boolean = true,
+    /** Dates & times ("08/09/2026" → "August ninth twenty twenty six"). */
+    val tnDates: Boolean = true,
+    /** Currencies ("€19.99" → "nineteen euros and ninety nine cents"). */
+    val tnCurrency: Boolean = true,
+    /** Units ("1200 MHz" → "one thousand two hundred megahertz"). */
+    val tnUnits: Boolean = true,
+    /** Math symbols & expressions ("2+2", "16:9", "≈"). */
+    val tnMath: Boolean = true,
+    /** Emoji → words, stray symbols cleaned. */
+    val tnEmoji: Boolean = true,
+    /** URLs/emails ("user@example.com" → "user at example dot com"). */
+    val tnUrlsEmails: Boolean = true,
+    /** Phone numbers spoken digit by digit. */
+    val tnPhones: Boolean = true,
+    /** Acronyms & technical terms ("GPU" → "g p u"). */
+    val tnAbbreviations: Boolean = true,
+    /** Trace each stage to logcat + debug overlay for authoring. */
+    val tnDebug: Boolean = false
 ) {
     companion object {
         const val MIN_SENSITIVITY = 0.1f
