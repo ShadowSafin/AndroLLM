@@ -47,6 +47,14 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
     var isRegister by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var loggedOut by remember { mutableStateOf(false) }
+    val alreadyLoggedIn = AuthSession.isLoggedIn(context) && !loggedOut
+
+    fun doLogout() {
+        AuthSession.clear(context)
+        loggedOut = true
+        Toast.makeText(context, "Anda telah keluar", Toast.LENGTH_SHORT).show()
+    }
 
     fun callApi(path: String, body: JSONObject, callback: (JSONObject) -> Unit) {
         scope.launch {
@@ -93,6 +101,12 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
         callApi("/api/login", body) { resp ->
             val token = resp.optString("token")
             if (token.isNotEmpty()) {
+                val user = resp.optJSONObject("user")
+                AuthSession.save(
+                    context, token,
+                    user?.optString("username") ?: username.trim(),
+                    user?.optString("display_name") ?: ""
+                )
                 onAuthSuccess(false)
             } else error = "Token kosong"
         }
@@ -108,10 +122,55 @@ fun UsernameAuthScreen(onAuthSuccess: (Boolean) -> Unit) {
         callApi("/api/register", body) { resp ->
             val token = resp.optString("token")
             if (token.isNotEmpty()) {
+                val user = resp.optJSONObject("user")
+                AuthSession.save(
+                    context, token,
+                    user?.optString("username") ?: username.trim(),
+                    user?.optString("display_name") ?: displayName.trim()
+                )
                 Toast.makeText(context, "Akun dibuat! Selamat datang ${username.trim()}", Toast.LENGTH_SHORT).show()
                 onAuthSuccess(true)
             } else error = "Token kosong"
         }
+    }
+
+    if (alreadyLoggedIn) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF0D1117))
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("🤖", fontSize = 72.sp)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Anda sudah masuk",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold, color = Color(0xFFE6EDF3))
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                AuthSession.username(context) ?: "",
+                style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF2EA043))
+            )
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = { doLogout() },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDA3633))
+            ) {
+                Text("Keluar", fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = { loggedOut = true }) {
+                Text("Lanjut sebagai tamu", color = Color(0xFF8B949E))
+            }
+        }
+        return
     }
 
     Column(
