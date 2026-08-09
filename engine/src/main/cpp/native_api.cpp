@@ -728,9 +728,11 @@ static std::string vk_ver(uint32_t v) {
     o << VK_VERSION_MAJOR(v) << "." << VK_VERSION_MINOR(v) << "." << VK_VERSION_PATCH(v);
     return o.str();
 }
+#endif // GGML_USE_VULKAN (vk_ver)
 
 static VulkanInfo checkVulkan() {
     VulkanInfo info;
+#ifdef GGML_USE_VULKAN
     VkApplicationInfo app{};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app.pApplicationName = "AndroLLM";
@@ -789,6 +791,7 @@ static VulkanInfo checkVulkan() {
         info.ok = false; info.reason = "ggml-vulkan init exception";
     }
 #else
+    info.ok = false;
     info.reason = "Vulkan not compiled";
 #endif // GGML_USE_VULKAN
     return info;
