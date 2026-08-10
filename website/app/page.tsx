@@ -9,8 +9,6 @@ import { Performance } from "@/components/marketing/performance";
 import { ModelsTeaser } from "@/components/marketing/models-teaser";
 import { Providers } from "@/components/marketing/providers";
 import { PrivacyBand } from "@/components/marketing/privacy-band";
-import { Screenshots } from "@/components/marketing/screenshots";
-import { RoadmapTeaser } from "@/components/marketing/roadmap-teaser";
 import { CtaBand } from "@/components/marketing/cta-band";
 
 export const metadata: Metadata = {
@@ -33,8 +31,6 @@ export default function Home() {
       <ModelsTeaser />
       <Providers />
       <PrivacyBand />
-      <Screenshots />
-      <RoadmapTeaser />
       <CtaBand />
     </>
   );

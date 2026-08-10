@@ -3,13 +3,13 @@ import { Reveal } from "@/animations/reveal";
 
 export function SectionHeading({
   eyebrow,
-  title,
+  title = "",
   description,
   className,
   align = "center",
 }: {
   eyebrow: string;
-  title: React.ReactNode;
+  title?: React.ReactNode;
   description?: string;
   className?: string;
   align?: "center" | "left";

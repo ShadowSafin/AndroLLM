@@ -66,8 +66,8 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   },
   icons: {
-    icon: "/icon.png",
-    apple: "/apple-icon.png",
+    icon: "/images/app-icon.png",
+    apple: "/images/app-icon.png",
   },
   manifest: "/manifest.webmanifest",
   category: "technology",
