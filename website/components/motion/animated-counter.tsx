@@ -85,7 +85,7 @@ export function StatBlock({
 }) {
   return (
     <div
-      className={`card relative overflow-hidden p-6 transition-transform duration-500 hover:-translate-y-1 hover:shadow-[0_18px_40px_-18px_rgba(217,119,87,0.45)] ${className ?? ""}`}
+      className={`card relative overflow-hidden p-6 transition-transform duration-500 hover:-translate-y-1 hover:shadow-[var(--shadow-ember-float)] ${className ?? ""}`}
       data-stat
     >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent opacity-60" />

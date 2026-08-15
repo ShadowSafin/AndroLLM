@@ -32,6 +32,12 @@ class HuggingFaceRepository @Inject constructor(
                 limit = 30
             )
             dtos.map { dto -> dto.toSummary() }
+                // Defense in depth: only surface LiteRT artifacts. The API
+                // filters by the litertlm tag, but a repo can be tagged
+                // litert-lm yet ship only GGUF — a download would fail header
+                // validation. Drop those here so the tab never lists a model
+                // the app cannot run.
+                .filter { summary -> summary.isLiteRtArtifact }
         }
         emit(result)
     }

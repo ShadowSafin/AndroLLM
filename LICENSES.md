@@ -41,13 +41,12 @@ Below is a summary of the major components and their licenses.
 | Coil | Apache 2.0 | Sean McQuillan |
 | Accompanist | Apache 2.0 | Google |
 
-### Native Libraries
+### Engine Runtime (Google Maven AARs)
 
 | Component | License | Notes |
 |---|---|---|
-| llama.cpp (vendored) | MIT | Georgi Gerganov et al. |
-| ggml (Vulkan backend) | MIT | Part of llama.cpp |
-| Vulkan headers/SDK | Apache 2.0, MIT | Khronos Group |
+| LiteRT-LM (`com.google.ai.edge.litertlm`) | Apache 2.0 | Google — on-device LLM inference runtime |
+| LiteRT (`com.google.ai.edge.litert`) | Apache 2.0 | Google — on-device ML runtime (embeddings) |
 
 ### Voice Libraries
 
@@ -95,7 +94,7 @@ Model files are subject to their individual licenses, which vary by model:
 
 | Model Family | Typical License |
 |---|---|
-| Meta Llama | Llama 3 Community License |
+| Meta Llama | Llama 3 Community License (catalog: llama-3 family via `litert-community`) |
 | Google Gemma | Gemma Terms |
 | Alibaba Qwen | Qwen License (Apache 2.0 variant) |
 | DeepSeek | DeepSeek License |

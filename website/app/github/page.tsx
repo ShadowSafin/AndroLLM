@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 const highlights = [
-  { file: "engine/", what: "C++ layer with llama.cpp bindings, OpenCL/Vulkan GPU acceleration, gguf loader, parallel pipeline, host-side Vulkan shader compilation." },
+  { file: "engine/", what: "Pure-Kotlin inference on Google's LiteRT-LM runtime: .litertlm containers, per-family chat templates & special tokens, CPU (XNNPACK) and OpenCL GPU backends with automatic fallback, native tool-call markers, and debug prompt logging." },
   { file: "app/", what: "Kotlin + Compose UI: chat with streaming token output, Google Sign-In, Room-backed conversations, and the auth bridge." },
   { file: "memory/", what: "Documents, embeddings, summaries, semantic (`search`) and prefix-based (`match`) retrieval, RAG-grade context assembly." },
   { file: "voice/", what: "Wake word, speech recognition, TTS, and a foreground service with battery-saver mode — all ONNX, all offline." },

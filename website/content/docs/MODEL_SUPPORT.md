@@ -4,127 +4,93 @@ Comprehensive guide to model formats, architectures, and compatibility in AndroL
 
 ---
 
-## Supported Model Formats
+## Supported Model Format
 
-### GGUF ✅ Primary Format
+### `.litertlm` ✅ Primary Format
 
-GGUF (GPT-Generated Unified Format) is the only format fully supported for local inference.
+LiteRT-LM engine files (`.litertlm`) are the **only** format supported for local
+inference. They are single-file containers executed directly by Google's
+LiteRT-LM 0.16.0 runtime.
 
-**Why GGUF:**
-- Single-file format (weights + tokenizer + metadata)
-- Compact binary layout, fast memory-mapped loading
-- Supports all llama.cpp architectures
-- Rich metadata (architecture, context length, license, quantization)
-- Multiple quantization options for different RAM budgets
+**Why .litertlm:**
+- Single-file container (weights + tokenizer + embedded `LlmMetadata` proto)
+- Pre-quantized by the model producer — no user-side conversion or quant picking
+- Real context length, family, and quantization read from embedded metadata
+- Runs on CPU (XNNPACK) and GPU (OpenCL delegate) without extra setup
 
 **File identification:**
-- Magic bytes: `47 47 55 46` ("GGUF" in ASCII) at offset 0
-- Version: 2 or 3 (byte offset 4)
-- Tensor count: uint64 (byte offset 8)
+- Extension: `.litertlm`
+- `ModelInspector` reads the container metadata at import/load time
+- `LiteRtValidator` validates the container before the runtime loads it
 
 ### Other Formats (Informational Only)
 
 | Format | Local Inference | Catalog Display |
 |---|---|---|
-| GGUF | ✅ Yes | ✅ Yes |
-| GGML | ⚠️ Legacy, deprecated | ✅ Yes |
+| `.litertlm` | ✅ Yes | ✅ Yes |
+| GGUF | ❌ No — metadata inspection only in the import flow | ✅ Yes (informational) |
 | SAFETENSORS | ❌ No | ✅ Yes |
 | PYTORCH (.pt/.pth) | ❌ No | ✅ Yes |
 | ONNX | ❌ No (voice only) | ✅ Yes |
 | QNN | ❌ No (planned) | ✅ Yes |
 
+`GgufReader`/`GgufType` exist only so the import flow can inspect legacy GGUF
+metadata — GGUF files can be identified but never run.
+
 ---
 
-## Supported Architectures
+## Supported Architectures & Families
 
-The vendored llama.cpp supports **137 architectures**. The most commonly encountered:
+### Families (from container metadata)
+
+The compat layer detects these families from the container's `LlmMetadata`
+proto: **Gemma, Qwen2, Qwen2.5, Qwen3, Phi, Llama3, DeepSeek, Mistral,
+SmolLM, TinyLlama**.
+
+### The curated catalog
+
+7 models (6 `.litertlm` language models + 1 embedding model), `runtimeFormat:
+LITERTLM`, sourced from `litert-community` (HuggingFace + ModelScope):
 
 | Family | Architectures | Notes |
 |---|---|---|
-| **llama** | `llama`, `llama-bert` | Original LLaMA family; widest quant support |
-| **gemma** | `gemma`, `gemma2` | Google's efficient open models; gemma2 benefits from Vulkan |
-| **qwen2** | `qwen2`, `qwen2_5` | Alibaba's models; strong multilingual support |
-| **deepseek** | `deepseek`, `deepseek2`, `deepseek3` | Dual-tank MoE architecture; larger models |
-| **mistral** | `mistral` | Mistral AI's efficient models |
-| **phi3** | `phi3`, `phi3_small` | Microsoft's compact models; excellent for mobile |
-| **starcoder2** | `starcoder2` | Code-focused models |
-| **command-r** | `command-r` | Command AI's retrieval-augmented models |
-| **internlm2** | `internlm2` | Shanghai AI Lab's models |
-| **ollama** | `ollama` | Ollama-compatible wrapper architectures |
+| **Qwen** | `qwen2`, `qwen3` | Qwen2.5-1.5B (4096 ctx), Qwen3-0.6B (mixed int4, 2048 ctx) |
+| **Gemma** | `gemma3`, `gemma4` | Gemma 3 1B (Q4) |
+| **DeepSeek** | — | DeepSeek family container |
+| **Embedding** | `gemma-embedding` | Embedding model (LiteRT CompiledModel API) |
 
-Full list in [`core/models/src/main/java/io/androllm/core/models/catalog/SupportedArchitectures.kt`](core/models/src/main/java/io/androllm/core/models/catalog/SupportedArchitectures.kt).
+Supported backends for all catalog models: **CPU and GPU**.
 
 ---
 
 ## Quantization Guide
 
-Quantization reduces model size and RAM usage with varying quality impact.
+`.litertlm` containers are pre-quantized — quantization is chosen by the model
+producer, not per-download:
 
-### Quantization Levels
+| Quantization | Used By |
+|---|---|
+| Mixed int4/int8/fp16 | Qwen3-0.6B (mixed int4) |
+| Q4 (int4) | Gemma 3 1B (Q4) |
 
-| Label | Bits/Element | Size Reduction | Quality Impact | Recommendation |
-|---|---|---|---|---|
-| **BF16** | 16 | 1× (full) | None | Development only; too large for mobile |
-| **F16** | 16 | 1× (full) | None | Same as BF16 |
-| **Q8_0** | ~8 | 2× | Minimal | Best quality/size balance for 7B+ models |
-| **Q5_K_M** | ~5.5 | 3× | Small | **Recommended for most use cases** |
-| **Q4_K_M** | ~4.5 | 3.5× | Low-Medium | **Sweet spot for mobile** |
-| **Q4_K_S** | ~4.0 | 4× | Medium | Tight RAM situations |
-| **IQ4_XS** | ~4.0 | 4× | Medium | Alternative to Q4_K_S |
-| **IQ3_XS** | ~3.25 | 5× | Noticeable | For very constrained devices |
-| **IQ2_XS** | ~2.5 | 6.5× | Significant | Last resort |
-| **IQ1_M** | ~1.5 | 10× | Severe | Research only; quality severely degraded |
-| **MXFP4** | ~4 (mixed) | 4× | Low | Emerging format; limited model support |
-| **NVFP4** | ~4 (NVIDIA) | 4× | Low | NVIDIA-specific; not widely available |
-
-### Choosing Quantization
-
-```
-Available RAM ≥ 2× model BF16 size  →  Q8_0 (best quality)
-Available RAM ≥ 1.5× model BF16 size →  Q5_K_M (recommended)
-Available RAM ≥ 1.2× model BF16 size →  Q4_K_M (good balance)
-Available RAM < 1.2× model BF16 size →  Q4_K_S or IQ3_XS
-```
-
-**Quick reference for common model sizes:**
-
-| Model | BF16 Size | Q8_0 | Q5_K_M | Q4_K_M | IQ3_XS |
-|---|---|---|---|---|---|
-| 0.5B | 1.0 GB | 0.5 GB | 0.3 GB | 0.25 GB | 0.2 GB |
-| 1.5B | 3.0 GB | 1.5 GB | 0.9 GB | 0.7 GB | 0.5 GB |
-| 3B | 6.0 GB | 3.0 GB | 1.8 GB | 1.4 GB | 1.0 GB |
-| 7B | 14.0 GB | 7.0 GB | 4.2 GB | 3.3 GB | 2.4 GB |
-| 8B | 16.0 GB | 8.0 GB | 4.8 GB | 3.8 GB | 2.8 GB |
-| 14B | 28.0 GB | 14.0 GB | 8.4 GB | 6.6 GB | 4.8 GB |
+Int4-dominant weights keep RAM low; int8/fp16 components (attention,
+embeddings) preserve quality where it matters.
 
 ---
 
 ## Context Length
 
-Context length determines how many tokens the model can consider at once.
+Real context comes from the container metadata — the engine never guesses.
 
-### Typical Values by Model Family
+| Model | Context (from metadata) |
+|---|---|
+| Qwen2.5-1.5B | 4096 |
+| Qwen3-0.6B | 2048 |
 
-| Model Family | Standard Context | Extended Context |
-|---|---|---|
-| llama | 4096 | 8192 (some variants) |
-| gemma2 | 8192 | 受模型文件限制 |
-| qwen2 | 4096–131072 | 部分模型支持超长上下文 |
-| deepseek | 16384 | 受模型文件限制 |
-| mistral | 8192 | 部分变体支持更长 |
-| phi3 | 4096 |  mini 支持 128K |
-
-### Context Length Recommendations
-
-| Use Case | Recommended Context | Notes |
-|---|---|---|
-| Short Q&A | 1024 | Fastest, minimal RAM |
-| General conversation | 2048–4096 | Best balance |
-| Document analysis | 4096–8192 | More context = better comprehension |
-| Code generation | 4096 | Usually sufficient |
-| Long-form reasoning | 8192+ | Requires large RAM model |
-
-⚠️ **Warning:** Setting context length higher than the model was trained for causes degradation. The GGUF metadata contains the model's `general.context_length` — respect this limit.
+⚠️ **Warning:** Prompting a model past its metadata context length fails with
+`Input token ids are too long` (context overflow). The engine budgets context
+for tool advertisement (`ToolPromptBuilder`, 4500-char cap for small Qwen
+families) so the tool list never crowds the conversation.
 
 ---
 
@@ -136,19 +102,20 @@ Each model in the catalog carries rich metadata:
 |---|---|---|
 | `id` | String | Unique identifier |
 | `name` | String | Human-readable name |
-| `family` | String | Model family (gemma, qwen2, etc.) |
-| `architecture` | String | Exact llama.cpp architecture string |
-| `parameters` | String | Parameter count ("1.5B", "7B", etc.) |
-| `quantization` | String | Quantization label ("Q4_K_M", "Q8_0", etc.) |
-| `contextLength` | Int | Maximum context length in tokens |
-| `fileSize` | Long | File size in bytes |
+| `family` | String | Model family (Qwen, Gemma, DeepSeek, etc.) |
+| `architecture` | String | LiteRT architecture (`gemma3`, `gemma4`, `gemma-embedding`, `qwen2`, `qwen3`) |
+| `parameters` | String | Parameter count ("1.5B", "0.6B", etc.) |
+| `quantization` | String | Quantization label ("mixed int4", "Q4", etc.) |
+| `contextLength` | Int | Maximum context length in tokens (from container metadata) |
+| `fileSize` | Long | File size in bytes (~475 MB–1.3 GB) |
 | `minRamGb` | Float | Minimum device RAM required |
 | `recommendedRamGb` | Float | Recommended device RAM |
 | `category` | Enum | RECOMMENDED, CHAT, REASONING, MOBILE_OPTIMIZED |
 | `tags` | List<String> | Capability tags (code, math, multilingual, etc.) |
-| `license` | String | Model license (MIT, Apache 2.0, Llama 3, etc.) |
-| `chatTemplate` | String? | Jinja chat template (if embedded in GGUF) |
-| `isGated` | Boolean | Whether HuggingFace access requires approval |
+| `license` | String | Model license (MIT, Apache 2.0, Gemma, etc.) |
+| `supportedBackends` | List | CPU / GPU |
+| `runtimeFormat` | String | `LITERTLM` |
+| `source` | String | `litert-community` (HuggingFace / ModelScope) |
 
 ---
 
@@ -163,8 +130,6 @@ data class CompatibilityResult(
     val ramRequiredGb: Float,
     val ramAvailableGb: Float,
     val gpuAccelerated: Boolean,
-    val gpuLayersAvailable: Int,
-    val totalLayers: Int,
     val warnings: List<String>
 )
 ```
@@ -177,64 +142,47 @@ Access from the Models screen → Diagnostics tab.
 
 ### Official Model Catalog
 
-Built into the app. Shows curated models from:
-- Google Gemma family
-- Alibaba Qwen family
-- DeepSeek family
-- Meta Llama family
+Built into the app. Shows the curated catalog — 7 models from the
+`litert-community` organization (Qwen, Gemma, DeepSeek families), filtered by
+your device's RAM and preferences.
 
-Filtered by your device's RAM, architecture, and preferences.
+### Repository Browser
 
-### HuggingFace Browser
-
-Search any HuggingFace repository for GGUF models:
+Browse `litert-community` repositories on HuggingFace or ModelScope:
 1. Models screen → HuggingFace tab
 2. Search by author/repository name
-3. Browse available quantizations
-4. Download directly
+3. Download `.litertlm` files directly
 
 ### Manual Import
 
-Import a GGUF file from local storage:
-1. Use a file manager to navigate to the GGUF file
+Import a `.litertlm` file from local storage:
+1. Use a file manager to navigate to the file
 2. The system share sheet will show AndroLLM as a target
 3. Or: Models screen → Import → select file
+
+The file is validated (`LiteRtValidator` + SHA-256) and its metadata is read by
+`ModelInspector` before it can be loaded.
 
 ---
 
 ## Model Recommendations by Use Case
 
-### General Chat
+### General Chat (catalog, ~2–4 GB RAM guidance)
 
-| Rank | Model | Parameters | Recommended Quant | Why |
-|---|---|---|---|---|
-| 1 | Qwen2.5-7B | 7B | Q5_K_M | Excellent all-rounder, strong instruction following |
-| 2 | Gemma-2-9B | 9B | Q5_K_M | Fast, efficient, great for mid-range devices |
-| 3 | Llama-3.2-3B | 3B | Q4_K_M | Compact, good for phones with 4–6 GB RAM |
+| Model | Parameters | Quantization | Notes |
+|---|---|---|---|
+| Qwen2.5-1.5B | 1.5B | mixed | 4096 context, strong multilingual |
+| Qwen3-0.6B | 0.6B | mixed int4 | Smallest footprint; native tool-call markers |
+| Gemma 3 1B | 1B | Q4 | Compact, strong instruction following |
 
-### Code Generation
+### RAM Guidelines
 
-| Rank | Model | Parameters | Recommended Quant | Why |
-|---|---|---|---|---|
-| 1 | DeepSeek-Coder-V2-Lite | 16B | Q4_K_M | State-of-the-art code generation |
-| 2 | StarCoder2-7B | 7B | Q5_K_M | Strong multi-language support |
-| 3 | Phi-3.5-mini | 3.8B | Q4_K_M | Excellent for compact devices |
+| Device RAM | Recommended |
+|---|---|
+| 2 GB | Qwen3-0.6B class models |
+| 3–4 GB | Qwen2.5-1.5B / Gemma 3 1B class models |
 
-### Reasoning / Math
-
-| Rank | Model | Parameters | Recommended Quant | Why |
-|---|---|---|---|---|
-| 1 | DeepSeek-R1-Distill-Qwen-7B | 7B | Q5_K_M | Strong reasoning capabilities |
-| 2 | Gemma-2-9B-it | 9B | Q5_K_M | Good general reasoning |
-| 3 | Qwen2.5-Math-7B | 7B | Q5_K_M | Mathematics-focused |
-
-### Multilingual
-
-| Rank | Model | Parameters | Recommended Quant | Why |
-|---|---|---|---|---|
-| 1 | Qwen2.5-7B | 7B | Q5_K_M | 29 languages well-supported |
-| 2 | Gemma-3-4B | 4B | Q4_K_M | Strong multilingual, compact |
-| 3 | Llama-3.1-8B-Instruct | 8B | Q5_K_M | Broad language coverage |
+These are estimates — actual requirements vary by model architecture and context length. Use the `MemoryEstimator` and the catalog's `minRamGb`/`recommendedRamGb` fields.
 
 ---
 
@@ -246,10 +194,9 @@ Models have individual licenses. Always check before commercial use:
 |---|---|---|---|
 | MIT | ✅ Yes | ✅ Yes | Required |
 | Apache 2.0 | ✅ Yes | ✅ Yes | Required |
-| Llama 3 Community | ✅ Yes (limited) | ✅ Yes | Required |
-| Llama 3 Research | ❌ No | ❌ No | Required |
 | Gemma | ✅ Yes (limited) | ✅ Yes | Required |
 | Qwen | ✅ Yes | ✅ Yes | Required |
+| DeepSeek | ✅ Yes | ✅ Yes | Required |
 
 The catalog stores the license string in each model's metadata. The Model detail screen displays it.
 
@@ -259,8 +206,7 @@ The catalog stores the license string in each model's metadata. The Model detail
 
 | Feature | Status | Notes |
 |---|---|---|
-| SAFETENSORS direct loading | 🔮 Future | Would require GGUF conversion step |
-| Multi-modal (vision) models | 🚧 Planned | Needs image preprocessing pipeline |
-| Diffusion models (image gen) | 🔮 Future | Research stage; GPU-intensive |
-| Speaker diarization via sherpa-onnx | 🚧 Planned | Library support exists; UI pending |
-| Function calling / tool use | 🚧 Planned | Model-dependent; prompt engineering required |
+| NPU acceleration | 🚧 Planned | Next planned backend (not implemented) |
+| Multi-modal (vision) models | 🔮 Future | Requires vision preprocessing pipeline |
+| More catalog families | 🔮 Future | As `litert-community` publishes new containers |
+| GGUF runtime support | ❌ Not planned | GGUF stays inspection-only; no llama.cpp runtime exists |

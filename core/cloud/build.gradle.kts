@@ -37,6 +37,7 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
+    implementation(project(":core:runtime"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

@@ -53,6 +53,8 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.EmberRed
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
+import io.androllm.core.runtime.Runtime
+import io.androllm.core.runtime.RuntimeStatus
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.engine.api.EngineState
 
@@ -70,6 +72,8 @@ fun DeveloperScreen(
     val debugInfo by viewModel.debugInfo.collectAsStateWithLifecycle()
     val memoryStats by viewModel.memoryStats.collectAsStateWithLifecycle()
     val recentMemories by viewModel.recentMemories.collectAsStateWithLifecycle()
+    val runtimeStatuses by viewModel.runtimeStatuses.collectAsStateWithLifecycle()
+    val systemMemory by viewModel.systemMemory.collectAsStateWithLifecycle()
     val data = (uiState as? UiState.Success)?.data ?: DeveloperData()
 
     CloudAtmosphericBackground {
@@ -308,7 +312,8 @@ fun DeveloperScreen(
                     BackendDiagnosticsCard(
                         data = data,
                         onRefresh = { viewModel.refreshDebugInfo() },
-                        debugInfo = debugInfo
+                        debugInfo = debugInfo,
+                        systemMemory = systemMemory
                     )
                 }
 
@@ -323,6 +328,19 @@ fun DeveloperScreen(
                         stats = memoryStats,
                         recentMemories = recentMemories,
                         onRefresh = { viewModel.refreshMemoryInspector() }
+                    )
+                }
+
+                // Runtime Registry — every app runtime, auto-discovered
+                item {
+                    SectionHeader(
+                        title = "Runtime Registry",
+                        subtitle = "Every app runtime, auto-discovered — failures stay isolated"
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    RuntimeRegistryCard(
+                        runtimes = runtimeStatuses,
+                        onRefresh = { viewModel.refreshRuntimes() }
                     )
                 }
 
@@ -441,6 +459,7 @@ private fun ChartCard(
 private fun BackendDiagnosticsCard(
     data: DeveloperData,
     debugInfo: io.androllm.engine.models.EngineDebugInfo?,
+    systemMemory: SystemMemoryInfo?,
     onRefresh: () -> Unit
 ) {
     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -476,6 +495,29 @@ private fun BackendDiagnosticsCard(
             DiagRow("Prompt tokens", data.lastStats?.promptTokens?.toString() ?: "—")
             DiagRow("Generated tokens", data.lastStats?.generatedTokens?.toString() ?: "—")
             DiagRow("Chat template", info?.let { if (it.templateReady) "Ready" else "Unavailable" } ?: "—")
+
+            // System RAM + native heap: the budgets the pre-load resource guard
+            // actually checks (llama.cpp memory is native, not Java heap).
+            androidx.compose.material3.HorizontalDivider(
+                modifier = Modifier.padding(vertical = 6.dp),
+                color = DeskInk.copy(alpha = 0.15f)
+            )
+            DiagRow(
+                "System RAM",
+                systemMemory?.let {
+                    "${it.totalRamMb()} MB total • ${it.availableRamMb()} MB free" + if (it.lowMemory) " • LOW" else ""
+                } ?: "—"
+            )
+            DiagRow(
+                "Native heap",
+                systemMemory?.let { "${it.nativeHeapAllocatedMb()} MB of ${it.nativeHeapSizeMb()} MB" } ?: "—"
+            )
+            DiagRow(
+                "Model RAM estimate",
+                data.memoryStats?.let {
+                    "${it.modelSizeMb().toInt()} MB weights + ${it.contextSizeMb().toInt()} MB KV"
+                } ?: "—"
+            )
         }
     }
 }
@@ -635,6 +677,93 @@ private fun MemoryInspectorCard(
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RuntimeRegistryCard(
+    runtimes: List<Pair<Runtime, RuntimeStatus>>,
+    onRefresh: () -> Unit
+) {
+    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Registered Runtimes",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = DeskPaper
+                    )
+                )
+                IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh runtimes", tint = DeskInk, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            if (runtimes.isEmpty()) {
+                Text(
+                    text = "Collecting runtime status…",
+                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                )
+            } else {
+                runtimes.forEachIndexed { index, (runtime, status) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 7.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = runtime.displayName,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = DeskPaper
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                CloudChip(
+                                    text = runtime.category.displayName,
+                                    accentColor = LampDeep
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = status.summary,
+                                style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                            )
+                            status.detail?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.labelSmall.copy(color = LampDeep),
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = if (status.available) "● Ready" else "● Off",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (status.available) LampGlow else LampDeep
+                            )
+                        )
+                    }
+                    if (index < runtimes.lastIndex) {
+                        androidx.compose.material3.HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = DeskInk.copy(alpha = 0.15f)
                         )
                     }
                 }

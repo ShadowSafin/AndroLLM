@@ -15,8 +15,8 @@ class CatalogParserTest {
         append(
             """{"id":"test-1","name":"Test Model","family":"Test","architecture":"llama",""" +
                 """"categories":["CHAT"],"tags":["fast"],"license":"Apache-2.0","author":"T",""" +
-                """"repoId":"t/test-gguf","fileName":"test-q4_k_m.gguf",""" +
-                """"downloadUrl":"https://huggingface.co/t/test-gguf/resolve/main/test-q4_k_m.gguf",""" +
+                """"repoId":"t/test-litertlm","fileName":"test-q4_k_m.litertlm",""" +
+                """"downloadUrl":"https://huggingface.co/t/test-litertlm/resolve/main/test-q4_k_m.litertlm",""" +
                 """"sizeBytes":1000000000,"parameters":"1.5B","quantization":"Q4_K_M",""" +
                 """"contextLength":8192,"minRamGb":2.0,"recommendedRamGb":4.0,"downloads":100,"likes":5}"""
         )

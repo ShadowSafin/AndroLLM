@@ -83,11 +83,12 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
 
 | Error | Type | Handling |
 |---|---|---|
-| GGUF validation failure | `ValidationError` | Show error dialog with file name |
-| Model too large for RAM | `RamInsufficientError` | Show recommended model sizes |
-| Vulkan initialization failure | `VulkanUnavailableError` | Auto-fallback to CPU; log diagnostic |
-| NaN/INF logits | `CorruptionError` | Automatic recovery; increment counter |
-| Device lost (Vulkan) | `DeviceLostError` | Context recreation → CPU fallback |
+| Container validation failure | `ValidationError` | Show error dialog with file name (`LiteRtValidator` rejects non-LiteRT files) |
+| Model too large for RAM | `RamInsufficientError` | Show recommended model sizes (`ModelResourceGuard` refuses load) |
+| GPU delegate init failure | `GpuUnavailableError` | Auto-fallback to CPU; log diagnostic |
+| Corrupted generation output | `CorruptionError` | Coherence probe + automatic recovery; increment counter |
+| GPU delegate crash mid-generation | `GpuCrashError` | Re-arm model → CPU fallback |
+| Context overflow ("Input token ids are too long") | `ContextOverflowError` | Auto-trim oldest turns and reseed conversation |
 | OOM during load | `OutOfMemoryError` | Show "Insufficient RAM" message |
 | Cancelled generation | `CancellationException` | Silent — expected behavior |
 
@@ -125,9 +126,9 @@ fun ChatScreen(viewModel: ChatViewModel = hiltViewModel()) {
 ## Error Propagation Pattern
 
 ```
-Native (C++)                Kotlin Engine             ViewModel              UI
+LiteRT-LM runtime (Kotlin/Java)     Kotlin Engine             ViewModel              UI
     │                           │                       │                    │
-    ├─ exception ─────────────► │                       │                    │
+    ├─ EngineException ────────► │                       │                    │
     │                           ├─ catch + wrap ───────►│                    │
     │                           │  Result.Failure       │                    │
     │                           │                       ├─ collect ─────────►│
@@ -137,18 +138,20 @@ Native (C++)                Kotlin Engine             ViewModel              UI
 ### Example: Model Loading Error
 
 ```kotlin
-// LlamaCppEngine
+// LiteRtLmEngine
 override suspend fun loadModel(model: Model, config: ModelLoadConfig): Result<EngineModelInfo> =
     runCatching {
-        val handle = LlamaJniBridge.nativeCreate(buildConfigJson(config))
-        LlamaJniBridge.nativeLoadModel(handle, model.filePath, buildLoadJson(config))
+        val container = ContainerMetadataReader.read(model.filePath)
+        val family = ModelFamilyRegistry.resolve(container)
+        engine = createEngine(container, family, config)
         // ...
-        Result.success(parseModelInfo(infoJson))
+        Result.success(buildModelInfo())
     }.mapFailure { error ->
         when (error) {
-            is GGUFValidationException -> ValidationError(error.message)
-            is OutOfMemoryError -> RamInsufficientError(error.message)
-            is VulkanException -> VulkanUnavailableError(error.message)
+            is ModelCompatibilityException -> ValidationError(error.message)
+            is ModelResourceGuard.ResourceRefused -> RamInsufficientError(error.message)
+            is GpuDelegateException -> GpuUnavailableError(error.message)
+            is EngineException -> EngineError(error.message)
             else -> EngineError(error.message)
         }
     }
@@ -167,14 +170,12 @@ when (val result = engine.loadModel(model, config)) {
     is Result.Failure -> Timber.e(result.error, "Failed to load model: ${model.name}")
 }
 
-// In native bridge
-Timber.tag("Engine").e(cause, "Native engine error: $message")
-Timber.tag("Vulkan").w("Vulkan warning: $reason")
+// In the engine's RuntimeLogger (logcat tag: AndroLLM-Engine)
+RuntimeLogger.tag("AndroLLM-Engine").w("Engine warning: $message")
 ```
 
 Log tags used:
-- `Engine` — inference engine errors
-- `Vulkan` — GPU-related warnings and diagnostics
+- `AndroLLM-Engine` — inference engine errors (via `RuntimeLogger`)
 - `Voice` — voice pipeline errors
 - `Memory` — memory system errors
 - `Cloud` — provider communication errors
@@ -193,9 +194,10 @@ Errors shown to users should be:
 
 | Technical Error | User Message |
 |---|---|
-| `VK_ERROR_DEVICE_LOST` | "GPU error — switching to CPU mode. This may be slower." |
-| `GGUF validation failed: invalid magic` | "This file doesn't appear to be a valid GGUF model. Please download a proper GGUF file." |
+| `GPU delegate failure (OpenCL)` | "GPU error — switching to CPU mode. This may be slower." |
+| `LiteRtValidator: invalid container header` | "This file doesn't appear to be a valid LiteRT model (.litertlm). Please download a proper model file." |
 | `RAM insufficient: need 8GB, have 6GB` | "This model requires more memory than available. Try a smaller model." |
+| `Context overflow: input token ids are too long` | "This conversation got too long — trimming older messages and continuing." |
 | `401 Unauthorized` | "API key is invalid. Please check your settings." |
 | `429 Too Many Requests` | "Rate limited. Please wait a moment and try again." |
 | `Network timeout` | "Connection timed out. Check your internet and try again." |
@@ -209,8 +211,9 @@ Errors shown to users should be:
 
 | Situation | Recovery |
 |---|---|
-| NaN/INF logits | Recreate context → If fails, CPU fallback |
-| Vulkan device lost | Recreate context → If fails, CPU fallback |
+| Corrupted generation output | Coherence probe → re-arm model → If fails, CPU fallback |
+| GPU delegate crash | Re-arm model → If fails, CPU fallback |
+| Context overflow | Auto-trim oldest turns and reseed conversation |
 | Network transient failure | Retry with exponential backoff (3 attempts) |
 | Database constraint violation | Log and skip (non-fatal) |
 | Voice model not found | Auto-re-download from HuggingFace |
@@ -225,7 +228,7 @@ Errors shown to users should be:
 | Database corrupted | Clear app data (Settings → Storage) |
 | Permission denied | Grant permission in Android Settings |
 | Storage full | Free space, then retry |
-| Device过热 | Close app, let device cool, then retry |
+| Device overheating | Close app, let device cool, then retry |
 
 ---
 
@@ -235,14 +238,13 @@ Errors shown to users should be:
 
 ```kotlin
 @Test
-fun `loadModel returns Failure when GGUF is invalid`() = runTest {
-    coEvery { mockGgufValidator.validate(any()) } returns 
-        GgufValidationResult(isValid = false, error = "Bad magic")
-    
-    val result = engine.loadModel(testModel, testConfig)
-    
+fun `loadModel returns Failure when container is invalid`() = runTest {
+    val file = createTempFile("bad", ".litertlm").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+
+    val result = engine.loadModel(testModel.copy(filePath = file.absolutePath), testConfig)
+
     assertTrue(result.isFailure)
-    assertThat((result as Result.Failure).error).isInstanceOf<ValidationError>::class
+    assertThat((result as Result.Failure).error).isInstanceOf<ValidationError>()
 }
 
 @Test
@@ -280,12 +282,12 @@ class EngineStressInstrumentedTest {
 
 ### Never Crash the Main Thread
 
-All JNI calls are wrapped:
+All engine calls are wrapped (the engine's Kotlin API throws `EngineException` subtypes, never crashes):
 ```kotlin
 runCatching {
-    LlamaJniBridge.nativeGenerateChat(handle, msgsJson, addAssistant, cfgJson, callback)
+    engine.generateChatStream(messages, addAssistant, config)
 }.onFailure { error ->
-    Timber.e(error, "Native generation failed")
+    RuntimeLogger.tag("AndroLLM-Engine").e(error, "Generation failed")
     emit(Result.failure(EngineError(error.message)))
 }
 ```
@@ -308,7 +310,7 @@ The Developer screen includes an error dashboard showing:
 - Total errors by category
 - Last error timestamp and message
 - Corruption recovery count
-- Vulkan device lost count
+- GPU fallback count
 - Retry statistics
 
 Access: Settings → Developer Options → Logs & Diagnostics

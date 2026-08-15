@@ -12,15 +12,17 @@ Complete guide to building AndroLLM from source.
 |---|---|---|
 | Android Studio | Hedgehog (2023.1.1) | Latest stable preferred |
 | JDK | 17 | Auto-managed by Gradle toolchain |
-| Android SDK | API 34 | `compileSdk 34` |
-| Android NDK | r26 (26.1.10909125) | Required for native engine build |
-| CMake | 3.22.1+ | Bundled with Android Studio |
-| Vulkan SDK | Latest stable | Required for host-side GLSL shader compilation |
+| Android SDK | Platform 35, Build-Tools 35.x | `compileSdk 35`, `targetSdk 35` |
+
+**No NDK, CMake, or Vulkan SDK are required.** The inference engine (LiteRT-LM
++ LiteRT) ships as prebuilt AARs from Google Maven and is consumed as ordinary
+Kotlin/Java dependencies. The only native build in the repo is the `:whisper`
+module (whisper.cpp STT), whose NDK toolchain is bundled with the Android SDK.
 
 ### Recommended Hardware
 
 - **RAM**: 16 GB minimum (8 GB may work but builds will be slow)
-- **Storage**: 10 GB free (for SDK, NDK, build cache, and model downloads)
+- **Storage**: 10 GB free (for SDK, Gradle cache, and model downloads)
 - **CPU**: 4+ cores (build parallelization scales with core count)
 
 ---
@@ -32,39 +34,20 @@ Complete guide to building AndroLLM from source.
 Download from [android.studio.google.com](https://developer.android.com/studio).
 
 During installation, ensure these components are selected:
-- Android SDK Platform 34
-- Android SDK Build-Tools 34.x
+- Android SDK Platform 35
+- Android SDK Build-Tools 35.x
 - Android SDK Command-line Tools
-- Android NDK (Side by side) → select version 26.1.10909125
+- Android NDK (Side by side) — only needed for the `:whisper` module
 
-### 2. Install Vulkan SDK
-
-Download from [LunarG](https://vulkan.lunarg.com/sdk/home#windows).
-
-After installation, set the environment variable:
-
-**Windows:**
-```batch
-set VULKAN_SDK=C:\Lib\vulkan\xxxx\x64
-```
-
-**Linux/macOS:**
-```bash
-export VULKAN_SDK=$HOME/VulkanSDK/1.3.xxx/x86_64
-```
-
-### 3. Configure local.properties
+### 2. Configure local.properties
 
 Create `local.properties` in the project root:
 
 ```properties
 sdk.dir=/path/to/Android/Sdk
-ndk.dir=/path/to/Android/Sdk/ndk/26.1.10909125
 ```
 
-The NDK path must point to the exact version 26.1.10909125.
-
-### 4. Firebase Configuration (Optional for Local Build)
+### 3. Firebase Configuration (Optional for Local Build)
 
 For a full build including Firebase features, place your `google-services.json` in `app/`. A stub is not sufficient — the Firebase plugin will fail without it.
 
@@ -104,20 +87,16 @@ ANDROLLM_KEY_PASSWORD=your_key_password
 
 ### Engine-Only Build
 
-To rebuild just the native library (fastest for native code changes):
+To rebuild just the engine module (fastest iteration on engine code):
 
 ```bash
 ./gradlew :engine:build
 ```
 
-### Emulator Support (x86_64 ABI)
+### Device Requirements
 
-The default build targets `arm64-v8a` only. For emulator testing:
-
-```bash
-./gradlew :engine:build \
-  -PandrollmAbis=arm64-v8a,x86_64
-```
+The APK targets **arm64-v8a only**. There is no x86_64 build — use a real
+arm64 device (or an arm64 emulator image) for testing.
 
 ---
 
@@ -133,34 +112,11 @@ Note: R8/ProGuard shrinking is **disabled** in this project (`isMinifyEnabled = 
 - Larger APK size
 - No obfuscation
 
-If you want to enable R8 for production, set `isMinifyEnabled = true` in the respective `build.gradle.kts` files and add appropriate keep rules.
+If you want to enable R8 for production, set `isMinifyEnabled = true` in the respective `build.gradle.kts` files and add appropriate keep rules for the LiteRT-LM / LiteRT AARs.
 
 ---
 
 ## Common Build Issues
-
-### Vulkan Shader Compilation Fails
-
-**Symptom**: `Vulkan is enabled but the host shader compiler (glslc) was not found`
-
-**Solution**:
-1. Install the Vulkan SDK from [LunarG](https://vulkan.lunarg.com/)
-2. Verify `glslc` is in `%VULKAN_SDK%\Bin` (Windows) or `$VULKAN_SDK/Bin` (Linux/macOS)
-3. Ensure `VULKAN_SDK` environment variable is set before running Gradle
-4. If building on a headless CI server, install the Vulkan SDK headers-only package
-
-### NDK Version Mismatch
-
-**Symptom**: `NDK version mismatch: expected 26.1.10909125 but found 25.x.x`
-
-**Solution**:
-```bash
-# List installed NDK versions
-$ANDROID_HOME/ndk-toolchain/bin/clang --version
-
-# Install the correct version via SDK Manager
-sdkmanager "ndk;26.1.10909125"
-```
 
 ### Out of Memory During Build
 
@@ -171,20 +127,17 @@ sdkmanager "ndk;26.1.10909125"
 org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=512m
 ```
 
-### LLVM/Host Compiler Not Found (Windows)
+### Firebase Plugin Fails
 
-**Symptom**: `No host C/C++ compiler found for the Vulkan shader generator`
+**Symptom**: `google-services.json` missing error during configuration phase
 
-**Solution**: Install a host toolchain. Options:
-- **MSVC** (comes with Visual Studio Build Tools)
-- **MinGW-w64** (GCC/Clang for Windows)
-- Ensure the compiler is on PATH before Android Studio's NDK clang
+**Solution**: Add a real `google-services.json` to `app/`, or remove the Google Services plugin for local-only builds.
 
-```bash
-# Verify compilers are accessible
-gcc --version
-g++ --version
-```
+### First Build Slow
+
+**Symptom**: Long initial build while resolving dependencies
+
+**Solution**: Normal — LiteRT-LM (`litertlm-android:0.16.0`) and LiteRT (`litert:2.2.0`) AARs plus the Gradle dependency graph must be downloaded once. Subsequent builds are incremental.
 
 ---
 
@@ -199,7 +152,7 @@ g++ --version
 | `spotlessCheck` | Check code formatting |
 | `spotlessApply` | Fix code formatting |
 | `detekt` | Run static analysis |
-| `:engine:build` | Rebuild native library only |
+| `:engine:build` | Build the engine module (unit tests + AAR) |
 | `downloadVoiceModels` | Redownload voice ONNX models |
 | `dependencies` | Print dependency tree |
 | `app:lint` | Run Android lint checks |
@@ -234,8 +187,7 @@ This project currently has **no automated CI/CD pipeline**. Builds are performed
 1. Create a GitHub Actions workflow in `.github/workflows/build.yml`
 2. Use `actions/setup-java@v4` with Java 17
 3. Cache the Gradle installation and dependencies
-4. Set `VULKAN_SDK` in the workflow environment
-5. Run `./gradlew assembleDebug spotlessCheck detekt`
+4. Run `./gradlew assembleDebug spotlessCheck detekt`
 
 Example workflow skeleton:
 ```yaml
@@ -250,7 +202,6 @@ jobs:
         with:
           java-version: '17'
           distribution: temurin
-      - run: echo "VULKAN_SDK=$GITHUB_WORKSPACE/vulkan-sdk" >> $GITHUB_ENV
       - run: ./gradlew assembleDebug spotlessCheck
 ```
 

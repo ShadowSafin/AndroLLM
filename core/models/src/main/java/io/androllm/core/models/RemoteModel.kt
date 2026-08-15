@@ -18,7 +18,20 @@ data class RemoteModelSummary(
     val pipelineTag: String = "text-generation",
     val family: String = "Unknown",
     val isGgufAvailable: Boolean = true
-)
+) {
+    /**
+     * True when the repo carries a LiteRT artifact (the litert-lm/litertlm
+     * tags). The hub lists many GGUF-only repos that the LiteRT runtime
+     * cannot load; the tab filters on this so every listed model is actually
+     * downloadable and runnable.
+     */
+    val isLiteRtArtifact: Boolean
+        get() = tags.any {
+            it.equals("litert-lm", ignoreCase = true) ||
+                it.equals("litertlm", ignoreCase = true) ||
+                it.equals("litert", ignoreCase = true)
+        }
+}
 
 /**
  * Detailed metadata of a remote model including file variants and license.

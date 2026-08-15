@@ -9,7 +9,7 @@ Quick start guide for new users.
 ### From Source
 
 ```bash
-# Prerequisites: Android Studio, JDK 17, NDK r26, Vulkan SDK
+# Prerequisites: Android Studio, JDK 17
 git clone https://github.com/ShadowSafin/AndroLLM.git
 cd androllm
 ./gradlew assembleDebug
@@ -26,9 +26,9 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 |---|---|---|
 | Android version | 9 (API 28) | 14 (API 34) |
 | Architecture | arm64-v8a | arm64-v8a |
-| RAM | 4 GB | 8 GB+ |
+| RAM | 2 GB | 4 GB+ |
 | Storage | 500 MB free | 2 GB free |
-| Vulkan | Optional (CPU fallback) | Supported |
+| GPU (OpenCL) | Optional (CPU fallback) | Supported |
 
 ---
 
@@ -59,9 +59,9 @@ If this is your first sign-in, set your display name and optional bio. This data
 5. Once downloaded, tap **Load**
 
 **Recommended starting models:**
-- Qwen2.5-1.5B-Instruct-Q4_K_M (small phones, 2-4GB RAM)
-- Gemma-2-2B-Q4_K_M (mid-range, 4-6GB RAM)
-- Qwen2.5-7B-Q5_K_M (flagship, 8GB+ RAM)
+- Qwen3-0.6B (small phones, ~2 GB RAM)
+- Gemma 3 1B (mid-range, ~3 GB RAM)
+- Qwen2.5-1.5B (comfortable 4 GB RAM)
 
 ### 5. Start Chatting
 
@@ -132,7 +132,7 @@ Open the conversation drawer → tap the three-dot menu → Export.
 | Voice not responding | Check mic permission; speak louder/closer |
 | Cloud provider errors | Verify API key; check internet connection |
 | App crashes on startup | Clear app data: Settings → Apps → AndroLLM → Clear Data |
-| Slow generation | Enable Vulkan (check Developer diagnostics); use smaller model |
+| Slow generation | Enable GPU acceleration (check Developer diagnostics); use a smaller model |
 
 For detailed troubleshooting, see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md).
 

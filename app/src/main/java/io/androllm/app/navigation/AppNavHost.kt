@@ -18,6 +18,8 @@ import com.google.firebase.auth.FirebaseAuth
 import io.androllm.app.auth.FirebaseAuthScreen
 import io.androllm.app.profile.ProfileSetupScreen
 import io.androllm.core.datastore.PreferencesDataStore
+import io.androllm.feature.setup.PermissionSetupScreen
+import io.androllm.feature.setup.PermissionsAccessScreen
 import io.androllm.core.navigation.Routes
 import io.androllm.feature.chat.ChatScreen
 import io.androllm.feature.developer.DeveloperScreen
@@ -35,11 +37,12 @@ import kotlinx.coroutines.flow.first
  * Root navigation host wiring all destinations.
  *
  * Entry flow:
- *   Splash → (already authenticated) Home
+ *   Splash → (already authenticated, setup done) Home
+ *         → (already authenticated, setup pending) Setup
  *         → (onboarding not completed) Onboarding → Auth
  *         → (otherwise) Auth
- *   Auth   → (first sign-in) Profile Setup → Home
- *         → (returning user) Home
+ *   Auth   → (first sign-in) Profile Setup → Setup → Home
+ *         → (returning user) Setup → Home
  */
 @Composable
 fun AppNavHost(
@@ -87,16 +90,21 @@ fun AppNavHost(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onFinished = {
-                if (isSignedInToFirebase()) {
-                    navigateClearing(pendingRoute ?: Routes.HOME)
-                } else {
-                    // Wait for the onboarding flag (never route on a guess).
-                    scope.launch {
-                        val done = onboardingCompleted
-                            ?: preferencesDataStore.onboardingCompleted.first()
-                        navigateClearing(pendingRoute ?: if (done) Routes.AUTH else Routes.ONBOARDING)
+                    if (isSignedInToFirebase()) {
+                        // Signed in: open the setup screen once if the
+                        // permission/access flow was never completed.
+                        scope.launch {
+                            val setupDone = preferencesDataStore.setupCompleted.first()
+                            navigateClearing(pendingRoute ?: if (setupDone) Routes.HOME else Routes.SETUP)
+                        }
+                    } else {
+                        // Wait for the onboarding flag (never route on a guess).
+                        scope.launch {
+                            val done = onboardingCompleted
+                                ?: preferencesDataStore.onboardingCompleted.first()
+                            navigateClearing(pendingRoute ?: if (done) Routes.AUTH else Routes.ONBOARDING)
+                        }
                     }
-                }
                 }
             )
         }
@@ -112,14 +120,29 @@ fun AppNavHost(
         composable(Routes.AUTH) {
             FirebaseAuthScreen(
                 onAuthSuccess = { isNewUser ->
-                    navigateClearing(pendingRoute ?: if (isNewUser) Routes.PROFILE_SETUP else Routes.HOME)
+                    // Everyone lands on the setup screen after sign-in; it
+                    // skips itself (LaunchedEffect) when already completed.
+                    navigateClearing(pendingRoute ?: if (isNewUser) Routes.PROFILE_SETUP else Routes.SETUP)
                 }
             )
         }
 
         composable(Routes.PROFILE_SETUP) {
             ProfileSetupScreen(
-                onDone = { navigateClearing(pendingRoute ?: Routes.HOME) }
+                onDone = { navigateClearing(pendingRoute ?: Routes.SETUP) }
+            )
+        }
+
+        composable(Routes.SETUP) {
+            PermissionSetupScreen(
+                onFinished = { navigateClearing(pendingRoute ?: Routes.HOME) }
+            )
+        }
+
+        // Settings → Permissions & Access (manage every gate later)
+        composable(Routes.PERMISSIONS) {
+            PermissionsAccessScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

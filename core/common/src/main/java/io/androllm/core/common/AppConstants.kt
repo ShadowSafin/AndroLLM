@@ -25,6 +25,7 @@ object AppConstants {
         const val FIRST_LAUNCH_KEY = "first_launch"
         const val MODEL_PATH_KEY = "model_path"
         const val ONBOARDING_COMPLETED_KEY = "onboarding_completed"
+        const val SETUP_COMPLETED_KEY = "setup_completed"
     }
 
     object Navigation {
@@ -32,6 +33,8 @@ object AppConstants {
         const val ONBOARDING_ROUTE = "onboarding"
         const val AUTH_ROUTE = "auth"
         const val PROFILE_SETUP_ROUTE = "profile_setup"
+        const val SETUP_ROUTE = "setup"
+        const val PERMISSIONS_ROUTE = "permissions"
         const val HOME_ROUTE = "home"
         const val CHAT_ROUTE = "chat"
         const val CHAT_DETAIL_ROUTE = "chat/{conversationId}"
@@ -54,9 +57,6 @@ object AppConstants {
 
     object Permissions {
         const val NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
-        const val READ_EXTERNAL_STORAGE = "android.permission.READ_EXTERNAL_STORAGE"
-        const val WRITE_EXTERNAL_STORAGE = "android.permission.WRITE_EXTERNAL_STORAGE"
-        const val MANAGE_EXTERNAL_STORAGE = "android.permission.MANAGE_EXTERNAL_STORAGE"
         const val RECORD_AUDIO = "android.permission.RECORD_AUDIO"
         const val CAMERA = "android.permission.CAMERA"
     }

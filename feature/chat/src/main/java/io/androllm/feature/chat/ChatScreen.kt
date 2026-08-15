@@ -110,6 +110,7 @@ import io.androllm.feature.chat.ui.components.NewChatEmptyState
 import io.androllm.feature.chat.ui.components.NoModelLoadedCard
 import io.androllm.feature.chat.ui.components.SearchOverlay
 import io.androllm.feature.chat.ui.components.ToolConfirmationCard
+import io.androllm.feature.chat.ui.components.ToolInvocationCards
 import io.androllm.feature.chat.ui.components.TypingAndThinkingIndicator
 import io.androllm.feature.chat.ui.drawer.ConversationDrawerContent
 import kotlinx.coroutines.launch
@@ -395,6 +396,19 @@ fun ChatScreen(
                                     }
                                 }
 
+                                // Live tool-invocation cards: one expandable
+                                // card per executed call, streaming its status
+                                // (Running → Done/Failed) with the exact
+                                // arguments and result available on tap.
+                                if (successState?.toolEvents?.isNotEmpty() == true) {
+                                    item(key = "tool_cards_${successState.toolEvents.hashCode()}") {
+                                        ToolInvocationCards(
+                                            toolEvents = successState.toolEvents,
+                                            modifier = Modifier.padding(horizontal = 12.dp)
+                                        )
+                                    }
+                                }
+
                                 // High-risk tool action awaiting approval.
                                 successState?.pendingToolConfirmation?.let { confirmation ->
                                     item(key = "tool_confirmation") {
@@ -423,7 +437,11 @@ fun ChatScreen(
                                     item(key = "thinking_indicator") {
                                         TypingAndThinkingIndicator(
                                             cloudMode = successState?.cloudMode == true,
-                                            statusText = if (successState?.cloudMode == true) "Preparing cloud response…" else "Thinking…"
+                                            statusText = when {
+                                                successState?.cloudMode == true -> "Preparing cloud response…"
+                                                successState?.isPreparing == true -> "Preparing local model…"
+                                                else -> "Thinking…"
+                                            }
                                         )
                                     }
                                 }
@@ -634,7 +652,14 @@ fun ChatScreen(
                         DebugRow("General", info.generalName)
                         DebugRow("Architecture", info.architecture)
                         DebugRow("Tokenizer", info.tokenizerModel)
-                        DebugRow("Backend", info.backend)
+                        DebugRow(
+                            "Backend",
+                            when (info.backend) {
+                                "gpu" -> "LiteRT GPU"
+                                "cpu" -> "CPU"
+                                else -> info.backend
+                            }
+                        )
                         DebugRow("GPU", info.gpuName)
                         DebugRow("Driver", info.gpuDriverVersion)
                         DebugRow("GPU Layers", "${info.gpuLayers}/${info.totalLayers}")

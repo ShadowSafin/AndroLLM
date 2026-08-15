@@ -35,7 +35,7 @@ export function Navbar() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-40 transition-all duration-500",
-        scrolled ? "glass border-b border-[var(--line)] shadow-[0_8px_32px_-16px_rgba(20,20,19,0.25)]" : "bg-transparent"
+        scrolled ? "glass border-b border-[var(--line)] shadow-[var(--nav-shadow)]" : "bg-transparent"
       )}
     >
       <nav

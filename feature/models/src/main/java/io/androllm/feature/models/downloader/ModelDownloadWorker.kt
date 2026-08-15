@@ -11,7 +11,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import io.androllm.core.database.AppDatabase
 import io.androllm.core.models.DownloadStatus
-import io.androllm.engine.utils.GgufValidator
+import io.androllm.engine.utils.LiteRtValidator
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -34,6 +34,7 @@ class ModelDownloadWorker(
         const val KEY_DOWNLOAD_URL = "download_url"
         const val KEY_TARGET_PATH = "target_path"
         const val KEY_EXPECTED_SHA256 = "expected_sha256"
+        const val KEY_COMPANION_URL = "companion_url"
 
         const val KEY_PROGRESS_PERCENT = "progress_percent"
         const val KEY_BYTES_DOWNLOADED = "bytes_downloaded"
@@ -55,6 +56,7 @@ class ModelDownloadWorker(
         val downloadUrl = inputData.getString(KEY_DOWNLOAD_URL) ?: return Result.failure()
         val targetPath = inputData.getString(KEY_TARGET_PATH) ?: return Result.failure()
         val expectedSha256 = inputData.getString(KEY_EXPECTED_SHA256)
+        val companionUrl = inputData.getString(KEY_COMPANION_URL).orEmpty()
 
         createNotificationChannel()
 
@@ -125,7 +127,7 @@ class ModelDownloadWorker(
 
             // Optional SHA256 Verification if length == 64
             if (!expectedSha256.isNullOrBlank() && expectedSha256.length == 64) {
-                val actualSha256 = GgufValidator.calculateSha256(targetFile.absolutePath)
+                val actualSha256 = LiteRtValidator.calculateSha256(targetFile.absolutePath)
                 if (actualSha256 != null && !actualSha256.equals(expectedSha256, ignoreCase = true)) {
                     targetFile.delete()
                     markDatabaseFailed(modelId)
@@ -134,13 +136,13 @@ class ModelDownloadWorker(
                 }
             }
 
-            // GGUF Binary Header Validation
-            val validation = GgufValidator.validateHeader(targetFile.absolutePath)
+            // LiteRT Artifact Header Validation (.litertlm container or .tflite)
+            val validation = LiteRtValidator.validateHeader(targetFile.absolutePath)
             if (!validation.isValid) {
                 targetFile.delete()
                 markDatabaseFailed(modelId)
-                showFailureNotification(modelName, "Invalid GGUF binary format")
-                return Result.failure(workDataOf(KEY_ERROR_MESSAGE to "Invalid GGUF binary format"))
+                showFailureNotification(modelName, validation.errorMessage)
+                return Result.failure(workDataOf(KEY_ERROR_MESSAGE to validation.errorMessage))
             }
 
             // Auto-import into Database
@@ -152,15 +154,18 @@ class ModelDownloadWorker(
                 updatedAt = System.currentTimeMillis()
             )
 
-            // Enrich the model record with GGUF header metadata
-            AppDatabase.getInstance(applicationContext).modelDao().updateDownloadMetadata(
-                id = modelId,
-                architecture = validation.architecture,
-                quantization = validation.fileType,
-                contextLength = validation.contextLength.toInt().coerceAtLeast(1024),
-                license = validation.license.ifBlank { "Apache-2.0" },
-                updatedAt = System.currentTimeMillis()
-            )
+            // LiteRT artifacts carry their tokenizer/chat template inside the
+            // container (or, for .tflite embedding models, next to the file) —
+            // there is no GGUF header to enrich the record with, so the model
+            // row keeps its catalog metadata as-is.
+
+            // Companion artifact (e.g. the Gemma 3 sentencepiece tokenizer for
+            // the EmbeddingGemma .tflite): downloaded next to the main file as
+            // `tokenizer.model` so the LiteRT embedding engine finds it.
+            if (companionUrl.isNotBlank()) {
+                val tokenizerFile = File(targetFile.parentFile, "tokenizer.model")
+                downloadCompanion(companionUrl, tokenizerFile, modelName)
+            }
 
             showSuccessNotification(modelName)
 
@@ -185,7 +190,7 @@ class ModelDownloadWorker(
                 "Model Downloads",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows live GGUF model download progress"
+                description = "Shows live LiteRT model download progress"
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -272,6 +277,37 @@ class ModelDownloadWorker(
             }
         }
         throw IllegalStateException("Too many HTTP redirects")
+    }
+
+    /**
+     * Downloads a companion artifact (e.g. the sentencepiece tokenizer) next
+     * to a downloaded model. Small enough to be a plain blocking download.
+     * Failures here do not fail the model download — the embedding engine
+     * reports a clear "tokenizer not found" error if the file is missing.
+     */
+    private fun downloadCompanion(url: String, target: File, modelName: String) {
+        try {
+            target.parentFile?.mkdirs()
+            if (target.exists() && target.length() > 0) return
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.instanceFollowRedirects = true
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 30_000
+            connection.setRequestProperty("User-Agent", "AndroLLM/1.0 (Android)")
+            connection.connect()
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                Timber.w("Companion download for $modelName failed: HTTP ${connection.responseCode}")
+                return
+            }
+            connection.inputStream.use { input ->
+                FileOutputStream(target).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            Timber.i("Companion artifact downloaded for $modelName: ${target.name}")
+        } catch (e: Exception) {
+            Timber.w(e, "Companion download for $modelName failed")
+        }
     }
 
     private suspend fun markDatabaseFailed(modelId: String) {

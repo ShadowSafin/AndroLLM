@@ -14,7 +14,7 @@ import { CtaBand } from "@/components/marketing/cta-band";
 export const metadata: Metadata = {
   title: "AndroLLM — Private AI. Native Android. Your Models. Your Choice.",
   description:
-    "A production-grade AI platform for Android. Local GGUF inference on a vendored llama.cpp engine with Vulkan GPU acceleration, an offline voice assistant, an on-device agent with 50+ tools, persistent memory, and local image generation.",
+    "A production-grade AI platform for Android. Local .litertlm inference on Google's LiteRT-LM engine with CPU and OpenCL-GPU acceleration, an offline voice assistant, an on-device agent with 50+ tools, and persistent memory.",
   alternates: { canonical: "/" },
 };
 

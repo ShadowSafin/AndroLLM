@@ -78,7 +78,7 @@ abstract class MemoryBindings {
     @Singleton
     abstract fun bindMemoryIntelligence(impl: RoutingMemoryIntelligence): MemoryIntelligence
 
-    /** Embedding indexing routed between the active provider and local GGUF. */
+    /** Embedding indexing routed between the active provider and local LiteRT. */
     @Binds
     @Singleton
     abstract fun bindEmbeddingProvider(impl: RoutingEmbeddingProvider): EmbeddingProvider

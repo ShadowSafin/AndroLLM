@@ -14,7 +14,7 @@ import javax.inject.Singleton
  *
  *  - Cloud embedding model configured + a cloud provider active →
  *    [CloudEmbeddingProvider] (via the active LiteLLM provider).
- *  - Otherwise / on cloud failure → local GGUF model ([LlamaEmbeddingProvider])
+ *  - Otherwise / on cloud failure → local LiteRT model ([LiteRtEmbeddingProvider])
  *    when one is configured.
  *  - No embedding source available at all → embedding calls fail cleanly and
  *    the repository falls back to keyword/recent retrieval. Memory still works.
@@ -26,7 +26,7 @@ import javax.inject.Singleton
 class RoutingEmbeddingProvider @Inject constructor(
     private val cloudGateway: CloudGateway,
     private val cloud: CloudEmbeddingProvider,
-    private val local: LlamaEmbeddingProvider,
+    private val local: LiteRtEmbeddingProvider,
     private val settingsStore: MemorySettingsStore,
     private val logger: MemoryLogger
 ) : EmbeddingProvider {

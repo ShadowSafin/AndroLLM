@@ -8,7 +8,7 @@ import { docGroups } from "@/lib/docs";
 export const metadata: Metadata = {
   title: "Documentation — AndroLLM",
   description:
-    "The complete AndroLLM documentation: architecture, AI engine, voice assistant, agent platform, cloud providers, memory, image generation, building from source, and more.",
+    "The complete AndroLLM documentation: architecture, AI engine, voice assistant, agent platform, cloud providers, memory, building from source, and more.",
   alternates: { canonical: "/docs" },
 };
 

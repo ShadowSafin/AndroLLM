@@ -3,7 +3,7 @@ export const site = {
   shortName: "AndroLLM",
   tagline: "Private AI. Native Android. Your Models. Your Choice.",
   description:
-    "A production-grade AI platform for Android that brings local GGUF model inference, GPU acceleration, cloud provider integration, persistent memory, and hands-free voice interaction into one unified application.",
+    "A production-grade AI platform for Android that brings .litertlm model inference on Google's LiteRT-LM runtime with CPU and GPU acceleration, cloud provider integration, persistent memory, and hands-free voice interaction into one unified application.",
   url: "https://androllm.app",
   ghOwner: "ShadowSafin",
   ghRepo: "AndroLLM",
@@ -33,10 +33,10 @@ export const repoShield = (label: string, message: string, color: string) =>
   `https://img.shields.io/badge/${encodeURIComponent(label)}-${encodeURIComponent(message)}-${color}`;
 
 export const stats = [
-  { value: 101, suffix: "", label: "curated GGUF models shipped in the catalog", note: "17 marked recommended" },
-  { value: 137, suffix: "", label: "supported model architectures via llama.cpp", note: "llama, gemma2, qwen2, deepseek, mistral, phi3 & more" },
+  { value: 7, suffix: "", label: "curated LiteRT (.litertlm) models in the catalog", note: "Qwen · Gemma · DeepSeek" },
+  { value: 5, suffix: "", label: "model architectures via LiteRT-LM", note: "gemma3 · gemma4 · qwen2 · qwen3 · deepseek" },
   { value: 50, suffix: "+", label: "built-in agent tools", note: "44 core + 9 UI-automation + MCP remote tools" },
-  { value: 34, suffix: "", label: "Gradle modules in three clean tiers", note: "app · core · feature · engine · imagegen" },
+  { value: 31, suffix: "", label: "Gradle modules in three clean tiers", note: "app · core · feature · engine" },
   { value: 12, suffix: "", label: "on-device voice commands", note: "no LLM round-trip needed" },
   { value: 0, suffix: "", label: "analytics, telemetry, crash reporters", note: "zero third-party tracking" },
 ];

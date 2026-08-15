@@ -162,7 +162,7 @@ No permissions are requested at app launch.
 
 ### Model Files
 
-- GGUF files stored in app-private storage
+- `.litertlm` container files stored in app-private storage
 - Not accessible to other apps without root
 - Delete removes both file and database entry atomically
 
@@ -221,15 +221,17 @@ install(HttpClientEngineConfig) {
 
 ### Threat: Malicious Model File
 
-**Scenario:** User downloads a GGUF file from an untrusted source.
+**Scenario:** User downloads a `.litertlm` file from an untrusted source.
 
 **Mitigations:**
-1. `GgufValidator` validates header structure before native loading
-2. Invalid magic bytes rejected before any native code runs
-3. Unknown architectures rejected by `SupportedArchitectures` whitelist
-4. The native engine runs in a separate process (no shared memory with attacker code)
+1. `LiteRtValidator` validates container structure/metadata before loading
+2. Downloads are verified with SHA-256 before install
+3. Unknown families/architectures rejected (families come from container metadata)
+4. `ModelInspector` reads metadata so validation happens before the runtime ever sees the file
 
-**Remaining risk:** Buffer overflow vulnerabilities in llama.cpp itself. Mitigated by keeping the vendored llama.cpp updated to latest upstream.
+**Remaining risk:** A malicious container with valid metadata could attempt to
+exploit the LiteRT-LM runtime. Mitigated by keeping the LiteRT-LM/LiteRT AARs
+updated to the latest Google releases.
 
 ### Threat: API Key Leakage
 
@@ -278,7 +280,7 @@ When reviewing security-sensitive changes:
 - [ ] Are network requests using HTTPS only?
 - [ ] Are permissions requested lazily, not at launch?
 - [ ] Is user data isolated in the app sandbox?
-- [ ] Are native inputs validated before passing to C++?
+- [ ] Are model containers validated (`LiteRtValidator`) before loading?
 - [ ] Is there a guest mode that works without authentication?
 
 ---

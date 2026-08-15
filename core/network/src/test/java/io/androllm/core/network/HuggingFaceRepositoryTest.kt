@@ -24,6 +24,16 @@ class HuggingFaceRepositoryTest {
     fun `searchModels parses DTOs into RemoteModelSummary`() = runTest {
         val dtos = listOf(
             HfModelDto(
+                id = "litert-community/Qwen3-0.6B",
+                author = "litert-community",
+                downloads = 50000,
+                likes = 1200,
+                tags = listOf("litert-lm", "litertlm", "qwen"),
+                lastModified = "2026-05-10"
+            ),
+            // A GGUF-only repo must be dropped — the LiteRT runtime cannot
+            // load it and the download would fail header validation.
+            HfModelDto(
                 id = "google/gemma-3-1b-it",
                 author = "google",
                 downloads = 50000,
@@ -38,12 +48,13 @@ class HuggingFaceRepositoryTest {
         val list = result.getOrNull()
 
         assertNotNull(list)
+        // Only the LiteRT-tagged repo survives the artifact filter.
         assertEquals(1, list?.size)
         val model = list?.first()
-        assertEquals("google/gemma-3-1b-it", model?.id)
-        assertEquals("gemma-3-1b-it", model?.name)
-        assertEquals("google", model?.author)
-        assertEquals("Gemma", model?.family)
+        assertEquals("litert-community/Qwen3-0.6B", model?.id)
+        assertEquals("Qwen3-0.6B", model?.name)
+        assertEquals("litert-community", model?.author)
+        assertEquals("Qwen", model?.family)
     }
 
     @Test

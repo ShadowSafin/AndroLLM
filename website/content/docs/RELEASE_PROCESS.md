@@ -20,6 +20,7 @@ Before cutting a release:
 - [ ] Privacy policy reviewed and updated if needed
 - [ ] Model catalog refreshed (if new models added)
 - [ ] README updated (if features changed)
+- [ ] Website docs refreshed and `website/` export rebuilt (see [Website Export](#website-export))
 
 ---
 
@@ -106,21 +107,43 @@ Output: `app/build/outputs/bundle/release/app-release.aab`
 | Platform | Test |
 |---|---|
 | Physical device (arm64) | Full feature test |
-| Emulator (x86_64) | Core flows, engine fallback |
-| Tablet/foldable | Adaptive navigation |
-| Low-RAM device (4GB) | Model loading, memory pressure |
-| No-Vulkan device | CPU fallback |
+| Physical device (low RAM, 2–4 GB) | Model loading, memory pressure |
+| Physical device without OpenCL | CPU-only fallback |
 | No-network device | Offline mode |
+
+> The app ships **arm64-v8a only** — there is no x86_64 emulator build. Engine
+> tests that load real `.litertlm` model files must run on physical arm64
+> devices.
 
 ### Key Flows to Test
 
 1. **First run**: Splash → Onboarding → Auth → Home
-2. **Local chat**: Load model → Send message → Receive response → Continue conversation
-3. **Cloud chat**: Configure provider → Switch to cloud → Send message
-4. **Voice assistant**: Enable → Wake word → Speak → Response → Barge-in
-5. **Memory**: Enable memory → Have conversation → Check memories → Retrieve
-6. **Model management**: Download from catalog → Install → Load → Unload → Delete
-7. **Settings**: Change theme → Change language → Export logs → Reset
+2. **Local chat**: Load `.litertlm` model → Send message → Receive response → Continue conversation
+3. **Tool calling**: Ask a multi-step task ("check the weather and text Mom") — native tool-call markers on Qwen/Gemma, JSON-compat planner fallback, confirmation gate
+4. **Cloud chat**: Configure provider → Switch to cloud → Send message
+5. **Voice assistant**: Enable → Wake word → Speak → Response → Barge-in
+6. **Memory**: Enable memory → Have conversation → Check memories → Retrieve
+7. **Model management**: Download from catalog → Install → Load → Unload → Delete
+8. **Settings**: Change theme → Change language → Export logs → Reset
+
+---
+
+## Website Export
+
+The documentation website is a static Next.js export generated from
+`website/` (docs pages render markdown from `content/docs/` — slugs must match
+`lib/docs.ts`).
+
+```bash
+cd website
+npm install
+npm run build   # produces the static export (out/)
+```
+
+Verify:
+- Every slug in `lib/docs.ts` has a matching file in `content/docs/`
+- New/changed docs render correctly in the export
+- The site description and stats in `lib/site.ts` match the release
 
 ---
 
@@ -172,9 +195,9 @@ For critical bug fixes:
 
 | Limitation | Impact | Mitigation |
 |---|---|---|
-| R8/minification disabled | Larger APK size (~40MB vs ~25MB) | Intentional for development velocity |
+| R8/minification disabled | Larger APK size | Intentional for development velocity |
 | No CI/CD | Manual build process | Documented in BUILDING.md |
-| Single ABI (arm64-v8a) | No x86_64 in production APKs | Emulator testing requires special build |
+| Single ABI (arm64-v8a) | No x86_64 in production APKs | Engine tests run on physical arm64 devices |
 | No Play Store listing | Direct distribution only | Community-driven distribution |
 
 ---
@@ -186,5 +209,4 @@ For critical bug fixes:
 | GitHub Actions build pipeline | 🚧 Planned | Automated debug builds on PR |
 | Play Store listing | 🔮 Future | Requires brand asset preparation |
 | Automated crash reporting | 🚧 Planned | Firebase Crashlytics integration |
-| Multi-ABI support (x86_64) | 🔮 Future | For emulator and tablet users |
 | Automated changelog generation | 🔮 Future | Conventional commits → changelog |

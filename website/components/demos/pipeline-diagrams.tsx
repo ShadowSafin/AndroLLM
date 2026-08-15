@@ -28,12 +28,6 @@ const pipelines = {
     nodes: ["Planner · grammar-constrained JSON", "Permission gate", "Confirmation gate", "Executor · 20 s timeout", "Results feed back · ≤ 6 rounds", "Grounded answer"],
     flow: ["PLAN", "EXEC", "REPLAN"],
   },
-  "imagegen-deep": {
-    title: "Generation state machine",
-    caption: "cancel at any step",
-    nodes: ["Idle", "Preparing", "Loading model", "Generating · live %", "Finalizing", "Completed / Failed"],
-    flow: ["SD 1.5", "SDXL", "FLUX"],
-  },
 };
 
 type PipelineId = keyof typeof pipelines;
@@ -83,7 +77,7 @@ export function Pipeline({ id }: { id: string }) {
                 className={cn(
                   "flex size-7 shrink-0 items-center justify-center rounded-full border font-mono text-[10px] font-semibold",
                   i === 0
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[#fbfaf4] shadow-ember"
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--btn-primary-text)] shadow-ember"
                     : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]"
                 )}
               >

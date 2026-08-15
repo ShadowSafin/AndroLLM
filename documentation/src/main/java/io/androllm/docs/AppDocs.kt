@@ -35,7 +35,7 @@ object AppDocs {
      * Phase 2 roadmap notes.
      */
     object Roadmap {
-        const val INFERENCE_ENGINE = "Implement llama.cpp-backed engine in the engine module"
+        const val INFERENCE_ENGINE = "Implement LiteRT-LM engine in the engine module"
         const val MODEL_DOWNLOADS = "Implement streaming model downloads via DownloadManager"
         const val MODEL_CATALOG = "Connect ModelApi to a real remote catalog"
         const val GPU_ACCELERATION = "Detect and use GPU acceleration for inference"

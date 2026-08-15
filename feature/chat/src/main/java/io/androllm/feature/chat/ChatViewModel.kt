@@ -9,6 +9,7 @@ import io.androllm.core.cloud.model.CloudStreamEvent
 import io.androllm.core.cloud.model.CloudTool
 import io.androllm.core.cloud.model.CloudToolCall
 import io.androllm.core.cloud.model.CloudToolCallFunction
+import io.androllm.core.common.AppConstants
 import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.getOrNull
 import io.androllm.core.database.repository.ConversationRepository
@@ -20,9 +21,13 @@ import io.androllm.core.memory.model.MemoryContext
 import io.androllm.core.memory.model.MemoryExchange
 import io.androllm.core.models.Conversation
 import io.androllm.core.tools.agent.AgentVariableStore
+import io.androllm.core.tools.api.ToolCall
+import io.androllm.core.tools.api.ToolEvent
+import io.androllm.core.tools.coordinator.ToolExecutionRecord
 import io.androllm.core.tools.coordinator.ToolRunCoordinator
 import io.androllm.core.tools.confirmation.PendingToolConfirmation
 import io.androllm.core.tools.confirmation.ToolConfirmationManager
+import io.androllm.core.tools.prompt.ToolPromptBuilder
 import io.androllm.core.tools.settings.AutomationSettingsStore
 import io.androllm.core.tools.trace.ToolExecutionTraceStore
 import io.androllm.core.models.Message
@@ -31,6 +36,7 @@ import io.androllm.core.models.MessageRole
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.api.GenerationState
+import io.androllm.engine.core.NativeToolCall
 import io.androllm.engine.models.ChatPromptMessage
 import io.androllm.engine.models.EngineDebugInfo
 import io.androllm.engine.models.EngineStats
@@ -38,6 +44,9 @@ import io.androllm.engine.models.GenerationConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -71,7 +80,8 @@ class ChatViewModel @Inject constructor(
     private val confirmationManager: ToolConfirmationManager,
     private val automationSettingsStore: AutomationSettingsStore,
     private val traceStore: ToolExecutionTraceStore,
-    private val variableStore: AgentVariableStore
+    private val variableStore: AgentVariableStore,
+    private val toolPromptBuilder: ToolPromptBuilder
 ) : BaseViewModel() {
 
     private val _currentConversationId = MutableStateFlow<String>("")
@@ -91,6 +101,19 @@ class ChatViewModel @Inject constructor(
     private val _pendingToolConfirmation = MutableStateFlow<PendingToolConfirmation?>(null)
     /** One-line activity chip while tools are planning/executing. */
     private val _toolActivity = MutableStateFlow<String?>(null)
+    /**
+     * Structured, per-tool lifecycle for the chat tool cards (live streaming
+     * status + expandable arguments/results). Cleared at the start of every
+     * turn and appended to by [onToolEvent] as the coordinator executes calls.
+     */
+    private val _toolEvents = MutableStateFlow<List<ToolInvocationUi>>(emptyList())
+    /**
+     * True from the moment a turn is sent until the engine publishes a
+     * terminal state (or the turn is cancelled). Covers the phases
+     * [generationState] cannot see: conversation setup, DB write and the
+     * tool-planning inference that runs BEFORE [GenerationState.Generating].
+     */
+    private val _preparing = MutableStateFlow(false)
 
     val debugInfo: StateFlow<EngineDebugInfo?> = _debugInfo
     val genConfig: StateFlow<GenerationConfig> = _genConfig
@@ -98,11 +121,38 @@ class ChatViewModel @Inject constructor(
     private var cloudJob: Job? = null
 
     /**
+     * The coroutine driving the current LOCAL turn (send / regenerate / edit).
+     * [cancelGeneration] and conversation switches cancel it so a Stop press
+     * or navigation kills the whole turn — including the invisible
+     * tool-planning phase that [generationState] does not cover.
+     */
+    private var turnJob: Job? = null
+
+    /**
      * True when the current turn executed at least one tool call. Used by the
      * never-blank guard: if the model then produces no text, the reply is
      * grounded in the actual tool result instead of silence.
      */
     private var toolsExecutedThisTurn = false
+
+    /**
+     * True while [runLocalToolLoop] drives the current local turn. While it
+     * is set, the generationState collector suppresses its own commit — the
+     * loop commits the final answer itself (intermediate rounds emit native
+     * tool-call markers, not the answer). Cleared in the loop's finally.
+     */
+    private var nativeToolLoopActive = false
+
+    /**
+     * True once the current turn's final answer was committed to the UI
+     * (either by the generationState collector or by [commitLocalAnswer]).
+     * BOTH commit paths check + set it: the loop's commit and the collector's
+     * resume race on the same `Completed` emission, and without the guard the
+     * collector could run after `nativeToolLoopActive` was cleared and commit
+     * a second copy of the identical message (two duplicate chat bubbles).
+     * Reset at the start of every turn in [generateFromHistory].
+     */
+    private var localTurnCommitted = false
 
     /**
      * Message ids appended to [_messages] locally while their Room upsert is
@@ -141,7 +191,9 @@ class ChatViewModel @Inject constructor(
             _cloudStreamingText,
             _cloudDefaultModel,
             _pendingToolConfirmation,
-            _toolActivity
+            _toolActivity,
+            _toolEvents,
+            _preparing
         ) { values: Array<Any?> ->
             @Suppress("UNCHECKED_CAST")
             CloudUiBits(
@@ -153,7 +205,9 @@ class ChatViewModel @Inject constructor(
                 cloudStreamingText = values[5] as String?,
                 cloudDefaultModel = values[6] as String,
                 pendingToolConfirmation = values[7] as PendingToolConfirmation?,
-                toolActivity = values[8] as String?
+                toolActivity = values[8] as String?,
+                toolEvents = values[9] as List<ToolInvocationUi>,
+                isPreparing = values[10] as Boolean
             )
         }
     ) { convData, engineData, searchData ->
@@ -180,11 +234,13 @@ class ChatViewModel @Inject constructor(
             engineState = engineState,
             generationState = genState,
             performanceStats = stats,
-            isGenerating = if (bits.cloudMode) {
-                bits.cloudGenerating
-            } else {
-                genState is GenerationState.Generating
-            },
+            // The turn is "generating" from the moment it is sent: the
+            // PREPARING phase (conversation setup, DB write, tool planning)
+            // must keep the composer disabled and the thinking indicator up,
+            // otherwise a slow planner looks like a dead app.
+            isGenerating = bits.cloudGenerating || bits.isPreparing ||
+                genState is GenerationState.Generating,
+            isPreparing = bits.isPreparing,
             streamingText = if (bits.cloudMode) {
                 bits.cloudStreamingText
             } else {
@@ -196,7 +252,8 @@ class ChatViewModel @Inject constructor(
             cloudMode = bits.cloudMode,
             cloudDefaultModel = bits.cloudDefaultModel,
             pendingToolConfirmation = bits.pendingToolConfirmation,
-            toolActivity = bits.toolActivity
+            toolActivity = bits.toolActivity,
+            toolEvents = bits.toolEvents
         )
     }.stateIn(
         scope = viewModelScope,
@@ -227,7 +284,18 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             engineRepository.generationState.collect { genState ->
                 when (genState) {
+                    is GenerationState.Generating -> _preparing.value = false
                     is GenerationState.Completed -> {
+                        _preparing.value = false
+                        // While the native tool loop is driving the turn, the
+                        // loop commits the answer itself (intermediate rounds
+                        // contain tool-call markers, not the reply). Also skip
+                        // when the loop already committed (its finally clears
+                        // nativeToolLoopActive, so this collector may resume
+                        // after the commit and must not append a duplicate).
+                        if (nativeToolLoopActive) return@collect
+                        if (localTurnCommitted) return@collect
+                        localTurnCommitted = true
                         var text = genState.text
                         if (text.isBlank() && toolsExecutedThisTurn) {
                             // STEP 8/12 — never-blank: tools ran but the model
@@ -240,8 +308,12 @@ class ChatViewModel @Inject constructor(
                         appendAssistantMessage(text)
                         runMemoryPipeline(text)
                     }
-                    is GenerationState.Failed -> appendErrorMessage(genState.message)
-                    else -> Unit
+                    is GenerationState.Failed -> {
+                        _preparing.value = false
+                        appendErrorMessage(genState.message)
+                    }
+                    GenerationState.Cancelled -> _preparing.value = false
+                    GenerationState.Idle -> Unit
                 }
             }
         }
@@ -275,9 +347,21 @@ class ChatViewModel @Inject constructor(
                 // conversation's locally-pending messages (or its rows from an
                 // in-flight Room stream) into the new one — that would bake
                 // foreign assistant text into the next prompt.
-                .onEach {
-                    pendingLocalMessageIds.clear()
-                    _messages.value = emptyList()
+                //
+                // Ownership-based clear, NOT a blind wipe: only messages of a
+                // DIFFERENT conversation are dropped. The send path commits
+                // the user message to [_messages] right after switching to a
+                // brand-new conversation id, and the observer's id-change
+                // resumption races that commit on the Main dispatcher. When
+                // the engine's resetChat does not suspend (e.g. no model
+                // loaded), the clear used to land AFTER the commit and wiped
+                // the freshly-rendered user message — "the message briefly
+                // appears, then disappears".
+                .onEach { newId ->
+                    val keep = _messages.value.filter { it.conversationId == newId }
+                    _messages.value = keep
+                    val keepIds = keep.mapTo(mutableSetOf()) { it.id }
+                    pendingLocalMessageIds.retainAll(keepIds)
                 }
                 // flatMapLatest cancels the previous conversation's Room
                 // stream when the id changes, so stale emissions from the old
@@ -372,16 +456,35 @@ class ChatViewModel @Inject constructor(
      * [EngineRepository.resetChat] closes that window.
      */
     private fun resetEngineChatState() {
-        // A conversation boundary also drops any unanswered confirmation card.
+        // A conversation boundary also drops any unanswered confirmation card,
+        // aborts the in-flight turn (its planning phase is invisible to
+        // generationState, so the turn job must be cancelled explicitly) and
+        // clears the preparing flag so the next conversation starts clean.
         confirmationManager.cancelPending()
+        turnJob?.cancel()
+        _preparing.value = false
         viewModelScope.launch {
             engineRepository.cancelGeneration()
             engineRepository.resetChat()
         }
     }
 
-    private fun generateFromHistory(history: List<ChatMessage>) {
-        viewModelScope.launch {
+    /**
+     * Builds the prompt and runs the generation for [history]. Suspend (not
+     * fire-and-forget) so the caller's turn job covers the ENTIRE run — a
+     * Stop press or conversation switch can therefore kill the invisible
+     * tool-planning phase as well as the visible decode. Every failure is
+     * caught and surfaced as a visible error message; the user's own message
+     * was already committed to [_messages] by the caller.
+     */
+    private suspend fun generateFromHistory(history: List<ChatMessage>) {
+        _preparing.value = true
+        // A new turn starts a clean tool-card list; the coordinator re-populates
+        // it as it plans and executes (recomposition must never append twice).
+        _toolEvents.value = emptyList()
+        // Fresh commit guard for this turn (see [localTurnCommitted]).
+        localTurnCommitted = false
+        try {
             // Memory retrieval happens before the prompt is built: relevant
             // memories + conversation summaries are injected as a system
             // message. Retrieval is fast (<20ms with the embedding model
@@ -389,23 +492,94 @@ class ChatViewModel @Inject constructor(
             // while the model warms up.
             val memoryContext = buildMemoryContext(history)
             if (memoryContext.systemText.isNotBlank()) {
-                android.util.Log.i("ChatViewModel", "Injected memory context (${memoryContext.memories.size} memories, ${memoryContext.summaries.size} summaries)")
+                android.util.Log.i(TAG, "MEMORY CONTEXT (${memoryContext.memories.size} memories, ${memoryContext.summaries.size} summaries)")
+            }
+            // Context-window guard: a conversation longer than nCtx makes the
+            // native engine freeze (encode of an oversized prompt) or decode
+            // garbage at the clamped tail — both reported as "the model never
+            // starts / gibberish on later prompts". Slide the window over the
+            // tail (oldest dropped first, current prompt always kept) so the
+            // rendered prompt + reserved output always fit nCtx.
+            val contextLength =
+                (engineRepository.engineState.value as? EngineState.Ready)
+                    ?.model?.contextLength
+                    ?: AppConstants.Model.DEFAULT_CONTEXT_LENGTH
+
+            // Prompt Builder: advertise the available tools so the model
+            // NEVER claims it lacks access ("I don't have a web search
+            // tool") — the tool list is part of its instructions. Built here
+            // (before trimming) so its real token cost is reserved below.
+            //
+            // The advertisement is BUDGETED to the container's REAL context
+            // (detected at load): the engine now reports the true limit
+            // (some Qwen3 repacks are 2048, not the guessed 4096/8192), and
+            // an unbounded tool list alone can exceed it — making EVERY
+            // prompt fail with "token ids are too long" before any history
+            // is even considered. Budget = context − reserved output − a
+            // small history floor, in chars (~4 chars/token). The trimmer
+            // below then reserves exactly what was rendered.
+            val reservedOutputTokens = _genConfig.value.maxTokens.coerceIn(
+                MIN_OUTPUT_RESERVE_TOKENS,
+                MAX_OUTPUT_RESERVE_TOKENS
+            )
+                // Never reserve more than a third of the real context: a
+                // default 65536 maxTokens clamps to MAX_OUTPUT_RESERVE_TOKENS
+                // (4096), which is the ENTIRE 4096-token container — leaving a
+                // zero system budget whose "0 = unlimited" semantics then
+                // renders the FULL tool list, overrunning both the context
+                // (Qwen3-0.6B's real 2048) and the model's sanity (the
+                // measured ~5.7K-char degradation breakpoint).
+                .coerceAtMost((contextLength / 3).coerceAtLeast(MIN_OUTPUT_RESERVE_TOKENS))
+            val systemCharsBudget = (
+                (contextLength - reservedOutputTokens - MIN_HISTORY_TOKENS)
+                    .coerceAtLeast(0) * CHARS_PER_TOKEN_ESTIMATE
+                )
+            val familyAdCapChars =
+                (engineRepository.engineState.value as? EngineState.Ready)
+                    ?.model?.toolAdvertisementCapChars
+                    ?: Int.MAX_VALUE
+            val toolAdvertisement = toolPromptBuilder.advertisement(
+                maxChars = minOf(systemCharsBudget, familyAdCapChars)
+            )
+
+            // Reserve the ACTUAL system-turn cost (memory context + tool
+            // advertisement + template framing) rather than a fixed guess, so
+            // a large injected memory block can never silently push the
+            // rendered prompt over nCtx after trimming.
+            val systemTokenOverhead = SYSTEM_TEMPLATE_FRAMING_TOKENS +
+                ChatHistoryTrimmer.estimateTokens(memoryContext.systemText) +
+                (toolAdvertisement?.let { ChatHistoryTrimmer.estimateTokens(it) } ?: 0)
+            val trimmedHistory = ChatHistoryTrimmer.trim(
+                history = history,
+                contextLength = contextLength,
+                reservedOutputTokens = reservedOutputTokens,
+                systemTokenOverhead = systemTokenOverhead
+            )
+            if (trimmedHistory.size != history.size) {
+                android.util.Log.w(
+                    TAG,
+                    "History trimmed to fit context: ${history.size} → ${trimmedHistory.size} messages (nCtx=$contextLength)"
+                )
             }
 
             val messages = buildList {
                 if (memoryContext.systemText.isNotBlank()) {
                     add(ChatPromptMessage(role = "system", content = memoryContext.systemText))
                 }
-                history.mapTo(this) {
+                toolAdvertisement?.let {
+                    add(ChatPromptMessage(role = "system", content = it))
+                }
+                trimmedHistory.mapTo(this) {
                     ChatPromptMessage(
                         role = it.role.toTemplateRole(),
                         content = it.content.trim()
                     )
                 }
             }
-            android.util.Log.i("ChatViewModel", "generateFromHistory: ${messages.size} messages: ${
+            android.util.Log.i(TAG, "PROMPT BUILT nMessages=${messages.size} nCtx=$contextLength: ${
                 messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
             }")
+
             // Explicit addAssistant=true: the rendered prompt ends with the
             // assistant turn header so generation can start immediately.
             // Cloud mode: stream through the LiteLLM proxy instead of the
@@ -413,34 +587,67 @@ class ChatViewModel @Inject constructor(
             if (_cloudMode.value) {
                 if (cloudGateway.resolveChatTarget() == null) {
                     appendErrorMessage("No cloud provider/model configured — add one in Settings → Cloud Providers, or switch back to local mode")
-                    return@launch
+                    return
                 }
                 runCloudGeneration(messages)
-                return@launch
+                return
             }
 
             if (messages.isEmpty()) {
-                android.util.Log.e("ChatViewModel", "generateFromHistory: empty message list")
+                android.util.Log.e(TAG, "generateFromHistory: empty message list")
                 appendErrorMessage("No messages to send")
-                return@launch
+                return
             }
-            android.util.Log.i("ChatViewModel", "generateFromHistory: ${messages.size} messages: ${
-                messages.joinToString(" | ") { "${it.role}:${it.content.take(30)}" }
-            }")
-            // Tool planning (local): the model first emits tool calls (JSON,
-            // grammar-constrained); when calls exist they are executed and
-            // their results are injected as a system message before the
-            // answer generation so the model can summarize what happened.
-            val finalMessages = planAndExecuteTools(messages)
-            // Stateful multi-turn chat: the native engine diffs [messages]
-            // against its accumulated conversation and decodes only the new
-            // messages' template diff at the continuing KV position (official
-            // llama.cpp pattern). Template errors surface as Failed state.
-            engineRepository.generateChat(
-                messages = finalMessages,
-                addAssistant = true,
-                config = _genConfig.value
-            )
+
+            // Local tool calling (cloud-style): the model emits native
+            // `<|tool_call|>` markers during the answer generation; the loop
+            // executes them, feeds the results back and continues — exactly
+            // like a cloud provider's function calling. Models without native
+            // markers get ONE deduped pre-planner pass as a compatibility
+            // fallback. BOUNDED: the loop caps at maxToolRounds and each
+            // round is a bounded generation; this outer budget guarantees the
+            // turn always finishes.
+            val planBudgetMs = planBudgetMs(messages)
+            android.util.Log.i(TAG, "TOOL LOOP START (budget=${planBudgetMs}ms)")
+            if (toolCoordinator.isToolUseEnabled()) {
+                val looped = withTimeoutOrNull(planBudgetMs) {
+                    runLocalToolLoop(messages)
+                } ?: run {
+                    android.util.Log.e(
+                        TAG,
+                        "Tool loop exceeded ${planBudgetMs}ms — committing a direct answer without tool results"
+                    )
+                    confirmationManager.cancelPending()
+                    false
+                }
+                if (!looped) {
+                    android.util.Log.i(TAG, "CHAT GENERATION START messages=${messages.size} addAssistant=true (no tools)")
+                    engineRepository.generateChat(
+                        messages = messages,
+                        addAssistant = true,
+                        config = _genConfig.value
+                    )
+                    android.util.Log.i(TAG, "CHAT GENERATION RETURNED")
+                }
+            } else {
+                android.util.Log.i(TAG, "CHAT GENERATION START messages=${messages.size} addAssistant=true (tools disabled)")
+                engineRepository.generateChat(
+                    messages = messages,
+                    addAssistant = true,
+                    config = _genConfig.value
+                )
+                android.util.Log.i(TAG, "CHAT GENERATION RETURNED")
+            }
+            android.util.Log.i(TAG, "TOOL LOOP DONE")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Phase 16 — no silent exceptions: the failure reaches the UI and
+            // the already-committed user message stays visible.
+            android.util.Log.e(TAG, "GENERATION FAILED — ${e.message}", e)
+            appendErrorMessage("Local generation failed: ${e.message ?: e.javaClass.simpleName}")
+        } finally {
+            _preparing.value = false
         }
     }
 
@@ -452,7 +659,7 @@ class ChatViewModel @Inject constructor(
      * and no assistant separator — a corruption source.
      */
     private fun isGenerationInFlight(): Boolean =
-        _cloudGenerating.value ||
+        _preparing.value || _cloudGenerating.value ||
             engineRepository.generationState.value is GenerationState.Generating
 
     fun sendMessage(content: String) {
@@ -462,65 +669,96 @@ class ChatViewModel @Inject constructor(
         // Runtime stabilization: never start a new turn while one is running.
         // A queued/dropped prompt beats a corrupt context.
         if (isGenerationInFlight()) {
-            android.util.Log.w("ChatViewModel", "sendMessage ignored: generation already in flight")
+            android.util.Log.w(TAG, "sendMessage ignored: generation already in flight")
             return
         }
 
-        // A new user turn supersedes any pending background memory work.
+        // A new user turn supersedes any pending background memory work,
+        // any in-flight cloud generation, and any leftover local turn that
+        // is still stuck in the invisible planning phase.
         memoryPipelineJob?.cancel()
-        // ...and any in-flight cloud generation.
         cloudJob?.cancel()
+        turnJob?.cancel()
 
-        viewModelScope.launch {
-            // Pipeline tracing: stamp this turn so every executed tool call
-            // carries its user prompt, and reset the never-blank flag.
-            traceStore.beginTurn(trimmed)
-            toolsExecutedThisTurn = false
+        android.util.Log.i(TAG, "SEND CLICK prompt=\"$trimmed\" (${trimmed.length} chars)")
 
-            var id = _currentConversationId.value
-            val isNewConversation = id.isBlank()
-            if (isNewConversation) {
-                val now = System.currentTimeMillis()
-                id = UUID.randomUUID().toString()
-                val title = if (trimmed.length > 30) trimmed.take(30) + "..." else trimmed
-                val newConv = Conversation(id = id, title = title, createdAt = now, updatedAt = now)
-                conversationRepository.upsert(newConv)
-                _currentConversationId.value = id
-                // A brand-new conversation (created from a blank active id —
-                // e.g. after deleting the previous one) must never decode
-                // against the previous conversation's resident KV cache or
-                // chat state. Reset natively BEFORE the first turn starts:
-                // awaited inline so generateFromHistory below can never race
-                // the reset (the send guard already rejected in-flight work,
-                // so the cancel here is a harmless no-op).
-                engineRepository.cancelGeneration()
-                engineRepository.resetChat()
+        turnJob = viewModelScope.launch {
+            _preparing.value = true
+            try {
+                // Pipeline tracing: stamp this turn so every executed tool call
+                // carries its user prompt, and reset the never-blank flag.
+                traceStore.beginTurn(trimmed)
+                toolsExecutedThisTurn = false
+
+                var id = _currentConversationId.value
+                val isNewConversation = id.isBlank()
+                if (isNewConversation) {
+                    val now = System.currentTimeMillis()
+                    id = UUID.randomUUID().toString()
+                    val title = if (trimmed.length > 30) trimmed.take(30) + "..." else trimmed
+                    val newConv = Conversation(id = id, title = title, createdAt = now, updatedAt = now)
+                    conversationRepository.upsert(newConv)
+                    _currentConversationId.value = id
+                    // A brand-new conversation (created from a blank active id —
+                    // e.g. after deleting the previous one) must never decode
+                    // against the previous conversation's resident KV cache or
+                    // chat state. Reset natively BEFORE the first turn starts:
+                    // awaited inline so generateFromHistory below can never race
+                    // the reset (the send guard already rejected in-flight work,
+                    // so the cancel here is a harmless no-op).
+                    engineRepository.cancelGeneration()
+                    engineRepository.resetChat()
+                }
+
+                val userMessage = ChatMessage(
+                    id = UUID.randomUUID().toString(),
+                    conversationId = id,
+                    role = MessageRole.USER,
+                    content = trimmed,
+                    timestamp = System.currentTimeMillis()
+                )
+                android.util.Log.i(TAG, "MESSAGE CREATED id=${userMessage.id} conv=$id")
+
+                // PHASE 2 — commit the user message to UI state IMMEDIATELY.
+                // The async Room echo must NEVER be the only path into
+                // _messages: a slow/failed upsert, a cancelled Room stream, or
+                // a process death mid-write would make the user's own message
+                // vanish. Same local-first + pending-tracking pattern as
+                // appendAssistantMessage(); the DB observer dedupes by id once
+                // Room confirms the row, so the message is rendered and kept
+                // regardless of what the persistence layer does afterwards.
+                _messages.value = (_messages.value.filterNot { it.id == userMessage.id } + userMessage)
+                    .sortedBy { it.timestamp }
+                pendingLocalMessageIds += userMessage.id
+                android.util.Log.i(TAG, "MESSAGE COMMITTED TO STATE messages=${_messages.value.size}")
+
+                messageRepository.upsert(userMessage.toCoreMessage())
+                conversationRepository.updateTitle(id, generateTitleFromMessage(trimmed))
+                android.util.Log.i(TAG, "MESSAGE PERSISTED id=${userMessage.id}")
+
+                // A brand-new conversation never inherits stale rows from a previous
+                // conversation (_messages is cleared by the observer, but only
+                // asynchronously). For existing conversations, the DB observer may
+                // already have echoed this user message back into _messages (Room
+                // emission after the upsert above) — dedupe so the prompt never
+                // contains the same user message twice.
+                val base = if (isNewConversation) emptyList() else _messages.value
+                val currentHistory =
+                    base.filterNot { it.id == userMessage.id } + userMessage
+                // Fresh workflow variables for this turn (device facts are
+                // re-collected; tool outputs chain within the turn).
+                variableStore.beginTurn(id)
+                generateFromHistory(currentHistory)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Phase 16 — no silent exceptions: the user message stays
+                // visible (committed above) and the failure reaches the UI.
+                android.util.Log.e(TAG, "SEND FAILED — ${e.message}", e)
+                appendErrorMessage("Local generation failed: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                _preparing.value = false
             }
-
-            val userMessage = ChatMessage(
-                id = UUID.randomUUID().toString(),
-                conversationId = id,
-                role = MessageRole.USER,
-                content = trimmed,
-                timestamp = System.currentTimeMillis()
-            )
-
-            messageRepository.upsert(userMessage.toCoreMessage())
-            conversationRepository.updateTitle(id, generateTitleFromMessage(trimmed))
-
-            // A brand-new conversation never inherits stale rows from a previous
-            // conversation (_messages is cleared by the observer, but only
-            // asynchronously). For existing conversations, the DB observer may
-            // already have echoed this user message back into _messages (Room
-            // emission after the upsert above) — dedupe so the prompt never
-            // contains the same user message twice.
-            val base = if (isNewConversation) emptyList() else _messages.value
-            val currentHistory =
-                base.filterNot { it.id == userMessage.id } + userMessage
-            // Fresh workflow variables for this turn (device facts are
-            // re-collected; tool outputs chain within the turn).
-            variableStore.beginTurn(id)
-            generateFromHistory(currentHistory)
         }
     }
 
@@ -533,17 +771,26 @@ class ChatViewModel @Inject constructor(
         if (currentMsgs.isEmpty()) return
 
         val lastAssistantMsg = currentMsgs.lastOrNull { it.role == MessageRole.ASSISTANT }
-        viewModelScope.launch {
-            if (lastAssistantMsg != null) {
-                pendingLocalMessageIds.remove(lastAssistantMsg.id)
-                messageRepository.deleteById(lastAssistantMsg.id)
-            }
-            val remainingHistory = _messages.value.filter { it.id != lastAssistantMsg?.id }
-            traceStore.beginTurn(remainingHistory.lastOrNull { it.role == MessageRole.USER }?.content)
-            variableStore.beginTurn(_currentConversationId.value)
-            toolsExecutedThisTurn = false
-            if (remainingHistory.isNotEmpty()) {
-                generateFromHistory(remainingHistory)
+        // Tracked as the turn job (like sendMessage) so Stop cancels the whole
+        // regenerate — including its invisible planning phase.
+        turnJob = viewModelScope.launch {
+            try {
+                if (lastAssistantMsg != null) {
+                    pendingLocalMessageIds.remove(lastAssistantMsg.id)
+                    messageRepository.deleteById(lastAssistantMsg.id)
+                }
+                val remainingHistory = _messages.value.filter { it.id != lastAssistantMsg?.id }
+                traceStore.beginTurn(remainingHistory.lastOrNull { it.role == MessageRole.USER }?.content)
+                variableStore.beginTurn(_currentConversationId.value)
+                toolsExecutedThisTurn = false
+                if (remainingHistory.isNotEmpty()) {
+                    generateFromHistory(remainingHistory)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "REGENERATE FAILED — ${e.message}", e)
+                appendErrorMessage("Local generation failed: ${e.message ?: e.javaClass.simpleName}")
             }
         }
     }
@@ -556,17 +803,24 @@ class ChatViewModel @Inject constructor(
         val msgs = _messages.value
         val targetMsg = msgs.find { it.id == messageId } ?: return
 
-        viewModelScope.launch {
-            messageRepository.truncateAfterTimestamp(targetMsg.conversationId, targetMsg.timestamp)
-            pendingLocalMessageIds.removeAll(msgs.map { it.id })
-            val updatedMsg = targetMsg.copy(content = newContent.trim(), timestamp = System.currentTimeMillis())
-            messageRepository.upsert(updatedMsg.toCoreMessage())
+        turnJob = viewModelScope.launch {
+            try {
+                messageRepository.truncateAfterTimestamp(targetMsg.conversationId, targetMsg.timestamp)
+                pendingLocalMessageIds.removeAll(msgs.map { it.id })
+                val updatedMsg = targetMsg.copy(content = newContent.trim(), timestamp = System.currentTimeMillis())
+                messageRepository.upsert(updatedMsg.toCoreMessage())
 
-            val remainingMsgs = msgs.takeWhile { it.id != messageId } + updatedMsg
-            traceStore.beginTurn(newContent.trim())
-            variableStore.beginTurn(_currentConversationId.value)
-            toolsExecutedThisTurn = false
-            generateFromHistory(remainingMsgs)
+                val remainingMsgs = msgs.takeWhile { it.id != messageId } + updatedMsg
+                traceStore.beginTurn(newContent.trim())
+                variableStore.beginTurn(_currentConversationId.value)
+                toolsExecutedThisTurn = false
+                generateFromHistory(remainingMsgs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "EDIT PROMPT FAILED — ${e.message}", e)
+                appendErrorMessage("Local generation failed: ${e.message ?: e.javaClass.simpleName}")
+            }
         }
     }
 
@@ -629,6 +883,10 @@ class ChatViewModel @Inject constructor(
     fun cancelGeneration() {
         cloudJob?.cancel()
         confirmationManager.cancelPending()
+        // Kill the whole local turn, including the invisible tool-planning
+        // phase, so a Stop press always takes effect immediately.
+        turnJob?.cancel()
+        _preparing.value = false
         viewModelScope.launch {
             engineRepository.cancelGeneration()
         }
@@ -686,6 +944,9 @@ class ChatViewModel @Inject constructor(
                 toolCoordinator.agentContextMessage()?.let {
                     history.add(0, CloudChatMessage(role = "system", content = it.content))
                 }
+                // NOTE: the tool advertisement is already part of [messages]
+                // (injected by the Prompt Builder in generateFromHistory) —
+                // adding it again here would double the token cost.
             }
             val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
             val answerBuffer = StringBuilder()
@@ -750,7 +1011,8 @@ class ChatViewModel @Inject constructor(
                         _toolActivity.value = "Running ${cloudCalls.size} tool call${if (cloudCalls.size == 1) "" else "s"}…"
                         history += toolCoordinator.executeCloudToolCalls(
                             cloudCalls,
-                            assistantContent = interimText.takeIf { it.isNotBlank() }
+                            assistantContent = interimText.takeIf { it.isNotBlank() },
+                            onEvent = ::onToolEvent
                         )
                         callsExecuted = true
                         _toolActivity.value = null
@@ -787,19 +1049,191 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * Runs the LOCAL tool planner when enabled and, when the model wants to
-     * use tools, executes them (with confirmations) and appends the results
-     * as a system message so the answer generation can summarize them.
+     * Cloud-style local tool loop: the model emits native `<|tool_call|>`
+     * markers during the answer generation; each round executes them through
+     * the gated executor, feeds the results back as a system message and
+     * continues the SAME conversation — until the model answers without
+     * tools. Returns true when the loop committed the answer itself.
+     *
+     * Families WITHOUT native markers (the engine's `nativeToolMarkers` flag)
+     * get ONE legacy pre-planner pass BEFORE the first generation
+     * (compatibility for models without native function calling); planned
+     * calls are deduped against already-executed ones so a confused model can
+     * never re-run the same tool every round. Running it before round 1 keeps
+     * the streamed answer final: it is committed the moment generation ends,
+     * never hidden while a slow planning pass runs afterwards.
      */
-    private suspend fun planAndExecuteTools(messages: List<ChatPromptMessage>): List<ChatPromptMessage> {
-        if (!toolCoordinator.isToolUseEnabled()) return messages
-        // Multi-round local workflow: plan → execute (confirmations + retry) →
-        // feed results back → re-plan, up to the configured round guard. Each
-        // round re-injects the agent context so multi-step tasks can branch on
-        // previous tool outputs and chain variables between tools.
-        return toolCoordinator.runLocalWorkflow(messages) { status ->
-            if (status != null) toolsExecutedThisTurn = true
-            _toolActivity.value = status
+    private suspend fun runLocalToolLoop(messages: List<ChatPromptMessage>): Boolean {
+        nativeToolLoopActive = true
+        try {
+            var history = messages
+            val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
+            val executedKeys = mutableSetOf<String>()
+
+            // Compatibility pre-planner: only for families WITHOUT native
+            // `<|tool_call|>` markers (Qwen3/2.5/2 and the function-calling
+            // Gemma repacks emit them natively — an answer without markers is
+            // authoritative there, so the slow JSON planner must never run).
+            // It runs BEFORE the first generation so the round-1 answer is
+            // always final: once text streams it is committed immediately and
+            // can never "vanish" behind a ~20s planning pass that commits the
+            // same text much later.
+            val nativeMarkers = (engineRepository.engineState.value as? EngineState.Ready)
+                ?.model?.nativeToolMarkers
+            if (nativeMarkers != true) {
+                android.util.Log.i(TAG, "NATIVE LOOP: compat pre-planner (nativeMarkers=$nativeMarkers)")
+                val planned = toolCoordinator.planLocal(history)
+                val fresh = planned.filter { "${it.name}|${it.arguments}" !in executedKeys }
+                if (fresh.isNotEmpty()) {
+                    android.util.Log.i(TAG, "NATIVE LOOP: pre-planner returned ${fresh.size} call(s)")
+                    val records = executeToolCallsWithStatus(fresh)
+                    if (records.isNotEmpty()) {
+                        executedKeys += fresh.map { "${it.name}|${it.arguments}" }
+                        toolsExecutedThisTurn = true
+                        history = history + toolCoordinator.buildLocalToolFeedback(records)
+                    }
+                }
+            }
+
+            for (round in 0 until maxRounds) {
+                android.util.Log.i(TAG, "NATIVE LOOP round=${round + 1}/$maxRounds messages=${history.size}")
+                engineRepository.generateChat(
+                    messages = history,
+                    addAssistant = true,
+                    config = _genConfig.value
+                )
+                val state = engineRepository.generationState.value
+                if (state is GenerationState.Failed) {
+                    // The collector already surfaced the error.
+                    return true
+                }
+                if (state !is GenerationState.Completed) {
+                    android.util.Log.w(TAG, "NATIVE LOOP: no Completed state after round ${round + 1}")
+                    return true
+                }
+                val text = state.text
+                val nativeCalls = engineRepository.takeLastNativeToolCalls()
+                android.util.Log.i(
+                    TAG,
+                    "NATIVE LOOP round=${round + 1} textLen=${text.length} nativeCalls=${nativeCalls.size}"
+                )
+
+                if (nativeCalls.isEmpty()) {
+                    // No native markers: the round-1 answer is the final one.
+                    // (The compat planner, when needed, already ran before the
+                    // loop — its calls were executed and their results fed
+                    // back, so nothing is re-planned or re-executed here.)
+                    commitLocalAnswer(text)
+                    return true
+                }
+
+                // Native markers found: execute, feed the results back and
+                // continue the same conversation (cloud-style round trip).
+                val calls = nativeToToolCalls(nativeCalls)
+                val records = executeToolCallsWithStatus(calls)
+                if (records.isEmpty()) {
+                    commitLocalAnswer(text)
+                    return true
+                }
+                executedKeys += calls.map { "${it.name}|${it.arguments}" }
+                toolsExecutedThisTurn = true
+                val assistantTurn = if (text.isNotBlank()) {
+                    listOf(ChatPromptMessage(role = "assistant", content = text))
+                } else {
+                    emptyList()
+                }
+                history = history + assistantTurn + toolCoordinator.buildLocalToolFeedback(records)
+            }
+            // Round cap reached: commit whatever the last round produced.
+            val last = engineRepository.generationState.value
+            if (last is GenerationState.Completed) commitLocalAnswer(last.text)
+            return true
+        } finally {
+            nativeToolLoopActive = false
+        }
+    }
+
+    /** Executes calls with a status chip + tool cards; returns the records. */
+    private suspend fun executeToolCallsWithStatus(calls: List<ToolCall>): List<ToolExecutionRecord> {
+        if (calls.isEmpty()) return emptyList()
+        _toolActivity.value = "Running ${calls.size} tool call${if (calls.size == 1) "" else "s"}…"
+        val records = toolCoordinator.executeCalls(calls, onEvent = ::onToolEvent)
+        _toolActivity.value = null
+        return records
+    }
+
+    /**
+     * Commits the final local answer exactly like the generationState
+     * collector would (never-blank guard + memory pipeline), used by the
+     * native tool loop for the terminal round.
+     */
+    private fun commitLocalAnswer(text: String) {
+        // The generationState collector may resume on the same Completed
+        // emission after the loop finished; both paths share this guard so
+        // the answer is never appended twice.
+        if (localTurnCommitted) return
+        localTurnCommitted = true
+        var answer = text
+        if (answer.isBlank() && toolsExecutedThisTurn) {
+            answer = traceStore.lastTurnSummary()
+            android.util.Log.w(TAG, "Local turn empty after tool calls — injected tool-summary reply")
+        }
+        toolsExecutedThisTurn = false
+        appendAssistantMessage(answer)
+        runMemoryPipeline(answer)
+    }
+
+    /** Converts engine-native markers into executor-ready [ToolCall]s. */
+    private fun nativeToToolCalls(calls: List<NativeToolCall>): List<ToolCall> =
+        calls.map { native ->
+            ToolCall(
+                id = "native_${native.name.hashCode().toUInt().toString(16)}",
+                name = native.name,
+                arguments = runCatching {
+                    Json.parseToJsonElement(native.argumentsJson).jsonObject
+                }.getOrElse { JsonObject(emptyMap()) }
+            )
+        }
+
+    /**
+     * Applies one per-tool lifecycle event to the chat tool-card list: a
+     * [ToolEvent.Started] appends a RUNNING card, the terminal events update
+     * the matching RUNNING card in place (so cards never duplicate). The list
+     * is capped to the last [MAX_TOOL_CARDS] entries of the current turn.
+     */
+    private fun onToolEvent(event: ToolEvent) {
+        val list = _toolEvents.value.toMutableList()
+        when (event) {
+            is ToolEvent.Started -> list.add(
+                ToolInvocationUi(name = event.name, arguments = event.arguments)
+            )
+
+            is ToolEvent.Succeeded -> updateToolCard(
+                list, event.name, ToolInvocationStatus.SUCCESS, summary = event.summary
+            )
+
+            is ToolEvent.Failed -> updateToolCard(
+                list, event.name, ToolInvocationStatus.FAILED, error = event.error
+            )
+
+            is ToolEvent.Declined -> updateToolCard(
+                list, event.name, ToolInvocationStatus.DECLINED
+            )
+        }
+        _toolEvents.value = list.takeLast(MAX_TOOL_CARDS)
+    }
+
+    /** Updates the most recent RUNNING card for [name] to its terminal state. */
+    private fun updateToolCard(
+        list: MutableList<ToolInvocationUi>,
+        name: String,
+        status: ToolInvocationStatus,
+        summary: String = "",
+        error: String = ""
+    ) {
+        val idx = list.indexOfLast { it.name == name && it.status == ToolInvocationStatus.RUNNING }
+        if (idx >= 0) {
+            list[idx] = list[idx].copy(status = status, summary = summary, error = error)
         }
     }
 
@@ -823,7 +1257,33 @@ class ChatViewModel @Inject constructor(
     private var memoryPipelineJob: Job? = null
     private var lastProcessedExchangeKey: String? = null
 
+    /**
+     * Outer budget for the whole local tool-planning phase (planner rounds +
+     * tool execution), scaled to the conversation length. Floor
+     * [LOCAL_PLAN_BUDGET_MS], cap 240s. Estimated tokens = chars / 4 (same
+     * heuristic as the engine's first-token watchdog), +50ms each; a 10K-char
+     * planner prompt needs ~135s of CPU prefill headroom, which a fixed 45s
+     * budget never allowed. ToolPlanner additionally bounds each individual
+     * inference pass; this cap guarantees the answer generation always starts
+     * within a bounded time even when a planner or a tool hangs.
+     */
+    private fun planBudgetMs(messages: List<ChatPromptMessage>): Long {
+        val promptChars = messages.sumOf { (it.content ?: "").length }
+        return (LOCAL_PLAN_BUDGET_MS + promptChars / 4 * 50L)
+            .coerceIn(LOCAL_PLAN_BUDGET_MS, 240_000L)
+    }
+
     companion object {
+        private const val TAG = "ChatViewModel"
+
+        /**
+         * Floor for the outer local tool-planning budget (see [planBudgetMs]).
+         * ToolPlanner bounds each inference pass; this cap guarantees the
+         * answer generation always starts within a bounded time even when a
+         * planner or a tool hangs.
+         */
+        private const val LOCAL_PLAN_BUDGET_MS = 45_000L
+
         /**
          * Ceiling for cloud max_tokens: most providers reject or clamp values
          * above ~8k, and no reasonable chat answer needs more.
@@ -832,6 +1292,34 @@ class ChatViewModel @Inject constructor(
 
         /** Budget for memory retrieval on the send path (retrieval is <20ms when warm). */
         private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 400L
+
+        /** Max tool cards kept in the chat for one turn (oldest dropped). */
+        private const val MAX_TOOL_CARDS = 8
+
+        /**
+         * Reserved output budget for [ChatHistoryTrimmer]: generation must
+         * never be starved by the history window, but reserving the full
+         * maxTokens (default 65536 = "unlimited") would leave nothing for
+         * conversation history. Clamped to a chat-reasonable span.
+         */
+        private const val MIN_OUTPUT_RESERVE_TOKENS = 256
+        private const val MAX_OUTPUT_RESERVE_TOKENS = 4096
+
+        /**
+         * Fixed chat-template framing overhead (system-role markers, BOS/EOS
+         * framing) on top of the measured memory + tool-advertisement tokens.
+         */
+        private const val SYSTEM_TEMPLATE_FRAMING_TOKENS = 64
+
+        /**
+         * Minimum history floor (tokens) kept aside from the system-prompt
+         * budget so the current user message + a short reply always fit the
+         * container's real context even when it is small (2048).
+         */
+        private const val MIN_HISTORY_TOKENS = 128
+
+        /** Rough chars-per-token used to translate the token budget into a char budget. */
+        private const val CHARS_PER_TOKEN_ESTIMATE = 4
 
         /**
          * Settle window before the post-response memory pipeline starts.
@@ -997,6 +1485,7 @@ sealed interface ChatUiState {
         val generationState: GenerationState = GenerationState.Idle,
         val performanceStats: EngineStats? = null,
         val isGenerating: Boolean = false,
+        val isPreparing: Boolean = false,
         val streamingText: String? = null,
         val userPreferences: UserPreferences = UserPreferences(),
         val searchQuery: String = "",
@@ -1004,11 +1493,27 @@ sealed interface ChatUiState {
         val cloudMode: Boolean = false,
         val cloudDefaultModel: String = "",
         val pendingToolConfirmation: PendingToolConfirmation? = null,
-        val toolActivity: String? = null
+        val toolActivity: String? = null,
+        val toolEvents: List<ToolInvocationUi> = emptyList()
     ) : ChatUiState
 
     data class Error(val throwable: Throwable) : ChatUiState
 }
+
+/** Live status of one tool card in the chat. */
+enum class ToolInvocationStatus { RUNNING, SUCCESS, FAILED, DECLINED }
+
+/**
+ * One tool call rendered as an expandable chat card: name, rendered
+ * arguments, live status and the terminal summary/error from the executor.
+ */
+data class ToolInvocationUi(
+    val name: String,
+    val arguments: String = "",
+    val status: ToolInvocationStatus = ToolInvocationStatus.RUNNING,
+    val summary: String = "",
+    val error: String = ""
+)
 
 /**
  * Presentation chat message representation.
@@ -1043,7 +1548,9 @@ private data class CloudUiBits(
     val cloudStreamingText: String? = null,
     val cloudDefaultModel: String = "",
     val pendingToolConfirmation: PendingToolConfirmation? = null,
-    val toolActivity: String? = null
+    val toolActivity: String? = null,
+    val toolEvents: List<ToolInvocationUi> = emptyList(),
+    val isPreparing: Boolean = false
 )
 
 private fun Message.toChatMessage(): ChatMessage = ChatMessage(

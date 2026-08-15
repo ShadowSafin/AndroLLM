@@ -6,12 +6,16 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import io.androllm.core.runtime.Runtime
 import io.androllm.core.tools.api.Tool
 import io.androllm.core.tools.registry.ToolRegistry
+import io.androllm.core.tools.runtime.ToolRuntime
 import io.androllm.core.tools.tool.impl.AlarmTool
 import io.androllm.core.tools.tool.impl.AppLauncherTool
 import io.androllm.core.tools.tool.impl.BatteryTool
 import io.androllm.core.tools.tool.impl.BluetoothTool
+import io.androllm.core.tools.tool.impl.BrightnessTool
+import io.androllm.core.tools.tool.impl.ClockTool
 import io.androllm.core.tools.tool.impl.CalculatorTool
 import io.androllm.core.tools.tool.impl.CalendarTool
 import io.androllm.core.tools.tool.impl.CameraTool
@@ -25,6 +29,7 @@ import io.androllm.core.tools.tool.impl.GalleryTool
 import io.androllm.core.tools.tool.impl.GitHubTool
 import io.androllm.core.tools.tool.impl.ListAppFilesTool
 import io.androllm.core.tools.tool.impl.ListDownloadsTool
+import io.androllm.core.tools.tool.impl.LocationTool
 import io.androllm.core.tools.tool.impl.MapsSearchTool
 import io.androllm.core.tools.tool.impl.MapsTool
 import io.androllm.core.tools.tool.impl.MarkdownExportTool
@@ -46,6 +51,7 @@ import io.androllm.core.tools.tool.impl.TranslationTool
 import io.androllm.core.tools.tool.impl.UnitConverterTool
 import io.androllm.core.tools.tool.impl.VariableGetTool
 import io.androllm.core.tools.tool.impl.VariableSetTool
+import io.androllm.core.tools.tool.impl.VibrateTool
 import io.androllm.core.tools.tool.impl.VoiceRecorderTool
 import io.androllm.core.tools.tool.impl.VolumeTool
 import io.androllm.core.tools.tool.impl.WeatherTool
@@ -96,6 +102,10 @@ abstract class ToolsModule {
     @Binds @IntoSet abstract fun bindListApps(tool: PackageManagerTool): Tool
     @Binds @IntoSet abstract fun bindRunningApps(tool: RunningAppsTool): Tool
     @Binds @IntoSet abstract fun bindGallery(tool: GalleryTool): Tool
+    @Binds @IntoSet abstract fun bindVibrate(tool: VibrateTool): Tool
+    @Binds @IntoSet abstract fun bindBrightness(tool: BrightnessTool): Tool
+    @Binds @IntoSet abstract fun bindClock(tool: ClockTool): Tool
+    @Binds @IntoSet abstract fun bindLocation(tool: LocationTool): Tool
 
     // Compute & information
     @Binds @IntoSet abstract fun bindCalculator(tool: CalculatorTool): Tool
@@ -114,6 +124,10 @@ abstract class ToolsModule {
     @Binds @IntoSet abstract fun bindPdfExport(tool: PdfExportTool): Tool
     @Binds @IntoSet abstract fun bindMarkdownExport(tool: MarkdownExportTool): Tool
     @Binds @IntoSet abstract fun bindVoiceRecorder(tool: VoiceRecorderTool): Tool
+
+    // Runtime Registry — this module's registration into the central
+    // io.androllm.core.runtime.RuntimeRegistry.
+    @Binds @IntoSet abstract fun bindToolRuntime(runtime: ToolRuntime): Runtime
 
     companion object {
 

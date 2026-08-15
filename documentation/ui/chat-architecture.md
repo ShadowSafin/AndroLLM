@@ -275,7 +275,7 @@ Shows real-time generation statistics:
 - Time to first token
 - Total tokens generated
 - Model name and quantization
-- Backend (CPU/Vulkan)
+- Backend (CPU/GPU)
 - Context length used
 - Memory stats
 

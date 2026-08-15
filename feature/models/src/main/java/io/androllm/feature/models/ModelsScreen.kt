@@ -74,6 +74,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -118,6 +119,7 @@ import io.androllm.feature.models.benchmark.ModelBenchmarker
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.MemoryStats
 import io.androllm.core.ui.components.CloudAdaptiveNavigation
+import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.ModelWalletCard
 import io.androllm.core.ui.theme.DeskWalnut
 import io.androllm.core.ui.theme.DeskWalnutDeep
@@ -185,7 +187,7 @@ fun ModelsScreen(
                         }
 
                         IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                            Icon(Icons.Default.Folder, contentDescription = "Import GGUF", tint = io.androllm.core.ui.theme.DeskInk)
+                            Icon(Icons.Default.Folder, contentDescription = "Import LiteRT model", tint = io.androllm.core.ui.theme.DeskInk)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -354,12 +356,12 @@ private fun InstalledModelsTab(
                     modifier = Modifier.size(48.dp)
                 )
                 Text(
-                    text = "No Installed GGUF Models",
+                    text = "No Installed LiteRT Models",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Import a local .gguf file from storage or download from Catalog or Hugging Face.",
+                    text = "Import a local .litertlm / .tflite file from storage or download from the Catalog.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -367,7 +369,7 @@ private fun InstalledModelsTab(
                 Button(onClick = onImportClick) {
                     Icon(Icons.Default.Folder, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Import GGUF Model")
+                    Text("Import LiteRT Model")
                 }
             }
         }
@@ -378,6 +380,37 @@ private fun InstalledModelsTab(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Debug-only backend override: force CPU loads to bisect GPU
+            // output corruption and compare token speeds (see
+            // ModelsViewModel.forceCpuBackend). Persisted across launches.
+            item(key = "force_cpu_toggle") {
+                val forceCpu by viewModel.forceCpuBackend.collectAsStateWithLifecycle()
+                CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setForceCpuBackend(!forceCpu) }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Force CPU backend (debug)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (forceCpu) "ON — forces the CPU backend (no GPU delegate)" else "OFF — models use the GPU delegate when available",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Switch(checked = forceCpu, onCheckedChange = { viewModel.setForceCpuBackend(it) })
+                    }
+                }
+            }
+
             // Model Status Dashboard - shown when a model is active
             val engineState = data.engineState
             if (engineState !is EngineState.Unloaded) {
@@ -468,7 +501,7 @@ private fun DownloadsTab(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Browse Catalog or Hugging Face Hub to download GGUF models.",
+                    text = "Browse the Catalog to download LiteRT models.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -1219,7 +1252,7 @@ private fun HuggingFaceTab(
         }
     } else if (remoteModels.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No GGUF models found on Hugging Face Hub.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+            Text("No LiteRT models found on Hugging Face Hub.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
         }
     } else {
         LazyColumn(
@@ -1310,7 +1343,7 @@ private fun RemoteModelDetailsSheet(
                 Tab(
                     selected = selectedSubTab == 0,
                     onClick = { selectedSubTab = 0 },
-                    text = { Text("GGUF Files (${details.ggufFiles.size})") },
+                    text = { Text("Model Files (${details.ggufFiles.size})") },
                     selectedContentColor = io.androllm.core.ui.theme.LampDeep,
                     unselectedContentColor = io.androllm.core.ui.theme.DeskInk
                 )
@@ -1404,7 +1437,7 @@ private fun HardwareDiagnosticsTab(hardwareInfo: DeviceHardwareInfo) {
                     DiagnosticRow("Total RAM", "${"%.2f".format(hardwareInfo.totalRamGb)} GB")
                     DiagnosticRow("Free Storage", (hardwareInfo.freeStorageBytes).formatSize())
                     DiagnosticRow("Vulkan Acceleration", if (hardwareInfo.isVulkanSupported) "🟢 Supported" else "🔴 Not Available")
-                    DiagnosticRow("GPU Backend", "llama.cpp Vulkan Compute Shaders")
+                    DiagnosticRow("GPU Backend", "LiteRT GPU delegate")
                     DiagnosticRow("GPU Offloading", "Automatic (Max Safe Layers)")
                 }
             }
@@ -1704,7 +1737,7 @@ private fun ModelStatusDashboard(
                 val successGreen = Color(0xFF52C41A)
                 LedgerStatRow(
                     "GPU",
-                    if (stats.isGpuAccelerated) "Vulkan ✓" else "—",
+                    if (stats.isGpuAccelerated) "${stats.gpuBackendLabel} ✓" else "—",
                     valueColor = if (stats.isGpuAccelerated) successGreen else MaterialTheme.colorScheme.outline
                 )
                 LedgerStatRow("CPU", "Host ✓", valueColor = successGreen)
@@ -1726,7 +1759,7 @@ private fun ModelStatusDashboard(
                         onClick = {},
                         label = {
                             Text(
-                                text = if (isVulkan) "🟢 Vulkan" else "🟡 CPU",
+                                text = if (isVulkan) "🟢 ${stats.gpuBackendLabel}" else "🟡 CPU",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1756,9 +1789,9 @@ private fun ModelStatusDashboard(
                     Text(
                         text = buildString {
                             append("GPU: ")
-                            append(stats.gpuName.ifBlank { "Vulkan device" })
+                            append(stats.gpuName.ifBlank { stats.gpuBackendLabel.ifBlank { "GPU" } })
                             if (stats.gpuDriverVersion.isNotBlank()) append(" • Driver ${stats.gpuDriverVersion}")
-                            if (stats.gpuApiVersion.isNotBlank()) append(" • Vulkan ${stats.gpuApiVersion}")
+                            if (stats.gpuApiVersion.isNotBlank()) append(" • API ${stats.gpuApiVersion}")
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = successGreen
@@ -1775,11 +1808,11 @@ private fun ModelStatusDashboard(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                LedgerStatRow("GPU", if (stats.isGpuAccelerated) "Vulkan" else "—")
+                LedgerStatRow("GPU", stats.gpuBackendLabel.ifBlank { "—" })
                 LedgerStatRow("CPU", "ARM64 NEON")
                 LedgerStatRow(
                     "GPU Layers",
-                    if (stats.gpuLayersOffloaded > 0) stats.gpuLayersDisplay else "0 / ${stats.totalLayers}"
+                    if (stats.isGpuAccelerated) stats.gpuLayersDisplay else "—"
                 )
                 LedgerStatRow("CPU Layers", "Embedding · Sampling · Tokenizer")
                 LedgerStatRow("KV Cache", if (stats.isGpuAccelerated) "GPU" else "CPU")
@@ -1816,9 +1849,9 @@ private fun ModelStatusDashboard(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = when {
-                            stats.gpuInferenceVerified -> "✓ Vulkan inference active"
+                            stats.gpuInferenceVerified -> "✓ ${stats.gpuBackendLabel} inference active"
                             stats.vulkanValidationFailed -> "Inference active (self-test mismatch — see Diagnostics)"
-                            else -> "Verifying Vulkan inference…"
+                            else -> "Verifying ${stats.gpuBackendLabel} inference…"
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = when {

@@ -12,11 +12,12 @@ class CatalogValidatorTest {
         architecture: String = "llama",
         quantization: String = "Q4_K_M",
         sha256: String? = null,
-        downloadUrl: String = "https://huggingface.co/t/m-gguf/resolve/main/m-q4_k_m.gguf",
+        downloadUrl: String = "https://huggingface.co/t/m-litertlm/resolve/main/m-q4_k_m.litertlm",
         sizeBytes: Long = 1_000_000_000,
         contextLength: Int = 8192,
         license: String = "Apache-2.0",
-        categories: List<String> = listOf("CHAT")
+        categories: List<String> = listOf("CHAT"),
+        fileName: String = "m-q4_k_m.litertlm"
     ) = CatalogModel(
         id = id,
         name = "M $id",
@@ -25,8 +26,8 @@ class CatalogValidatorTest {
         categories = categories,
         license = license,
         author = "T",
-        repoId = "t/m-gguf",
-        fileName = "m-q4_k_m.gguf",
+        repoId = "t/m-litertlm",
+        fileName = fileName,
         downloadUrl = downloadUrl,
         sizeBytes = sizeBytes,
         parameters = "1.5B",
@@ -61,8 +62,18 @@ class CatalogValidatorTest {
 
     @Test
     fun nonHttpsUrlIsAnError() {
-        val report = CatalogValidator.validate(listOf(model(downloadUrl = "http://insecure.example/m.gguf")))
+        val report = CatalogValidator.validate(listOf(model(downloadUrl = "http://insecure.example/m.litertlm")))
         assertTrue(report.errors.any { it.contains("https") })
+    }
+
+    @Test
+    fun ggufFileNameIsAnError() {
+        // A GGUF artifact (pre-LiteRT schema) must fail validation so a stale
+        // remote catalog cannot replace the bundled LiteRT catalog with a
+        // 101-model GGUF list the runtime cannot load.
+        val report = CatalogValidator.validate(listOf(model(fileName = "m-q4_k_m.gguf")))
+        assertTrue(report.errors.any { it.contains("not a LiteRT artifact") })
+        assertFalse(report.isValid)
     }
 
     @Test

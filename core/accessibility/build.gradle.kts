@@ -48,6 +48,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:tools"))
     implementation(project(":core:utils"))
+    implementation(project(":core:runtime"))
     implementation(project(":engine"))
 
     implementation(libs.hilt.android)

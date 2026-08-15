@@ -67,7 +67,7 @@ The encryption key never leaves the secure hardware enclave where available.
 ### Local Data Protection
 
 - Room database files are stored in the app's private sandbox (`/data/data/io.androllm.app/`)
-- Model files (GGUF) are stored in the app's internal storage directory
+- Model files (`.litertlm`) are stored in the app's internal storage directory
 - Memory embeddings are stored in a separate Room database instance in the same sandbox
 - No data is encrypted at rest beyond the Android sandbox boundary (user-controlled feature placeholder)
 
@@ -87,7 +87,7 @@ The project uses the following dependency categories tracked for security:
 | Android SDK | AGP 8.6.0, Kotlin 2.1.20 | Updated regularly via Dependabot |
 | Firebase | BoM 34.12.0 | Google-maintained, auto-updated |
 | Networking | Ktor 3.0.3, OkHttp 4.12.0 | Both receive regular security patches |
-| Native | llama.cpp (vendored upstream) | Track upstream commits for CVEs |
+| Inference | LiteRT-LM 0.16.0, LiteRT 2.2.0 | Google-maintained AARs — track LiteRT-LM releases |
 | Voice | sherpa-onnx 1.13.4 | ONNX Runtime Mobile — track k2-fsa releases |
 
 ---
@@ -108,13 +108,13 @@ Recommended steps:
 
 ### Model Files
 
-GGUF model files can be downloaded from untrusted sources (HuggingFace, direct URLs).
-The app validates GGUF headers via [`GgufValidator.kt`](engine/src/main/java/io/androllm/engine/utils/GgufValidator.kt)
-but does not perform full model integrity checks. Users should:
+`.litertlm` model files can be downloaded from untrusted sources (HuggingFace, direct URLs).
+The app validates container headers via [`LiteRtValidator.kt`](engine/src/main/java/io/androllm/engine/utils/LiteRtValidator.kt)
+and runs a post-load coherence probe, but does not perform full model integrity checks. Users should:
 
-- Only download models from trusted sources
+- Only download models from trusted sources (the bundled `litert-community` catalog)
 - Verify SHA-256 checksums when provided by the model author
-- Be aware that malicious GGUF files could trigger buffer overflows in the C++ engine
+- Be aware that malicious model files could exploit the LiteRT-LM/LiteRT runtimes
 
 ### Microphone Access
 
@@ -136,7 +136,7 @@ legitimate functionality but users should be aware:
 | Provide fix or mitigation | 30 business days |
 | Public disclosure | After fix is available |
 
-If the vulnerability affects upstream dependencies (llama.cpp, sherpa-onnx, etc.),
+If the vulnerability affects upstream dependencies (LiteRT-LM, sherpa-onnx, etc.),
 we will also coordinate disclosure with those projects.
 
 ---

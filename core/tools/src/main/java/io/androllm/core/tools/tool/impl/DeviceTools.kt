@@ -1,15 +1,22 @@
 package io.androllm.core.tools.tool.impl
 
+import android.Manifest
 import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.androllm.core.tools.api.Tool
 import io.androllm.core.tools.api.ToolCategory
@@ -298,6 +305,197 @@ class RunningAppsTool @Inject constructor(
                     pm.getApplicationLabel(pm.getApplicationInfo(s.packageName, 0)).toString()
                 }.getOrDefault(s.packageName)
             },
+            data
+        )
+    }
+}
+
+/**
+ * Vibrates the phone for a short burst. VIBRATE is a normal permission —
+ * auto-granted at install, no runtime prompt.
+ */
+@Singleton
+class VibrateTool @Inject constructor(
+    @ApplicationContext private val context: Context
+) : Tool {
+
+    override val spec = ToolSpec(
+        name = "vibrate",
+        description = "Vibrate the phone for a short burst (default ~500ms).",
+        parameters = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("duration_ms") {
+                    put("type", "integer")
+                    put("description", "Vibration length in milliseconds (default 500)")
+                }
+            }
+        },
+        permission = ToolPermission.SYSTEM,
+        category = ToolCategory.DEVICE
+    )
+
+    override suspend fun execute(arguments: JsonObject): ToolResult {
+        val duration = ToolArgs.int(arguments, "duration_ms", 500).coerceIn(50, 5000)
+        val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            ?: return ToolResult.Failure("This device has no vibrator.")
+        val ok = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(duration.toLong(), VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(duration.toLong())
+            }
+            true
+        }.getOrDefault(false)
+        return if (ok) {
+            ToolResult.Success(
+                "Vibrated for ${duration}ms.",
+                buildJsonObject { put("duration_ms", duration) }
+            )
+        } else {
+            ToolResult.Failure("Could not vibrate the device.")
+        }
+    }
+}
+
+/**
+ * Sets the screen brightness (0–100). Requires the special
+ * 'Modify system settings' permission (WRITE_SETTINGS) — the tool fails with
+ * a clear message when it is not granted instead of silently doing nothing.
+ */
+@Singleton
+class BrightnessTool @Inject constructor(
+    @ApplicationContext private val context: Context
+) : Tool {
+
+    override val spec = ToolSpec(
+        name = "set_brightness",
+        description = "Set the screen brightness to a percentage (0–100). Requires the special 'Modify system settings' permission.",
+        parameters = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("percent") { put("type", "integer"); put("description", "0–100") }
+            }
+            putJsonArray("required") { add("percent") }
+        },
+        permission = ToolPermission.SYSTEM,
+        requiresConfirmation = true,
+        category = ToolCategory.DEVICE
+    )
+
+    override suspend fun execute(arguments: JsonObject): ToolResult {
+        val percent = ToolArgs.int(arguments, "percent", -1).coerceIn(0, 100)
+        if (percent < 0) return ToolResult.Failure("Missing required argument: percent")
+        if (!Settings.System.canWrite(context)) {
+            return ToolResult.Failure(
+                "Screen brightness needs the 'Modify system settings' permission. " +
+                    "Open Settings → Apps → AndroLLM → Modify system settings and enable it, then try again."
+            )
+        }
+        val ok = runCatching {
+            Settings.System.putInt(
+                context.contentResolver,
+                Settings.System.SCREEN_BRIGHTNESS,
+                (percent * 255 / 100).coerceIn(1, 255)
+            )
+        }.getOrDefault(false)
+        return if (ok) {
+            ToolResult.Success(
+                "Set screen brightness to $percent%.",
+                buildJsonObject { put("percent", percent) }
+            )
+        } else {
+            ToolResult.Failure("Could not change the screen brightness.")
+        }
+    }
+}
+
+/**
+ * Opens the system clock / alarms app (no permission needed).
+ */
+@Singleton
+class ClockTool @Inject constructor(
+    @ApplicationContext private val context: Context
+) : Tool {
+
+    override val spec = ToolSpec(
+        name = "open_clock",
+        description = "Open the system clock and alarms app.",
+        permission = ToolPermission.APPS,
+        category = ToolCategory.MEDIA
+    )
+
+    override suspend fun execute(arguments: JsonObject): ToolResult {
+        val showAlarms = Intent("android.intent.action.SHOW_ALARMS").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val ok = runCatching {
+            if (showAlarms.resolveActivity(context.packageManager) != null) {
+                context.startActivity(showAlarms)
+            } else {
+                context.startActivity(
+                    Intent(Intent.ACTION_MAIN).apply {
+                        addCategory("android.intent.category.APP_CLOCK")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }
+            true
+        }.getOrDefault(false)
+        return if (ok) {
+            ToolResult.Success("Opened the clock app.")
+        } else {
+            ToolResult.Failure("Could not open the clock app.")
+        }
+    }
+}
+
+/**
+ * Reads the device's last known location (GPS or network). The confirmation
+ * card requests the location permission on approve; without it the tool
+ * fails with a clear message.
+ */
+@Singleton
+class LocationTool @Inject constructor(
+    @ApplicationContext private val context: Context
+) : Tool {
+
+    override val spec = ToolSpec(
+        name = "get_location",
+        description = "Read the device's last known location (latitude, longitude, accuracy). Requires location permission.",
+        permission = ToolPermission.LOCATION,
+        requiresConfirmation = true,
+        category = ToolCategory.INFORMATION
+    )
+
+    override suspend fun execute(arguments: JsonObject): ToolResult {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return ToolResult.Failure("Location services are unavailable on this device.")
+        val fine = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarse = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (fine != PackageManager.PERMISSION_GRANTED && coarse != PackageManager.PERMISSION_GRANTED) {
+            return ToolResult.Failure(
+                "Location permission is not granted — enable it in Settings → Permissions, then try again."
+            )
+        }
+        val location = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .mapNotNull { provider ->
+                runCatching { lm.getLastKnownLocation(provider) }.getOrNull()
+            }
+            .maxByOrNull { it.time }
+            ?: return ToolResult.Failure(
+                "No recent location is available — open any maps app once to warm up the last-known location, then try again."
+            )
+        val data = buildJsonObject {
+            put("latitude", location.latitude)
+            put("longitude", location.longitude)
+            put("accuracy_m", location.accuracy.toDouble())
+        }
+        return ToolResult.Success(
+            "Last known location: ${"%.5f".format(location.latitude)}, ${"%.5f".format(location.longitude)} (±${location.accuracy}m)",
             data
         )
     }

@@ -3,8 +3,8 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 import { Reveal } from "@/animations/reveal";
 
 const rows = [
-  { label: "Local LLMs", typical: "None or limited experiments", andro: "Full llama.cpp + GGUF support" },
-  { label: "GPU acceleration", typical: "Rarely available", andro: "Vulkan offloading with CPU fallback" },
+  { label: "Local LLMs", typical: "None or limited experiments", andro: "Full LiteRT-LM + .litertlm support" },
+  { label: "GPU acceleration", typical: "Rarely available", andro: "OpenCL GPU delegate with CPU fallback" },
   { label: "Multi-turn chat", typical: "None or re-prefill every turn", andro: "KV-cache persistence, diff-based continuation" },
   { label: "Cloud providers", typical: "One proprietary backend", andro: "Any LiteLLM-compatible endpoint" },
   { label: "Persistent memory", typical: "None", andro: "Vector embeddings + hybrid retrieval" },

@@ -37,12 +37,14 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
+    // GGUF parsing + model discovery for the catalog (io.androllm.core.models.gguf).
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
     implementation("com.google.dagger:hilt-android:2.57.1")
     ksp("com.google.dagger:hilt-compiler:2.57.1")
     implementation("com.jakewharton.timber:timber:5.0.1")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.google.truth:truth:1.1.5")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("io.mockk:mockk:1.13.16")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

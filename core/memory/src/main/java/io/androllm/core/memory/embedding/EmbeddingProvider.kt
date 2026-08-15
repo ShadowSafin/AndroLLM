@@ -6,14 +6,14 @@ import io.androllm.core.common.onError
 import io.androllm.core.common.onSuccess
 import io.androllm.core.memory.MemorySettingsStore
 import io.androllm.core.memory.util.MemoryLogger
-import io.androllm.engine.embedding.LlamaEmbeddingEngine
+import io.androllm.engine.embedding.LiteRtEmbeddingEngine
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Abstraction over sentence-embedding generation. The production
- * implementation runs a GGUF embedding model through the vendored llama.cpp
- * engine — fully on-device, no network.
+ * implementation runs the EmbeddingGemma 300M `.tflite` model through the raw
+ * LiteRT interpreter — fully on-device, no network.
  */
 interface EmbeddingProvider {
 
@@ -34,12 +34,12 @@ interface EmbeddingProvider {
 }
 
 /**
- * llama.cpp-backed [EmbeddingProvider]. Uses the small dedicated embedding
- * engine in the engine module; the model path comes from [MemorySettings].
+ * LiteRT-backed [EmbeddingProvider]. Uses the dedicated embedding engine in
+ * the engine module; the model path comes from [MemorySettings].
  */
 @Singleton
-class LlamaEmbeddingProvider @Inject constructor(
-    private val engine: LlamaEmbeddingEngine,
+class LiteRtEmbeddingProvider @Inject constructor(
+    private val engine: LiteRtEmbeddingEngine,
     private val settingsStore: MemorySettingsStore,
     private val logger: MemoryLogger
 ) : EmbeddingProvider {

@@ -8,6 +8,7 @@ import io.androllm.engine.models.EngineDebugInfo
 import io.androllm.engine.models.EngineStats
 import io.androllm.engine.models.GenerationConfig
 import io.androllm.engine.models.MemoryStats
+import io.androllm.engine.models.ModelLoadConfig
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -48,8 +49,16 @@ interface EngineRepository {
 
     /**
      * Loads a model into the engine.
+     *
+     * Runs the pre-load safety gates (GGUF header validation + RAM footprint
+     * check inside the engine) and, when [ModelLoadConfig.runSelfTest] is on
+     * (default), a short coherence probe after loading — a model that cannot
+     * produce text is unloaded and reported instead of being marked Ready.
      */
-    suspend fun loadModel(model: Model): Result<Unit>
+    suspend fun loadModel(
+        model: Model,
+        config: ModelLoadConfig = ModelLoadConfig()
+    ): Result<Unit>
 
     /**
      * Unloads the current model.
@@ -91,12 +100,32 @@ interface EngineRepository {
      * (the chat UI never sees it). Used by background pipelines such as the
      * memory extractor/summarizer. Serialized with [generate] so the two can
      * never overlap on the shared native engine.
+     *
+     * The [timeoutMs] deadline is REAL: a bare coroutine timeout cannot
+     * interrupt the blocking JNI decode (the exception is only delivered
+     * after the native loop returns on its own), so the repository actively
+     * aborts the engine at the deadline. Default 300s preserves the historical
+     * behavior for background extraction; interactive callers (e.g. the tool
+     * planner) pass their own shorter budget so a hung pass never wedges the
+     * shared engine for the full ceiling.
      */
-    suspend fun generateQuiet(prompt: String, config: GenerationConfig = GenerationConfig()): Result<String>
+    suspend fun generateQuiet(
+        prompt: String,
+        config: GenerationConfig = GenerationConfig(),
+        timeoutMs: Long = 300_000L
+    ): Result<String>
 
     /**
      * Requests cancellation of an in-flight generation.
      */
+    /**
+     * Returns (and clears) the native `<|tool_call|>` markers the model
+     * emitted during the last chat generation — read by the chat layer right
+     * after [generateChat] completes so it can execute them through the tool
+     * registry (cloud-style function calling).
+     */
+    fun takeLastNativeToolCalls(): List<io.androllm.engine.core.NativeToolCall> = emptyList()
+
     suspend fun cancelGeneration(): Result<Unit>
 
     /**

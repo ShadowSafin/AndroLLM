@@ -36,8 +36,7 @@ AndroLLM/
     ├── MEMORY.md                  # Memory system overview
     ├── VOICE_ASSISTANT.md         # Voice assistant overview
     ├── CLOUD_PROVIDERS.md         # Cloud provider overview
-    ├── VULKAN.md                  # Vulkan overview
-    ├── LLAMA_CPP.md               # llama.cpp overview
+    ├── LITERT.md                  # LiteRT / LiteRT-LM quick reference
     ├── FIREBASE_AUTH.md           # Firebase auth overview
     ├── ANDROLLM_REBRAND_SUMMARY.md
     ├── getting-started/
@@ -49,9 +48,9 @@ AndroLLM/
     │   ├── mcp.md                 # MCP server integration
     │   └── accessibility-automation.md
     ├── ai/
-    │   ├── llama-cpp.md           # llama.cpp integration
-    │   ├── gguf.md                # GGUF format guide
-    │   └── vulkan.md              # Vulkan acceleration
+    │   ├── litert-lm.md           # LiteRT-LM engine integration
+    │   ├── model-formats.md       # Model formats (.litertlm, GGUF legacy)
+    │   └── acceleration.md        # CPU / GPU acceleration
     ├── voice/
     │   ├── voice-assistant.md     # Voice pipeline deep dive
     │   └── text-normalization.md  # TTS normalization & OOV spelling
@@ -107,13 +106,13 @@ Link to related documents using relative paths:
 
 ```markdown
 See [Building Guide](BUILDING.md) for full instructions.
-See also [ai/llama-cpp.md](ai/llama-cpp.md).
+See also [ai/litert-lm.md](ai/litert-lm.md).
 ```
 
 Link to source files using relative paths from the doc location:
 
 ```markdown
-Implementation: [`LlamaCppEngine.kt`](engine/src/main/java/io/androllm/engine/llama/LlamaCppEngine.kt)
+Implementation: [`LiteRtLmEngine.kt`](../engine/src/main/java/io/androllm/engine/core/LiteRtLmEngine.kt)
 ```
 
 ### Tables
@@ -146,7 +145,7 @@ Use blockquotes for special notes:
 ```markdown
 > **Warning:** This operation deletes all local data permanently.
 
-> **Note:** The Vulkan backend requires a host Vulkan SDK for building.
+> **Note:** The LiteRT GPU delegate requires a working OpenCL implementation; the engine falls back to CPU automatically.
 
 > **Tip:** Use the benchmark tool in Developer settings to measure your device.
 ```

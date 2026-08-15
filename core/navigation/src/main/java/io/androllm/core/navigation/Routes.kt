@@ -11,6 +11,13 @@ object Routes {
     const val ONBOARDING = AppConstants.Navigation.ONBOARDING_ROUTE
     const val AUTH = AppConstants.Navigation.AUTH_ROUTE
     const val PROFILE_SETUP = AppConstants.Navigation.PROFILE_SETUP_ROUTE
+
+    /** First-launch permission & access setup (shown once after sign-in). */
+    const val SETUP = AppConstants.Navigation.SETUP_ROUTE
+
+    /** Settings → Permissions & Access (manage every gate later). */
+    const val PERMISSIONS = AppConstants.Navigation.PERMISSIONS_ROUTE
+
     const val HOME = AppConstants.Navigation.HOME_ROUTE
     const val CHAT = AppConstants.Navigation.CHAT_ROUTE
     const val CHAT_DETAIL = AppConstants.Navigation.CHAT_DETAIL_ROUTE

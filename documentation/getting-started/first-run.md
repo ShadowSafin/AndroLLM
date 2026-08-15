@@ -9,7 +9,7 @@ Quick start guide for new users.
 ### From Source
 
 ```bash
-# Prerequisites: Android Studio, JDK 17, NDK r26, Vulkan SDK
+# Prerequisites: Android Studio, JDK 17
 git clone https://github.com/your-org/androllm.git
 cd androllm
 ./gradlew assembleDebug
@@ -28,7 +28,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 | Architecture | arm64-v8a | arm64-v8a |
 | RAM | 4 GB | 8 GB+ |
 | Storage | 500 MB free | 2 GB free |
-| Vulkan | Optional (CPU fallback) | Supported |
+| GPU (OpenCL) | Optional (CPU fallback) | Supported |
 
 ---
 
@@ -59,9 +59,9 @@ If this is your first sign-in, set your display name and optional bio. This data
 5. Once downloaded, tap **Load**
 
 **Recommended starting models:**
-- Qwen2.5-1.5B-Instruct-Q4_K_M (small phones, 2-4GB RAM)
-- Gemma-2-2B-Q4_K_M (mid-range, 4-6GB RAM)
-- Qwen2.5-7B-Q5_K_M (flagship, 8GB+ RAM)
+- Qwen3 0.6B Mixed Int4 (small phones, ~2GB free RAM)
+- Gemma 3 1B Q4 (mid-range, ~2-4GB free RAM)
+- Qwen2.5 1.5B Q8 (high-end, ~3-6GB free RAM)
 
 ### 5. Start Chatting
 
@@ -132,7 +132,7 @@ Open the conversation drawer → tap the three-dot menu → Export.
 | Voice not responding | Check mic permission; speak louder/closer |
 | Cloud provider errors | Verify API key; check internet connection |
 | App crashes on startup | Clear app data: Settings → Apps → AndroLLM → Clear Data |
-| Slow generation | Enable Vulkan (check Developer diagnostics); use smaller model |
+| Slow generation | Check backend is GPU in Developer diagnostics; use smaller model |
 
 For detailed troubleshooting, see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md).
 

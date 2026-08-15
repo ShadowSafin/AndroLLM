@@ -15,7 +15,7 @@ AndroLLM is designed around a simple principle: **your data stays on your device
 ## Data That Stays on Your Device
 
 ### Local Inference Data
-When you run models locally (GGUF via llama.cpp):
+When you run models locally (`.litertlm` via the LiteRT-LM runtime):
 - Model weights and binaries — stored in your app's private storage
 - Conversation history — stored in the local Room database
 - Generated responses — ephemeral during generation, persisted locally after

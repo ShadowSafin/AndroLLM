@@ -40,7 +40,11 @@ class HuggingFaceApi @Inject constructor(
     }
 
     /**
-     * Searches Hugging Face models for GGUF entries matching [query] and [sort].
+     * Searches Hugging Face models for LiteRT (.litertlm) entries matching
+     * [query] and [sort]. The `litertlm` filter keeps the list to models the
+     * app can actually run — a raw `gguf` filter surfaces the entire hub
+     * (hundreds of llama.cpp artifacts that fail LiteRT header validation on
+     * download).
      */
     suspend fun searchModels(
         query: String = "",
@@ -53,7 +57,11 @@ class HuggingFaceApi @Inject constructor(
             else -> "downloads"
         }
 
-        val url = "$BASE_URL/api/models?search=${query.trim()}&filter=gguf&sort=$sortParam&direction=-1&limit=$limit"
+        // An empty query + filter=litertlm returns the official
+        // litert-community models (Qwen3 0.6B/4B, etc.) — the curated
+        // on-device set — instead of every GGUF on the hub.
+        val search = query.trim().ifEmpty { "litertlm" }
+        val url = "$BASE_URL/api/models?search=$search&filter=litertlm&sort=$sortParam&direction=-1&limit=$limit"
         return httpClient.get(url).body()
     }
 

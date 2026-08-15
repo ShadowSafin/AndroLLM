@@ -111,7 +111,7 @@ data class ModelEntity(
     val description: String?,
     @ColumnInfo(name = "file_path") val filePath: String,
     @ColumnInfo(name = "file_size") val fileSize: Long? = null,
-    val format: String = "GGUF",
+    val format: String = "GGUF", // legacy default; catalog models are LITERTLM
     val parameters: String?,
     val quantization: String?,
     @ColumnInfo(name = "context_length") val contextLength: Int? = null,

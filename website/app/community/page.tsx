@@ -131,7 +131,7 @@ export default function CommunityPage() {
               <ol className="mt-6 space-y-3">
                 {[
                   "Fork the repository and clone your fork",
-                  "Create a feature branch: feat/add-provider, fix/vulkan-device-lost, docs/…",
+                  "Create a feature branch: feat/add-provider, fix/device-lost-recovery, docs/…",
                   "Install the toolchain (see BUILDING.md) and build the debug APK",
                   "Run the test suite, then open the pull request against main",
                 ].map((step, i) => (

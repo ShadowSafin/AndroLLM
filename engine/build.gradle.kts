@@ -8,35 +8,12 @@ plugins {
 android {
     namespace = "io.androllm.engine"
     compileSdk = 35
-    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         minSdk = 28
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
-
-        // Vulkan shader generation runs once per ABI and dominates build time.
-        // Snapdragon/Adreno is the target, so only arm64-v8a is built by default.
-        // Add x86_64 with -PandrollmAbis=arm64-v8a,x86_64 to also run on emulators.
-        val abis = (project.findProperty("androllmAbis") as String? ?: "arm64-v8a")
-            .split(",")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-
-        ndk {
-            abiFilters += abis
-        }
-
-        externalNativeBuild {
-            cmake {
-                cppFlags += listOf("-std=c++17", "-fexceptions", "-frtti")
-                arguments += listOf(
-                    "-DANDROID_STL=c++_shared",
-                    "-DCMAKE_BUILD_TYPE=Release"
-                )
-            }
-        }
     }
 
     buildTypes {
@@ -54,6 +31,12 @@ android {
     kotlin {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            // The LiteRT-LM / LiteRT AARs (0.16.0 / 2.2.0) ship Kotlin 2.3.0
+            // metadata while this project's toolchain is Kotlin 2.1.20. The
+            // AAR's own POM pins kotlin-reflect 2.2.21, so its runtime needs
+            // are satisfied by 2.2.x — the version check is the only blocker.
+            // Bumping the whole project to Kotlin 2.3 is tracked separately.
+            freeCompilerArgs.add("-Xskip-metadata-version-check")
         }
     }
 
@@ -62,21 +45,9 @@ android {
         buildConfig = true
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE,NOTICE}"
-        }
-        jniLibs {
-            // ggml loads its backend .so files by path at runtime, so they must
-            // stay as real files in the APK rather than being page-aligned only.
-            useLegacyPackaging = false
         }
     }
 
@@ -88,12 +59,39 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:models"))
+    implementation(project(":core:runtime"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("com.google.dagger:hilt-android:2.57.1")
     ksp("com.google.dagger:hilt-compiler:2.57.1")
     implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // LiteRT-LM: the official Kotlin runtime for on-device LLM inference
+    // (chat/generation). Version 0.16.0 (2026-08-11) — see
+    // documentation/LOCAL_LLM_ARCHITECTURE.md for the pin rationale.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.16.0")
+
+    // Raw LiteRT runtime + CompiledModel API, used by the embedding pipeline
+    // (memory search). The LiteRT-LM EmbeddingEngine is unreleased as of
+    // 0.16.0, so embeddings run through the LiteRT CompiledModel API
+    // directly (Accelerator.CPU/GPU/NPU).
+    //
+    // NOTE: litert-api 2.2.0 transitively requires androidx.lifecycle:
+    // lifecycle-runtime:2.10.0 (only used by its remote ModelProvider/
+    // ModelSelector helpers, which this project never calls). That version
+    // drags lifecycle-runtime-compose to 2.10.0, which requires Compose
+    // 1.9.0 — silently overriding the project BOM (2024.10.00 → Compose
+    // 1.7.4) and breaking the app at runtime (NoSuchMethodError on FlowRow
+    // in ModelWalletCard, compiled against 1.7.4). Excluding the unused
+    // lifecycle dep keeps Compose on the project BOM.
+    implementation("com.google.ai.edge.litert:litert:2.2.0") {
+        exclude(group = "androidx.lifecycle", module = "lifecycle-runtime")
+    }
+    implementation("com.google.ai.edge.litert:litert-api:2.2.0") {
+        exclude(group = "androidx.lifecycle", module = "lifecycle-runtime")
+    }
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("io.mockk:mockk:1.13.16")

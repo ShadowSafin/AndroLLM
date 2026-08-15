@@ -64,10 +64,12 @@ const config: Config = {
         small: "8px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(20,20,19,0.03), 0 8px 24px -12px rgba(20,20,19,0.10)",
-        cardHover: "0 2px 4px rgba(20,20,19,0.04), 0 24px 48px -16px rgba(179,87,62,0.22)",
-        ember: "0 10px 40px -10px rgba(217,119,87,0.55)",
-        night: "0 1px 2px rgba(0,0,0,0.4), 0 12px 32px -12px rgba(0,0,0,0.55)",
+        card: "var(--card-shadow)",
+        cardHover: "var(--card-shadow-hover)",
+        ember: "var(--shadow-ember)",
+        emberFloat: "var(--shadow-ember-float)",
+        emberFloatSoft: "var(--shadow-ember-float-soft)",
+        nav: "var(--nav-shadow)",
       },
       backgroundImage: {
         "ember-glow": "radial-gradient(1200px 600px at 50% -10%, rgba(217,119,87,0.16), transparent 60%)",

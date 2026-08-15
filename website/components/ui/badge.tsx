@@ -7,11 +7,11 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]",
-        secondary: "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]",
+        default: "border-transparent bg-[var(--badge-accent-bg)] text-[var(--badge-accent-text)] dark:text-[var(--badge-accent-text-dark)]",
+        secondary: "border-[var(--line)] bg-[var(--card-bg)] text-[var(--muted)]",
         outline: "border-[var(--line)] bg-transparent text-[var(--ink-dim)]",
-        ember: "border-transparent bg-[var(--accent)] text-[#fbfaf4]",
-        glow: "border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent-deep)] dark:text-[var(--accent-soft)] shadow-[0_0_24px_-6px_rgba(217,119,87,0.5)]",
+        ember: "border-transparent bg-[var(--btn-primary-bg)] text-[var(--badge-accent-solid-text)]",
+        glow: "border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[var(--badge-accent-bg)] text-[var(--badge-accent-text)] dark:text-[var(--badge-accent-text-dark)] shadow-[var(--badge-glow-shadow)]",
       },
     },
     defaultVariants: { variant: "default" },

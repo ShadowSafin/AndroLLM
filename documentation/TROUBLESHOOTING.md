@@ -6,79 +6,6 @@ Common issues and their solutions in AndroLLM.
 
 ## Build Issues
 
-### Vulkan SDK Not Found
-
-**Symptoms:**
-```
-Vulkan is enabled but the host shader compiler (glslc) was not found.
-Install the Vulkan SDK, set VULKAN_SDK, or configure with -DANDROLLM_VULKAN=OFF.
-```
-
-**Cause:** The Vulkan SDK is not installed or `VULKAN_SDK` environment variable is not set.
-
-**Solution:**
-1. Download and install the Vulkan SDK from [LunarG](https://vulkan.lunarg.com/sdk/home)
-2. Set the environment variable:
-   - **Windows**: `set VULKAN_SDK=C:\Lib\vulkan\1.3.xxx\x64`
-   - **Linux**: `export VULKAN_SDK=$HOME/VulkanSDK/1.3.xxx/x86_64`
-3. Restart Android Studio
-4. Rebuild
-
-**Alternative:** If you don't need Vulkan for development:
-```bash
-./gradlew :engine:build -PandrollmVulkan=OFF
-```
-This produces a CPU-only build (not recommended for production).
-
----
-
-### NDK Version Mismatch
-
-**Symptoms:**
-```
-NDK manifest version mismatch: expected 26.1.10909125 but found 25.2.9519653
-```
-
-**Cause:** The installed NDK version doesn't match what the project expects.
-
-**Solution:**
-```bash
-# Install the correct NDK version
-$ANDROID_HOME/tools/bin/sdkmanager "ndk;26.1.10909125"
-
-# Verify installation
-ls $ANDROID_HOME/ndk/
-```
-
-If multiple NDK versions are installed, ensure `local.properties` points to the correct one:
-```properties
-ndk.dir=/path/to/Android/Sdk/ndk/26.1.10909125
-```
-
----
-
-### Host Compiler Not Found (Windows)
-
-**Symptoms:**
-```
-No host C/C++ compiler found for the Vulkan shader generator.
-Install a host toolchain (MSVC, GCC or LLVM-MinGW) and put it on PATH.
-```
-
-**Cause:** The Vulkan shader generator needs a native host compiler (not the cross-compiler).
-
-**Solution:**
-1. Install MSVC via Visual Studio Build Tools (select "C++ build tools")
-2. Or install MinGW-w64 and add to PATH
-3. Verify:
-   ```bash
-   gcc --version
-   g++ --version
-   ```
-4. Ensure the compiler is on PATH **before** Android Studio's NDK clang
-
----
-
 ### Gradle Daemon OOM
 
 **Symptoms:** Build fails with `Java heap space` or `Out of memory`
@@ -92,137 +19,166 @@ org.gradle.caching=true
 
 ---
 
+### Firebase Plugin Fails During Sync
+
+**Symptoms:** Build fails with a `google-services.json` missing error
+
+**Solution:** Add a real `google-services.json` to `app/`, or remove the Google Services plugin for local-only builds.
+
+---
+
+### First Build Is Very Slow
+
+**Symptoms:** Long initial build, Gradle downloads for minutes
+
+**Solution:** Normal — the LiteRT-LM (`litertlm-android:0.16.0`) and LiteRT (`litert:2.2.0`) AARs plus the full dependency graph are downloaded once. Subsequent builds are incremental.
+
+---
+
 ## Runtime Issues
-
-### Vulkan Device Lost
-
-**Symptoms:**
-- Generation starts normally then crashes with `VK_ERROR_DEVICE_LOST`
-- App log shows: `[VulkanDiag] devLostRecovered=N`
-- Model stops responding mid-generation
-
-**Cause:** GPU driver crash, thermal throttling, or insufficient VRAM on the device.
-
-**Solution:**
-1. The engine should automatically recover by recreating the context
-2. If recovery fails, it falls back to CPU (check logs for `cpuSessionFallback=true`)
-3. Reduce context length in Model Parameters sheet
-4. Close other GPU-intensive apps
-5. If the issue persists, the device's GPU driver may have a bug — try updating the OS
-
-**Diagnostics:** Check Settings → Developer Options → Vulkan Diagnostics for `backend`, `gpuFree`, `gpuTotal`, `recovery=N`, `devLostRecovered=M`.
-
----
-
-### NaN / INF Logits
-
-**Symptoms:**
-- Generated text contains garbled characters or repetition loops
-- Log shows: `corruption detected: nan logits` or `invalid token`
-- Generation stops unexpectedly
-
-**Cause:** Numerical instability during decoding, often triggered by:
-- Very high temperature values (> 2.0)
-- Extremely low top-k values (1–3) with certain model architectures
-- Context length exceeding model's training limit
-- Model file corruption
-
-**Solution:**
-1. The engine attempts automatic recovery (context recreation → CPU fallback)
-2. Check logs for `recoveryCount=N` — if > 3, the model may be incompatible
-3. Reduce temperature to 0.8–1.2 range
-4. Increase top-k to 40–50
-5. Verify the GGUF file integrity (re-download if necessary)
-6. Use a different quantization (Q5_K_M or Q8_0 are more numerically stable than IQ1_IQ)
-
-**Prevention:** Always validate GGUF files before loading using the built-in validator.
-
----
-
-### Second-Prompt Corruption
-
-**Symptoms:**
-- First prompt generates correctly
-- Second prompt produces garbled or nonsensical output
-- KV cache position appears incorrect in debug logs
-
-**Cause:** Context shift boundary issue — the diff-based multi-turn continuation doesn't properly handle the transition when the context is nearly full.
-
-**Solution:**
-1. The engine should auto-trigger a full re-render when `pos_check >= nCtx - 4`
-2. If this doesn't happen, manually reset the conversation (Chat drawer → New conversation)
-3. Reduce context length setting for the model
-4. Enable automatic conversation summarization (planned feature)
-
-**Diagnostics:** Check `EngineDebugInfo` in developer screen for `chatPosition`, `nCtx`, `nLoaded`.
-
----
 
 ### Model Fails to Load
 
 **Symptoms:**
 - "Failed to load model" error
-- Log shows: `ggml_load: unknown architecture` or `invalid magic`
 - Model shows as "Downloaded" but won't load
+- `LiteRtValidator` rejects the file
 
 **Cause:**
-- GGUF file is corrupted or incomplete
-- Model architecture is not supported by the vendored llama.cpp
-- File is not actually a GGUF (wrong extension)
-- Insufficient RAM
+- `.litertlm` file is corrupted or truncated (bad download)
+- The file is not actually a LiteRT container (e.g. a renamed GGUF or safetensors file)
+- The embedded `LlmMetadata` proto is unreadable or references an unknown family
+- Insufficient RAM (the `ModelResourceGuard` refuses loads that exceed available RAM)
 
 **Solution:**
-1. Verify the file is a valid GGUF:
-   ```bash
-   # Check magic bytes: should be 0x46554747 ("GGUF")
-   xxd -l 16 /path/to/model.gguf
-   ```
-2. Check supported architectures in `SupportedArchitectures.kt` (137 architectures)
+1. Re-download the model from the catalog or the `litert-community` HuggingFace repo
+2. Verify the file extension and size match the catalog entry
 3. Check available RAM vs. model requirements (see Model Catalog)
-4. Re-download the model if the file is corrupted
-5. Try a different quantization level (heavier quants like Q8_0 may need more RAM)
+4. Check logs (tag `AndroLLM-Engine`) for the rejection reason — `LiteRtValidator` logs the exact failure
+
+> **Note:** GGUF files can be imported for metadata **inspection only** — the
+> LiteRT runtime cannot execute them, and load is rejected.
 
 ---
 
-### Insufficient RAM
+### GPU Acceleration Not Working / Falls Back to CPU
 
 **Symptoms:**
-- Model fails to load with OOM error
-- App crashes during model loading
-- System kills the app (low-memory killer)
+- `backend=cpu` in Developer Diagnostics even though the device has a GPU
+- Logs show GPU delegate initialization failure
+
+**Cause:**
+- The device's OpenCL drivers are old or buggy
+- The GPU delegate is unsupported on this SoC/OS combination
+- GPU memory is insufficient for the model
 
 **Solution:**
-1. Check device RAM in Settings → Developer Options → Device Info
-2. Choose smaller models (fewer parameters, lighter quantization)
-3. Unload unused models: Models screen → tap unloaded model
-4. Close other apps to free RAM
-5. Restart the device if RAM is fragmented
-
-**RAM guidelines by model size (quantization Q4_K_M):**
-
-| Parameters | Approx. RAM | Min Device RAM |
-|---|---|---|
-| 0.5B | ~0.4 GB | 2 GB |
-| 1.5B | ~1.0 GB | 3 GB |
-| 3B | ~2.0 GB | 4 GB |
-| 7B | ~4.5 GB | 6 GB |
-| 14B | ~9.0 GB | 12 GB |
-
-These are estimates. Actual usage varies by architecture and context length.
+1. Check Developer screen → Hardware Info: `backend` should read `GPU`
+2. Update the device OS/drivers if available
+3. Prefer smaller models (Gemma 3 1B, Qwen3 0.6B) which fit GPU memory more easily
+4. CPU inference is fully supported — a CPU fallback is not an error
 
 ---
 
-### Unsupported GGUF File Type
+### Corruption Recovery Triggers Repeatedly
 
 **Symptoms:**
-- "Unsupported format" error when selecting a model file
-- Catalog shows format as "SAFETENSORS" or "PYTORCH"
+- `recoveryCount=N` climbs in the logs
+- Output occasionally restarts mid-response
 
-**Solution:** Convert the model to GGUF format using llama.cpp's convert scripts:
-```bash
-python llama.cpp/convert.py /path/to/model --outtype gq4_K_M
-```
-Or download a pre-converted GGUF from HuggingFace.
+**Cause:** GPU delegate instability (drivers) or corrupted model file.
+
+**Solution:**
+1. If `recoveryCount` climbs while `backend=gpu`, switch to CPU (EngineConfig backend override in Developer settings)
+2. Re-download the model — corrupted weights can produce garbage that the coherence probe catches
+3. Close other GPU-intensive apps
+
+---
+
+### Empty or Garbled Output on Small Qwen Models
+
+**Symptoms:**
+- Qwen2.5-1.5B / Qwen3-0.6B return empty or nonsense responses when the user enables many tools
+- Response starts fine for short tool lists, degrades with longer ones
+
+**Cause:** Small Qwen repacks overflow their context window when the tool
+advertisement is too long (Qwen2.5-1.5B degrades between ~5.7K and ~9.4K chars
+of advertisement; Qwen3-0.6B overflows its 2048-token real window with the
+full ~2.3K-token list).
+
+**Solution:**
+1. The app caps the tool advertisement at **4500 chars** for these families automatically
+2. Disable rarely-used tools (agent settings) to shrink the advertisement further
+3. Use Gemma 4B+ models if you need the full tool list — they handle it fine
+
+---
+
+### Conversation Stops with "Input token ids are too long"
+
+**Symptoms:**
+- Generation fails with `INVALID_ARGUMENT: Input token ids are too long`
+- Long chats suddenly stop producing output
+
+**Cause:** The conversation filled the model's KV cache (context window).
+
+**Solution:**
+1. This is handled automatically — the engine trims the oldest turns and reseeds the conversation; send the message again
+2. If it recurs, start a new conversation or use a model with a larger context (Gemma 4: 8192)
+3. Enable conversation summarization to compress history
+
+---
+
+### Model Loads but Output Is Nonsense
+
+**Symptoms:**
+- Model loads fine but generates garbage
+- Coherence probe (temperature-0 self-test) fails
+
+**Cause:** Corrupted container file or unsupported quantized layout.
+
+**Solution:**
+1. Re-download the model
+2. Try a different model (e.g. Qwen3 0.6B Mixed Int4 is the most reliable small model)
+3. Check that the container matches the family it claims (metadata vs. output)
+
+---
+
+### App Killed by Low Memory
+
+**Symptoms:**
+- App disappears from recents while a model is loaded
+- `ActivityManager: Killing ... (low memory)` in logcat
+
+**Solution:**
+1. Choose smaller models (see catalog RAM guidance)
+2. Unload unused models: Models screen → Unload
+3. Close other apps before loading large models
+4. Restart the device if RAM is fragmented
+
+**RAM guidelines for bundled catalog models:**
+
+| Model | Approx. Download | Min Available RAM |
+|---|---|---|
+| Qwen3 0.6B Mixed Int4 | ~475 MB | 2 GB |
+| Gemma 3 1B Q4 | ~557 MB | 2 GB |
+| Qwen2.5 1.5B Q8 | ~1.5 GB | 3 GB |
+| DeepSeek R1 Distill 1.5B Q8 | ~1.7 GB | 3.5 GB |
+| Gemma 4 E2B | ~2.4 GB | 4 GB |
+| Gemma 4 E4B | ~3.4 GB | 6 GB |
+
+---
+
+### Model Download Fails or Hangs
+
+**Symptoms:**
+- Download progress stalls at a percentage
+- "Download failed" toast
+
+**Solution:**
+1. Check network connectivity and storage space (each model needs 475 MB – 3.5 GB free)
+2. Retry — downloads are resumable
+3. Verify the `litert-community` repo is reachable (HuggingFace / ModelScope)
+4. Free space if the download completed but the file is truncated — re-download
 
 ---
 
@@ -323,6 +279,20 @@ On Android 13+, you also need to grant Notification permission for the foregroun
 
 ---
 
+### Memory Extraction Not Working
+
+**Symptoms:**
+- No memories appear after conversations
+- Embedding model fails to load
+
+**Solutions:**
+1. Check that the local embedding model (EmbeddingGemma 300M) is downloaded — memory falls back to keyword matching without it
+2. Enable memory in Settings → On-device Memory
+3. Memories are extracted from exchanges with the local model or a configured cloud provider
+4. Check `Memory` log tag for extraction errors
+
+---
+
 ## Database Issues
 
 ### Database Migration Failed
@@ -344,16 +314,16 @@ On Android 13+, you also need to grant Notification permission for the foregroun
 
 ### Enable Developer Mode
 Settings → Developer Options → Enable. This unlocks:
-- GPU rendering debugging
+- Backend and GPU diagnostics (`backend`, `gpuFree`, `gpuTotal`, `recoveryCount`)
 - Log export
 - Benchmark tools
 - Memory diagnostics
 
 ### Check App Logs
-Settings → Developer Options → Logs & Diagnostics → Export. Share this file when reporting bugs.
+Settings → Developer Options → Logs & Diagnostics → Export. Share this file when reporting bugs. Engine logs use the `AndroLLM-Engine` tag.
 
 ### Force Stop and Restart
-If the app behaves strangely, force stop it (Settings → Apps → AndroLLM → Force Stop) and relaunch. This clears any leaked native handles.
+If the app behaves strangely, force stop it (Settings → Apps → AndroLLM → Force Stop) and relaunch. This clears any leaked engine sessions.
 
 ### Reinstall
 As a last resort, uninstall and reinstall. This clears all local data including models — you'll need to re-download them.

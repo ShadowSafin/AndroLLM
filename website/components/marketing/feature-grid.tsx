@@ -22,7 +22,7 @@ export function FeatureGrid({ features = pillars, detailed = true }: { features?
                 className="card card-hover group flex h-full flex-col p-6"
               >
                 <div className="flex items-center justify-between">
-                  <span className="flex size-11 items-center justify-center rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] text-[var(--accent-deep)] transition-all duration-300 group-hover:bg-[var(--accent)] group-hover:text-[#fbfaf4] dark:text-[var(--accent-soft)]">
+                  <span className="flex size-11 items-center justify-center rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,var(--line))] bg-[var(--feature-icon-bg)] text-[var(--accent-deep)] transition-all duration-300 group-hover:bg-[var(--accent)] group-hover:text-[var(--btn-primary-text)] dark:text-[var(--accent-soft)]">
                     <f.icon className="size-5" aria-hidden />
                   </span>
                   {f.stat && (

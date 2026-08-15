@@ -44,6 +44,7 @@ dependencies {
     implementation(project(":core:models"))
     implementation(project(":core:cloud"))
     implementation(project(":core:database"))
+    implementation(project(":core:runtime"))
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

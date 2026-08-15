@@ -12,20 +12,20 @@ import { site } from "@/lib/site";
 export const metadata: Metadata = {
   title: "About — AndroLLM",
   description:
-    "AndroLLM is a private, fully on-device AI assistant for Android — Kotlin, Jetpack Compose, llama.cpp, ONNX, and Material Material You — completely open source.",
+    "AndroLLM is a private, fully on-device AI assistant for Android — Kotlin, Jetpack Compose, LiteRT-LM, and Material Material You — completely open source.",
   alternates: { canonical: "/about" },
 };
 
 const pillars = [
   { icon: Smartphone, title: "Native Android", text: "Kotlin + Jetpack Compose + Material You. No WebView, no Electron shell, no server in the middle." },
-  { icon: BrainCircuit, title: "Real on-device intelligence", text: "GGUF models via llama.cpp with OpenCL and Vulkan GPU layers — the model lives on your phone." },
+  { icon: BrainCircuit, title: "Real on-device intelligence", text: ".litertlm models via Google's LiteRT-LM runtime with CPU and OpenCL-GPU acceleration — the model lives on your phone." },
   { icon: WifiOff, title: "Private by default", text: "Zero analytics, zero telemetry. Conversations, memories, and voice run locally. Cloud is a manual, per-provider opt-in." },
-  { icon: Code2, title: "Extensible", text: "Connect any OpenAI-compatible endpoint, bring your own GGUF, or call standardized provider APIs." },
+  { icon: Code2, title: "Extensible", text: "Connect any OpenAI-compatible endpoint, bring your own .litertlm model, or call standardized provider APIs." },
 ];
 
 const story = [
-  { year: "Project start", text: "The first commit founded the monorepo: a Kotlin app, a C++ inference engine, and the documentation that grew with them." },
-  { year: "The core loop", text: "GGUF loading, llama.cpp bindings, token streaming, and a Compose chat UI came together — and generations started landing live on device." },
+  { year: "Project start", text: "The first commit founded the monorepo: a Kotlin app, a Kotlin inference engine, and the documentation that grew with them." },
+  { year: "The core loop", text: "LiteRT-LM integration, .litertlm containers, token streaming, and a Compose chat UI came together — and generations started landing live on device." },
   { year: "Memory & voice", text: "An on-device memory bank with embeddings, plus a fully offline voice assistant: wake word, speech recognition, and TTS with bundled ONNX models." },
   { year: "Today", text: "Version " + site.version + " ships a complete assistant — chat, RAG-grade memory, tools, cloud providers, offline voice — with a matching open-source website so the whole project is reviewable end-to-end." },
 ];
@@ -62,16 +62,16 @@ export default function AboutPage() {
               <p className="ledger">Stack</p>
               <h2 className="mt-3 font-serif text-3xl font-semibold text-[var(--ink)]">One phone, one stack, zero servers.</h2>
               <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
-                The whole project is a single Gradle monorepo: a Compose app, a C++ inference engine bound through JNI
-                with Kotlin/Native entry points on the Rust side, and OpenCL/Vulkan-backed GPU layers. Everything is
+                The whole project is a single Gradle monorepo: a Compose app, a 100% Kotlin LiteRT-LM inference
+                engine, and OpenCL-backed GPU acceleration. Everything is
                 Apache 2.0 and fully open to audit.
               </p>
               <div className="mt-8 grid grid-cols-2 gap-3">
                 {[
                   { v: "Kotlin", l: "Entire app UI & logic" },
-                  { v: "C++ / llama.cpp", l: "Local GGUF inference" },
-                  { v: "ONNX Runtime", l: "Voice: ASR, TTS, wake word" },
-                  { v: "OpenCL · Vulkan", l: "GPU acceleration" },
+                  { v: "LiteRT-LM / Kotlin", l: "Local .litertlm inference" },
+                  { v: "sherpa-onnx · whisper.cpp", l: "Voice: ASR, TTS, wake word" },
+                  { v: "OpenCL", l: "GPU acceleration" },
                   { v: "Room · DataStore", l: "Storage & preferences" },
                   { v: "Jetpack Compose", l: "100% Material You UI" },
                 ].map((t) => (

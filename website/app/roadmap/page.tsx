@@ -17,16 +17,16 @@ export const metadata: Metadata = {
 const done = [
   "Multi-module Gradle project structure",
   "Jetpack Compose Material 3 UI with “Parchment Ledger” theme",
-  "Hilt dependency injection across all 26 modules",
+  "Hilt dependency injection across all 31 modules",
   "Room database v5 with WAL mode",
   "DataStore preferences",
   "Firebase Authentication (Google + GitHub)",
   "Navigation Compose with 15 routes",
-  "llama.cpp native engine integration (vendored upstream, stock)",
-  "JNI bridge with RAII lifecycle management",
-  "Vulkan GPU backend with runtime CPU fallback",
+  "LiteRT-LM 0.16.0 runtime integration (100% Kotlin, no native code)",
+  "LiteRT-LM engine lifecycle management (pure Kotlin)",
+  "OpenCL-based LiteRT GPU delegate with automatic CPU fallback",
   "Corruption recovery (NaN/INF logits, device-lost escalation)",
-  "GGUF model validation and memory estimation",
+  ".litertlm container validation and memory estimation",
   "Model catalog with search, filter, sort, recommendations",
   "Official model catalog (Gemma, Qwen, DeepSeek built-ins)",
   "HuggingFace model browsing and download",
@@ -56,6 +56,7 @@ const inProgress = [
 ];
 
 const nearTerm = [
+  { name: "NPU backend support", text: "Leverage on-device NPUs for local inference — the next accelerator after CPU and GPU" },
   { name: "Multi-language ASR", text: "Chinese, Japanese, Korean zipformer models" },
   { name: "Voice cloning TTS", text: "Pocket/ZipVoice models alongside Piper" },
   { name: "Conversation summary", text: "Auto-summarize long conversations for context-window management" },
@@ -65,7 +66,6 @@ const nearTerm = [
 ];
 
 const mediumTerm = [
-  { name: "QNN/NPU backend", text: "Leverage Snapdragon NPU for local inference" },
   { name: "ONNX Runtime backend", text: "General ML model execution beyond voice" },
   { name: "Model quantization tools", text: "Built-in Q4 → Q2 conversion for smaller devices" },
   { name: "Cross-device sync", text: "Sync conversations and memory via Firebase Firestore" },
@@ -118,10 +118,8 @@ export default function RoadmapPage() {
             </span>
             <span>
               <strong className="font-semibold text-[var(--ink)]">Already live in v1.0:</strong> the roadmap document
-              predates two shipped capabilities. The <Link href="/features#agent" className="underline decoration-[color-mix(in_srgb,var(--accent)_40%,transparent)] underline-offset-4">agent platform</Link>{" "}
-              (50+ tools, planning, safety gates) and{" "}
-              <Link href="/features#imagegen" className="underline decoration-[color-mix(in_srgb,var(--accent)_40%,transparent)] underline-offset-4">on-device image generation</Link>{" "}
-              are not “planned” — they ship in the app today. Function calling is likewise already exercised as grammar-constrained tool use on local models.
+              predates a shipped capability. The <Link href="/features#agent" className="underline decoration-[color-mix(in_srgb,var(--accent)_40%,transparent)] underline-offset-4">agent platform</Link>{" "}
+              (50+ tools, planning, safety gates) is not “planned” — it ships in the app today. Function calling is likewise already exercised as grammar-constrained tool use on local models.
             </span>
           </p>
         </Reveal>

@@ -16,6 +16,7 @@ import io.androllm.core.memory.model.MemoryExchange
 import io.androllm.core.models.Conversation
 import io.androllm.core.tools.agent.AgentVariableStore
 import io.androllm.core.tools.coordinator.ToolRunCoordinator
+import io.androllm.core.tools.prompt.ToolPromptBuilder
 import io.androllm.core.tools.settings.AutomationSettingsStore
 import io.androllm.core.tools.trace.ToolExecutionTraceStore
 import io.androllm.core.models.Message
@@ -43,7 +44,7 @@ import timber.log.Timber
  *
  * The Voice Assistant calls [sendMessageStream] to execute a turn.
  * [ChatManager] resolves whether to route the request through the local
- * llama.cpp engine ([EngineRepository]) or the active Cloud Provider ([CloudGateway]).
+ * LiteRT-LM engine ([EngineRepository]) or the active Cloud Provider ([CloudGateway]).
  *
  * The voice assistant NEVER handles provider-specific reasoning logic.
  *
@@ -64,13 +65,14 @@ class ChatManager @Inject constructor(
     private val toolCoordinator: ToolRunCoordinator,
     private val automationSettingsStore: AutomationSettingsStore,
     private val traceStore: ToolExecutionTraceStore,
-    private val variableStore: AgentVariableStore
+    private val variableStore: AgentVariableStore,
+    private val toolPromptBuilder: ToolPromptBuilder
 ) {
     private val scope = CoroutineScope(Dispatchers.Default)
 
     /**
      * Resolves a human-readable label for the currently active model, no matter
-     * which provider it comes from (local GGUF or any cloud provider). The
+     * which provider it comes from (local LiteRT or any cloud provider). The
      * voice overlay uses this for its model chip — it never hardcodes a
      * provider.
      *
@@ -84,7 +86,7 @@ class ChatManager @Inject constructor(
         if (engineState is EngineState.Ready) {
             val model = engineState.model
             val name = model.generalName.ifBlank { model.id }
-            return "Local GGUF" to name
+            return "Local LiteRT" to name
         }
         return "" to ""
     }
@@ -96,7 +98,7 @@ class ChatManager @Inject constructor(
      * 1. Resolving or creating an active conversation ID.
      * 2. Persisting the user message to SQLite DB (`MessageRepository`).
      * 3. Building memory & system prompt context.
-     * 4. Routing generation to local llama.cpp or selected cloud model (Gemini, Claude, GPT, Grok, DeepSeek, OpenRouter, LiteLLM Custom).
+     * 4. Routing generation to local LiteRT-LM or selected cloud model (Gemini, Claude, GPT, Grok, DeepSeek, OpenRouter, LiteLLM Custom).
      * 5. Emitting streaming deltas.
      * 6. Persisting the assistant reply to SQLite DB and launching post-turn memory processing.
      */
@@ -162,6 +164,12 @@ class ChatManager @Inject constructor(
             if (memoryContext.systemText.isNotBlank()) {
                 add(ChatPromptMessage(role = "system", content = memoryContext.systemText))
             }
+            // Prompt Builder: advertise the available tools so the model
+            // NEVER claims it lacks access — the tool list is part of its
+            // instructions (mirrors the text-chat pipeline).
+            toolPromptBuilder.advertisement()?.let {
+                add(ChatPromptMessage(role = "system", content = it))
+            }
             historyMessages.forEach { msg ->
                 add(ChatPromptMessage(role = msg.role.name.lowercase(), content = msg.content))
             }
@@ -196,6 +204,9 @@ class ChatManager @Inject constructor(
                     toolCoordinator.agentContextMessage()?.let {
                         history.add(0, CloudChatMessage(role = "system", content = it.content))
                     }
+                    // NOTE: the tool advertisement is already part of
+                    // [promptMessages] (injected by the Prompt Builder above) —
+                    // adding it again here would double the token cost.
                 }
                 round@ for (round in 0 until maxRounds) {
                     val roundBuffer = StringBuilder()
@@ -257,7 +268,7 @@ class ChatManager @Inject constructor(
                     break@round
                 }
             } else if (isLocalLoaded) {
-                // Route to Local llama.cpp Engine — with prompt-based tool
+                // Route to Local LiteRT-LM Engine — with prompt-based tool
                 // planning first when automation is enabled.
                 val (finalMessages, localToolsRan) = planAndExecuteTools(promptMessages, onToolStatus)
                 if (localToolsRan) toolsRan = true
@@ -330,9 +341,9 @@ class ChatManager @Inject constructor(
     }
 
     /**
-     * Local GGUF tool planning: run the grammar-constrained planner, execute
-     * any calls (confirmations go through the voice responder), and append the
-     * results as a system message before the answer generation.
+     * Local tool planning: run the planner, execute any calls (confirmations
+     * go through the voice responder), and append the results as a system
+     * message before the answer generation.
      */
     private suspend fun planAndExecuteTools(
         messages: List<ChatPromptMessage>,
@@ -343,12 +354,15 @@ class ChatManager @Inject constructor(
         // retry) → feed results back → re-plan, up to the configured round
         // guard. The callback flags the never-blank guard and the UI chip.
         var toolsRan = false
-        val finalMessages = toolCoordinator.runLocalWorkflow(messages) { status ->
-            if (status != null) {
-                toolsRan = true
-                onToolStatus(status)
+        val finalMessages = toolCoordinator.runLocalWorkflow(
+            messages,
+            onActivity = { status ->
+                if (status != null) {
+                    toolsRan = true
+                    onToolStatus(status)
+                }
             }
-        }
+        )
         return finalMessages to toolsRan
     }
 

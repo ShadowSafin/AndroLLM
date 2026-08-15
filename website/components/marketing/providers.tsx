@@ -19,7 +19,7 @@ export function Providers() {
         <SectionHeading
           eyebrow="Local first, hybrid always"
           title="One interface. Every model source you trust."
-          description="Local GGUF inference is the default — but when you want a frontier model, any OpenAI-compatible provider works through the built-in LiteLLM proxy, with keys encrypted in the Android Keystore."
+          description="Local .litertlm inference is the default — but when you want a frontier model, any OpenAI-compatible provider works through the built-in LiteLLM proxy, with keys encrypted in the Android Keystore."
         />
 
         <div className="mt-14 grid gap-px overflow-hidden rounded-card border border-[var(--line)] bg-[var(--line)] shadow-card sm:grid-cols-2 lg:grid-cols-4">

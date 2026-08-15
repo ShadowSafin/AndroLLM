@@ -26,7 +26,7 @@ export function Performance() {
               <thead>
                 <tr className="border-b border-[var(--line-soft)] text-left">
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">Device tier</th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">Vulkan GPU</th>
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">GPU (OpenCL)</th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">CPU only</th>
                 </tr>
               </thead>
@@ -58,7 +58,7 @@ export function Performance() {
                 }))}
               />
               <p className="mt-5 border-t border-[var(--line-soft)] pt-4 font-mono text-[11px] text-[var(--faint)]">
-                Measured on modern flagships with Vulkan; CPU-only older devices fall back to NEON + KleidiAI microkernels.
+                Measured on modern flagships with the OpenCL GPU delegate; CPU-only older devices run on XNNPACK.
               </p>
             </div>
           </Reveal>

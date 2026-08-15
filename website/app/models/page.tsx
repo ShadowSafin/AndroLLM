@@ -12,48 +12,45 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "Models — AndroLLM",
   description:
-    "101 curated GGUF models across 137 supported architectures. Quantization guide, RAM requirements, and model management: catalog filtering, HuggingFace browsing, compatibility analysis, and benchmarking.",
+    "7 curated .litertlm models across 5 architectures. Quantization guide, RAM requirements, and model management: catalog filtering, HuggingFace browsing, compatibility analysis, and benchmarking.",
   alternates: { canonical: "/models" },
 };
 
 const recommended = [
-  { name: "Qwen3-8B", quant: "Q4_K_M", ram: "12.8 GB", note: "Strong all-rounder, open reasoning" },
-  { name: "Qwen2.5-7B-Instruct", quant: "Q4_K_M", ram: "10.4 GB", note: "The mobile classic — 7B in your hand" },
-  { name: "gemma-3-4b-it", quant: "Q4_K_M", ram: "6.7 GB", note: "Google's efficient multimodal-capable 4B" },
-  { name: "phi-4-mini-instruct", quant: "Q4_K_M", ram: "6.7 GB", note: "Microsoft's compact, code-savvy 3.8B" },
-  { name: "Qwen2.5-1.5B-Instruct", quant: "Q8_0", ram: "5.3 GB", note: "Blazing-fast everyday assistant" },
-  { name: "SmolLM2-1.7B-Instruct", quant: "Q4_K_M", ram: "3.4 GB", note: "The low-RAM champion" },
+  { name: "Qwen3-0.6B", quant: "mixed int4", ram: "2 GB", note: "Agent-ready reasoning with native tool calling" },
+  { name: "Gemma 3 1B", quant: "Q4", ram: "2 GB", note: "Google's compact, efficient 1B" },
+  { name: "Qwen2.5-1.5B", quant: "Q8", ram: "4 GB", note: "Blazing-fast everyday assistant" },
+  { name: "Qwen2-0.5B", quant: "int8", ram: "2 GB", note: "The low-RAM champion" },
+  { name: "DeepSeek R1", quant: "mixed int4", ram: "4 GB", note: "Reasoning distilled for on-device use" },
+  { name: "Gemma Embedding", quant: "embedding", ram: "2 GB", note: "Local embeddings for memory retrieval" },
 ];
 
 const quantRows = [
-  { label: "Q8_0", bits: "~8", reduction: "2×", quality: "Minimal loss", verdict: "Best quality/size balance for 7B+" },
-  { label: "Q5_K_M", bits: "~5.5", reduction: "3×", quality: "Small loss", verdict: "Recommended for most use cases" },
-  { label: "Q4_K_M", bits: "~4.5", reduction: "3.5×", quality: "Low–medium", verdict: "Sweet spot for mobile" },
-  { label: "Q4_K_S", bits: "~4.0", reduction: "4×", quality: "Medium loss", verdict: "Tight RAM situations" },
-  { label: "IQ3_XS", bits: "~3.25", reduction: "5×", quality: "Noticeable", verdict: "Very constrained devices" },
-  { label: "IQ2_XS", bits: "~2.5", reduction: "6.5×", quality: "Significant", verdict: "Last resort" },
+  { label: "fp16", bits: "~16", reduction: "1×", quality: "Minimal loss", verdict: "Highest quality, largest download" },
+  { label: "int8", bits: "~8", reduction: "2×", quality: "Minimal loss", verdict: "Best quality/size balance for 1B+" },
+  { label: "mixed int4", bits: "~4", reduction: "4×", quality: "Low–medium", verdict: "Sweet spot for mobile" },
+  { label: "int4", bits: "~4", reduction: "4×", quality: "Medium loss", verdict: "Tight RAM situations" },
 ];
 
 const sizeGuide = [
-  { model: "0.5B", bf16: "1.0 GB", q8: "0.5 GB", q5: "0.3 GB", q4: "0.25 GB", iq3: "0.2 GB" },
-  { model: "1.5B", bf16: "3.0 GB", q8: "1.5 GB", q5: "0.9 GB", q4: "0.7 GB", iq3: "0.5 GB" },
-  { model: "3B", bf16: "6.0 GB", q8: "3.0 GB", q5: "1.8 GB", q4: "1.4 GB", iq3: "1.0 GB" },
-  { model: "7B", bf16: "14.0 GB", q8: "7.0 GB", q5: "4.2 GB", q4: "3.3 GB", iq3: "2.4 GB" },
-  { model: "8B", bf16: "16.0 GB", q8: "8.0 GB", q5: "4.8 GB", q4: "3.8 GB", iq3: "2.8 GB" },
-  { model: "14B", bf16: "28.0 GB", q8: "14.0 GB", q5: "8.4 GB", q4: "6.6 GB", iq3: "4.8 GB" },
+  { model: "Qwen2-0.5B", format: "int8", size: "~0.5 GB", ram: "2 GB", best: "Everyday chat on any device" },
+  { model: "Qwen3-0.6B", format: "mixed int4", size: "~475 MB", ram: "2 GB", best: "Agent & tool calling" },
+  { model: "Gemma 3 1B", format: "Q4", size: "~560 MB", ram: "2 GB", best: "Google's compact all-rounder" },
+  { model: "Gemma Embedding", format: "embedding", size: "~0.5 GB", ram: "2 GB", best: "Memory retrieval" },
+  { model: "Qwen2.5-1.5B", format: "Q8", size: "~1.3 GB", ram: "4 GB", best: "Speed + quality" },
 ];
 
 const catalogFacts = [
-  { icon: Database, value: 101, label: "models in the shipped catalog", note: "curated from HuggingFace" },
-  { icon: Cpu, value: 137, label: "llama.cpp architectures supported", note: "llama, gemma2, qwen2, deepseek, mistral, phi3 & more" },
-  { icon: Gauge, value: 17, label: "models marked recommended", note: "RAM-filtered for real devices" },
-  { icon: MemoryStick, value: 27, label: "Qwen-family models", note: "the largest family in the catalog" },
+  { icon: Database, value: 7, label: "models in the shipped catalog", note: "litert-community on HuggingFace & ModelScope" },
+  { icon: Cpu, value: 5, label: "architectures supported", note: "gemma3, gemma4, gemma-embedding, qwen2, qwen3" },
+  { icon: Gauge, value: 6, label: "models marked recommended", note: "RAM-filtered for real devices" },
+  { icon: MemoryStick, value: 3, label: "Qwen-family models", note: "the largest family in the catalog" },
 ];
 
 const features = [
   { title: "Compatibility analyzer", text: "Before you download: will it fit in RAM? Will it GPU-accelerate on this device?" },
   { title: "RAM-filtered recommendations", text: "The catalog filters by your device's memory so you only see models that run." },
-  { title: "GGUF validation", text: "Every file is validated before load — magic bytes, version, tensor count, then SHA-256 on download." },
+  { title: ".litertlm validation", text: "Every file is validated before load — LlmMetadata proto parsing, tensor layout check, then SHA-256 on download." },
   { title: "Benchmark tool", text: "Tokens/sec, time-to-first-token, and memory — measured on your actual device." },
 ];
 
@@ -64,8 +61,8 @@ export default function ModelsPage() {
         <div className="container">
           <SectionHeading
             eyebrow="The model shelf"
-            title="A catalog of 101 models, ready to run."
-            description="Every model shipped in the catalog is a real, tested GGUF file — validated, memory-estimated, and RAM-filterable on your device. All facts on this page come from the shipped catalog and the model support guide."
+            title="A catalog of 7 curated models, ready to run."
+            description="Every model shipped in the catalog is a real, tested .litertlm container — validated, memory-estimated, and RAM-filterable on your device. All facts on this page come from the shipped catalog."
           />
 
           <MotionReveal stagger={0.08} className="mx-auto mt-14 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -85,7 +82,7 @@ export default function ModelsPage() {
 
       <section className="border-y border-[var(--line)] bg-[var(--deep)] py-24" aria-label="Recommended models">
         <div className="container">
-          <SectionHeading align="left" eyebrow="Start here" title="The 17 recommended models" description="Marked recommended in the shipped catalog — chosen for real phones, not benchmark tables. Six of them, shown with their required RAM." />
+          <SectionHeading align="left" eyebrow="Start here" title="The 6 recommended models" description="Marked recommended in the shipped catalog — chosen for real phones, not benchmark tables. All six shown with their required RAM." />
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recommended.map((m, i) => (
               <Reveal key={m.name} delay={i * 0.04}>
@@ -109,7 +106,7 @@ export default function ModelsPage() {
 
       <section className="py-24" aria-label="Quantization guide">
         <div className="container">
-          <SectionHeading eyebrow="Quantization" title="Pick your precision budget." description="Quantization shrinks the model into your RAM with a controlled quality trade-off. Q4_K_M is the mobile sweet spot — most catalog downloads default there." />
+          <SectionHeading eyebrow="Quantization" title="Pick your precision budget." description="Quantization shrinks the model into your RAM with a controlled quality trade-off. Mixed int4 is the mobile sweet spot — most catalog downloads default there." />
 
           <MotionReveal variant="fade" className="mt-12 overflow-x-auto rounded-card border border-[var(--line)] bg-[var(--surface)] shadow-card">
             <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -140,23 +137,21 @@ export default function ModelsPage() {
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--line)] text-left">
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Size class</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">BF16</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Q8_0</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Q5_K_M</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Q4_K_M</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">IQ3_XS</th>
+<th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Model</th>
+                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Format</th>
+                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">File size</th>
+                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">RAM guidance</th>
+                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Best for</th>
                 </tr>
               </thead>
               <tbody>
                 {sizeGuide.map((r) => (
                   <tr key={r.model} className="border-b border-[var(--line-soft)] last:border-0">
                     <td className="px-5 py-3.5 font-semibold text-[var(--ink)]">{r.model}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.bf16}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.q8}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--ink-dim)]">{r.q5}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.q4}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.iq3}</td>
+                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.format}</td>
+                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.size}</td>
+                    <td className="px-5 py-3.5 font-mono text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.ram}</td>
+                    <td className="px-5 py-3.5 text-[var(--ink-dim)]">{r.best}</td>
                   </tr>
                 ))}
               </tbody>
@@ -166,12 +161,11 @@ export default function ModelsPage() {
           <Reveal className="mx-auto mt-10 max-w-3xl rounded-card border border-dashed border-[var(--line)] bg-[var(--deep)] p-6">
             <p className="ledger flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
               <HardDrive className="size-3.5" aria-hidden />
-              The 4-GB rule
+              The 2–4 GB RAM rule
             </p>
             <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-              Available RAM ≥ 2× model BF16 size → <span className="font-mono text-[var(--ink-dim)]">Q8_0</span> · ≥ 1.5× →{" "}
-              <span className="font-mono text-[var(--ink-dim)]">Q5_K_M</span> · ≥ 1.2× → <span className="font-mono text-[var(--ink-dim)]">Q4_K_M</span> ·{" "}
-              below that → <span className="font-mono text-[var(--ink-dim)]">Q4_K_S / IQ3_XS</span>. The app does this math for you before you download.
+              2 GB RAM runs the small models (Qwen3-0.6B, Gemma 3 1B, Qwen2-0.5B) — 4 GB unlocks
+              Qwen2.5-1.5B and DeepSeek-class models. The app does this math for you before you download.
             </p>
           </Reveal>
         </div>
@@ -202,8 +196,8 @@ export default function ModelsPage() {
                 </Link>
               </Button>
               <Button asChild variant="ghost" size="lg">
-                <Link href="/docs/ai/gguf">
-                  GGUF format guide
+                <Link href="/docs/ai/model-formats">
+                  .litertlm format guide
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>

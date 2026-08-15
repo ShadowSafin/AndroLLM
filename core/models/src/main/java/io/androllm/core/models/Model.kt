@@ -36,6 +36,11 @@ data class Model(
     val createdAt: Long = 0,
     val updatedAt: Long = 0,
     val sha256: String? = null,
+    /**
+     * Optional companion artifact URL downloaded next to the main file (e.g.
+     * the tokenizer for a `.tflite` embedding model, saved as `tokenizer.model`).
+     */
+    val companionUrl: String? = null,
     val architecture: String = "llama",
     val family: String = "Llama",
     val minRamGb: Float = 4.0f,
@@ -49,5 +54,12 @@ data class Model(
     val strengths: List<String> = emptyList(),
     val weaknesses: List<String> = emptyList(),
     val expectedTokSec: String = "30-50 tok/s",
-    val license: String = "Apache-2.0"
+    val license: String = "Apache-2.0",
+    /**
+     * Model-specific stop sequences (from the catalog entry), merged with the
+     * family's official stop tokens by the engine at load. Generation stops
+     * on the first occurrence of any of them — never streaming a stop token
+     * to the UI and never running past a natural end.
+     */
+    val stopSequences: List<String> = emptyList()
 )

@@ -26,6 +26,14 @@ enum class ModelFormat {
     @SerialName("pt")
     PYTORCH,
 
+    /** LiteRT-LM container: TFLite model + tokenizer + chat template in one file. */
+    @SerialName("litertlm")
+    LITERTLM,
+
+    /** Plain TensorFlow Lite flatbuffer (e.g. EmbeddingGemma `.tflite`). */
+    @SerialName("tflite")
+    TFLITE,
+
     @SerialName("unknown")
     UNKNOWN
 }

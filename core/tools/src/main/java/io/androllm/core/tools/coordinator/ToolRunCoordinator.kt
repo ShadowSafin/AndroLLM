@@ -5,6 +5,7 @@ import io.androllm.core.cloud.model.CloudChatMessage
 import io.androllm.core.cloud.model.CloudTool
 import io.androllm.core.cloud.model.CloudToolCall
 import io.androllm.core.tools.api.ToolCall
+import io.androllm.core.tools.api.ToolEvent
 import io.androllm.core.tools.api.ToolResult
 import io.androllm.core.tools.executor.ToolExecutor
 import io.androllm.core.tools.planner.ToolPlanner
@@ -75,7 +76,8 @@ class ToolRunCoordinator @Inject constructor(
      */
     suspend fun executeCloudToolCalls(
         calls: List<CloudToolCall>,
-        assistantContent: String? = null
+        assistantContent: String? = null,
+        onEvent: suspend (ToolEvent) -> Unit = {}
     ): List<CloudChatMessage> {
         if (calls.isEmpty()) return emptyList()
         val assistantMsg = CloudChatMessage(
@@ -94,8 +96,20 @@ class ToolRunCoordinator @Inject constructor(
                 name = name,
                 arguments = args
             )
+            onEvent(ToolEvent.Started(name, args.toString().take(200)))
             val result = executor.execute(toolCall)
             Timber.i("ToolRunCoordinator: cloud tool '$name' -> ${result.statusLabel}")
+            val declined = result is ToolResult.Failure &&
+                !result.retryable && result.summary.startsWith("The user declined")
+            onEvent(
+                if (result.isSuccess) {
+                    ToolEvent.Succeeded(name, result.summary)
+                } else if (declined) {
+                    ToolEvent.Declined(name)
+                } else {
+                    ToolEvent.Failed(name, result.summary)
+                }
+            )
             CloudChatMessage(
                 role = "tool",
                 content = result.summary,
@@ -118,8 +132,13 @@ class ToolRunCoordinator @Inject constructor(
      * with the same arguments before it is reported (never for outcomes a
      * retry cannot fix: user-declined, settings-blocked).
      */
-    suspend fun executeCalls(calls: List<ToolCall>): List<ToolExecutionRecord> =
+    suspend fun executeCalls(
+        calls: List<ToolCall>,
+        onEvent: suspend (ToolEvent) -> Unit = {}
+    ): List<ToolExecutionRecord> =
         calls.map { call ->
+            val argsText = call.arguments.entries.joinToString(", ") { (k, v) -> "$k=$v" }.take(200)
+            onEvent(ToolEvent.Started(call.name, argsText))
             var result = executor.execute(call)
             // Retry once for transient failures — but NEVER for tools that run
             // behind the confirmation gate (a retry would re-ask the user who
@@ -131,6 +150,15 @@ class ToolRunCoordinator @Inject constructor(
                 if (retried.isSuccess) result = retried
             }
             Timber.i("ToolRunCoordinator: local tool '${call.name}' -> ${result.statusLabel}")
+            val declined = result is ToolResult.Failure &&
+                !result.retryable && result.summary.startsWith("The user declined")
+            onEvent(
+                when {
+                    result.isSuccess -> ToolEvent.Succeeded(call.name, result.summary)
+                    declined -> ToolEvent.Declined(call.name)
+                    else -> ToolEvent.Failed(call.name, result.summary)
+                }
+            )
             ToolExecutionRecord(call, result)
         }
 
@@ -149,20 +177,32 @@ class ToolRunCoordinator @Inject constructor(
      */
     suspend fun runLocalWorkflow(
         messages: List<ChatPromptMessage>,
-        onActivity: suspend (String?) -> Unit = {}
+        onActivity: suspend (String?) -> Unit = {},
+        onEvent: suspend (ToolEvent) -> Unit = {}
     ): List<ChatPromptMessage> {
         if (!isToolUseEnabled()) return messages
         val maxRounds = settingsStore.current().maxToolRounds.coerceAtLeast(1)
         var current = messages
+        // Dedupe guard: a confused model that re-plans the SAME call every
+        // round (e.g. get_battery after its result was already fed back) must
+        // not burn all rounds re-executing it. Once a (name, arguments) pair
+        // has executed, re-plans of it stop the loop and the turn answers.
+        val executedKeys = mutableSetOf<String>()
         for (round in 0 until maxRounds) {
             val calls = planner.planLocal(current)
             if (calls.isEmpty()) break
+            val fresh = calls.filter { "${it.name}|${it.arguments}" !in executedKeys }
+            if (fresh.isEmpty()) {
+                Timber.i("ToolRunCoordinator: planner re-proposed only already-executed calls — stopping")
+                break
+            }
             onActivity(
-                "Step ${round + 1}: running ${calls.size} tool call${if (calls.size == 1) "" else "s"}…"
+                "Step ${round + 1}: running ${fresh.size} tool call${if (fresh.size == 1) "" else "s"}…"
             )
-            val records = executeCalls(calls)
+            val records = executeCalls(fresh, onEvent)
             onActivity(null)
             if (records.isEmpty()) break
+            executedKeys += fresh.map { "${it.name}|${it.arguments}" }
             current = current + buildLocalToolFeedback(records)
         }
         return current

@@ -6,21 +6,23 @@ This document tracks the planned development direction for AndroLLM. Items are m
 
 ## ✅ Completed
 
-- [x] Multi-module Gradle project structure
+- [x] Multi-module Gradle project structure (33 modules)
 - [x] Jetpack Compose Material 3 UI with "Parchment Ledger" theme
-- [x] Hilt dependency injection across all 26 modules
+- [x] Hilt dependency injection across all modules
 - [x] Room database v5 with WAL mode
 - [x] DataStore preferences
 - [x] Firebase Authentication (Google + GitHub)
 - [x] Navigation Compose with 15 routes
-- [x] llama.cpp native engine integration (vendored upstream, stock)
-- [x] JNI bridge with RAII lifecycle management
-- [x] Vulkan GPU backend with runtime CPU fallback
-- [x] Corruption recovery (NaN/INF logits, device-lost escalation)
-- [x] GGUF model validation and memory estimation
-- [x] Model catalog with search, filter, sort, recommendations
-- [x] Official model catalog (Gemma, Qwen, DeepSeek built-ins)
-- [x] HuggingFace model browsing and download
+- [x] **LiteRT-LM engine** (pure Kotlin/Java, no native code)
+- [x] `.litertlm` model container support with metadata introspection
+- [x] GPU acceleration (LiteRT GPU delegate) with automatic CPU fallback
+- [x] Corruption recovery (coherence probe + recovery counters)
+- [x] Container validation and memory estimation (`LiteRtValidator`, `MemoryEstimator`, `ModelResourceGuard`)
+- [x] LiteRT catalog (7 models: Qwen, Gemma, DeepSeek — `litert-community`)
+- [x] HuggingFace model browsing and download (filtered to `litertlm`)
+- [x] On-device embeddings (EmbeddingGemma 300M via raw LiteRT)
+- [x] Native tool calling (Qwen/Gemma `<|tool_call|>` markers + JSON-compat fallback)
+- [x] Agent platform: 47 built-in tools, planning, confirmation, MCP client
 - [x] Cloud provider abstraction via LiteLLM
 - [x] SSE streaming with retry policy
 - [x] Encrypted API key storage (Android Keystore AES-256/GCM)
@@ -31,7 +33,7 @@ This document tracks the planned development direction for AndroLLM. Items are m
 - [x] Conversation export and share
 - [x] Developer diagnostics screen
 - [x] Performance telemetry system
-- [x] 51 test classes across all modules
+- [x] ~62 test classes across all modules
 - [x] Adaptive navigation (phone/tablet)
 - [x] Model parameter sheet (temperature, top-p, etc.)
 
@@ -39,6 +41,7 @@ This document tracks the planned development direction for AndroLLM. Items are m
 
 ## 🚧 In Progress
 
+- [ ] **NPU (QNN) backend** — leverage Snapdragon NPU for local inference (next milestone; same `.litertlm` files, no re-downloads)
 - [ ] Release build signing automation
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Play Store deployment preparation
@@ -56,35 +59,30 @@ This document tracks the planned development direction for AndroLLM. Items are m
 - [ ] **Multi-language ASR** — Add Chinese, Japanese, Korean zipformer models
 - [ ] **Voice cloning TTS** — Integrate Pocket/ZipVoice models alongside Piper
 - [ ] **Conversation summary** — Auto-summarize long conversations for context window management
-- [ ] **Function calling** — Expose tool-use capabilities from models that support it
-- [ ] **Image generation** — Run diffusion models via GPU backend (planned)
 - [ ] **Widget support** — Home screen widget for quick chat access
 - [ ] **Notification replies** — Reply to messages from system notifications
 
 ### Medium Term (3–6 Months)
 
-- [ ] **QNN/NPU backend** — Leverage Snapdragon NPU for local inference
-- [ ] **ONNX Runtime backend** — General ML model execution beyond voice
-- [ ] **Model quantization tools** — Built-in Q4→Q2 conversion for smaller devices
 - [ ] **Cross-device sync** — Sync conversations and memory via Firebase Firestore
 - [ ] **Shared models** — Share downloaded models between users on the same device
 - [ ] **API key import/export** — Backup and restore encrypted key store
-- [ ] **Context window optimization** — Automatic context truncation strategies
+- [ ] **Context window optimization** — Automatic context truncation strategies beyond conversation reseeding
+- [ ] **Speaker diarization** — Distinguish speakers in voice chat via sherpa-onnx
+- [ ] **Thermal-aware generation pacing** — Throttle generation during thermal throttling
 
 ### Long Term (6–12 Months)
 
-- [ ] **Multi-modal models** — Vision + text models (LLaVA, etc.)
-- [ ] **Agents** — Autonomous task execution with tool calling
-- [ ] **Code interpreter** — Run Python snippets locally via PyTorch Mobile
+- [ ] **Multi-modal models** — Vision + text models (Gemma 3 vision, etc.)
+- [ ] **Code interpreter** — Run snippets locally
 - [ ] **Real-time translation** — Live conversation translation using on-device models
-- [ ] **Medical/legal domain models** — Specialized fine-tuned models
+- [ ] **Specialized fine-tuned models** — Domain-specific `.litertlm` containers
 - [ ] **Enterprise deployment** — MDM support, custom branding, policy enforcement
 
 ---
 
 ## 🔮 Future (Research / Exploration)
 
-- [ ] **WebGPU backend** — WebAssembly-based inference for browser extension
 - [ ] **Federated learning** — Contribute model improvements without sharing raw data
 - [ ] **Homomorphic encryption** — Encrypted inference (research-stage)
 - [ ] **AR overlay** — Augmented reality chat interface

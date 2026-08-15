@@ -17,10 +17,10 @@ export const metadata: Metadata = {
 };
 
 const thanks = [
-  "llama.cpp contributors — the inference engine this app binds to",
-  "ONNX Runtime team — the offline voice models",
+  "Google AI Edge (LiteRT-LM) — the on-device inference runtime",
+  "sherpa-onnx & whisper.cpp — the offline voice models",
   "Kotlin, Jetpack Compose, and Material You — a UI stack worth writing 40k lines by hand",
-  "The open GGUF ecosystem — models anyone can download and run without asking",
+  "The litert-community ecosystem — open .litertlm models on HuggingFace & ModelScope",
 ];
 
 export default function ContributorsPage() {
@@ -38,7 +38,7 @@ export default function ContributorsPage() {
         <TickerTape
           className="mt-14"
           speed={36}
-          items={["llama.cpp", "ONNX Runtime", "Kotlin", "Jetpack Compose", "Material You", "GGUF"]}
+          items={["LiteRT-LM", "LiteRT", "Kotlin", "Jetpack Compose", "Material You"]}
         />
 
         <Reveal className="mx-auto mt-14 max-w-4xl">
@@ -75,7 +75,7 @@ export default function ContributorsPage() {
                   and open a pull request. The list above is generated live from the GitHub API the moment you load it.
                 </p>
                 <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-                  Large language models and the Android NDK have a well-known appetite for compute — generous machines,
+                  Large language models have a well-known appetite for compute — generous machines,
                   patience, and good coffee are recommended.
                 </p>
                 <p className="mt-6 text-xs text-[var(--faint)]">

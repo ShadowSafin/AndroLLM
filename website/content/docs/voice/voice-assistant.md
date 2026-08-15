@@ -36,7 +36,7 @@ The AndroLLM voice assistant provides a hands-free, fully offline interaction la
 │        ┌───────┴───────┐                 │                      │
 │        ▼               ▼                 │                      │
 │   Local LLM        Cloud LLM             │                      │
-│  (llama.cpp)      (LiteLLM)              │                      │
+│  (LiteRT-LM)      (LiteLLM)              │                      │
 │        │               │                 │                      │
 │        └───────┬───────┘                 │                      │
 │                ▼                         │                      │

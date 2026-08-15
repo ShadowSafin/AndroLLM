@@ -11,8 +11,8 @@ class CatalogLoaderTest {
     private fun model(id: String = "test-1", arch: String = "llama", quant: String = "Q4_K_M") =
         """{"id":"$id","name":"Test Model","family":"Test","architecture":"$arch",""" +
             """"categories":["CHAT"],"tags":["fast"],"license":"Apache-2.0","author":"T",""" +
-            """"repoId":"t/test-gguf","fileName":"test-$quant.gguf",""" +
-            """"downloadUrl":"https://huggingface.co/t/test-gguf/resolve/main/test-$quant.gguf",""" +
+            """"repoId":"t/test-litertlm","fileName":"test-$quant.litertlm",""" +
+            """"downloadUrl":"https://huggingface.co/t/test-litertlm/resolve/main/test-$quant.litertlm",""" +
             """"sizeBytes":1000000000,"parameters":"1.5B","quantization":"$quant",""" +
             """"contextLength":8192,"minRamGb":2.0,"recommendedRamGb":4.0,"downloads":100,"likes":5}"""
 

@@ -13,7 +13,7 @@ A comprehensive guide for developers working on AndroLLM.
 - [Logging](#logging)
 - [Adding a New Feature](#adding-a-new-feature)
 - [Adding a New Module](#adding-a-new-module)
-- [Working with the Native Engine](#working-with-the-native-engine)
+- [Working with the Engine](#working-with-the-engine)
 - [Working with Voice Models](#working-with-voice-models)
 
 ---
@@ -51,12 +51,13 @@ A comprehensive guide for developers working on AndroLLM.
 | App entry point | `app/src/main/java/io/androllm/app/MainActivity.kt` |
 | Navigation graph | `app/src/main/java/io/androllm/app/navigation/AppNavHost.kt` |
 | Inference interface | `engine/src/main/java/io/androllm/engine/api/InferenceEngine.kt` |
+| LiteRT-LM engine impl | `engine/src/main/java/io/androllm/engine/core/LiteRtLmEngine.kt` |
+| Embedding engine | `engine/src/main/java/io/androllm/engine/embedding/LiteRtEmbeddingEngine.kt` |
+| Family compat layer | `engine/src/main/java/io/androllm/engine/compat/` |
 | Chat ViewModel | `feature/chat/src/main/java/io/androllm/feature/chat/ChatViewModel.kt` |
 | Voice service | `feature/voice/src/main/java/io/androllm/feature/voice/service/VoiceAssistantService.kt` |
 | Memory manager | `core/memory/src/main/java/io/androllm/core/memory/MemoryManager.kt` |
 | Cloud gateway | `core/cloud/src/main/java/io/androllm/core/cloud/CloudGateway.kt` |
-| Native bridge | `engine/src/main/java/io/androllm/engine/jni/LlamaJniBridge.kt` |
-| JNI implementation | `engine/src/main/cpp/native_api.cpp` |
 | Database | `core/database/src/main/java/io/androllm/core/database/AppDatabase.kt` |
 
 ### Module Quick-Jump (Cmd/Ctrl+Shift+N)
@@ -65,7 +66,7 @@ Type the module prefix to jump directly:
 - `:app` — Application module
 - `:core:common` — Base types
 - `:core:database` — Room database
-- `:engine` — Native engine
+- `:engine` — LiteRT-LM engine
 - `:feature:chat` — Chat screen
 - `:feature:voice` — Voice assistant
 
@@ -80,22 +81,20 @@ Use Timber with tagged logs. Filter in Logcat by tag prefix:
 | Tag Prefix | Category |
 |---|---|
 | `AndroLLM` | General app logs |
-| `Engine` | Inference engine operations |
+| `AndroLLM-Engine` | Inference engine operations (see `RuntimeLogger`) |
 | `Voice` | Voice assistant lifecycle |
 | `Memory` | Memory system operations |
 | `Cloud` | Cloud provider interactions |
 | `Network` | HTTP requests/responses |
 | `Database` | Room database operations |
-| `Vulkan` | Vulkan backend diagnostics |
 
-### Debugging Native Code
+### Debugging the Engine
 
-Attach the Android profiler to debug C++ code:
-
-1. Run the app with the debug variant
-2. Android Studio → View → Tool Windows → Profiler
-3. Select your process → Native Allocation / CPU / GPU
-4. Set breakpoints in `native_api.cpp` via the C++ debugger
+The engine's `RuntimeLogger` writes to the `AndroLLM-Engine` logcat tag with
+stages, timing, and generation stats. To see the **full rendered chat prompt**
+(useful for template/tooling bugs), enable developer diagnostics in the app
+(`debugTokenLogging`) — a summary line is always logged, but the complete
+prompt is only dumped when the flag is on.
 
 ### Debugging Streaming Tokens
 
@@ -140,20 +139,16 @@ For cloud provider debugging, use OkHttp's logging interceptor (built into `Clou
 Use Android Studio's Profiler for CPU, memory, and energy:
 
 1. **CPU Profiler**: Identify slow operations in ViewModels and background workers
-2. **Memory Profiler**: Watch for leaks in `LlamaEngine` handle management
+2. **Memory Profiler**: Watch for leaks in engine session handling (conversations hold KV cache)
 3. **Energy Profiler**: Check voice service power consumption
 
-### GPU Profiling (Vulkan)
+### GPU Profiling (GPU Delegate)
 
-To profile Vulkan performance:
+The LiteRT GPU delegate runs on OpenCL. For GPU profiling:
 
-```bash
-# Enable GPU validation layers (requires Vulkan SDK)
-adb shell setprop debug.vulkan.layers VK_LAYER_KHRONOS_validation
-
-# Use RenderDoc (cross-platform GPU debugger)
-# Attach to the app process and capture a frame during generation
-```
+1. Use **Android GPU Inspector** to capture GPU/OpenCL workloads during generation
+2. Monitor `MemoryStats` (`gpuFree`/`gpuTotal`) in Developer Diagnostics to watch delegate memory
+3. Watch for fallbacks: `backend=GPU` → `backend=CPU` in logs indicates delegate issues
 
 ### Token Generation Benchmarking
 
@@ -226,10 +221,12 @@ Settings → Developer Options → Logs & Diagnostics → Export Logs
 ### Example: Adding a New Model Architecture
 
 ```kotlin
-// 1. Add architecture string to SupportedArchitectures.kt in core:models
-// 2. Add any architecture-specific sampling params to GenConfig in native_api.cpp
-// 3. Add catalog entry with architecture field in CatalogModels.kt
-// 4. Test with a model of that architecture
+// 1. Add the family to ModelFamily.kt in the engine (if not already present)
+// 2. Add a registry entry in ModelFamilyRegistry.kt mapping the container's
+//    llm_model_type → family + chat template
+// 3. Add any family-specific special/stop tokens to SpecialTokens.kt
+// 4. Add a catalog entry (with family/architecture fields) in CatalogModels.kt
+// 5. Test with a .litertlm model of that architecture
 ```
 
 ---
@@ -242,7 +239,10 @@ Add a new module when:
 - The functionality is independently testable
 - It has a distinct dependency footprint
 - Multiple features would benefit from it
-- It contains significant native code
+
+> Note: the inference engine has **no native code** — the `engine` module is a
+> pure Kotlin/Java module consuming LiteRT-LM/LiteRT AARs. Do not add native
+> code to it. The only NDK module in the repo is `:whisper`.
 
 ### Module Template
 
@@ -268,9 +268,6 @@ android {
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
-    }
 }
 
 dependencies {
@@ -292,45 +289,41 @@ implementation(project(":core:<name>"))
 
 ---
 
-## Working with the Native Engine
+## Working with the Engine
 
-### Modifying llama.cpp
+### Architecture at a Glance
 
-The vendored llama.cpp is at `engine/src/main/cpp/llama.cpp/`. It is **stock upstream** — never patch it directly. Instead:
+The engine is a 100% Kotlin/Java module:
 
-1. Pull the latest upstream changes:
-   ```bash
-   cd engine/src/main/cpp/llama.cpp
-   git pull origin main
-   ```
-2. Rebuild the engine:
-   ```bash
-   ./gradlew :engine:clean :engine:build
-   ```
+- **`LiteRtLmEngine`** wraps `com.google.ai.edge.litertlm.Engine` — the LiteRT-LM
+  Kotlin API. It owns the `Conversation`, applies family chat templates
+  (`ExperimentalFlags.overwritePromptTemplate`), configures sampling, and
+  streams tokens.
+- **Compat layer** (`engine/.../compat/`) resolves the model family from
+  container metadata, picks the right template/tokenizer/stop tokens, and
+  post-processes output (`StopSequenceTracker`, `OutputDecoder`).
+- **`LiteRtEmbeddingEngine`** uses the raw LiteRT `CompiledModel` API for the
+  EmbeddingGemma 300M embedding model (no LiteRT-LM needed).
+- **Hilt bindings** live in `engine/.../di/EngineModule.kt`:
+  `LiteRtLmEngine` → `InferenceEngine`, `DefaultEngineRepository` → `EngineRepository`.
 
-### Adding a New JNI Function
+### Upgrading LiteRT-LM
 
-1. Declare in `LlamaJniBridge.kt`:
-   ```kotlin
-   external fun nativeMyNewFunction(handle: Long, param: String): String
-   ```
-2. Implement in `native_api.cpp`:
-   ```cpp
-   extern "C" JNIEXPORT jstring JNICALL
-   Java_io_androllm_engine_jni_LlamaJniBridge_nativeMyNewFunction(
-       JNIEnv* env, jclass, jlong handle, jstring param) {
-       // Implementation
-   }
-   ```
-3. Rebuild: `./gradlew :engine:build`
+1. Update the version in `gradle/libs.versions.toml`:
+   - `litertlm-android` (chat runtime)
+   - `litert` (embedding runtime)
+2. Run the engine unit tests: `./gradlew :engine:test`
+3. Run the instrumented stress test on a device with a `.litertlm` model
+4. Check the LiteRT-LM release notes for API changes (`ExperimentalFlags`,
+   `SamplerConfig`, etc.)
 
-### Understanding the JNI Bridge
+### Adding a New Family
 
-The JNI bridge follows these patterns:
-- **Handle-based**: Every function takes a `Long` handle (pointer to `LlamaEngine`)
-- **JSON strings**: Complex parameters serialized as JSON, deserialized in C++
-- **UTF-16 round-trip**: Java `String` → UTF-16 → `std::wstring` → `std::string`(UTF-8) for C++
-- **Callback via jobject**: Token callbacks passed as Java/Kotlin lambdas wrapped in `JNIEnv`
+1. Add the enum entry to `ModelFamily.kt`
+2. Map the container's `llm_model_type` (or fallback signature) in `ModelFamilyRegistry.kt`
+3. Provide the chat template in `ChatTemplates.kt` (override via `ExperimentalFlags.overwritePromptTemplate`)
+4. Set special tokens / stop tokens in `SpecialTokens.kt`
+5. Add unit tests in `engine/src/test/.../compat/`
 
 ---
 
@@ -377,3 +370,4 @@ Before requesting a review, verify:
 - [ ] No memory leaks (ViewModels don't hold Context; Services have proper lifecycle)
 - [ ] Threading is correct (no main-thread blocking operations)
 - [ ] Edge cases handled (null safety, empty lists, network failures)
+- [ ] Engine calls stay on background dispatchers; UI only observes `StateFlow`

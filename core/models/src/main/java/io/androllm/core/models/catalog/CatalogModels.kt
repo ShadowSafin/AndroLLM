@@ -45,17 +45,64 @@ data class CatalogModel(
     val likes: Long = 0,
     val trendingScore: Long = 0,
     val sha256: String? = null,
+    /**
+     * Optional companion artifact downloaded next to the main file — e.g. the
+     * Gemma 3 `sentencepiece.model` tokenizer for the EmbeddingGemma `.tflite`.
+     * Downloaded as `tokenizer.model` beside the model file.
+     */
+    val companionUrl: String = "",
     val publishedAt: Long = 0,
     val isGated: Boolean = false,
     val modality: String = "TEXT",
     val modelType: String? = null,
     val status: String = "STABLE",
+    /**
+     * The model-specific stop sequences that terminate generation. The engine
+     * merges these with the family's official stop tokens automatically at
+     * load — a Qwen3 entry declaring `<|im_end|>`/`<|endoftext|>` guarantees
+     * generation stops even if the container's own metadata is incomplete.
+     */
+    val stopSequences: List<String> = emptyList(),
     val badges: List<String> = emptyList(),
     val strengths: List<String> = emptyList(),
     val weaknesses: List<String> = emptyList(),
     val notes: String? = null,
     val recommended: Boolean = false,
-    val hidden: Boolean = false
+    val hidden: Boolean = false,
+
+    // ---- storage-streaming runtime fields (catalog schema v2) ----
+    // These separate STORAGE requirement from RUNTIME RAM requirement — the
+    // core point of the streaming architecture: a 5.2 GB file does not need
+    // 5.2 GB of RAM.
+    val streamable: Boolean = true,
+    val runtimeFormat: String = "GGUF",
+    val supportedBackends: List<String> = listOf("CPU", "VULKAN"),
+    /** Weight-block cache budget in MB (the streaming working set). */
+    val defaultCacheMb: Long = 1024,
+    /** Estimated resident RAM in MB; 0 = auto-computed at install from metadata. */
+    val estimatedRuntimeRamMb: Long = 0,
+    val recommendedContext: Int = 4096,
+    val tensorLayout: String = "BLOCKED",
+    /** Installed-model lifecycle state (mirrors ModelRuntimeState). */
+    val runtimeState: String = "AVAILABLE",
+
+    // ---- Colibrì-port schema additions ----
+    /** DENSE or MOE (routed experts). */
+    val denseOrMoe: String = "DENSE",
+    /** Streaming model type: DENSE / MOE / STREAMING_DENSE / STREAMING_MOE. */
+    val modelStreamType: String = "STREAMING_DENSE",
+    /** Recommended GPU-visible memory in MB for the Vulkan backend (0 = auto). */
+    val recommendedVramMb: Long = 0,
+    /** Storage-speed advice: "FAST_INTERNAL", "STANDARD", "ANY". */
+    val storageSpeed: String = "STANDARD",
+    /** AndroLLM runtime version that can drive this artifact. */
+    val runtimeVersion: String = "0.1.0",
+    /** Source of the artifact (repo / upstream id) for attribution. */
+    val modelSource: String? = null,
+    /** Shared-expert count for MoE models (0 = none). */
+    val sharedExperts: Int = 0,
+    /** Routed expert count for MoE models (0 = dense). */
+    val expertCount: Int = 0
 ) {
     /** Quantization tier, auto-classified from [quantization]. */
     val quantLevel: QuantLevel get() = QuantClassifier.classify(quantization)
@@ -71,6 +118,104 @@ data class CatalogModel(
 
     val statusValue: CatalogStatus
         get() = CatalogStatus.fromValue(status)
+
+    /** Parsed runtime lifecycle state. */
+    val runtimeStateValue: ModelRuntimeState
+        get() = ModelRuntimeState.fromValue(runtimeState)
+
+    /** Parsed backends — never more than {CPU, VULKAN}. */
+    val backendValues: List<RuntimeBackend>
+        get() = supportedBackends.mapNotNull { RuntimeBackend.fromValue(it) }
+
+    /** True when the runtime can actually run this model on this device class. */
+    val isStreamable: Boolean get() = streamable && backendValues.isNotEmpty()
+
+    /** Parsed dense/MoE classification. */
+    val denseOrMoeValue: DenseOrMoe
+        get() = DenseOrMoe.fromValue(denseOrMoe)
+
+    /** Parsed streaming model type (DENSE/MOE/STREAMING_DENSE/STREAMING_MOE). */
+    val modelStreamTypeValue: ModelStreamType
+        get() = ModelStreamType.fromValue(modelStreamType)
+
+    /**
+     * Estimated resident RAM in MB for this model under streaming: explicit
+     * catalog value when set, otherwise a per-quantization share of the file
+     * size (the working set, not the whole file).
+     */
+    val estimatedRuntimeRamMbValue: Long
+        get() = if (estimatedRuntimeRamMb > 0) {
+            estimatedRuntimeRamMb
+        } else {
+            RuntimeRamEstimator.estimateMb(this)
+        }
+}
+
+/**
+ * Streaming RAM estimation: the resident working set (cache + KV + workspace),
+ * never the file size. Uses a per-quantization fraction of the model bytes:
+ * fewer bits per weight → less RAM per GB of storage.
+ */
+object RuntimeRamEstimator {
+    private const val MIN_MB = 512L
+    private const val MAX_MB = 16L * 1024
+
+    fun estimateMb(model: CatalogModel): Long {
+        val bytes = model.sizeBytes.coerceAtLeast(0)
+        if (bytes == 0L) return MIN_MB
+        val fraction = when (model.quantLevel) {
+            QuantLevel.TQ1, QuantLevel.TQ2 -> 0.18
+            QuantLevel.IQ1, QuantLevel.Q1 -> 0.20
+            QuantLevel.IQ2, QuantLevel.Q2 -> 0.22
+            QuantLevel.IQ3, QuantLevel.Q3 -> 0.25
+            QuantLevel.IQ4, QuantLevel.Q4 -> 0.28
+            QuantLevel.Q5 -> 0.30
+            QuantLevel.Q6 -> 0.32
+            QuantLevel.Q8 -> 0.35
+            QuantLevel.MXFP4, QuantLevel.NVFP4 -> 0.26
+            QuantLevel.F16, QuantLevel.BF16 -> 0.22
+            QuantLevel.OTHER -> 0.30
+        }
+        val mb = (bytes * fraction / 1_000_000.0).toLong()
+        return mb.coerceIn(MIN_MB, MAX_MB)
+    }
+}
+
+/** Dense vs MoE classification of a model. */
+enum class DenseOrMoe(val label: String) {
+    DENSE("Dense"),
+    MOE("MoE");
+
+    val isMoe: Boolean get() = this == MOE
+
+    companion object {
+        fun fromValue(value: String): DenseOrMoe =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.label.equals(value, ignoreCase = true) }
+                ?: DENSE
+    }
+}
+
+/**
+ * Streaming model type. STREAMING_* entries are the AndroLLM runtime's core
+ * offering: weights live primarily on storage and stream through a bounded
+ * RAM/VRAM cache. MOE types route experts on demand (Colibrì's strongest
+ * concept) — a large MoE can run with a small resident set.
+ */
+enum class ModelStreamType(val label: String) {
+    DENSE("Dense"),
+    MOE("MoE"),
+    STREAMING_DENSE("Streaming Dense"),
+    STREAMING_MOE("Streaming MoE");
+
+    val isStreaming: Boolean get() = this == STREAMING_DENSE || this == STREAMING_MOE
+    val isMoe: Boolean get() = this == MOE || this == STREAMING_MOE
+
+    companion object {
+        fun fromValue(value: String): ModelStreamType =
+            entries.firstOrNull {
+                it.name.equals(value, ignoreCase = true) || it.label.equals(value, ignoreCase = true)
+            } ?: STREAMING_DENSE
+    }
 }
 
 /** Display categories used to organize catalog models. */

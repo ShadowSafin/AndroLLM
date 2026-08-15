@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -101,13 +103,22 @@ class DefaultEngineRepositoryStressTest {
             generationStartCount.incrementAndGet()
             onTokenStreamStarted?.invoke()
             try {
-                val gate = streamGate
-                if (gate != null) {
-                    gate.await()
-                }
                 if (autoFinish) {
                     emit(io.androllm.core.common.Result.Success(StreamChunk("response-", false, generatedTokens = 1)))
                     emit(io.androllm.core.common.Result.Success(StreamChunk("${generationStartCount.get()}", false, generatedTokens = 2)))
+                } else {
+                    // Mid-generation cancellation: emit ONE token first so the
+                    // repository's first-token watchdog is satisfied (the test
+                    // then gates the stream open to hold the generation
+                    // mid-flight). Without a first token, the watchdog would
+                    // legitimately fire after its real 5s budget on a slow CI
+                    // run and the test would observe Failed instead of
+                    // Cancelled.
+                    emit(io.androllm.core.common.Result.Success(StreamChunk("partial-", false, generatedTokens = 1)))
+                }
+                val gate = streamGate
+                if (gate != null) {
+                    gate.await()
                 }
                 // Even on cancel, the native loop exits cleanly and the stream
                 // completes with the final finished marker.
@@ -285,5 +296,278 @@ class DefaultEngineRepositoryStressTest {
 
         val chatResult = repository.generate("chat after quiet")
         assertTrue(chatResult.isSuccess())
+    }
+
+    /**
+     * Emulates a stalled backend: the stream produces NO tokens and only ends
+     * after cancel() is called (mirrors the native loop exiting at its cancel
+     * check). The repository's first-token watchdog must fire and report the
+     * stall instead of spinning forever.
+     */
+    private class StallFakeEngine : InferenceEngine {
+        private val cancelSignal = CompletableDeferred<Unit>()
+        var cancelRequests = 0
+
+        override val capabilities = EngineCapabilities(
+            name = "StallFake", version = "1.0", backend = BackendType.CPU
+        )
+        private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
+        override val engineState: Flow<EngineState> = _engineState.asStateFlow()
+        private val _stats = MutableStateFlow<EngineStats?>(null)
+        override val stats: Flow<EngineStats?> = _stats.asStateFlow()
+
+        override suspend fun initialize(config: io.androllm.engine.models.EngineConfig): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override fun isLoaded(): Boolean = true
+        override fun getLoadedModel(): EngineModelInfo? = null
+        override suspend fun loadModel(
+            model: Model, config: io.androllm.engine.models.ModelLoadConfig
+        ): io.androllm.core.common.Result<EngineModelInfo> =
+            io.androllm.core.common.Result.Success(EngineModelInfo(model.id, model.filePath ?: "", 4096, 32000, BackendType.CPU))
+        override suspend fun unloadModel(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+
+        override fun tokenStream(
+            prompt: String, config: GenerationConfig
+        ): Flow<io.androllm.core.common.Result<StreamChunk>> = flow {
+            // No tokens ever; the stream only completes once cancelled.
+            cancelSignal.await()
+            emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 0)))
+        }
+
+        override suspend fun buildChatPrompt(
+            messages: List<io.androllm.engine.models.ChatPromptMessage>, addAssistant: Boolean
+        ): io.androllm.core.common.Result<String> =
+            io.androllm.core.common.Result.Success("assistant\n")
+        override suspend fun generate(prompt: String, config: GenerationConfig): io.androllm.core.common.Result<String> =
+            io.androllm.core.common.Result.Success("hi")
+        override fun cancel(): io.androllm.core.common.Result<Unit> {
+            cancelRequests++
+            cancelSignal.complete(Unit)
+            return io.androllm.core.common.Result.Success(Unit)
+        }
+        override fun benchmark(iterations: Int): Flow<io.androllm.core.common.Result<io.androllm.engine.models.BenchmarkResult>> = flow { }
+        override suspend fun resetChat(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override suspend fun getDebugInfo(): io.androllm.core.common.Result<io.androllm.engine.models.EngineDebugInfo?> =
+            io.androllm.core.common.Result.Success(null)
+        override fun release() = Unit
+    }
+
+    // NOTE: the stall watchdog now runs on the repository's own real
+    // Dispatchers.Default scope (guaranteed a free thread even when the caller
+    // dispatcher is blocked by a native decode), so these two tests run in
+    // REAL time — the watchdog fires at the real 5s floor. runTest's virtual
+    // clock would jump the outer ceiling (virtual 300s) before the real
+    // watchdog fires, so runBlocking is required.
+
+    @Test
+    fun `a stalled generation is cancelled and reported instead of spinning forever`() = runBlocking {
+        val engine = StallFakeEngine()
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(Model(id = "stall", name = "Stall", filePath = "/tmp/stall.gguf"))
+
+        val result = repository.generate("hello")
+
+        assertTrue("stalled run must fail: $result", result.isError())
+        assertTrue("native cancel must have been requested", engine.cancelRequests > 0)
+        val failed = repository.generationState.value as GenerationState.Failed
+        assertTrue("must explain the stall: ${failed.message}", failed.message.contains("stalled"))
+    }
+
+    @Test
+    fun `chat generation also reports a stall`() = runBlocking {
+        val engine = StallFakeEngine()
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(Model(id = "stall", name = "Stall", filePath = "/tmp/stall.gguf"))
+
+        val result = repository.generateChat(
+            listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "hello"))
+        )
+
+        assertTrue("stalled chat run must fail: $result", result.isError())
+        val failed = repository.generationState.value as GenerationState.Failed
+        assertTrue(failed.message.contains("stalled"))
+    }
+
+    /**
+     * Emulates a stalled NON-STREAMING backend: [generate] blocks until
+     * [cancel] is called (mirrors the native decode loop exiting at its
+     * cancel check). Proves the generateQuiet watchdog actually ABORTS the
+     * engine — a bare coroutine timeout could never interrupt a blocking JNI
+     * call, which is exactly how the planner pass used to run the full 300s
+     * ceiling while the chat UI spun "Preparing local model…".
+     */
+    private class QuietStallFakeEngine : InferenceEngine {
+        private val cancelSignal = CompletableDeferred<Unit>()
+        var cancelRequests = 0
+
+        override val capabilities = EngineCapabilities(
+            name = "QuietStall", version = "1.0", backend = BackendType.CPU
+        )
+        private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
+        override val engineState: Flow<EngineState> = _engineState.asStateFlow()
+        private val _stats = MutableStateFlow<EngineStats?>(null)
+        override val stats: Flow<EngineStats?> = _stats.asStateFlow()
+
+        override suspend fun initialize(config: io.androllm.engine.models.EngineConfig): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override fun isLoaded(): Boolean = true
+        override fun getLoadedModel(): EngineModelInfo? = null
+        override suspend fun loadModel(
+            model: Model, config: io.androllm.engine.models.ModelLoadConfig
+        ): io.androllm.core.common.Result<EngineModelInfo> =
+            io.androllm.core.common.Result.Success(EngineModelInfo(model.id, model.filePath ?: "", 4096, 32000, BackendType.CPU))
+        override suspend fun unloadModel(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override fun tokenStream(
+            prompt: String, config: GenerationConfig
+        ): Flow<io.androllm.core.common.Result<StreamChunk>> = flow {
+            emit(io.androllm.core.common.Result.Success(StreamChunk("response", false, generatedTokens = 1)))
+            emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 1)))
+        }
+        override suspend fun buildChatPrompt(
+            messages: List<io.androllm.engine.models.ChatPromptMessage>, addAssistant: Boolean
+        ): io.androllm.core.common.Result<String> =
+            io.androllm.core.common.Result.Success("assistant\n")
+        override suspend fun generate(
+            prompt: String, config: GenerationConfig
+        ): io.androllm.core.common.Result<String> =
+            // Blocks until the watchdog aborts the run via cancel() — the
+            // native contract for a stalled decode. NonCancellable emulates a
+            // real JNI call: coroutine cancellation alone can NOT unwind it;
+            // only engine.cancel() (nativeCancel) can release the decode.
+            withContext(kotlinx.coroutines.NonCancellable) {
+                cancelSignal.await()
+                io.androllm.core.common.Result.Success("partial")
+            }
+        override fun cancel(): io.androllm.core.common.Result<Unit> {
+            cancelRequests++
+            cancelSignal.complete(Unit)
+            return io.androllm.core.common.Result.Success(Unit)
+        }
+        override fun benchmark(iterations: Int): Flow<io.androllm.core.common.Result<io.androllm.engine.models.BenchmarkResult>> = flow { }
+        override suspend fun resetChat(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override suspend fun getDebugInfo(): io.androllm.core.common.Result<io.androllm.engine.models.EngineDebugInfo?> =
+            io.androllm.core.common.Result.Success(null)
+        override fun release() = Unit
+    }
+
+    @Test
+    fun `generateQuiet watchdog aborts a stalled native call and releases the mutex`() = runBlocking {
+        val engine = QuietStallFakeEngine()
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "qstall", name = "QStall", filePath = "/tmp/qstall.gguf"),
+            // The self-test probe would also block on generate() — skip it;
+            // this test targets the quiet watchdog, not the load probe.
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generateQuiet("plan this", timeoutMs = 300)
+
+        assertTrue("stalled quiet run must fail fast: $result", result.isError())
+        assertTrue("watchdog must have aborted the native call", engine.cancelRequests > 0)
+        // The generation mutex must be released so a later turn is not wedged
+        // on "Generation already in progress".
+        val next = repository.generate("after quiet timeout")
+        assertTrue("engine must be reusable after the watchdog abort: $next", next.isSuccess())
+        assertTrue(repository.generationState.value is GenerationState.Completed)
+    }
+
+    /**
+     * Emulates a model whose inference is broken: the self-test probe NEVER
+     * returns. loadModel must reject it via the probe watchdog instead of
+     * hanging the load forever.
+     */
+    private class HungProbeEngine : InferenceEngine {
+        override val capabilities = EngineCapabilities(
+            name = "HungProbe", version = "1.0", backend = BackendType.CPU
+        )
+        private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
+        override val engineState: Flow<EngineState> = _engineState.asStateFlow()
+        private val _stats = MutableStateFlow<EngineStats?>(null)
+        override val stats: Flow<EngineStats?> = _stats.asStateFlow()
+
+        override suspend fun initialize(config: io.androllm.engine.models.EngineConfig): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override fun isLoaded(): Boolean = true
+        override fun getLoadedModel(): EngineModelInfo? = null
+        override suspend fun loadModel(
+            model: Model, config: io.androllm.engine.models.ModelLoadConfig
+        ): io.androllm.core.common.Result<EngineModelInfo> =
+            io.androllm.core.common.Result.Success(EngineModelInfo(model.id, model.filePath ?: "", 4096, 32000, BackendType.CPU))
+        override suspend fun unloadModel(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override fun tokenStream(prompt: String, config: GenerationConfig): Flow<io.androllm.core.common.Result<StreamChunk>> = flow {
+            emit(io.androllm.core.common.Result.Success(StreamChunk("hi", false)))
+            emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 1)))
+        }
+        override suspend fun buildChatPrompt(
+            messages: List<io.androllm.engine.models.ChatPromptMessage>, addAssistant: Boolean
+        ): io.androllm.core.common.Result<String> =
+            io.androllm.core.common.Result.Success("assistant\n")
+        override suspend fun generate(prompt: String, config: GenerationConfig): io.androllm.core.common.Result<String> =
+            // The probe never returns — a hung decode.
+            kotlinx.coroutines.suspendCancellableCoroutine { }
+        override fun cancel(): io.androllm.core.common.Result<Unit> = io.androllm.core.common.Result.Success(Unit)
+        override fun benchmark(iterations: Int): Flow<io.androllm.core.common.Result<io.androllm.engine.models.BenchmarkResult>> = flow { }
+        override suspend fun resetChat(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+        override suspend fun getDebugInfo(): io.androllm.core.common.Result<io.androllm.engine.models.EngineDebugInfo?> =
+            io.androllm.core.common.Result.Success(null)
+        override fun release() = Unit
+    }
+
+    @Test
+    fun `loadModel rejects a model whose self-test probe hangs`() = runTest {
+        val engine = HungProbeEngine()
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+
+        val result = repository.loadModel(Model(id = "hung", name = "Hung", filePath = "/tmp/hung.gguf"))
+
+        assertTrue("hang probe must fail the load: $result", result.isError())
+        val state = repository.engineState.value
+        assertTrue("engine must not be Ready for a broken model: $state", state is EngineState.Failed)
+    }
+
+    // ── Adaptive stall / hard-ceiling budgets ────────────────────────────────
+
+    @Test
+    fun `stall budget floors at 5s for short prompts and scales with prompt length`() {
+        // Sane prefill budget: 50ms per estimated prompt token (~4 chars/token),
+        // capped at 240s. The 5s floor and the scaling shape are the contract
+        // under test — a healthy engine always beats them; a stuck one never does.
+        // < 4 chars → 0 estimated tokens → the user-required 5s floor.
+        assertEquals(5_000L, DefaultEngineRepository.stallTimeoutMs(3))
+        // 4 chars → 1 token → 5s + 1*50ms (still effectively the floor).
+        assertEquals(5_050L, DefaultEngineRepository.stallTimeoutMs(4))
+        // A 4k-char prompt (~1000 tokens) budgets 5s + 1000*50ms = 55s.
+        assertEquals(55_000L, DefaultEngineRepository.stallTimeoutMs(4_000))
+        // A huge prompt must not wait forever — capped at 240s so a
+        // slow-but-healthy CPU prefill on Vulkan-device-lost fallback is not
+        // false-stalled; real stalls are escaped by the watchdog ceilings.
+        assertEquals(240_000L, DefaultEngineRepository.stallTimeoutMs(1_000_000))
+        // Negative/zero lengths never go below the floor.
+        assertEquals(5_000L, DefaultEngineRepository.stallTimeoutMs(0))
+        assertEquals(5_000L, DefaultEngineRepository.stallTimeoutMs(-10))
+    }
+
+    @Test
+    fun `hard ceiling never gets stricter than 300s and scales with token budget`() {
+        // Zero/negative token budget → the previous fixed 300s behavior.
+        assertEquals(300_000L, DefaultEngineRepository.hardGenerationTimeoutMs(0))
+        assertEquals(300_000L, DefaultEngineRepository.hardGenerationTimeoutMs(-5))
+        // 64 tokens → 64*2s + 300s = 428s (more generous than the old fixed 300s).
+        assertEquals(428_000L, DefaultEngineRepository.hardGenerationTimeoutMs(64))
+        // A 512-token generation budget allows 512*2s + 300s = 1324s.
+        assertEquals(1_324_000L, DefaultEngineRepository.hardGenerationTimeoutMs(512))
+        // Never past the 30-minute absolute cap.
+        assertEquals(1_800_000L, DefaultEngineRepository.hardGenerationTimeoutMs(10_000))
     }
 }

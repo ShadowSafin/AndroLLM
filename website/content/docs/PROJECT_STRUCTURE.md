@@ -6,7 +6,7 @@ This document describes the module layout and dependency graph of the AndroLLM G
 
 ## Module Count
 
-**26 Gradle modules** organized into three tiers: Application, Core libraries, and Feature modules.
+**31 Gradle modules** organized into three tiers: Application, Core libraries, and Feature modules (plus `whisper` and `documentation` auxiliary modules).
 
 ---
 
@@ -17,9 +17,9 @@ This document describes the module layout and dependency graph of the AndroLLM G
 | `app` | `io.androllm.app` | Entry point, `Application` class, root navigation graph, Firebase auth integration |
 
 Key classes in `app`:
-- `AndroLLMApplication.kt` — Hilt application class, WorkManager configuration, telemetry initialization
+- `AndroLLMApplication.kt` — Hilt application class, WorkManager configuration
 - `MainActivity.kt` — Single-activity host, theme application, lifecycle management
-- `navigation/AppNavHost.kt` — Root `NavHost` wiring all 15 destination routes
+- `navigation/AppNavHost.kt` — Root `NavHost` wiring all destination routes
 - `auth/FirebaseAuthScreen.kt` — Google Sign-In + GitHub OAuth login UI
 - `profile/ProfileSetupScreen.kt` — One-time profile completion flow
 
@@ -90,21 +90,21 @@ Namespace: `io.androllm.core.models`
 
 | Class | Role |
 |---|---|
-| `Model` | Primary domain model for a downloaded GGUF file |
-| `CatalogModel` | Rich remote catalog entry (37 fields: families, architectures, tags, licenses, RAM fit, trending score, etc.) |
+| `Model` | Primary domain model for a downloaded `.litertlm` file |
+| `CatalogModel` | Rich remote catalog entry (families, architectures, tags, licenses, RAM fit, etc.) |
 | `Conversation` / `Message` | Chat domain objects |
 | `AppSettings` | App-wide settings model |
 | `Enums` | `DownloadStatus`, `ModelFormat`, `ModelStatus`, `ModelCategory`, `ModelOrigin` |
-| `catalog/CatalogRepository` | Loads/refreshes catalog JSON from bundled asset or HuggingFace |
+| `catalog/CatalogRepository` | Loads/refreshes catalog JSON from bundled asset or remote source |
 | `catalog/CatalogLoader` | Parses + validates catalog JSON |
 | `catalog/CatalogParser` | JSON deserialization for catalog |
 | `catalog/CatalogValidator` | Validates IDs uniqueness, required fields, supported architectures, SHA-256 format, HTTPS URLs |
-| `catalog/SupportedArchitectures` | Whitelist of 137 llama.cpp-supported architectures |
-| `catalog/ModelSearchEngine` | Search/filter/sort over 16 filter dimensions, 11 sort options |
+| `catalog/SupportedArchitectures` | Whitelist of supported LiteRT architectures (`gemma3`, `gemma4`, `gemma-embedding`, `qwen2`, `qwen3`) |
+| `catalog/ModelSearchEngine` | Search/filter/sort over catalog dimensions |
 | `catalog/RecommendationEngine` | Scores models by RAM fit, size fit, quant tier, popularity, curated flag |
-| `catalog/OfficialModelCatalog` | Hardcoded built-in models (Gemma, Qwen, DeepSeek variants) |
+| `catalog/OfficialModelCatalog` | Hardcoded built-in models (Qwen, Gemma, DeepSeek variants) |
 | `catalog/QuantClassifier` | Maps quant strings → `QuantLevel` enum |
-| `catalog/ParameterCount` | Parses "1.5B", "407M" → double |
+| `catalog/ParameterCount` | Parses "1.5B", "0.6B" → double |
 
 ### `core:network` — HTTP & Downloads
 Namespace: `io.androllm.core.network`
@@ -112,11 +112,11 @@ Namespace: `io.androllm.core.network`
 | Class | Role |
 |---|---|
 | `HttpClientFactory` | Ktor `HttpClient(Android)` singleton with ContentNegotiation + Logging |
-| `ModelApi` / `HuggingFaceApi` | Retrofit-style API interfaces for HuggingFace repo |
+| `ModelApi` / `HuggingFaceApi` | Retrofit-style API interfaces for model repositories |
 | `DownloadManager` | Background file downloads with progress tracking |
 | `NetworkModule` | Hilt `@Module` providing `HttpClient` |
-| `catalog/CatalogNetworkModule` + `HfCatalogRemoteSource` | Remote catalog refresh from HuggingFace |
-| `repository/HuggingFaceRepository` | Search/query HuggingFace model repos |
+| `catalog/CatalogNetworkModule` + remote source | Remote catalog refresh |
+| `repository/HuggingFaceRepository` | Search/query model repositories |
 | `repository/ModelRepositoryProvider` / `RepositoryRegistry` | Factory registry for model sources |
 
 ### `core:cloud` — Cloud AI Providers
@@ -164,13 +164,27 @@ See [Memory Architecture Deep Dive](memory/memory-architecture.md) for details.
 |---|---|
 | `db/` | `MemoryDatabase` (separate Room instance), `MemoryDao`, `EmbeddingDao`, entities |
 | `vector/` | `CosineVectorIndex` (in-memory brute-force cosine similarity), `VectorMath` |
-| `embedding/` | `EmbeddingProvider` interface, `RoutingEmbeddingProvider`, `CloudEmbeddingProvider`, `LlamaEmbeddingProvider` (separate native handle) |
+| `embedding/` | `EmbeddingProvider` interface, `RoutingEmbeddingProvider`, `CloudEmbeddingProvider`, `LiteRtEmbeddingProvider` (LiteRT CompiledModel API) |
 | `intelligence/` | `MemoryIntelligence` interface, `RoutingMemoryIntelligence`, `CloudMemoryIntelligence`, `LocalMemoryIntelligence` |
 | `extraction/` | `MemoryExtractor`, `ExtractionJson`, `ExtractionJsonParser` |
 | `context/` | `ContextBuilder` — formats memories for system prompt injection |
 | `summarize/` | `ConversationSummarizer`, `SummaryPrompts` |
 | `background/` | `MemoryBackgroundScheduler`, `MemoryIndexingWorker` (WorkManager) |
 | `di/MemoryModule` | Hilt bindings |
+
+### `core:permissions` — Permission & Access Manager
+Namespace: `io.androllm.core.permissions`
+
+Central permission/access system backing the first-launch setup screen and Settings → Permissions & Access.
+
+| Class | Role |
+|---|---|
+| `PermissionManager` | Singleton facade: live state, request order, permanent-denial detection, feature→permission derivation |
+| `PermissionHandler` | Interface for one gate (runtime permission or special access) |
+| `PermissionState` | Live state enum (GRANTED / DENIED / PERMANENTLY_DENIED / NEEDS_SETTINGS / NOT_REQUIRED / …) |
+| `Feature` | Declarative feature → handler mapping |
+| `handler/` | Microphone, Notifications, Accessibility, Contacts, SMS, Calendar, Camera, Location, Bluetooth, Alarms handlers |
+| `di/PermissionModule` | Hilt multibinding registering every handler |
 
 ### `core:voice` — Voice Infrastructure
 Namespace: `io.androllm.core.voice`
@@ -201,6 +215,7 @@ Each feature module owns one screen or service. They depend on `core:*` modules 
 | `feature:voice` | `io.androllm.feature.voice` | `VoiceAssistantService` (foreground), `VoiceAssistantController` (singleton StateFlow), `VoiceAssistant`, `VoiceOverlayWindow` (TYPE_APPLICATION_OVERLAY), `VoiceOverlay`, `VoiceCommandRouter`, `SentenceAssembler`, `ChatManager`, `VoiceNotifications` |
 | `feature:splash` | `io.androllm.feature.splash` | `SplashScreen` |
 | `feature:onboarding` | `io.androllm.feature.onboarding` | `OnboardingScreen`, `OnboardingViewModel`, `OnboardingIllustrations` |
+| `feature:setup` | `io.androllm.feature.setup` | `PermissionSetupScreen`, `PermissionSetupViewModel`, `PermissionsAccessScreen`, `PermissionsAccessViewModel` |
 | `feature:profile` | `io.androllm.feature.profile` | `ProfileScreen`, `ProfileViewModel`, `ProfileSetupScreen`, `ProfileSetupViewModel` |
 | `feature:prompts` | `io.androllm.feature.prompts` | `PromptLibraryScreen`, `PromptLibraryViewModel`, `PromptLibrary` |
 | `feature:developer` | `io.androllm.feature.developer` | `DeveloperScreen`, `DeveloperViewModel` |
@@ -210,47 +225,55 @@ Each feature module owns one screen or service. They depend on `core:*` modules 
 
 ## The Engine Module
 
-The `engine` module bridges the Kotlin app layer and the native llama.cpp inference engine.
+The `engine` module bridges the Kotlin app layer and the **LiteRT-LM** inference
+runtime (`com.google.ai.edge.litertlm:litertlm-android:0.16.0`) plus **LiteRT
+2.2.0** for embeddings. It is 100% Kotlin/Java — no `cpp/`, no NDK, no CMake.
 
 ```
 engine/
-├── src/main/java/io/androllm/engine/
-│   ├── api/
-│   │   ├── InferenceEngine.kt       # Primary interface: loadModel, generateChatStream, cancel...
-│   │   ├── EngineRepository.kt      # Facade adding Mutex serialization for concurrent callers
-│   │   └── EngineState.kt          # StateFlow-emitting sealed interface
-│   ├── backend/
-│   │   ├── BackendSelector.kt       # Chooses LLAMA_CPP_VULKAN vs CPU based on hardware
-│   │   └── InferenceBackend.kt     # Backend type enum (QUALCOMM_QNN, LLAMA_CPP_VULKAN, ONNX_RUNTIME, CPU, VULKAN)
-│   ├── di/EngineModule.kt           # Hilt bindings: InferenceEngine→LlamaCppEngine, EngineRepository→DefaultEngineRepository
-│   ├── llama/LlamaCppEngine.kt      # Singleton: manages native engine handle lifecycle
-│   ├── jni/LlamaJniBridge.kt        # external fun declarations for all native calls
-│   ├── models/
-│   │   ├── EngineModels.kt          # EngineConfig, ModelLoadConfig, GenerationConfig, EngineModelInfo, MemoryStats
-│   │   └── MemoryStats.kt
-│   └── utils/
-│       ├── GgufValidator.kt         # Pure-Kotlin GGUF header validator (magic + arch + context_length)
-│       ├── MemoryEstimator.kt       # Estimates RAM requirement from model metadata
-│       └── ThreadManager.kt
-│
-└── src/main/cpp/
-    ├── CMakeLists.txt               # Builds libandrollm_llama.so
-    ├── native_api.cpp               # ~3700 lines: JNI entry points, LlamaEngine RAII, corruption recovery
-    └── llama.cpp/                   # Vendored upstream llama.cpp (stock, never patched)
-        ├── ggml/                    # GPU compute backends including Vulkan
-        ├── src/                     # Model loading, tokenization, inference
-        ├── common/                  # Chat parsing, sampling, arguments
-        └── examples/                # Includes llama.android example code (stripped)
+└── src/main/java/io/androllm/engine/
+    ├── api/
+    │   ├── InferenceEngine.kt       # Primary interface: loadModel, generateChatStream, cancel...
+    │   ├── EngineRepository.kt      # Facade adding Mutex serialization for concurrent callers
+    │   └── EngineState.kt           # StateFlow-emitting sealed interface
+    ├── core/
+    │   └── LiteRtLmEngine.kt        # Singleton: wraps the LiteRT-LM runtime lifecycle
+    ├── compat/
+    │   ├── ModelFamily.kt / ModelFamilyRegistry.kt / ModelFamilyConfig.kt
+    │   ├── ContainerMetadataReader.kt   # Reads LlmMetadata proto from .litertlm
+    │   ├── ChatTemplateRenderer.kt      # Per-family chat template rendering
+    │   ├── SpecialTokens.kt             # bos/eos/stop tokens from container metadata
+    │   ├── OutputDecoder.kt             # token ids → text, control-token filtering
+    │   ├── StopSequenceTracker.kt       # stops generation at family stop sequences
+    │   ├── TokenizerFiles.kt            # locates/loads the family tokenizer
+    │   └── ModelCompatibilityException.kt
+    ├── models/
+    │   ├── EngineModelInfo.kt / EngineConfig.kt / GenerationConfig.kt
+    │   ├── EngineCapabilities.kt / EngineDebugInfo.kt / EngineException.kt
+    │   ├── EngineStats.kt / MemoryStats.kt / BackendType.kt
+    │   ├── ModelLoadConfig.kt / ChatPromptMessage.kt / StreamChunk.kt
+    ├── diagnostics/
+    │   └── RuntimeLogger.kt            # tag prefix: AndroLLM-Engine
+    ├── embedding/
+    │   ├── LiteRtEmbeddingEngine.kt    # LiteRT CompiledModel API embeddings
+    │   └── SentencePieceTokenizer.kt
+    ├── memory/                         # (engine-side memory helpers)
+    └── utils/
+        ├── MemoryEstimator.kt          # Estimates RAM requirement from container metadata
+        ├── ThreadManager.kt
+        ├── CoherenceChecker.kt
+        ├── LiteRtValidator.kt          # Container/metadata validation before load
+        └── ModelResourceGuard.kt
 ```
 
-### Native Library
+### Runtime Dependencies
 
-- Output: `libandrollm_llama.so`
-- ABI: `arm64-v8a` by default; add `x86_64` via `-PandrollmAbis=arm64-v8a,x86_64` for emulator testing
-- C++ standard: C++17
-- NDK: 26.1.10909125
-- STL: `c++_shared`
-- Vulkan: Enabled at build time; runtime fallback to CPU if Vulkan unavailable on device
+- LiteRT-LM AARs are pulled from Google's Maven repository at build time —
+  no vendored sources, no native builds.
+- ABI: `arm64-v8a` only.
+- `ModelInspector` (consumed by the Models feature) reads container metadata
+  for display; `GgufReader`/`GgufType` exist **only** for GGUF metadata
+  inspection in the import flow — GGUF is not runnable.
 
 ---
 
@@ -269,6 +292,11 @@ app
 ├── core:utils
 ├── core:telemetry
 ├── core:memory
+├── core:permissions
+├── core:tools
+├── core:mcp
+├── core:accessibility
+├── core:runtime
 ├── core:voice
 ├── engine
 ├── feature:home
@@ -278,6 +306,7 @@ app
 ├── feature:voice
 ├── feature:splash
 ├── feature:onboarding
+├── feature:setup
 ├── feature:profile
 ├── feature:prompts
 ├── feature:developer
@@ -292,20 +321,21 @@ Feature modules only depend on `core:*` modules and `engine`. Feature modules do
 
 | Setting | Value |
 |---|---|
-| Compile SDK | 34 |
+| Compile SDK | 35 |
 | Min SDK | 28 |
-| Target SDK | 34 |
+| Target SDK | 35 |
 | JVM Target | 17 |
-| Kotlin | 2.1.20 |
-| AGP | 8.6.0 |
-| NDK | 26.1.10909125 |
-| CMake | 3.22.1 |
-| Hilt | 2.57.1 |
-| Compose BOM | 2024.10.00 |
-| Room | 2.8.4 |
-| Ktor | 3.0.3 |
-| Firebase BoM | 34.12.0 |
-| sherpa-onnx | 1.13.4 |
+| Kotlin | 2.x |
+| AGP | 8.x |
+| Hilt | 2.57.x |
+| Compose BOM | recent stable |
+| Room | 5 (WAL) |
+| Ktor | 3.x |
+| Firebase BoM | recent stable |
+| sherpa-onnx | recent stable |
+| LiteRT-LM | 0.16.0 (`litertlm-android`) |
+| LiteRT | 2.2.0 |
 | R8/ProGuard | Disabled in release (`isMinifyEnabled = false`) |
 | CI/CD | Not configured |
 | Product Flavors | None |
+| Native toolchains | None (no NDK/CMake/Vulkan SDK) |

@@ -42,7 +42,8 @@ enum class ToolPermission(val displayName: String, val description: String) {
     CALCULATOR("Calculator", "Math, unit and currency conversion"),
     TRANSLATION("Translation", "Open Google Translate"),
     MEDIA("Media", "Open gallery and media apps"),
-    DEVICE("Device Info", "Read device state and information")
+    DEVICE("Device Info", "Read device state and information"),
+    LOCATION("Location", "Read the device's current location")
 }
 
 /**
@@ -57,6 +58,10 @@ fun ToolPermission.runtimePermissions(): List<String> = when (this) {
     ToolPermission.CALLS -> listOf(Manifest.permission.CALL_PHONE)
     ToolPermission.CALENDAR -> listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
     ToolPermission.VOICE_RECORDER -> listOf(Manifest.permission.RECORD_AUDIO)
+    ToolPermission.LOCATION -> listOf(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    )
     else -> emptyList()
 }
 

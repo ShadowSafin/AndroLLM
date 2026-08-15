@@ -106,10 +106,10 @@ Output: `app/build/outputs/bundle/release/app-release.aab`
 | Platform | Test |
 |---|---|
 | Physical device (arm64) | Full feature test |
-| Emulator (x86_64) | Core flows, engine fallback |
+| Emulator (arm64 image) | Core flows, engine fallback |
 | Tablet/foldable | Adaptive navigation |
 | Low-RAM device (4GB) | Model loading, memory pressure |
-| No-Vulkan device | CPU fallback |
+| No-GPU-delegate device | CPU fallback |
 | No-network device | Offline mode |
 
 ### Key Flows to Test
@@ -174,7 +174,7 @@ For critical bug fixes:
 |---|---|---|
 | R8/minification disabled | Larger APK size (~40MB vs ~25MB) | Intentional for development velocity |
 | No CI/CD | Manual build process | Documented in BUILDING.md |
-| Single ABI (arm64-v8a) | No x86_64 in production APKs | Emulator testing requires special build |
+| Single ABI (arm64-v8a) | No x86_64 build exists | Emulator testing requires an arm64 emulator image |
 | No Play Store listing | Direct distribution only | Community-driven distribution |
 
 ---
@@ -186,5 +186,5 @@ For critical bug fixes:
 | GitHub Actions build pipeline | 🚧 Planned | Automated debug builds on PR |
 | Play Store listing | 🔮 Future | Requires brand asset preparation |
 | Automated crash reporting | 🚧 Planned | Firebase Crashlytics integration |
-| Multi-ABI support (x86_64) | 🔮 Future | For emulator and tablet users |
+| Multi-ABI support (x86_64) | 🔮 Future | Requires arm64+x86_64 LiteRT-LM packaging |
 | Automated changelog generation | 🔮 Future | Conventional commits → changelog |

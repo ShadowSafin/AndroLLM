@@ -8,7 +8,6 @@ import {
   Bot,
   Blocks,
   Palette,
-  ImagePlus,
   Lock,
   MessageSquareText,
   Fingerprint,
@@ -19,7 +18,6 @@ import {
   Database,
   Search,
   ShieldCheck,
-  Wand2,
   Plug,
   Accessibility,
   BookMarked,
@@ -41,32 +39,32 @@ export const pillars: Feature[] = [
     id: "local-engine",
     icon: Cpu,
     name: "Local Inference Engine",
-    tagline: "GGUF models, fully on-device",
+    tagline: "LiteRT-LM, fully on-device",
     description:
-      "A vendored, stock llama.cpp engine runs GGUF language models entirely on your phone through a 3,700-line JNI bridge. No internet required after model download.",
+      "Google's LiteRT-LM runtime runs .litertlm language models entirely on your phone — on CPU (XNNPACK) or the OpenCL GPU delegate. No internet required after model download.",
     bullets: [
-      "GGUF validation and memory estimation before every load",
-      "KV-cache persistence — multi-turn chat without re-prefill",
-      "Streaming token output at up to 60 fps",
-      "JSON and constrained (grammar) decoding",
-      "Automatic context shift when approaching limits",
+      "Container-metadata validation and memory estimation before every load",
+      "Context budgeting from metadata — context limits, chat templates, and special tokens are read, not guessed",
+      "Tool-advertisement cap — 4500-char budget for small Qwen families",
+      "Native tool-call markers on Qwen and Gemma models",
+      "On-demand debug prompt logging and engine diagnostics",
     ],
-    stat: { value: "137", label: "supported architectures — llama, gemma2, qwen2, deepseek, mistral, phi3 & more" },
+    stat: { value: "7", label: "curated .litertlm models — Qwen · Gemma · DeepSeek families" },
   },
   {
-    id: "vulkan",
+    id: "gpu",
     icon: Zap,
-    name: "Vulkan GPU Acceleration",
-    tagline: "Hardware-accelerated inference",
+    name: "GPU Acceleration",
+    tagline: "OpenCL delegate, automatic fallback",
     description:
-      "A compile-ready Vulkan backend with build-time shader compilation, runtime GPU-vs-CPU correctness validation, and automatic fallback to ARM64 NEON + KleidiAI microkernels.",
+      "LiteRT-LM runs on the OpenCL GPU delegate when available, with automatic fallback to the CPU (XNNPACK) backend when the GPU is unavailable, low on memory, or misbehaving.",
     bullets: [
-      "Runtime validation: greedy, long-context and sampling tests vs CPU reference",
-      "Corruption recovery: NaN/INF logits, invalid tokens, device-lost escalation",
-      "Real-time diagnostics — gpuFree, gpuTotal, recoveryCount",
-      "CPU fallback never leaves you stranded",
+      "Real-time diagnostics — backend, gpuFree, gpuTotal, recoveryCount",
+      "Automatic CPU fallback on delegate failure — never left stranded",
+      "GPU failure recovery counters surfaced in Developer diagnostics",
+      "NPU acceleration planned for a future release",
+      "Legacy BackendType values (QUALCOMM_QNN, LLAMA_CPP_VULKAN, ONNX_RUNTIME, VULKAN) kept for compatibility only",
     ],
-    stat: { value: "25–60", label: "ms/token on Vulkan (7B Q4) vs 100–300 ms on CPU" },
   },
   {
     id: "voice",
@@ -132,22 +130,6 @@ export const pillars: Feature[] = [
     stat: { value: "<10 ms", label: "retrieval for up to 500 memories · ~100 ms at 10,000" },
   },
   {
-    id: "imagegen",
-    icon: ImagePlus,
-    name: "On-Device Image Generation",
-    tagline: "Stable Diffusion, zero cloud",
-    description:
-      "Generate images entirely on-device with stable-diffusion.cpp + Vulkan. A dedicated Images tab: prompt studio, style presets, negative prompts, seeds, batches, steps and CFG control.",
-    bullets: [
-      "SD 1.5 (~800 MB Q4_K_M) and SDXL GGUF models",
-      "Live state machine — Preparing → Loading → Generating → Finalizing, cancel anytime",
-      "Save to gallery, share via FileProvider, regenerate, metadata",
-      "Strict hardware gating — unsupported devices see the reason, never faked",
-      "The agent's generate_image tool runs the same pipeline from chat or voice",
-    ],
-    stat: { value: "800 MB", label: "SD 1.5 Q4_K_M on-device · SDXL Q4_K_M ≈ 2.4 GB · FLUX.1 Schnell supported" },
-  },
-  {
     id: "cloud",
     icon: Cloud,
     name: "Cloud, When You Want It",
@@ -171,10 +153,9 @@ export const pillars: Feature[] = [
     description:
       "Every capability runs on-device by default — nothing leaves the phone unless you opt in. No analytics SDKs, no crash reporters, no tracking.",
     bullets: [
-      "LLM inference: vendored llama.cpp, zero cloud dependency",
+      "LLM inference: LiteRT-LM, zero cloud dependency",
       "Voice: wake word → ASR → TTS, fully offline",
       "Memory: vector index in local SQLite",
-      "Image generation: prompt and image never leave the device",
       "MCP / cloud: strictly opt-in per provider",
     ],
     stat: { value: "0", label: "analytics, telemetry, crash reporters — zero third-party tracking" },
@@ -196,15 +177,15 @@ export const detailFeatures: DetailFeature[] = [
     id: "engine-deep",
     icon: Cpu,
     eyebrow: "Multi-turn, without the cost",
-    title: "The KV cache is the conversation",
+    title: "Context handled by the runtime",
     description:
-      "The engine keeps a single llama_context across turns. New messages are rendered with a Jinja template and prefilled at the current chat position — no full re-prefill, no wasted tokens. On edit, delete, or regenerate, the sequence is re-rendered from scratch; near the context limit, an in-place shift drops the oldest turns while preserving the system prompt.",
+      "LiteRT-LM manages context and the KV cache inside the runtime. The engine renders every turn with the model's chat template from container metadata — context limits, special tokens, and quantization are read from the .litertlm container, never guessed — then streams tokens back through a Kotlin API with no re-prefill cost on continuation.",
     points: [
-      { title: "Diff-based continuation", text: "Only the new message is prefilled — the rest of the cache stays untouched." },
-      { title: "Context shift", text: "At pos_check >= nCtx − 4, oldest tokens after the system prompt are discarded in-place." },
-      { title: "Streaming at 60 fps", text: "Token delivery throttled to 16 ms intervals so Compose keeps up without O(n²) copying." },
+      { title: "Metadata-driven rendering", text: "Chat templates and special tokens come from the container's LlmMetadata — every model is formatted exactly as the author intended." },
+      { title: "Context budgeting", text: "Tool-advertisement budgets (4500-char cap for small Qwen families) keep prompts inside the model's context window." },
+      { title: "Streaming output", text: "Tokens stream through the engine API while generation stays responsive on mid-range hardware." },
     ],
-    fact: "22 JNI functions bridge Kotlin to the native engine — lifecycle, generation, chat templates, diagnostics, and embeddings.",
+    fact: "Inference runs through LiteRT-LM 0.16.0 and LiteRT 2.2.0 — Maven AARs with no NDK, no CMake, and no native code in the app.",
   },
   {
     id: "voice-deep",
@@ -226,27 +207,13 @@ export const detailFeatures: DetailFeature[] = [
     eyebrow: "Plan. Execute. Verify.",
     title: "An agent with guardrails, not just toys",
     description:
-      "The planner picks tools and arguments — grammar-constrained JSON on local GGUF, native tool calls on cloud — and the executor is the only place tool code runs. Every call passes a permission gate, a confirmation gate, and a 20-second timeout, then results feed back for up to 6 rounds of re-planning before a grounded final answer.",
+      "The planner picks tools and arguments — JSON-compat planning on local LiteRT-LM, native tool calls on cloud — and the executor is the only place tool code runs. Every call passes a permission gate, a confirmation gate, and a 20-second timeout, then results feed back for up to 6 rounds of re-planning before a grounded final answer.",
     points: [
       { title: "Safety gates", text: "Per-tool toggles in five categories; high-risk actions (SMS, calls, email) always ask first." },
       { title: "Never silent, never blank", text: "Every call is trace-logged in Tool Debug; failures flow back to the model as text, never silently." },
       { title: "Unlimited answers", text: "Generation runs until the model finishes — no arbitrary cutoff on long tasks." },
     ],
     fact: "Tools: weather, web search, SMS, calls, email, calendar, alarms, reminders, clipboard, notes, files, calculator, converters, translation, GitHub, media, PDF/Markdown export, QR & more.",
-  },
-  {
-    id: "imagegen-deep",
-    icon: Wand2,
-    eyebrow: "A prompt studio in your pocket",
-    title: "Diffusion without a data center",
-    description:
-      "stable-diffusion.cpp powers a dedicated Images tab with style presets, negative prompts, seed control, batches, steps, and CFG. Runtime capability probing — never chipset allowlists — decides between NPU, Vulkan GPU, and CPU; unsupported devices see exactly why.",
-    points: [
-      { title: "Presets", text: "Realistic, Anime, Cinematic, Fantasy, Product Shot, Poster, Illustration, Wallpaper." },
-      { title: "Model manager", text: "SD 1.5 and SDXL GGUF — download, verify, delete, storage tracking." },
-      { title: "Agent integration", text: "“generate an image of a cyberpunk city at night” works from chat and voice." },
-    ],
-    fact: "Hardware rule: CPU + GPU (Vulkan) devices only. GPUs probed at runtime: vendor NPU → NNAPI → Vulkan → CPU.",
   },
 ];
 
@@ -285,7 +252,7 @@ export const uiFeatures: Feature[] = [
     name: "Model manager & prompt library",
     tagline: "Catalog, download, load, tweak",
     description:
-      "A 101-model curated catalog filtered by your device's RAM, a HuggingFace browser, manual GGUF import, and a parameter sheet for temperature, top-p, seed, grammars and personas.",
+      "A curated 7-model .litertlm catalog filtered by your device's RAM, a HuggingFace browser, .litertlm import with container validation, and a parameter sheet for temperature, top-p, seed and personas.",
     bullets: [
       "Compatibility analyzer: will it fit in RAM? Will it GPU-accelerate?",
       "Benchmark tool with tokens/sec, time-to-first-token, memory",
@@ -302,7 +269,7 @@ export const uiFeatures: Feature[] = [
       "API keys encrypted with AES-256/GCM in the Android Keystore, Room databases in the app sandbox, cleartext disabled, and permissions requested lazily — none at launch.",
     bullets: [
       "TLS 1.2+ enforced · usesCleartextTraffic=false",
-      "Downloaded models verified: GGUF validation + SHA-256",
+      "Downloaded models verified: .litertlm validation + SHA-256",
       "Guest mode: full functionality without sign-in",
       "Four-layer security model documented in full",
     ],

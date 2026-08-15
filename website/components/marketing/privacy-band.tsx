@@ -1,11 +1,10 @@
-import { ShieldCheck, Radio, Lock, Eye, Cpu, Mic, Image as ImageIcon, BrainCircuit } from "lucide-react";
+import { ShieldCheck, Radio, Lock, Eye, Cpu, Mic, BrainCircuit } from "lucide-react";
 import { Reveal } from "@/animations/reveal";
 
 const claims = [
-  { icon: Cpu, text: "LLM inference stays in the vendored llama.cpp engine — zero cloud" },
+  { icon: Cpu, text: "LLM inference stays in the on-device LiteRT-LM runtime — zero cloud" },
   { icon: Mic, text: "Wake word → ASR → TTS all run fully offline" },
   { icon: BrainCircuit, text: "Memory lives in a local SQLite vector index" },
-  { icon: ImageIcon, text: "Generation happens on-device — prompt and image never leave" },
 ];
 
 export function PrivacyBand() {
@@ -16,7 +15,7 @@ export function PrivacyBand() {
         aria-hidden
         style={{
           background:
-            "radial-gradient(60% 90% at 20% 20%, rgba(217,119,87,0.08), transparent 60%), radial-gradient(50% 80% at 80% 80%, rgba(217,119,87,0.08), transparent 60%)",
+            "radial-gradient(60% 90% at 20% 20%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%), radial-gradient(50% 80% at 80% 80%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%)",
         }}
       />
       <div className="container">

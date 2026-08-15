@@ -14,6 +14,7 @@ import io.androllm.core.common.Result
 import io.androllm.core.common.UiState
 import io.androllm.core.common.getOrNull
 import io.androllm.core.database.repository.ModelRepository
+import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.models.DownloadStatus
 import io.androllm.core.models.Model
 import io.androllm.core.models.ModelFormat
@@ -31,7 +32,8 @@ import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.models.EngineStats
 import io.androllm.engine.models.MemoryStats
-import io.androllm.engine.utils.GgufValidator
+import io.androllm.engine.models.ModelLoadConfig
+import io.androllm.engine.utils.LiteRtValidator
 import io.androllm.feature.models.benchmark.BenchmarkReport
 import io.androllm.feature.models.benchmark.ModelBenchmarker
 import io.androllm.core.models.catalog.CatalogFilters
@@ -83,7 +85,8 @@ class ModelsViewModel @Inject constructor(
     private val engineRepository: EngineRepository,
     private val repositoryRegistry: RepositoryRegistry,
     val downloadManager: io.androllm.feature.models.downloader.DownloadManager,
-    private val catalogRepository: CatalogRepository
+    private val catalogRepository: CatalogRepository,
+    private val preferencesDataStore: PreferencesDataStore
 ) : BaseViewModel() {
 
     private val _selectedTab = MutableStateFlow(ModelsTab.INSTALLED)
@@ -111,6 +114,15 @@ class ModelsViewModel @Inject constructor(
     // directories can take hundreds of ms when many GGUF files are present).
     private val _storageStats = MutableStateFlow<StorageStats?>(null)
     val storageStats: StateFlow<StorageStats?> = _storageStats.asStateFlow()
+
+    // Debug-only backend override: true forces CPU (gpuLayers = 0) on every
+    // model load, to bisect GPU-vs-CPU output corruption and compare speeds.
+    val forceCpuBackend: StateFlow<Boolean> = preferencesDataStore.forceCpuBackend
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setForceCpuBackend(enabled: Boolean) {
+        viewModelScope.launch { preferencesDataStore.setForceCpuBackend(enabled) }
+    }
 
     val hardwareInfo: DeviceHardwareInfo = DeviceInfoCollector.collectDeviceInfo(context)
 
@@ -374,24 +386,37 @@ class ModelsViewModel @Inject constructor(
                 return@launch
             }
 
-            val validation = GgufValidator.validateHeader(filePath)
-            if (!validation.isValid) {
-                _errorMessage.value = "Validation Error: ${validation.errorMessage}"
-                _loadingModelId.value = null
-                modelRepository.updateLoadState(model.id, false, ModelStatus.ERROR)
-                return@launch
+            // CRITICAL: loading runs on Default, never Main. engineRepository
+            // .loadModel performs the model load AND the post-load coherence
+            // self-test (a real inference probe) — on a Main-scope call that
+            // would freeze the UI for the whole load. The header validation
+            // read is included for the same reason.
+            val result = withContext(Dispatchers.Default) {
+                // LiteRT artifact gate: only a .litertlm container or a .tflite
+                // flatbuffer can be handed to the LiteRT runtime. A stale GGUF
+                // download or a truncated/renamed file is rejected here, before
+                // the runtime wastes minutes and RAM on it. The LiteRT runtime
+                // itself validates tokenizer/weights on load and the post-load
+                // coherence probe verifies real output.
+                val validation = LiteRtValidator.validateHeader(filePath)
+                if (!validation.isValid) {
+                    _errorMessage.value = "Validation Error: ${validation.errorMessage}"
+                    _loadingModelId.value = null
+                    modelRepository.updateLoadState(model.id, false, ModelStatus.ERROR)
+                    return@withContext null
+                }
+
+                // Debug override: when "Force CPU backend" is on, request a
+                // CPU-only load (accelerator off). The engine respects an
+                // explicit backend request instead of always selecting the best
+                // available accelerator.
+                val loadConfig = if (forceCpuBackend.value) {
+                    ModelLoadConfig(gpuLayers = 0)
+                } else {
+                    ModelLoadConfig()
+                }
+                engineRepository.loadModel(model, loadConfig)
             }
-
-            // Enrich the model record with GGUF header metadata on import
-            modelRepository.updateDownloadMetadata(
-                id = model.id,
-                architecture = validation.architecture,
-                quantization = validation.fileType,
-                contextLength = validation.contextLength.toInt().coerceAtLeast(1024),
-                license = validation.license.ifBlank { "Apache-2.0" }
-            )
-
-            val result = engineRepository.loadModel(model)
             _loadingModelId.value = null
 
             when (result) {
@@ -403,6 +428,7 @@ class ModelsViewModel @Inject constructor(
                     _errorMessage.value = result.exception.message
                     modelRepository.updateLoadState(model.id, false, ModelStatus.ERROR)
                 }
+                null -> Unit // early-return paths above already surfaced their error
             }
         }
     }
@@ -521,26 +547,31 @@ class ModelsViewModel @Inject constructor(
                         target.outputStream().use { output -> input.copyTo(output) }
                     } ?: error("Cannot open selected URI")
 
-                    val validation = GgufValidator.validateHeader(target.absolutePath)
+                    val validation = LiteRtValidator.validateHeader(target.absolutePath)
                     if (!validation.isValid) {
                         target.delete()
                         error("Header Validation Failed: ${validation.errorMessage}")
                     }
 
+                    val format = when (validation.format) {
+                        "litertlm" -> ModelFormat.LITERTLM
+                        "tflite" -> ModelFormat.TFLITE
+                        else -> ModelFormat.UNKNOWN
+                    }
+
                     Model(
                         id = UUID.randomUUID().toString(),
-                        name = safeName.removeSuffix(".gguf"),
-                        description = "Imported GGUF model (v${validation.version})",
+                        name = safeName.removeSuffix(".litertlm").removeSuffix(".tflite"),
+                        description = "Imported LiteRT model (${validation.format})",
                         filePath = target.absolutePath,
                         fileSize = target.length(),
-                        format = ModelFormat.GGUF,
+                        format = format,
                         isDownloaded = true,
                         downloadStatus = DownloadStatus.DOWNLOADED,
                         status = ModelStatus.NOT_LOADED,
                         createdAt = System.currentTimeMillis(),
                         updatedAt = System.currentTimeMillis(),
-                        addedDate = System.currentTimeMillis(),
-                        architecture = validation.architecture
+                        addedDate = System.currentTimeMillis()
                     )
                 }
 
@@ -590,7 +621,7 @@ class ModelsViewModel @Inject constructor(
                 name = cursor.getString(index)
             }
         }
-        return name ?: "imported_model_${System.currentTimeMillis()}.gguf"
+        return name ?: "imported_model_${System.currentTimeMillis()}.litertlm"
     }
 }
 

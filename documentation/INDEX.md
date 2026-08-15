@@ -69,9 +69,10 @@ Deep technical documentation lives in this `documentation/` folder.
 
 | Document | Description |
 |---|---|
-| [llama-cpp.md](ai/llama-cpp.md) | llama.cpp integration, JNI bridge, native architecture |
-| [gguf.md](ai/gguf.md) | GGUF format specification and validation |
-| [vulkan.md](ai/vulkan.md) | Vulkan GPU acceleration and corruption recovery |
+| [litert-lm.md](ai/litert-lm.md) | LiteRT-LM engine integration: runtime, compat layer, tool calling |
+| [model-formats.md](ai/model-formats.md) | Model formats: `.litertlm` containers, GGUF legacy, `.tflite` |
+| [acceleration.md](ai/acceleration.md) | CPU (XNNPACK) and GPU (LiteRT GPU delegate) acceleration |
+| [LITERT.md](LITERT.md) | LiteRT / LiteRT-LM quick reference (versions, APIs, Maven artifacts) |
 
 ### Models
 
@@ -145,8 +146,9 @@ Deep technical documentation lives in this `documentation/` folder.
 | How does it work? | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | How to build it? | [BUILDING.md](BUILDING.md) |
 | How to contribute? | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Running models locally? | [MODEL_SUPPORT.md](MODEL_SUPPORT.md) + [ai/llama-cpp.md](ai/llama-cpp.md) |
-| Using Vulkan? | [ai/vulkan.md](ai/vulkan.md) |
+| Running models locally? | [MODEL_SUPPORT.md](MODEL_SUPPORT.md) + [ai/litert-lm.md](ai/litert-lm.md) |
+| Model formats? | [ai/model-formats.md](ai/model-formats.md) |
+| CPU/GPU acceleration? | [ai/acceleration.md](ai/acceleration.md) |
 | Voice assistant? | [voice/voice-assistant.md](voice/voice-assistant.md) |
 | Voice text normalization? | [voice/text-normalization.md](voice/text-normalization.md) |
 | AI agent / tool calling? | [agent/agent-platform.md](agent/agent-platform.md) |

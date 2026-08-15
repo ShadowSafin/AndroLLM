@@ -49,6 +49,7 @@ dependencies {
     implementation(project(":core:cloud"))
     implementation(project(":core:network"))
     implementation(project(":core:utils"))
+    implementation(project(":core:runtime"))
     implementation(project(":engine"))
 
     implementation(libs.hilt.android)

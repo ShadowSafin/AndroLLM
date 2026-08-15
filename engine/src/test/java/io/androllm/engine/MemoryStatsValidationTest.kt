@@ -168,4 +168,44 @@ class MemoryStatsValidationTest {
         assertEquals("CPU only", stats.executionMode)
         assertEquals(3, stats.recoveryCount)
     }
+
+    @Test
+    fun `liteRT gpu delegate is reported as gpu accelerated`() {
+        val stats = json.decodeFromString(
+            MemoryStats.serializer(),
+            """
+            {
+              "backend": "gpu",
+              "backendReason": "LiteRT GPU delegate active",
+              "gpuName": "LiteRT GPU",
+              "gpuInferenceVerified": true
+            }
+            """.trimIndent()
+        )
+
+        // LiteRT has no per-layer offload; the "gpu" backend alone is the signal.
+        assertTrue(stats.isGpuAccelerated)
+        assertEquals("LiteRT GPU", stats.gpuBackendLabel)
+        assertEquals("GPU only", stats.executionMode)
+        assertEquals("All ops (delegate)", stats.gpuLayersDisplay)
+        assertFalse(stats.isCpuFallback)
+    }
+
+    @Test
+    fun `cpu backend without reason is not a gpu fallback`() {
+        val stats = json.decodeFromString(
+            MemoryStats.serializer(),
+            """
+            {
+              "backend": "cpu",
+              "backendReason": "CPU (XNNPACK)"
+            }
+            """.trimIndent()
+        )
+
+        assertFalse(stats.isGpuAccelerated)
+        assertEquals("", stats.gpuBackendLabel)
+        assertEquals("CPU only", stats.executionMode)
+        assertFalse(stats.isCpuFallback)
+    }
 }

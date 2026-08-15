@@ -12,6 +12,7 @@ import io.androllm.core.database.repository.ModelRepository
 import io.androllm.core.models.DownloadProgress
 import io.androllm.core.models.DownloadStatus
 import io.androllm.core.models.Model
+import io.androllm.core.models.ModelFormat
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -55,7 +56,8 @@ class DownloadManager @Inject constructor(
                         ModelDownloadWorker.KEY_MODEL_NAME to model.name,
                         ModelDownloadWorker.KEY_DOWNLOAD_URL to (model.downloadUrl ?: ""),
                         ModelDownloadWorker.KEY_TARGET_PATH to targetPath,
-                        ModelDownloadWorker.KEY_EXPECTED_SHA256 to (model.sha256 ?: "")
+                        ModelDownloadWorker.KEY_EXPECTED_SHA256 to (model.sha256 ?: ""),
+                        ModelDownloadWorker.KEY_COMPANION_URL to (model.companionUrl ?: "")
                     )
                 )
                 .build()
@@ -164,6 +166,11 @@ class DownloadManager @Inject constructor(
     private fun getTargetFilePath(model: Model): String {
         val mediaDir = java.io.File(context.getExternalFilesDir(null) ?: context.filesDir, "models").apply { mkdirs() }
         val safeName = model.name.replace(Regex("[^a-zA-Z0-9._\\-]"), "_")
-        return java.io.File(mediaDir, "${safeName}.gguf").absolutePath
+        val extension = when (model.format) {
+            ModelFormat.LITERTLM -> ".litertlm"
+            ModelFormat.TFLITE -> ".tflite"
+            else -> ".litertlm"
+        }
+        return java.io.File(mediaDir, "$safeName$extension").absolutePath
     }
 }

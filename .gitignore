@@ -167,3 +167,15 @@ app/src/main/assets/voice/
 # tools/patch_ver.py and the jniLibs comment in app/build.gradle.kts.
 !app/src/main/jniLibs/
 !app/src/main/jniLibs/**
+
+# ---------------------------------------------------------------------------
+# Qualcomm QNN runtime libraries (imagegen) — SDK artifacts, never commit.
+#
+# imagegen/src/main/jniLibs/arm64-v8a/libQnn*.so (and libcdsprpc.so when
+# provided) are copied from the local Qualcomm AI Engine Direct / QAIRT SDK
+# (see imagegen/build.gradle.kts:syncQnnRuntimeLibs and
+# documentation/qnn-npu.md). The global *.so rule above already ignores them;
+# this section exists to document WHY. Refresh with:
+#   set QAIRT_ROOT=C:\Qualcomm\AIStack\QAIRT
+#   ./gradlew :imagegen:syncQnnRuntimeLibs
+

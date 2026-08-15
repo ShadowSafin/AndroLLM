@@ -44,10 +44,12 @@ class PreferencesDataStore @Inject constructor(
         val TYPING_INDICATOR = booleanPreferencesKey("typing_indicator")
         val FAVORITE_PROMPT_IDS = stringSetPreferencesKey("favorite_prompt_ids")
         val ONBOARDING_COMPLETED = booleanPreferencesKey(AppConstants.Preferences.ONBOARDING_COMPLETED_KEY)
+        val SETUP_COMPLETED = booleanPreferencesKey(AppConstants.Preferences.SETUP_COMPLETED_KEY)
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val USERNAME = stringPreferencesKey("username")
         val AVATAR_INDEX = intPreferencesKey("avatar_index")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
+        val FORCE_CPU_BACKEND = booleanPreferencesKey("force_cpu_backend")
     }
 
     private val dataStore: DataStore<Preferences> = context.preferencesDataStore
@@ -234,6 +236,37 @@ class PreferencesDataStore @Inject constructor(
      */
     suspend fun setOnboardingCompleted(completed: Boolean) {
         dataStore.edit { preferences -> preferences[Keys.ONBOARDING_COMPLETED] = completed }
+    }
+
+    /**
+     * Whether the first-launch permission/access setup has been completed
+     * (see feature:setup). Defaults to false so every fresh account is walked
+     * through the setup once; the screen itself never traps the user.
+     */
+    val setupCompleted: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.SETUP_COMPLETED] ?: false
+    }
+
+    /**
+     * Marks the permission/access setup as completed (or resets it, e.g. when
+     * a future version introduces new permissions and wants to re-show a
+     * lightweight setup screen).
+     */
+    suspend fun setSetupCompleted(completed: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.SETUP_COMPLETED] = completed }
+    }
+
+    /**
+     * Debug-only: force the native engine to load models on the CPU backend
+     * (gpuLayers = 0) instead of offloading layers to Vulkan. Used to bisect
+     * GPU-vs-CPU output corruption and compare token speeds. Defaults to false.
+     */
+    val forceCpuBackend: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.FORCE_CPU_BACKEND] ?: false
+    }
+
+    suspend fun setForceCpuBackend(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.FORCE_CPU_BACKEND] = enabled }
     }
 
     /**

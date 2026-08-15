@@ -4,6 +4,7 @@ import android.content.Context
 import io.androllm.core.common.Result
 import io.androllm.core.common.UiState
 import io.androllm.core.database.repository.ModelRepository
+import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.models.Model
 import io.androllm.core.models.catalog.CatalogParser
 import io.androllm.core.models.catalog.CatalogRepository
@@ -45,18 +46,19 @@ class ModelsViewModelTest {
     private val repositoryProvider: ModelRepositoryProvider = mockk(relaxed = true)
     private val downloadManager: DownloadManager = mockk(relaxed = true)
     private val catalogRepository: CatalogRepository = mockk(relaxed = true)
+    private val preferencesDataStore: PreferencesDataStore = mockk(relaxed = true)
 
     private val engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
     private val catalogState = MutableStateFlow<CatalogState>(sampleReadyState())
 
     private fun sampleReadyState(): CatalogState {
-        val json = """{"schemaVersion":1,"models":[{"id":"qwen-1.5b","name":"Qwen 1.5B",""" +
-            """"family":"Qwen","architecture":"qwen2","categories":["CHAT"],"tags":["fast"],""" +
-            """"license":"Apache-2.0","author":"Qwen","repoId":"Qwen/Qwen2.5-1.5B-Instruct-GGUF",""" +
-            """"fileName":"qwen2.5-1.5b-instruct-q4_k_m.gguf",""" +
-            """"downloadUrl":"https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/x.gguf",""" +
-            """"sizeBytes":1000000000,"parameters":"1.5B","quantization":"Q4_K_M",""" +
-            """"contextLength":32768,"minRamGb":2.0,"recommendedRamGb":4.0,"downloads":100,"likes":5}]}"""
+        val json = """{"schemaVersion":1,"models":[{"id":"litertlm-qwen3-0.6b","name":"Qwen3 0.6B LiteRT",""" +
+            """"family":"Qwen","architecture":"qwen3","categories":["CHAT"],"tags":["fast"],""" +
+            """"license":"Apache-2.0","author":"Alibaba","repoId":"litert-community/Qwen3-0.6B",""" +
+            """"fileName":"Qwen3-0.6B.litertlm",""" +
+            """"downloadUrl":"https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm",""" +
+            """"sizeBytes":614236160,"parameters":"0.6B","quantization":"Q8",""" +
+            """"contextLength":4096,"minRamGb":2.0,"recommendedRamGb":4.0,"downloads":100,"likes":5}]}"""
         val parsed = CatalogParser.parse(json)
         return CatalogState.Ready(parsed.catalog, CatalogSource.BUNDLED)
     }
@@ -73,6 +75,7 @@ class ModelsViewModelTest {
         every { downloadManager.observeProgress(any()) } returns flowOf(null)
         every { catalogRepository.state } returns catalogState
         every { catalogRepository.refreshing } returns MutableStateFlow(false)
+        every { preferencesDataStore.forceCpuBackend } returns MutableStateFlow(false)
     }
 
     @After
@@ -83,7 +86,15 @@ class ModelsViewModelTest {
     private fun createViewModel(): ModelsViewModel {
         every { context.getExternalFilesDir(any()) } returns null
         every { context.filesDir } returns File(System.getProperty("java.io.tmpdir"))
-        return ModelsViewModel(context, modelRepository, engineRepository, repositoryRegistry, downloadManager, catalogRepository)
+        return ModelsViewModel(
+            context,
+            modelRepository,
+            engineRepository,
+            repositoryRegistry,
+            downloadManager,
+            catalogRepository,
+            preferencesDataStore
+        )
     }
 
     @Test

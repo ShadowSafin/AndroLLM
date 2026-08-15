@@ -14,6 +14,7 @@ import io.androllm.core.models.MessageRole
 import io.androllm.core.tools.agent.AgentVariableStore
 import io.androllm.core.tools.coordinator.ToolRunCoordinator
 import io.androllm.core.tools.confirmation.ToolConfirmationManager
+import io.androllm.core.tools.prompt.ToolPromptBuilder
 import io.androllm.core.tools.settings.AutomationSettingsStore
 import io.androllm.core.tools.trace.ToolExecutionTraceStore
 import io.androllm.engine.api.EngineRepository
@@ -63,6 +64,7 @@ class ChatViewModelStabilizationTest {
     private val automationSettingsStore = mockk<AutomationSettingsStore>(relaxed = true)
     private val traceStore = ToolExecutionTraceStore()
     private val variableStore = mockk<AgentVariableStore>(relaxed = true)
+    private val toolPromptBuilder = mockk<ToolPromptBuilder>(relaxed = true)
 
     private val engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
     private val generationState = MutableStateFlow<GenerationState>(GenerationState.Idle)
@@ -127,7 +129,8 @@ class ChatViewModelStabilizationTest {
             confirmationManager,
             automationSettingsStore,
             traceStore,
-            variableStore
+            variableStore,
+            toolPromptBuilder
         )
     }
 

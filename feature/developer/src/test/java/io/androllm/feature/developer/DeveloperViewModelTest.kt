@@ -1,8 +1,10 @@
 package io.androllm.feature.developer
 
+import android.content.Context
 import io.androllm.core.common.UiState
 import io.androllm.core.memory.MemoryManager
 import io.androllm.core.memory.model.MemoryInspectorStats
+import io.androllm.core.runtime.RuntimeRegistry
 import io.androllm.core.telemetry.TelemetryRepository
 import io.androllm.core.telemetry.TelemetrySample
 import io.androllm.engine.api.EngineRepository
@@ -36,6 +38,7 @@ class DeveloperViewModelTest {
     private val telemetryRepository: TelemetryRepository = mockk(relaxed = true)
     private val engineRepository: EngineRepository = mockk(relaxed = true)
     private val memoryManager: MemoryManager = mockk(relaxed = true)
+    private val runtimeRegistry: RuntimeRegistry = mockk(relaxed = true)
 
     @Before
     fun setUp() {
@@ -82,7 +85,7 @@ class DeveloperViewModelTest {
 
     @Test
     fun `aggregates history into chart series`() = runTest {
-        val viewModel = DeveloperViewModel(telemetryRepository, engineRepository, memoryManager)
+        val viewModel = DeveloperViewModel(mockk<Context>(relaxed = true), telemetryRepository, engineRepository, memoryManager, runtimeRegistry)
         val state = viewModel.uiState.value
         assertTrue(state is UiState.Success)
         val data = (state as UiState.Success).data
@@ -104,7 +107,7 @@ class DeveloperViewModelTest {
                 )
             )
         )
-        val viewModel = DeveloperViewModel(telemetryRepository, engineRepository, memoryManager)
+        val viewModel = DeveloperViewModel(mockk<Context>(relaxed = true), telemetryRepository, engineRepository, memoryManager, runtimeRegistry)
         val data = (viewModel.uiState.value as UiState.Success).data
         assertEquals(420L, data.contextTokensUsed)
         assertEquals(0.205f, data.contextUsageFraction, 0.001f)
@@ -113,7 +116,7 @@ class DeveloperViewModelTest {
 
     @Test
     fun `reflects engine state`() = runTest {
-        val viewModel = DeveloperViewModel(telemetryRepository, engineRepository, memoryManager)
+        val viewModel = DeveloperViewModel(mockk<Context>(relaxed = true), telemetryRepository, engineRepository, memoryManager, runtimeRegistry)
         val data = (viewModel.uiState.value as UiState.Success).data
         assertEquals(false, data.isModelLoaded)
         assertEquals("VULKAN", data.backendLabel)

@@ -6,79 +6,6 @@ Common issues and their solutions in AndroLLM.
 
 ## Build Issues
 
-### Vulkan SDK Not Found
-
-**Symptoms:**
-```
-Vulkan is enabled but the host shader compiler (glslc) was not found.
-Install the Vulkan SDK, set VULKAN_SDK, or configure with -DANDROLLM_VULKAN=OFF.
-```
-
-**Cause:** The Vulkan SDK is not installed or `VULKAN_SDK` environment variable is not set.
-
-**Solution:**
-1. Download and install the Vulkan SDK from [LunarG](https://vulkan.lunarg.com/sdk/home)
-2. Set the environment variable:
-   - **Windows**: `set VULKAN_SDK=C:\Lib\vulkan\1.3.xxx\x64`
-   - **Linux**: `export VULKAN_SDK=$HOME/VulkanSDK/1.3.xxx/x86_64`
-3. Restart Android Studio
-4. Rebuild
-
-**Alternative:** If you don't need Vulkan for development:
-```bash
-./gradlew :engine:build -PandrollmVulkan=OFF
-```
-This produces a CPU-only build (not recommended for production).
-
----
-
-### NDK Version Mismatch
-
-**Symptoms:**
-```
-NDK manifest version mismatch: expected 26.1.10909125 but found 25.2.9519653
-```
-
-**Cause:** The installed NDK version doesn't match what the project expects.
-
-**Solution:**
-```bash
-# Install the correct NDK version
-$ANDROID_HOME/tools/bin/sdkmanager "ndk;26.1.10909125"
-
-# Verify installation
-ls $ANDROID_HOME/ndk/
-```
-
-If multiple NDK versions are installed, ensure `local.properties` points to the correct one:
-```properties
-ndk.dir=/path/to/Android/Sdk/ndk/26.1.10909125
-```
-
----
-
-### Host Compiler Not Found (Windows)
-
-**Symptoms:**
-```
-No host C/C++ compiler found for the Vulkan shader generator.
-Install a host toolchain (MSVC, GCC or LLVM-MinGW) and put it on PATH.
-```
-
-**Cause:** The Vulkan shader generator needs a native host compiler (not the cross-compiler).
-
-**Solution:**
-1. Install MSVC via Visual Studio Build Tools (select "C++ build tools")
-2. Or install MinGW-w64 and add to PATH
-3. Verify:
-   ```bash
-   gcc --version
-   g++ --version
-   ```
-4. Ensure the compiler is on PATH **before** Android Studio's NDK clang
-
----
-
 ### Gradle Daemon OOM
 
 **Symptoms:** Build fails with `Java heap space` or `Out of memory`
@@ -90,99 +17,91 @@ org.gradle.parallel=true
 org.gradle.caching=true
 ```
 
+### Dependency Resolution Failures
+
+**Symptoms:** Gradle can't resolve `litertlm-android` or `litert-android`
+
+**Solution:**
+1. Ensure `google()` is in `settings.gradle.kts` (`pluginManagement` and `dependencyResolutionManagement`)
+2. Check network access to `maven.google.com`
+3. Run `./gradlew --refresh-dependencies`
+
+### Firebase Plugin Fails Without google-services.json
+
+**Symptoms:** `File google-services.json is missing`
+
+**Solution:** Place a valid `google-services.json` in `app/`, or comment out the Google Services plugin for local-only development.
+
 ---
 
 ## Runtime Issues
 
-### Vulkan Device Lost
+### GPU Delegate Fails / Slow Generation
 
 **Symptoms:**
-- Generation starts normally then crashes with `VK_ERROR_DEVICE_LOST`
-- App log shows: `[VulkanDiag] devLostRecovered=N`
-- Model stops responding mid-generation
+- Generation runs but is slow — the engine is on the CPU backend
+- Log shows `AndroLLM-Engine` backend fallback events
+- `recoveryCount` in diagnostics keeps rising
 
-**Cause:** GPU driver crash, thermal throttling, or insufficient VRAM on the device.
+**Cause:** OpenCL driver issues, insufficient GPU memory, or a device without a working OpenCL implementation.
 
 **Solution:**
-1. The engine should automatically recover by recreating the context
-2. If recovery fails, it falls back to CPU (check logs for `cpuSessionFallback=true`)
-3. Reduce context length in Model Parameters sheet
-4. Close other GPU-intensive apps
-5. If the issue persists, the device's GPU driver may have a bug — try updating the OS
+1. Check Developer screen → Hardware Info for `backend` (`GPU` vs `CPU`), `gpuFree`, `gpuTotal`, `recoveryCount`
+2. The engine automatically falls back to CPU — this is safe, just slower
+3. Close other GPU-intensive apps to free memory
+4. If the issue persists, the device's GPU driver may have a bug — try updating the OS
 
-**Diagnostics:** Check Settings → Developer Options → Vulkan Diagnostics for `backend`, `gpuFree`, `gpuTotal`, `recovery=N`, `devLostRecovered=M`.
-
----
-
-### NaN / INF Logits
+### Context Overflow ("Input token ids are too long")
 
 **Symptoms:**
-- Generated text contains garbled characters or repetition loops
-- Log shows: `corruption detected: nan logits` or `invalid token`
-- Generation stops unexpectedly
+- Generation fails with an error mentioning `Input token ids are too long`
+- Large conversations suddenly stop generating
+
+**Cause:** The rendered prompt (system prompt + memories + tool advertisement + conversation) exceeds the model's context window from container metadata (e.g. 4096 for Qwen2.5-1.5B, 2048 for Qwen3-0.6B).
+
+**Solution:**
+1. Start a new conversation (Chat drawer → New conversation)
+2. Use conversation summaries to compress history
+3. The engine already caps the tool advertisement (4500-char cap for small Qwen families) — larger system prompts from memory context are the usual cause
+4. Check the model's metadata context in the Models screen before long prompts
+
+### Generation Produces Garbled Output
+
+**Symptoms:**
+- Generated text contains repetition loops or nonsense
+- Output stops mid-word repeatedly
 
 **Cause:** Numerical instability during decoding, often triggered by:
 - Very high temperature values (> 2.0)
-- Extremely low top-k values (1–3) with certain model architectures
-- Context length exceeding model's training limit
-- Model file corruption
+- Context length exceeding the model's metadata limit
+- A corrupt or partial container file
 
 **Solution:**
-1. The engine attempts automatic recovery (context recreation → CPU fallback)
-2. Check logs for `recoveryCount=N` — if > 3, the model may be incompatible
-3. Reduce temperature to 0.8–1.2 range
-4. Increase top-k to 40–50
-5. Verify the GGUF file integrity (re-download if necessary)
-6. Use a different quantization (Q5_K_M or Q8_0 are more numerically stable than IQ1_IQ)
-
-**Prevention:** Always validate GGUF files before loading using the built-in validator.
-
----
-
-### Second-Prompt Corruption
-
-**Symptoms:**
-- First prompt generates correctly
-- Second prompt produces garbled or nonsensical output
-- KV cache position appears incorrect in debug logs
-
-**Cause:** Context shift boundary issue — the diff-based multi-turn continuation doesn't properly handle the transition when the context is nearly full.
-
-**Solution:**
-1. The engine should auto-trigger a full re-render when `pos_check >= nCtx - 4`
-2. If this doesn't happen, manually reset the conversation (Chat drawer → New conversation)
-3. Reduce context length setting for the model
-4. Enable automatic conversation summarization (planned feature)
-
-**Diagnostics:** Check `EngineDebugInfo` in developer screen for `chatPosition`, `nCtx`, `nLoaded`.
-
----
+1. Check logs under `AndroLLM-Engine` for backend fallbacks or decode errors
+2. Reduce temperature to 0.8–1.2 range
+3. Respect the model's context limit (see above)
+4. Re-download the model if the file may be corrupted (SHA-256 verified at download)
+5. Try a different model from the catalog
 
 ### Model Fails to Load
 
 **Symptoms:**
 - "Failed to load model" error
-- Log shows: `ggml_load: unknown architecture` or `invalid magic`
+- Log shows a `ModelCompatibilityException` or `ModelLoadException`
 - Model shows as "Downloaded" but won't load
 
 **Cause:**
-- GGUF file is corrupted or incomplete
-- Model architecture is not supported by the vendored llama.cpp
-- File is not actually a GGUF (wrong extension)
+- `.litertlm` container is corrupted or incomplete
+- Container family/architecture is unsupported (`ModelCompatibilityException`)
+- File is not actually a `.litertlm` container (e.g. a renamed GGUF)
 - Insufficient RAM
 
 **Solution:**
-1. Verify the file is a valid GGUF:
-   ```bash
-   # Check magic bytes: should be 0x46554747 ("GGUF")
-   xxd -l 16 /path/to/model.gguf
-   ```
-2. Check supported architectures in `SupportedArchitectures.kt` (137 architectures)
+1. Verify the file passes `LiteRtValidator` (Models screen shows validation results) and `ModelInspector` metadata reading
+2. Check supported families/architectures (see [MODEL_SUPPORT.md](MODEL_SUPPORT.md)) — families come from container metadata
 3. Check available RAM vs. model requirements (see Model Catalog)
 4. Re-download the model if the file is corrupted
-5. Try a different quantization level (heavier quants like Q8_0 may need more RAM)
-
----
+5. Note: GGUF files are **inspection-only** — the app identifies them but cannot run them
 
 ### Insufficient RAM
 
@@ -193,36 +112,10 @@ org.gradle.caching=true
 
 **Solution:**
 1. Check device RAM in Settings → Developer Options → Device Info
-2. Choose smaller models (fewer parameters, lighter quantization)
+2. Choose smaller catalog models (Qwen3-0.6B class for 2 GB, Qwen2.5-1.5B / Gemma 3 1B class for 3–4 GB)
 3. Unload unused models: Models screen → tap unloaded model
 4. Close other apps to free RAM
 5. Restart the device if RAM is fragmented
-
-**RAM guidelines by model size (quantization Q4_K_M):**
-
-| Parameters | Approx. RAM | Min Device RAM |
-|---|---|---|
-| 0.5B | ~0.4 GB | 2 GB |
-| 1.5B | ~1.0 GB | 3 GB |
-| 3B | ~2.0 GB | 4 GB |
-| 7B | ~4.5 GB | 6 GB |
-| 14B | ~9.0 GB | 12 GB |
-
-These are estimates. Actual usage varies by architecture and context length.
-
----
-
-### Unsupported GGUF File Type
-
-**Symptoms:**
-- "Unsupported format" error when selecting a model file
-- Catalog shows format as "SAFETENSORS" or "PYTORCH"
-
-**Solution:** Convert the model to GGUF format using llama.cpp's convert scripts:
-```bash
-python llama.cpp/convert.py /path/to/model --outtype gq4_K_M
-```
-Or download a pre-converted GGUF from HuggingFace.
 
 ---
 
@@ -344,16 +237,16 @@ On Android 13+, you also need to grant Notification permission for the foregroun
 
 ### Enable Developer Mode
 Settings → Developer Options → Enable. This unlocks:
-- GPU rendering debugging
+- GPU/backend diagnostics
 - Log export
 - Benchmark tools
 - Memory diagnostics
 
 ### Check App Logs
-Settings → Developer Options → Logs & Diagnostics → Export. Share this file when reporting bugs.
+Settings → Developer Options → Logs & Diagnostics → Export. Share this file when reporting bugs. Key logcat tags: `AndroLLM-Engine` (engine), `ChatViewModel` (chat flow), `Voice` (voice pipeline).
 
 ### Force Stop and Restart
-If the app behaves strangely, force stop it (Settings → Apps → AndroLLM → Force Stop) and relaunch. This clears any leaked native handles.
+If the app behaves strangely, force stop it (Settings → Apps → AndroLLM → Force Stop) and relaunch. This clears any leaked runtime sessions.
 
 ### Reinstall
 As a last resort, uninstall and reinstall. This clears all local data including models — you'll need to re-download them.

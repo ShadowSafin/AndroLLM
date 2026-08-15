@@ -194,7 +194,7 @@ interface HuggingFaceApi {
         @Query("search") query: String,
         @Query("limit") limit: Int = 20,
         @Query("sort") sort: String = "downloads",
-        @Query("filter") filter: String = "gguf"
+        @Query("filter") filter: String = "litertlm"
     ): List<ModelDto>
 
     @GET("api/models/{modelId}")
@@ -281,7 +281,7 @@ ModelsViewModel.downloadModel(catalogModel)
          │       ├── Flow<Progress> updates UI
          │       │
          │       └── On completion:
-         │               ├── GgufValidator.validate(filePath)
+         │               ├── LiteRtValidator.validate(filePath) + ModelInspector reads metadata
          │               ├── Calculate SHA-256
          │               ├── Update ModelEntity (status = DOWNLOADED)
          │               └── Notify UI

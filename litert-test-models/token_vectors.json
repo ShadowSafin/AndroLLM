@@ -1,0 +1,192 @@
+[
+ {
+  "text": "Hello, how are you?",
+  "ids": [
+   9259,
+   236764,
+   1217,
+   659,
+   611,
+   236881
+  ],
+  "pieces": [
+   "Hello",
+   ",",
+   "▁how",
+   "▁are",
+   "▁you",
+   "?"
+  ]
+ },
+ {
+  "text": "The weather is sunny today",
+  "ids": [
+   818,
+   7606,
+   563,
+   17635,
+   3124
+  ],
+  "pieces": [
+   "The",
+   "▁weather",
+   "▁is",
+   "▁sunny",
+   "▁today"
+  ]
+ },
+ {
+  "text": "machine learning models",
+  "ids": [
+   41213,
+   4735,
+   4681
+  ],
+  "pieces": [
+   "machine",
+   "▁learning",
+   "▁models"
+  ]
+ },
+ {
+  "text": "how to make coffee",
+  "ids": [
+   7843,
+   531,
+   1386,
+   7681
+  ],
+  "pieces": [
+   "how",
+   "▁to",
+   "▁make",
+   "▁coffee"
+  ]
+ },
+ {
+  "text": "cats are adorable pets",
+  "ids": [
+   50053,
+   659,
+   42579,
+   26757
+  ],
+  "pieces": [
+   "cats",
+   "▁are",
+   "▁adorable",
+   "▁pets"
+  ]
+ },
+ {
+  "text": "quantum physics explained simply",
+  "ids": [
+   105053,
+   16505,
+   9696,
+   5181
+  ],
+  "pieces": [
+   "quantum",
+   "▁physics",
+   "▁explained",
+   "▁simply"
+  ]
+ },
+ {
+  "text": "a",
+  "ids": [
+   236746
+  ],
+  "pieces": [
+   "a"
+  ]
+ },
+ {
+  "text": "the",
+  "ids": [
+   1437
+  ],
+  "pieces": [
+   "the"
+  ]
+ },
+ {
+  "text": "",
+  "ids": [],
+  "pieces": []
+ },
+ {
+  "text": " ",
+  "ids": [
+   236743
+  ],
+  "pieces": [
+   "▁"
+  ]
+ },
+ {
+  "text": "  ",
+  "ids": [
+   138
+  ],
+  "pieces": [
+   "▁▁"
+  ]
+ },
+ {
+  "text": "iPhone 15 Pro Max",
+  "ids": [
+   50668,
+   236743,
+   236770,
+   236810,
+   1255,
+   8645
+  ],
+  "pieces": [
+   "iPhone",
+   "▁",
+   "1",
+   "5",
+   "▁Pro",
+   "▁Max"
+  ]
+ },
+ {
+  "text": "  leading and trailing spaces  ",
+  "ids": [
+   138,
+   26016,
+   532,
+   45330,
+   9952,
+   138
+  ],
+  "pieces": [
+   "▁▁",
+   "leading",
+   "▁and",
+   "▁trailing",
+   "▁spaces",
+   "▁▁"
+  ]
+ },
+ {
+  "text": "multi\nline\ttext",
+  "ids": [
+   20028,
+   107,
+   1257,
+   255968,
+   1005
+  ],
+  "pieces": [
+   "multi",
+   "\n",
+   "line",
+   "\t",
+   "text"
+  ]
+ }
+]

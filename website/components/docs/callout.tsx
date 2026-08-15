@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 import { useReducedMotion } from "framer-motion";
 
 const variants = {
-  note: { icon: Info, label: "Note", classes: "border-[#4FC3F7]/40 bg-[#4FC3F7]/8 text-[var(--ink-dim)]", iconColor: "text-[#4FC3F7]" },
-  warning: { icon: AlertTriangle, label: "Warning", classes: "border-[#FFD54F]/40 bg-[#FFD54F]/8 text-[var(--ink-dim)]", iconColor: "text-[#FFD54F]" },
-  danger: { icon: ShieldAlert, label: "Heads up", classes: "border-[#E8836C]/50 bg-[#E8836C]/8 text-[var(--ink-dim)]", iconColor: "text-[#E8836C]" },
-  tip: { icon: Lightbulb, label: "Tip", classes: "border-[#81C784]/40 bg-[#81C784]/8 text-[var(--ink-dim)]", iconColor: "text-[#81C784]" },
+  note: { icon: Info, label: "Note", classes: "border-[var(--callout-note-border)] bg-[var(--callout-note-bg)] text-[var(--ink-dim)]", iconColor: "text-[var(--callout-note-text)]" },
+  warning: { icon: AlertTriangle, label: "Warning", classes: "border-[var(--callout-warning-border)] bg-[var(--callout-warning-bg)] text-[var(--ink-dim)]", iconColor: "text-[var(--callout-warning-text)]" },
+  danger: { icon: ShieldAlert, label: "Heads up", classes: "border-[var(--callout-danger-border)] bg-[var(--callout-danger-bg)] text-[var(--ink-dim)]", iconColor: "text-[var(--callout-danger-text)]" },
+  tip: { icon: Lightbulb, label: "Tip", classes: "border-[var(--callout-tip-border)] bg-[var(--callout-tip-bg)] text-[var(--ink-dim)]", iconColor: "text-[var(--callout-tip-text)]" },
 } as const;
 
 export function Callout({ message, variant = "note" }: { message: string; variant?: keyof typeof variants }) {

@@ -22,7 +22,7 @@ import org.junit.Test
  */
 class ChatPromptSerializationTest {
 
-    // Same Json configuration used by LlamaCppEngine
+    // Same Json configuration used by the engine (RuntimeConfig.json)
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test

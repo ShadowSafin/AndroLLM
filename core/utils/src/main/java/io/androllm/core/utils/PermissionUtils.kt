@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import io.androllm.core.common.AppConstants
 
 /**
  * Helpers for runtime permission handling.
@@ -34,12 +33,6 @@ object PermissionUtils {
             ActivityCompat.requestPermissions(activity, missing.toTypedArray(), requestCode)
         }
     }
-
-    /**
-     * Checks whether storage permissions are granted.
-     */
-    fun hasStoragePermission(context: Context): Boolean =
-        hasPermission(context, AppConstants.Permissions.READ_EXTERNAL_STORAGE)
 
     /**
      * Checks whether notifications permission is granted (Android 13+).

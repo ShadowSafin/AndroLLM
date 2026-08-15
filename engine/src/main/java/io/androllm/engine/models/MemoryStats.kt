@@ -59,8 +59,20 @@ data class MemoryStats(
 ) {
     val totalNativeBytes: Long get() = modelSizeBytes + contextSizeBytes
 
-    /** True only when the runtime inference pipeline is offloaded to Vulkan. */
-    val isGpuAccelerated: Boolean get() = backend == "vulkan" && gpuLayersOffloaded > 0
+    /**
+     * True when runtime inference is offloaded to a GPU. LiteRT-LM reports the
+     * active delegate via [backend] == "gpu" (it has no per-layer offload
+     * concept); the legacy llama.cpp runtime reported "vulkan" +
+     * [gpuLayersOffloaded]. Both count as GPU acceleration.
+     */
+    val isGpuAccelerated: Boolean get() = backend == "gpu" || (backend == "vulkan" && gpuLayersOffloaded > 0)
+
+    /** Human-readable name of the active GPU backend ("" when on CPU). */
+    val gpuBackendLabel: String get() = when {
+        backend == "gpu" -> "LiteRT GPU"
+        backend == "vulkan" && gpuLayersOffloaded > 0 -> "Vulkan"
+        else -> ""
+    }
 
     /** Vulkan correctness self-test passed (diagnostic only). */
     val vulkanValidationPassed: Boolean get() = vulkanValidationStatus == "passed"
@@ -70,6 +82,8 @@ data class MemoryStats(
 
     /** Runtime execution mode derived from actual GPU offload, never validation. */
     val executionMode: String get() = when {
+        // LiteRT delegates the whole graph — there is no hybrid split.
+        backend == "gpu" -> "GPU only"
         isGpuAccelerated && cpuLayers > 0 -> "Hybrid"
         isGpuAccelerated -> "GPU only"
         else -> "CPU only"
@@ -92,7 +106,12 @@ data class MemoryStats(
         )
 
     val cpuLayers: Int get() = totalLayers - gpuLayersOffloaded
-    val gpuLayersDisplay: String get() = if (isGpuAccelerated && totalLayers > 0) "$gpuLayersOffloaded / $totalLayers" else if (isGpuAccelerated) "$gpuLayersOffloaded / ?" else "0 / ?"
+    val gpuLayersDisplay: String get() = when {
+        backend == "gpu" -> "All ops (delegate)"
+        isGpuAccelerated && totalLayers > 0 -> "$gpuLayersOffloaded / $totalLayers"
+        isGpuAccelerated -> "$gpuLayersOffloaded / ?"
+        else -> "0 / ?"
+    }
     val gpuMemoryUsedMb: Float get() = gpuMemoryUsedBytes / (1024f * 1024f)
     val cpuMemoryUsedMb: Float get() = cpuMemoryUsedBytes / (1024f * 1024f)
 

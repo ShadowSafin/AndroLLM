@@ -42,7 +42,16 @@ class EngineRepositoryTest {
             backend = BackendType.CPU
         )
 
-        var decodeErrorStopReason = false
+        /** When set, the chat stream reports this stop reason instead of a clean finish. */
+        var stopReasonOverride: String? = null
+
+        /**
+         * When true, every stream completes with ZERO output deltas and a
+         * stats record whose stop reason is "" (or [stopReasonOverride]) — the
+         * exact shape the native layer returns when the recovery ladder
+         * exhausts its retries and falls back to a bare "{}" stats blob.
+         */
+        var noOutput = false
 
         private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
         override val engineState: Flow<EngineState> = _engineState.asStateFlow()
@@ -77,6 +86,25 @@ class EngineRepositoryTest {
         }
 
         override fun tokenStream(prompt: String, config: GenerationConfig): Flow<io.androllm.core.common.Result<StreamChunk>> = flow {
+            // Mirror the native engine: stats are reported on the RAW path too
+            // (nativeGenerate writes _stats), so the repository can detect a
+            // corrupted run here just as on the chat path.
+            stopReasonOverride?.let {
+                _stats.value = io.androllm.engine.models.EngineStats(
+                    promptTokens = 1,
+                    generatedTokens = 1,
+                    stopReason = it
+                )
+            }
+            if (noOutput) {
+                _stats.value = io.androllm.engine.models.EngineStats(
+                    promptTokens = 1,
+                    generatedTokens = 0,
+                    stopReason = stopReasonOverride ?: ""
+                )
+                emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 0)))
+                return@flow
+            }
             emit(io.androllm.core.common.Result.Success(StreamChunk("hello ", false)))
             emit(io.androllm.core.common.Result.Success(StreamChunk("world", false)))
             emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 2)))
@@ -88,20 +116,31 @@ class EngineRepositoryTest {
         ): io.androllm.core.common.Result<String> =
             io.androllm.core.common.Result.Success("<|im_start|>user\n${messages.last().content}<|im_end|>\n<|im_start|>assistant\n")
 
-        override suspend fun generate(prompt: String, config: GenerationConfig): io.androllm.core.common.Result<String> =
-            io.androllm.core.common.Result.Success("hello world")
+        override suspend fun generate(prompt: String, config: GenerationConfig): io.androllm.core.common.Result<String> {
+            if (noOutput) return io.androllm.core.common.Result.Success("")
+            return io.androllm.core.common.Result.Success("hello world")
+        }
 
         override fun generateChatStream(
             messages: List<io.androllm.engine.models.ChatPromptMessage>,
             addAssistant: Boolean,
             config: GenerationConfig
         ): Flow<io.androllm.core.common.Result<StreamChunk>> = flow {
-            if (decodeErrorStopReason) {
+            stopReasonOverride?.let {
                 _stats.value = io.androllm.engine.models.EngineStats(
                     promptTokens = 1,
                     generatedTokens = 1,
-                    stopReason = "decode_error"
+                    stopReason = it
                 )
+            }
+            if (noOutput) {
+                _stats.value = io.androllm.engine.models.EngineStats(
+                    promptTokens = 1,
+                    generatedTokens = 0,
+                    stopReason = stopReasonOverride ?: ""
+                )
+                emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 0)))
+                return@flow
             }
             emit(io.androllm.core.common.Result.Success(StreamChunk("hello ", false)))
             emit(io.androllm.core.common.Result.Success(StreamChunk("world", false)))
@@ -203,7 +242,7 @@ class EngineRepositoryTest {
         // The native multi-turn path rolls a decode error back and reports it
         // via stats; the repository must surface it as Failed (never persist
         // the partial as a full assistant response).
-        engine.decodeErrorStopReason = true
+        engine.stopReasonOverride = "decode_error"
         val repository = DefaultEngineRepository(engine)
         repository.initialize()
         repository.loadModel(Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"))
@@ -212,6 +251,40 @@ class EngineRepositoryTest {
             listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hi"))
         )
         assertTrue(result.isError())
+        assertTrue(repository.generationState.value is GenerationState.Failed)
+    }
+
+    @Test
+    fun `generateChat surfaces corrupted stop reason as failure`() = runTest {
+        val engine = FakeEngine()
+        // REGRESSION: the native bridge reports NaN/INF-logit runs with the
+        // canonical stop reason "corrupted" (not "decode_error"). The old
+        // check only matched "decode_error", so a corrupted run was published
+        // as Completed and its partial garbage persisted as an assistant
+        // message — poisoning the next prompt's context (gibberish turn 2+).
+        engine.stopReasonOverride = "corrupted"
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"))
+
+        val result = repository.generateChat(
+            listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hi"))
+        )
+        assertTrue("corrupted run must fail, not complete: $result", result.isError())
+        val failed = repository.generationState.value as GenerationState.Failed
+        assertTrue("partial text must be surfaced for diagnostics", failed.partialText.isNotEmpty())
+    }
+
+    @Test
+    fun `generateChat surfaces corrupted stop reason as failure on the raw path too`() = runTest {
+        val engine = FakeEngine()
+        engine.stopReasonOverride = "corrupted"
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"))
+
+        val result = repository.generate("Hi")
+        assertTrue("corrupted raw run must fail: $result", result.isError())
         assertTrue(repository.generationState.value is GenerationState.Failed)
     }
 
@@ -233,5 +306,187 @@ class EngineRepositoryTest {
         repository.loadModel(Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"))
         repository.unloadModel()
         assertFalse(engine.loaded)
+    }
+
+    // ── Zero-output terminal guard (regression: silent empty Completed) ──────
+
+    @Test
+    fun `generateChat with zero output tokens surfaces a visible failure instead of completing blank`() = runTest {
+        // REGRESSION: when the native recovery ladder exhausts its retries it
+        // returns a bare "{}" stats blob — decoded into an EngineStats with an
+        // EMPTY stopReason. The old code published Completed(""), so the chat
+        // showed no response and no error (the "stuck generating" symptom) and
+        // the next send re-entered the same failing cycle.
+        val engine = FakeEngine().apply { noOutput = true }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        // The load-time coherence probe would reject a zero-output model — skip
+        // it; this test targets the generation guard, not the load probe.
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generateChat(
+            listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hello"))
+        )
+
+        assertTrue("zero-token run must fail, not complete: $result", result.isError())
+        val failed = repository.generationState.value as GenerationState.Failed
+        assertTrue("failure must explain the empty run: ${failed.message}", failed.message.contains("no tokens"))
+        assertFalse("zero-token run must never publish Completed", repository.generationState.value is GenerationState.Completed)
+    }
+
+    @Test
+    fun `generate with zero output tokens surfaces a visible failure instead of completing blank`() = runTest {
+        val engine = FakeEngine().apply { noOutput = true }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generate("Hello")
+
+        assertTrue("zero-token raw run must fail: $result", result.isError())
+        val failed = repository.generationState.value as GenerationState.Failed
+        assertTrue("failure must explain the empty run: ${failed.message}", failed.message.contains("no tokens"))
+        assertFalse(repository.generationState.value is GenerationState.Completed)
+    }
+
+    @Test
+    fun `generateQuiet with zero output tokens fails instead of returning blank`() = runTest {
+        val engine = FakeEngine().apply { noOutput = true }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generateQuiet("extract")
+
+        assertTrue("zero-token quiet run must fail: $result", result.isError())
+    }
+
+    @Test
+    fun `generateChat with zero tokens ending on EOS completes cleanly`() = runTest {
+        // A model that hits EOS on the very first sample is a LEGITIMATE empty
+        // completion — the guard must not turn it into a failure.
+        val engine = FakeEngine().apply {
+            noOutput = true
+            stopReasonOverride = "eos"
+        }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generateChat(
+            listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hello"))
+        )
+
+        assertTrue("immediate-EOS run must still complete: $result", result.isSuccess())
+        val completed = repository.generationState.value as GenerationState.Completed
+        assertEquals("", completed.text)
+    }
+
+    @Test
+    fun `generateChat with zero tokens ending on EOG completes cleanly`() = runTest {
+        // REGRESSION (native stop-reason mismatch): the native bridge reports
+        // end-of-generation as "eog" (llama.cpp convention), not "eos". An
+        // immediate-EOG empty completion is just as legitimate as EOS and must
+        // complete cleanly — previously the zero-output guard rejected it and
+        // the chat showed a spurious failure ("The model produced no tokens")
+        // on every first-turn empty response.
+        val engine = FakeEngine().apply {
+            noOutput = true
+            stopReasonOverride = "eog"
+        }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generateChat(
+            listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hello"))
+        )
+
+        assertTrue("immediate-EOG run must still complete: $result", result.isSuccess())
+        val completed = repository.generationState.value as GenerationState.Completed
+        assertEquals("", completed.text)
+    }
+
+    @Test
+    fun `generate with zero tokens ending on EOG completes cleanly`() = runTest {
+        val engine = FakeEngine().apply {
+            noOutput = true
+            stopReasonOverride = "eog"
+        }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generate("Hello")
+
+        assertTrue("immediate-EOG raw run must still complete: $result", result.isSuccess())
+        val completed = repository.generationState.value as GenerationState.Completed
+        assertEquals("", completed.text)
+    }
+
+    @Test
+    fun `generateChat with a no-progress stop reason fails with the no-progress message`() = runTest {
+        // REGRESSION (no-progress watchdog contract): when the native layer
+        // reports "no_progress" (it decoded many iterations without producing
+        // output) the run must surface a visible no-progress failure — never a
+        // blank Completed that looks like the UI looping forever.
+        val engine = FakeEngine().apply {
+            noOutput = true
+            stopReasonOverride = "no_progress"
+        }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generateChat(
+            listOf(io.androllm.engine.models.ChatPromptMessage(role = "user", content = "Hello"))
+        )
+
+        assertTrue("no-progress run must fail: $result", result.isError())
+        val failed = repository.generationState.value as GenerationState.Failed
+        assertTrue("must name the loop: ${failed.message}", failed.message.contains("No-progress"))
+        assertFalse(repository.generationState.value is GenerationState.Completed)
+    }
+
+    @Test
+    fun `generate with a no-progress stop reason fails with the no-progress message`() = runTest {
+        val engine = FakeEngine().apply {
+            noOutput = true
+            stopReasonOverride = "no_progress"
+        }
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+        repository.loadModel(
+            Model(id = "m1", name = "M", filePath = "/tmp/m.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = false)
+        )
+
+        val result = repository.generate("Hello")
+
+        assertTrue("no-progress raw run must fail: $result", result.isError())
+        val failed = repository.generationState.value as GenerationState.Failed
+        assertTrue("must name the loop: ${failed.message}", failed.message.contains("No-progress"))
+        assertFalse(repository.generationState.value is GenerationState.Completed)
     }
 }

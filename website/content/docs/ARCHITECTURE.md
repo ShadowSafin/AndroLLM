@@ -8,9 +8,9 @@ Complete architectural overview of the AndroLLM application.
 
 AndroLLM is built on three core principles:
 
-1. **Privacy by default** — Local inference runs entirely on-device; cloud features are opt-in
+1. **Privacy by default** — Local inference runs entirely on-device via Google's LiteRT-LM runtime; cloud features are opt-in
 2. **Modular independence** — Each feature module is a self-contained unit depending only on core libraries
-3. **Graceful degradation** — Every feature has a fallback path (Vulkan→CPU, cloud→local, embeddings→keywords)
+3. **Graceful degradation** — Every feature has a fallback path (GPU→CPU, cloud→local, embeddings→keywords)
 
 ---
 
@@ -30,9 +30,10 @@ AndroLLM is built on three core principles:
 │  Repositories · DAOs · Network clients · DI modules                │
 │  ConversationRepository · ModelRepository · LiteLLMClient          │
 ├─────────────────────────────────────────────────────────────────────┤
-│                          NATIVE LAYER                               │
-│  llama.cpp (C++) · sherpa-onnx (ONNX Runtime Mobile)               │
-│  libandrollm_llama.so · Vulkan shaders · ONNX models               │
+│                          RUNTIME LAYER                              │
+│  LiteRT-LM 0.16.0 (LLM inference) · LiteRT 2.2.0 CompiledModel API │
+│  (embeddings) · sherpa-onnx (ONNX Runtime Mobile for voice)        │
+│  100% Kotlin/Java — no native code, no NDK, no CMake               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,7 +51,7 @@ AndroLLM is built on three core principles:
         ▼                  ▼                  ▼
 ┌───────────────┐  ┌───────────────┐  ┌───────────────┐
 │  core:* libs  │  │  engine/      │  │ feature:*     │
-│  (shared)     │  │  (native)     │  │  (screens)    │
+│  (shared)     │  │  (LiteRT-LM)  │  │  (screens)    │
 └───────┬───────┘  └───────────────┘  └───────┬───────┘
         │                                      │
         └──────────────────┬───────────────────┘
@@ -91,7 +92,9 @@ ChatViewModel.sendMessage(text)
         │       └──▶ CosineVectorIndex.search()      [In-memory]
         │       └──▶ Keyword match fallback          [DB query]
         │
-        ├──▶ EngineRepository.buildChatPrompt()      [Jinja template]
+        ├──▶ EngineRepository.buildChatPrompt()      [Family chat template
+        │                                             + memory context
+        │                                             + tool advertisement]
         │
         └──▶ INFERENCEROUTING
                 │
@@ -101,11 +104,15 @@ ChatViewModel.sendMessage(text)
   EngineRepository   CloudGateway.streamChat()
         │                │
         ▼                ▼
-  LlamaCppEngine     LiteLLMClient
+  DefaultEngineRepository   LiteLLMClient
         │                │
         ▼                ▼
-  LlamaJniBridge     SSE Stream
-  nativeGenerate()   → CloudStreamEvent[]
+  LiteRtLmEngine      SSE Stream
+        │                │
+        ▼                ▼
+  LiteRT-LM runtime   → CloudStreamEvent[]
+  (CPU XNNPACK or
+   GPU OpenCL delegate)
         │                │
         ▼                ▼
   Flow<Result<StreamChunk>>    Flow<CloudStreamEvent>
@@ -148,11 +155,15 @@ VoiceAssistantService.startLoop()
         │
    ┌────┴────┐
    ▼         ▼
- Local cmd  LLM route
+  Local cmd  LLM route
    │         │
    ▼         ▼
 System    ChatManager
 command   .sendMessageStream()
+   │         │
+   ▼         ▼
+        LiteRT-LM (local)
+        or LiteLLM (cloud)
    │         │
    └────┬────┘
         ▼
@@ -174,24 +185,43 @@ command   .sendMessageStream()
 
 ## Inference Engine Architecture
 
-The engine module is the bridge between the Kotlin application layer and the native C++ inference runtime.
+The `engine` module is the bridge between the Kotlin application layer and the
+**LiteRT-LM** inference runtime. It is 100% Kotlin/Java — no native code.
 
 ### Class Hierarchy
 
 ```
 InferenceEngine (interface)
     │
-    └── LlamaCppEngine (@Singleton)
+    └── LiteRtLmEngine (@Singleton, core/)
+            │  (wraps the LiteRT-LM runtime + backend selection)
             │
-            ├── engineHandle: Long (native pointer)
-            ├── vulkanSupported: Boolean
+            ├── compat layer: container metadata → family → templates/tokens
             └── generationActive: AtomicBoolean
 
 EngineRepository (interface)
     │
     └── DefaultEngineRepository (@Singleton)
-            │  (adds Mutex serialization + state publishing)
+            │  (adds Mutex serialization + EngineState publishing)
             └── delegates to InferenceEngine
+```
+
+### Compat Layer
+
+`.litertlm` containers embed an `LlmMetadata` proto. The compat layer reads it
+and derives everything needed to *talk to* the model:
+
+```
+ContainerMetadataReader (LlmMetadata proto)
+        │
+        ▼
+ModelFamilyRegistry → ModelFamily (Gemma, Qwen2, Qwen2.5, Qwen3, Phi,
+                      Llama3, DeepSeek, Mistral, SmolLM, TinyLlama)
+        │
+        ├──▶ ChatTemplateRenderer    — per-family chat template rendering
+        ├──▶ SpecialTokens           — bos/eos/stop tokens from metadata
+        ├──▶ OutputDecoder           — token ids → text, filters control tokens
+        └──▶ StopSequenceTracker     — halts generation at stop sequences
 ```
 
 ### Lifecycle States
@@ -211,99 +241,27 @@ MODEL_LOADING
      └──── failure ───► MODEL_ERROR
 ```
 
-### Multi-Turn Conversation Strategy
+### Backends
 
-The engine maintains a single `llama_context` across turns. The KV cache IS the conversation state.
-
-**Continuation (new message only):**
-```
-1. Render new message + assistant prefix with Jinja template
-2. Prefill-decode at current chatPosition
-3. Update chatPosition += newly_generated_tokens
-4. Return accumulated tokens
-```
-
-**Full re-render (edit/delete/regenerate/system prompt change):**
-```
-1. Reset chatPosition to 0
-2. Render ALL messages with templates
-3. Prefill entire sequence
-4. Decode from start
-```
-
-**Context shift (when pos_check >= nCtx - 4):**
-```
-1. Discard oldest tokens after system prompt
-2. Shift remaining tokens left in KV cache
-3. Continue decoding from shifted position
-```
-
----
-
-## Native Engine Architecture (C++)
-
-### LlamaEngine (RAII Struct)
-
-```cpp
-struct LlamaEngine {
-    common_init_result_ptr initResult;       // Holds llama_model*
-    llama_context_ptr ctxOwner;              // Holds llama_context*
-    common_sampler* sampler;                 // Per-request sampler
-    common_chat_templates_ptr chatTmpls;     // Jinja templates
-
-    // Chat state
-    std::vector<common_token> chatMsgs;
-    size_t chatPosition = 0;
-    size_t systemPromptEnd = 0;
-
-    // Embedding model (separate handle)
-    common_init_result_ptr embedInitResult;
-    llama_model* embedModel = nullptr;
-    llama_context* embedCtx = nullptr;
-
-    // Corruption recovery tracking
-    int recoveryCount = 0;
-    bool cpuSessionFallback = false;
-    bool vulkanDeviceLost = false;
-};
-```
-
-### JNI Bridge Functions (`native_api.cpp`)
-
-| Function | Kotlin Signature | Purpose |
+| Backend | Runtime | Notes |
 |---|---|---|
-| `nativeCreate` | `fun nativeCreate(configJson: String): Long` | Allocate LlamaEngine |
-| `nativeLoadModel` | `fun nativeLoadModel(handle, path, cfg)` | Load GGUF + create context |
-| `nativeGenerate` | `fun nativeGenerate(...)` | Single-turn prefill+decode |
-| `nativeGenerateChat` | `fun nativeGenerateChat(...)` | Multi-turn diff continuation |
-| `nativeApplyChatTemplate` | `fun nativeApplyChatTemplate(...)` | Jinja template rendering |
-| `nativeResetChat` | `fun nativeResetChat(handle)` | Clear KV cache state |
-| `nativeCancel` | `fun nativeCancel(handle)` | Set cancel flag mid-decode |
-| `nativeUnload` | `fun nativeUnload(handle)` | Destroy context + model |
-| `nativeRelease` | `fun nativeRelease(handle)` | Free LlamaEngine struct |
-| `nativeWarmUp` | `fun nativeWarmUp(handle): String` | Compile GPU shaders |
-| `nativeGetMemoryStats` | `fun nativeGetMemoryStats(handle): String` | RAM/GPU memory info JSON |
-| `nativeBenchmark` | `fun nativeBenchmark(...)` | Quick performance benchmark |
-| `nativeVulkanAvailable` | `fun nativeVulkanAvailable(): Boolean` | Device Vulkan capability check |
-| Embedding variants | See below | Separate embedding model handle |
+| CPU | LiteRT-LM on XNNPACK | Default, always available |
+| GPU | OpenCL-based LiteRT GPU delegate | Automatic fallback to CPU + corruption recovery |
 
-### Vulkan Validation & Corruption Recovery
+`BackendType` legacy values (`QUALCOMM_QNN`, `LLAMA_CPP_VULKAN`, `ONNX_RUNTIME`,
+`VULKAN`) are kept **only** for persisted-state serializer/UI compatibility —
+the engine never produces them. NPU acceleration is planned, not implemented.
 
-After loading a model with GPU offloading:
+### Tool Calling
 
-```cpp
-// Phase 1: Greedy test (temp=0) on 5 prompts
-// Phase 2: Long-context test (forces KV shifts)
-// Phase 3: Sampling tests (standard, typical_p, mirostat)
-// Compare every sampled token + full logit vectors against CPU reference
-// Report: "passed" / "failed" / "skipped"
-```
-
-Runtime corruption escalation ladder (in `decode_safe()` wrapper):
-1. `VK_ERROR_DEVICE_LOST` → set `vulkanDeviceLost=true`, increment counter
-2. After successful decode → clear `vulkanDeviceLost`
-3. NaN/INF logits → recreate context on same GPU backend
-4. If GPU recreation fails → reload on CPU (`cpuSessionFallback=true`)
+- **Native tool-call markers** (`<|tool_call|>`) for Qwen/Gemma families —
+  the runtime decodes native markers and the engine loops them (≤ 3 rounds).
+- **JSON-compat fallback** — `ToolPlanner` plans JSON tool calls for models
+  without native markers.
+- `ToolPromptBuilder` advertises tools **budgeted to context** (4500-char cap
+  for small Qwen families) so the tool list never crowds the conversation.
+- Safety: permission gate + confirmation gate + 20s timeout + ≤ 6 re-plan
+  rounds. 47 built-in tools.
 
 ---
 
@@ -319,7 +277,8 @@ MemoryManager (public interface)
     │       ├── EmbeddingProvider (interface)
     │       │       ├── RoutingEmbeddingProvider
     │       │       │       ├── CloudEmbeddingProvider (LiteLLM)
-    │       │       │       └── LlamaEmbeddingProvider (local GGUF)
+    │       │       │       └── LiteRtEmbeddingProvider (LiteRT CompiledModel API
+    │       │       │             + SentencePieceTokenizer, engine/embedding)
     │       │       │
     │       │       └── CosineVectorIndex (brute-force in-memory)
     │       │
@@ -351,7 +310,7 @@ MemoryManager (public interface)
 processExchange(exchange):
   1. extract → List<ExtractedMemory>    (JSON schema contract)
   2. For each memory:
-     a. embed content                   (if provider available)
+     a. embed content                   (local LiteRT CompiledModel or cloud)
      b. Check similarity threshold      (vs existing memories in category)
      c. if match ≥ threshold: merge tags/importance
      d. else if exact content match: update
@@ -472,7 +431,7 @@ CREATE TABLE models (
     description TEXT,
     file_path TEXT NOT NULL,
     file_size INTEGER,
-    format TEXT DEFAULT 'GGUF',
+    format TEXT DEFAULT 'LITERTLM',
     parameters TEXT,
     quantization TEXT,
     context_length INTEGER,
@@ -590,13 +549,13 @@ SplashScreen (checked auth + onboarding state)
 | Database writes | Background | Room's internal thread pool |
 | Database reads (Flow) | Configurable | `flowOn(Dispatchers.IO)` |
 | Network requests | IO dispatcher | Ktor/OkHttp async |
-| Native inference | Backend (separate thread) | Mutex-serialized; callback on IO |
+| LiteRT-LM inference | Backend (engine-owned thread) | Mutex-serialized; token delivery throttled to ~60fps |
 | Streaming token delivery | Main (throttled) | `delay(16ms)` for ~60fps |
 | Voice audio capture | Dedicated daemon thread | `voice-capture` named thread |
 | Background memory indexing | WorkManager | `MemoryIndexingWorker` |
 | Model downloads | IO dispatcher | `ModelDownloadWorker` (WorkManager) |
 
-**Critical rule:** Never call JNI functions from the main thread during active generation. The engine uses a dedicated mutex to serialize `generate` and `generateQuiet` calls.
+**Critical rule:** Never call into the engine from the main thread during active generation. `DefaultEngineRepository` uses a dedicated mutex to serialize `generate` and `generateQuiet` calls.
 
 ---
 
@@ -642,8 +601,9 @@ Summary of security layers:
          │                  │                  │
          ▼                  ▼                  ▼
   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-  │   Local     │   │  Cloud AI   │   │  HuggingFace│
-  │  GGUF Model │   │  Providers  │   │   Models    │
-  │  (on-device)│   │  (LiteLLM)  │   │  (downloads)│
+  │  LiteRT-LM  │   │  Cloud AI   │   │ litert-     │
+  │  (.litertlm)│   │  Providers  │   │ community   │
+  │  on-device  │   │  (LiteLLM)  │   │ (HF +       │
+  │  CPU / GPU  │   │             │   │  ModelScope)│
   └─────────────┘   └─────────────┘   └─────────────┘
 ```

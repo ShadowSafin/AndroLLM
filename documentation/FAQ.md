@@ -7,11 +7,11 @@ Frequently asked questions about AndroLLM.
 ## General
 
 ### What is AndroLLM?
-AndroLLM is a production-grade Android application that runs large language models locally on your device. It supports GGUF models through llama.cpp with optional Vulkan GPU acceleration, connects to cloud AI providers via LiteLLM, maintains persistent memory across conversations, and includes a fully offline voice assistant.
+AndroLLM is a production-grade Android application that runs large language models locally on your device using the **LiteRT-LM** runtime (Google's on-device inference engine, the successor to TensorFlow Lite for LLMs), connects to cloud AI providers via LiteLLM, maintains persistent memory across conversations, and includes a fully offline voice assistant.
 
 ### Does AndroLLM work offline?
 Yes. All core functionality works offline:
-- Local GGUF model inference (CPU or Vulkan GPU)
+- Local `.litertlm` model inference (CPU via XNNPACK, or GPU via the LiteRT GPU delegate)
 - Voice assistant (wake word, ASR, TTS)
 - Persistent memory (embeddings and retrieval)
 - Conversation history
@@ -20,7 +20,7 @@ Cloud features (provider chat, cloud embeddings) require an internet connection 
 
 ### Does it require an internet connection?
 Not for local use. Internet is only required for:
-- Downloading models from HuggingFace
+- Downloading models from HuggingFace / ModelScope
 - Using cloud AI providers
 - Firebase authentication (optional)
 - Catalog refresh (optional; bundled catalog works offline)
@@ -42,42 +42,43 @@ See [PRIVACY.md](../PRIVACY.md) for full details.
 ## Models
 
 ### What model format is supported?
-**GGUF** is the primary supported format. The app also recognizes these formats in the catalog metadata but only runs GGUF files locally:
+**`.litertlm`** (LiteRT-LM engine file format) is the primary and only runnable local inference format. The app also handles these formats for display/import purposes:
 
 | Format | Local Inference | Catalog Display |
 |---|---|---|
-| GGUF | ✅ Yes | ✅ Yes |
-| GGML | ⚠️ Legacy (not recommended) | ✅ Yes |
-| SAFETENSORS | ❌ No | ✅ Yes (informational) |
-| PYTORCH | ❌ No | ✅ Yes (informational) |
-| ONNX | ❌ No (voice models only) | ✅ Yes (informational) |
-| QNN | ❌ No | ✅ Yes (informational) |
+| `.litertlm` | ✅ Yes | ✅ Yes |
+| `.tflite` | ✅ Yes (embedding models) | ✅ Yes |
+| GGUF | ❌ No (metadata inspection only) | ❌ No |
 
-### What is GGUF?
-GGUF (GPT-Generated Unified Format) is a binary model format created by the llama.cpp project. It stores model weights, tokenizer vocabulary, and metadata in a single file with a compact binary layout. GGUF supports various quantization levels (Q4_K_M, Q5_K_M, Q8_0, etc.) that reduce model size with varying quality trade-offs.
+### What is LiteRT-LM?
+LiteRT-LM is Google's on-device LLM inference runtime (the LLM successor of TensorFlow Lite). It loads `.litertlm` container files — a single file bundling weights, tokenizer, and chat template — and executes them on CPU (XNNPACK) or GPU (OpenCL delegate). AndroLLM integrates it as a pure Kotlin/Java module; there is no native code in the inference path.
 
-📖 [GGUF Documentation](ai/gguf.md)
+📖 [LiteRT-LM Integration](ai/litert-lm.md)
 
-### What is llama.cpp?
-llama.cpp is an open-source C++ library for running large language models efficiently on consumer hardware. AndroLLM vendors a stock (unpatched) copy of llama.cpp and builds it into a shared library (`libandrollm_llama.so`) with Android NDK cross-compilation. The JNI bridge exposes model loading, context creation, token generation, and chat templating to the Kotlin layer.
+### What is the `.litertlm` format?
+A self-describing container with a LiteRT `LlmMetadata` proto embedded. The engine reads the metadata at load time to resolve the model family, chat template, tokenizer, and context length. No conversion is needed — download and run.
 
-📖 [llama.cpp Integration](ai/llama-cpp.md)
+📖 [Model Formats](ai/model-formats.md)
 
 ### What models can I run?
-Any GGUF model compatible with the architectures supported by the vendored llama.cpp (137 architectures including llama, gemma2, qwen2, deepseek, mistral, phi3, and more). The Model Catalog screen shows RAM requirements and recommended context lengths for each model.
+Any `.litertlm` model from the official **`litert-community`** catalog on HuggingFace / ModelScope. The bundled catalog ships 6 chat models (Qwen, Gemma, DeepSeek families) plus an embedding model, across architectures `qwen2`, `qwen3`, `gemma3`, `gemma4`.
 
-General guidelines:
-- **< 2 GB RAM available**: 0.5B–1.5B parameter models (Q4 quantization)
-- **2–4 GB RAM available**: 1.5B–3B parameter models
-- **4–8 GB RAM available**: 3B–7B parameter models
-- **8+ GB RAM available**: 7B–14B parameter models
+General guidelines by available RAM:
 
-These are estimates — actual requirements vary by model architecture and context length.
+| Available RAM | Recommended |
+|---|---|
+| ~2 GB | Qwen3 0.6B Mixed Int4 (~475 MB) |
+| 2–4 GB | Gemma 3 1B Q4 (~557 MB) |
+| 3–6 GB | Qwen2.5 1.5B Q8 / DeepSeek R1 Distill 1.5B Q8 |
+| 4–8 GB | Gemma 4 E2B (~2.4 GB) |
+| 6 GB+ | Gemma 4 E4B (~3.4 GB) |
+
+These are estimates — actual requirements vary by context length. `ModelResourceGuard` refuses loads that exceed the device's available RAM.
 
 ### How do I add a custom model?
-1. Download a GGUF file from HuggingFace or another source
-2. Place it in the app's model directory (Settings → Storage)
-3. The app will auto-detect it; alternatively, use the Models screen → Import
+1. Download a `.litertlm` file from `litert-community` on HuggingFace (or browse it in-app from the Models screen)
+2. Use the system share sheet → AndroLLM, or Models screen → Import
+3. The app validates the container (`LiteRtValidator`), inspects its metadata, and lists it
 4. Select the model and tap "Load"
 
 ---
@@ -131,12 +132,12 @@ The memory system extracts facts, preferences, and context from your conversatio
 
 ### How does memory work?
 1. After each exchange, the system extracts memorable facts (names, dates, preferences)
-2. Extracted memories are embedded (converted to vectors)
+2. Extracted memories are embedded (converted to vectors) — locally via the LiteRT **EmbeddingGemma 300M** model, or optionally via cloud providers
 3. Vectors are stored in an in-memory cosine similarity index
 4. At conversation start, the system searches for relevant memories and injects them
 
 ### Do I need internet for memory?
-No, if you use a local embedding model. The system falls back to keyword matching and recency-based sorting if embeddings are unavailable. Cloud embedding is optional.
+No, if you use the local embedding model (EmbeddingGemma 300M, ~171 MB, bundled in the catalog). The system falls back to keyword matching and recency-based sorting if embeddings are unavailable. Cloud embedding is optional.
 
 ### How do I delete my memory data?
 Go to Settings → On-device Memory → Delete all memories.
@@ -169,16 +170,14 @@ Yes. You can configure multiple providers and switch between them. The app monit
 ## Technical
 
 ### What Android versions are supported?
-AndroLLM requires **Android 9 (API 28)** or higher. This corresponds to devices with at least:
-- ARM64 (arm64-v8a) or x86_64 architecture
-- Vulkan 1.1+ support (for GPU acceleration; falls back to CPU if unavailable)
+AndroLLM requires **Android 9 (API 28)** or higher on an **arm64-v8a** device (the APK ships arm64-v8a only). No Vulkan dependency — acceleration runs on CPU (XNNPACK) or GPU (LiteRT OpenCL delegate) with automatic fallback.
 
 ### How much RAM do I need?
-Minimum: 4 GB total device RAM. Recommended: 8 GB for models above 3B parameters. The app reports estimated requirements per model in the catalog.
+Minimum: 4 GB total device RAM recommended; the smallest catalog model (Qwen3 0.6B) needs ~2 GB available. The catalog reports per-model RAM guidance and the app enforces it at load time.
 
 ### How much storage do I need?
 - App itself: ~150 MB (includes voice models)
-- Each GGUF model: varies by size (500 MB – 10+ GB)
+- Each `.litertlm` model: ~475 MB – 3.5 GB depending on model
 - Voice models bundled: ~125 MB total
 - Memory system overhead: minimal (< 10 MB typically)
 

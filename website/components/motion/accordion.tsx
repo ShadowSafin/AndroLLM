@@ -138,7 +138,7 @@ export function HoverCard({ children, className }: { children: ReactNode; classN
   return (
     <div
       className={cn(
-        "card group relative overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_18px_50px_-22px_rgba(217,119,87,0.4)]",
+        "card group relative overflow-hidden transition-all duration-500 hover:-translate-y-1 hover:shadow-[var(--shadow-ember-float-soft)]",
         className
       )}
     >

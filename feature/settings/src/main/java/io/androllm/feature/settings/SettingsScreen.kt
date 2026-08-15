@@ -335,7 +335,22 @@ fun SettingsScreen(
                     )
                 }
 
-                // 7f. MCP Servers (remote tool imports)
+                // 7f. Permissions & Access (central gate manager)
+                item {
+                    SectionHeader(title = "Permissions & Access")
+                    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            SettingRow(
+                                icon = Icons.Filled.Lock,
+                                title = "Permissions & Access",
+                                value = "Microphone, notifications, accessibility…",
+                                onClick = { navController.navigate(io.androllm.core.navigation.Routes.PERMISSIONS) }
+                            )
+                        }
+                    }
+                }
+
+                // 7g. MCP Servers (remote tool imports)
                 item {
                     SectionHeader(title = "MCP Servers")
                     McpSection(
@@ -814,7 +829,9 @@ private fun MemorySettingsCard(
 }
 
 /**
- * Small dialog for entering the absolute path of a GGUF embedding model.
+ * Small dialog for entering the absolute path of the local LiteRT embedding
+ * model (.tflite). The LiteRT engine expects the Gemma 3 `tokenizer.model`
+ * next to the file (downloaded automatically with the catalog model).
  */
 @Composable
 private fun ModelPathDialog(
@@ -829,7 +846,7 @@ private fun ModelPathDialog(
         text = {
             Column {
                 Text(
-                    text = "Absolute path to a small GGUF embedding model (e.g. all-MiniLM-L6-v2.Q8_0.gguf, bge-small-en-v1.5.Q8_0.gguf). Download it from the Models screen first.",
+                    text = "Absolute path to the EmbeddingGemma 300M .tflite model (downloaded from the Models screen Catalog). A tokenizer.model must sit next to it — the app downloads both automatically.",
                     style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -873,7 +890,7 @@ private fun CloudEmbeddingModelDialog(
         text = {
             Column {
                 Text(
-                    text = "Model id for /v1/embeddings through your active cloud provider (e.g. openai/text-embedding-3-small, cohere/embed-english-v3.0, togethertext-embedding...). Leave empty to use the local GGUF model.",
+                    text = "Model id for /v1/embeddings through your active cloud provider (e.g. openai/text-embedding-3-small, cohere/embed-english-v3.0, togethertext-embedding...). Leave empty to use the local LiteRT embedding model.",
                     style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
                 )
                 Spacer(modifier = Modifier.height(12.dp))

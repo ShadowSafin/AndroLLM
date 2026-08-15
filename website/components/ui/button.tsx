@@ -11,12 +11,12 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-[var(--accent)] text-[#fbfaf4] shadow-ember hover:bg-[var(--accent-deep)] hover:shadow-[0_14px_48px_-12px_rgba(179,87,62,0.7)]",
+          "bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] shadow-ember hover:bg-[var(--btn-primary-bg-hover)] hover:shadow-[var(--btn-primary-shadow-hover)]",
         secondary:
-          "bg-[var(--surface)] text-[var(--ink)] hairline hover:border-[var(--accent)] hover:text-[var(--accent-deep)] shadow-card",
-        ghost: "text-[var(--muted)] hover:bg-color-mix hover:bg-[color-mix(in_srgb,var(--faint)_12%,transparent)] hover:text-[var(--ink)]",
+          "bg-[var(--card-bg)] text-[var(--ink)] hairline hover:border-[var(--accent)] hover:text-[var(--accent-deep)] shadow-card",
+        ghost: "text-[var(--muted)] hover:bg-[var(--btn-ghost-bg-hover)] hover:text-[var(--ink)]",
         outline:
-          "hairline bg-transparent text-[var(--ink)] hover:border-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)]",
+          "hairline bg-transparent text-[var(--ink)] hover:border-[var(--accent)] hover:bg-[var(--btn-outline-bg-hover)]",
         link: "text-[var(--accent-deep)] underline-offset-4 hover:underline",
       },
       size: {

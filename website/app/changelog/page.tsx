@@ -15,16 +15,16 @@ export const metadata: Metadata = {
 
 const unreleased = {
   added: [
-    "Modular multi-module Gradle project with 26 modules",
+    "Modular multi-module Gradle project with 31 modules",
     "Jetpack Compose Material 3 UI with “Parchment Ledger” design system",
-    "Full llama.cpp integration via vendored upstream build (stock, unpatched)",
-    "JNI bridge (native_api.cpp, ~3700 lines) with RAII LlamaEngine class",
-    "Vulkan GPU acceleration backend with runtime CPU fallback",
-    "Corruption recovery system: NaN/INF logits, invalid tokens, Vulkan device-lost",
+    "LiteRT-LM 0.16.0 runtime integration — Kotlin-only, no native code",
+    "LiteRT-LM Kotlin engine wrapper with lifecycle management",
+    "OpenCL-based LiteRT GPU delegate with automatic CPU fallback",
+    "Corruption recovery system: NaN/INF logits, invalid tokens, GPU device-lost",
     "Multi-turn chat via KV-cache diff-based continuation",
-    "GGUF model validation (GgufValidator.kt) — pure Kotlin binary header parser",
+    ".litertlm container validation (LiteRtValidator + ModelInspector) — pure Kotlin metadata parser",
     "Memory estimation utility (MemoryEstimator.kt)",
-    "Model catalog system with 137 supported architectures",
+    "Model catalog system with 5 supported architectures",
     "Search, filter, sort, and recommendation engine for the catalog",
     "Cloud AI integration via LiteLLM-compatible providers (Gemini, Claude, GPT, Grok, DeepSeek)",
     "Encrypted API key storage via Android Keystore AES-256/GCM (KeyCipher)",
@@ -43,13 +43,14 @@ const unreleased = {
     "Test suite: 51 test classes covering ViewModels, repositories, parsers, catalog, and engine",
   ],
   changed: [
+    "Migrated the inference engine to Google LiteRT-LM 0.16.0 — 100% Kotlin, removed the NDK/CMake native build step",
     "Package namespace migrated from io.pocketllm.* to io.androllm.* (77 Kotlin files, 16 Gradle modules)",
     "AGP updated to 8.6.0, Kotlin to 2.1.20, Compose BOM to 2024.10.00",
     "Build target raised: minSdk 28, compileSdk/targetSdk 34",
   ],
   fixed: [
-    "Fixed NDK toolchain resolution for Vulkan shader compilation on Windows hosts",
-    "Fixed UTF-16 round-trip encoding for emoji/CJK character handling in JNI bridge",
+    "Removed NDK toolchain and Vulkan shader compilation steps from the Windows build — pure Kotlin Gradle build",
+    "Fixed UTF-16 round-trip encoding for emoji/CJK character handling",
     "Fixed context shift corruption edge case when pos_check >= nCtx - 4",
   ],
 };
@@ -67,7 +68,7 @@ const initialRelease = [
 
 const phases = [
   { phase: "Phase 1", text: "App scaffolding, UI, architecture foundation", status: "completed" },
-  { phase: "Phase 2", text: "llama.cpp engine, Vulkan, GGUF model loading", status: "completed" },
+  { phase: "Phase 2", text: "LiteRT-LM engine, CPU/GPU backends, .litertlm model loading", status: "completed" },
   { phase: "Phase 3", text: "Cloud providers, memory system, voice assistant", status: "completed" },
 ];
 

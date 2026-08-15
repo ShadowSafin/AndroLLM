@@ -12,7 +12,7 @@ Comprehensive guide to the testing strategy, frameworks, and practices in AndroL
       /----\     ~4 test classes
      /      \
     /========\    Unit Tests (JUnit 4 + mockk + Turbine)
-   /  51 tests \  ~47 test classes
+   / ~66 tests \  ~62 test classes
   /______________\
 ```
 
@@ -46,7 +46,7 @@ Comprehensive guide to the testing strategy, frameworks, and practices in AndroL
 ./gradlew :feature:chat:test
 
 # Specific test class
-./gradlew :engine:test --tests "*.GgufValidatorTest"
+./gradlew :engine:test --tests "*.ContainerMetadataReaderTest"
 ```
 
 ### Test Conventions
@@ -106,9 +106,9 @@ class MemoryRepositoryTest {
     @Test
     fun `retrieve returns empty list when no memories match`() = runTest {
         coEvery { mockDao.searchMemories(any(), any()) } returns emptyList()
-        
+
         val result = repository.retrieve("query", emptyMap(), topK = 5)
-        
+
         assertTrue(result is Result.Success)
         assertThat(result.data!!.memories).isEmpty()
     }
@@ -136,7 +136,7 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 
 ### Test Coverage by Module
 
-| Module | Test Count | Key Areas Tested |
+| Module | Test Classes | Key Areas Tested |
 |---|---|---|
 | `core:common` | 1 | `Result` sealed class behavior |
 | `core:cloud` | 5 | Provider manager, health monitor, streaming parser, codec |
@@ -148,7 +148,7 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | `core:network` | 2 | DTO serialization, HuggingFace API response parsing |
 | `core:telemetry` | 1 | Telemetry history storage |
 | `core:utils` | 1 | Storage utility functions |
-| `engine` | 5 | Engine repository, GGUF validation, memory estimation, config serialization |
+| `engine` | 20 | Engine repository + stress, compat layer (container metadata reader, chat template renderer, family registry/compatibility, stop-sequence tracker, output decoder), tool-call scanning, memory estimation, resource guard, coherence checker, thread manager, tokenizer, config serialization |
 | `feature:chat` | 3 | ViewModel state management, stabilization, conversation export |
 | `feature:home` | 1 | Home ViewModel |
 | `feature:models` | 3 | Models ViewModel, download manager, compatibility analyzer |
@@ -157,7 +157,7 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | `feature:prompts` | 1 | Prompt library ViewModel |
 | `feature:settings` | 1 | Settings ViewModel |
 | `feature:splash` | 1 | Splash screen timing |
-| **Total** | **51** | |
+| **Total** | **~62** | |
 
 ---
 
@@ -181,9 +181,32 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | Test Class | Location | What It Tests |
 |---|---|---|
 | `ExampleInstrumentedTest` | `app/src/androidTest/` | Basic app launch |
-| `EngineStressInstrumentedTest` | `engine/src/androidTest/` | Engine lifecycle under stress |
+| `EngineStressInstrumentedTest` | `engine/src/androidTest/` | LiteRT-LM engine lifecycle under stress (requires a model on the device) |
 | `ChatScreenUiTest` | `feature/chat/src/androidTest/` | Compose UI: message bubbles, input, scrolling |
 | `MigrationTest` | `core/memory/src/androidTest/` | Room database migration correctness |
+
+### Engine Stress Test (Real Model Required)
+
+`EngineStressInstrumentedTest` runs the real LiteRT-LM engine against a
+`.litertlm` model file on the device. Provide the model path via the
+instrumentation argument; the test **skips** when no model is provided:
+
+```bash
+# Push a model to the device first, e.g.:
+adb push gemma3-270m-it-q8.litertlm /sdcard/Download/
+
+# Pass the path via instrumentation argument
+./gradlew :engine:connectedAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.modelPath=/sdcard/Download/gemma3-270m-it-q8.litertlm
+
+# Or via adb directly
+adb shell am instrument -w \
+  -e modelPath /sdcard/Download/gemma3-270m-it-q8.litertlm \
+  io.androllm.engine.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The test verifies load → generate → unload cycles, streaming correctness, and
+cancel behavior on real hardware.
 
 ### Compose UI Test Example
 
@@ -214,9 +237,13 @@ class ChatScreenUiTest {
 
 ---
 
-## Testing the Native Engine
+## Testing the Engine
 
-The native engine is tested indirectly through the Kotlin `EngineRepository` layer:
+The engine is a pure Kotlin/Java module, so the entire compat layer is testable
+in JVM unit tests without a device. Only the actual LiteRT-LM runtime requires
+an instrumented test (above).
+
+Engine-level logic is tested through the Kotlin `EngineRepository` layer:
 
 ```kotlin
 // Engine tests use a FakeEngine that implements InferenceEngine
@@ -234,12 +261,11 @@ private inner class FakeEngine : InferenceEngine {
 ### Stress Testing the Engine
 
 ```kotlin
-@AndroidTest
 class DefaultEngineRepositoryStressTest {
     @Test
-    fun `concurrent generation calls are serialized by mutex`() {
+    fun `concurrent generation calls are serialized by mutex`() = runTest {
         // Spawn 10 concurrent generate calls
-        // Verify only one is in-flight at a time
+        // Verify only one is in-flight at a time (Mutex serialization)
         // Verify all 10 complete successfully
     }
 }
@@ -259,10 +285,11 @@ class DefaultEngineRepositoryStressTest {
 - Catalog parsing and validation logic
 - Vector math operations (cosine similarity)
 - Navigation route construction
+- Engine compat layer: container metadata parsing, chat template rendering, stop-sequence tracking, output decoding, tool-call scanning
 
 ❌ **Do not test:**
 - Android framework internals (let Android test them)
-- Third-party library behavior (Timber, Hilt, Room)
+- Third-party library behavior (Timber, Hilt, Room, LiteRT-LM runtime itself)
 - Trivial getters/setters
 - Composable rendering of static content (use screenshot tests instead)
 
@@ -338,6 +365,6 @@ Mock catalog JSON is stored in test resources:
 
 | Model ID | Name | Parameters | Format | Quantization |
 |---|---|---|---|---|
-| `test-gemma-2b` | Gemma 2B Test | 2B | GGUF | Q4_K_M |
-| `test-qwen-7b` | Qwen 7B Test | 7B | GGUF | Q5_K_M |
-| `test-llama-3b` | Llama 3B Test | 3B | GGUF | Q4_K_S |
+| `test-qwen3-0.6b` | Qwen3 0.6B Test | 0.6B | LITERTLM | MIXED (int4) |
+| `test-gemma3-1b` | Gemma 3 1B Test | 1B | LITERTLM | Q4 |
+| `test-qwen2.5-1.5b` | Qwen2.5 1.5B Test | 1.5B | LITERTLM | Q8 |

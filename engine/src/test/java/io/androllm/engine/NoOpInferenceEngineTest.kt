@@ -72,7 +72,7 @@ class NoOpInferenceEngineTest {
     @Test
     fun `capabilities are populated`() {
         assertEquals("AndroLLM Engine (Placeholder)", engine.capabilities.name)
-        assertTrue(engine.capabilities.supportedFormats.contains("gguf"))
+        assertTrue(engine.capabilities.supportedFormats.contains("litertlm"))
         assertNotNull(engine.engineState)
     }
 }

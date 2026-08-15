@@ -15,6 +15,7 @@ import io.androllm.core.models.MessageRole
 import io.androllm.core.tools.agent.AgentVariableStore
 import io.androllm.core.tools.coordinator.ToolRunCoordinator
 import io.androllm.core.tools.confirmation.ToolConfirmationManager
+import io.androllm.core.tools.prompt.ToolPromptBuilder
 import io.androllm.core.tools.settings.AutomationSettingsStore
 import io.androllm.core.tools.trace.ToolExecutionTraceStore
 import io.androllm.engine.api.EngineRepository
@@ -61,6 +62,7 @@ class ChatViewModelTest {
     private val automationSettingsStore = mockk<AutomationSettingsStore>(relaxed = true)
     private val traceStore = ToolExecutionTraceStore()
     private val variableStore = mockk<AgentVariableStore>(relaxed = true)
+    private val toolPromptBuilder = mockk<ToolPromptBuilder>(relaxed = true)
 
     private val engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
     private val generationState = MutableStateFlow<GenerationState>(GenerationState.Idle)
@@ -122,7 +124,8 @@ class ChatViewModelTest {
             confirmationManager,
             automationSettingsStore,
             traceStore,
-            variableStore
+            variableStore,
+            toolPromptBuilder
         )
     }
 
@@ -171,6 +174,47 @@ class ChatViewModelTest {
         advanceUntilIdle()
 
         coVerify { engineRepository.cancelGeneration() }
+    }
+
+    @Test
+    fun `user message is committed to UI state immediately - independent of the Room echo`() = runTest(dispatcher) {
+        val viewModel = createViewModel()
+        // messageRepository.observeByConversationId is mocked as
+        // flowOf(emptyList()) — Room NEVER echoes the upsert back. The user's
+        // message must still be visible: the DB write is only a persistence
+        // detail, never the render path (regression: the user message vanished
+        // or never appeared when the echo was late or missing).
+        //
+        // This test ALSO locks in the observer ordering race: nothing in this
+        // test suspends between setting the new conversation id and committing
+        // the user message, so the observer's id-change clear runs AFTER the
+        // commit — exactly the "message briefly appears, then disappears"
+        // bug. It passes only because the observer clear is ownership-based
+        // (it keeps messages of the new conversation) instead of a blind wipe.
+        viewModel.sendMessage("hello")
+        advanceUntilIdle()
+
+        val messages = (viewModel.uiState.value as ChatUiState.Success).messages
+        assertEquals(listOf("hello"), messages.map { it.content })
+        assertEquals(listOf(MessageRole.USER), messages.map { it.role })
+    }
+
+    @Test
+    fun `failed generation keeps the user message visible and appends a visible error`() = runTest(dispatcher) {
+        val viewModel = createViewModel()
+        viewModel.sendMessage("hello")
+        advanceUntilIdle()
+
+        // The engine publishes a failure after the send: the user message must
+        // survive AND an error message must appear — never silent nothing.
+        generationState.value = GenerationState.Failed(message = "Model not loaded")
+        advanceUntilIdle()
+
+        val messages = (viewModel.uiState.value as ChatUiState.Success).messages
+        assertEquals(
+            listOf("hello", "Error: Model not loaded"),
+            messages.map { it.content }
+        )
     }
 }
 

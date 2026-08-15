@@ -194,7 +194,7 @@ interface HuggingFaceApi {
         @Query("search") query: String,
         @Query("limit") limit: Int = 20,
         @Query("sort") sort: String = "downloads",
-        @Query("filter") filter: String = "gguf"
+        @Query("author") author: String = "litert-community"
     ): List<ModelDto>
 
     @GET("api/models/{modelId}")
@@ -204,6 +204,10 @@ interface HuggingFaceApi {
     suspend fun getModelRefs(@Path("modelId") modelId: String): ModelRefsDto
 }
 ```
+
+Model downloads target **`.litertlm` files in `litert-community`
+repositories** — the catalog's `downloadUrl` points directly at the container
+files on HuggingFace (with ModelScope as a mirror), not at GGUF assets.
 
 ### Download Manager
 
@@ -281,7 +285,7 @@ ModelsViewModel.downloadModel(catalogModel)
          │       ├── Flow<Progress> updates UI
          │       │
          │       └── On completion:
-         │               ├── GgufValidator.validate(filePath)
+         │               ├── LiteRtValidator.validate(file) + ModelInspector metadata read
          │               ├── Calculate SHA-256
          │               ├── Update ModelEntity (status = DOWNLOADED)
          │               └── Notify UI

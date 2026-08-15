@@ -79,7 +79,7 @@ touching the app code.
 
 Remote tools behave exactly like built-ins:
 
-1. Available to the planner (local GGUF and cloud) under `mcp_<server>_<tool>`
+1. Available to the planner (local LiteRT-LM and cloud) under `mcp_<server>_<tool>`
 2. Gated by the same permission system (Settings → Automation) and execution
    timeout
 3. Confirmation-gated if the server marks the tool high-risk

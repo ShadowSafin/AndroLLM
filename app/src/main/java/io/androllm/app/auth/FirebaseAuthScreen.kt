@@ -71,6 +71,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.OAuthProvider
+import io.androllm.app.BuildConfig
 import io.androllm.app.R
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudBugdroidLogo
@@ -468,6 +469,34 @@ fun FirebaseAuthScreen(
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+
+                // Debug builds only: local guest entry so on-device validation
+                // (e.g. the NPU/QNN probe chain) never depends on a Firebase
+                // account. Release builds keep the strict two-provider gate —
+                // this branch is compiled out entirely.
+                if (BuildConfig.DEBUG) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    ProviderButton(
+                        text = "Continue as guest",
+                        onClick = {
+                            Timber.i("[Auth] Guest mode entered (debug build) — on-device features only")
+                            toast(context, "Guest mode — no cloud profile sync")
+                            onAuthSuccess(false)
+                        },
+                        gradient = Brush.horizontalGradient(
+                            listOf(Color(0xFF263238), Color(0xFF1B2226))
+                        ),
+                        textColor = Color(0xFFB0BEC5),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = GitHubIcon,
+                            contentDescription = "Guest",
+                            tint = Color(0xFFB0BEC5),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 

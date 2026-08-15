@@ -46,7 +46,7 @@ Comprehensive guide to the testing strategy, frameworks, and practices in AndroL
 ./gradlew :feature:chat:test
 
 # Specific test class
-./gradlew :engine:test --tests "*.GgufValidatorTest"
+./gradlew :engine:test --tests "*.LiteRtValidatorTest"
 ```
 
 ### Test Conventions
@@ -148,7 +148,7 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | `core:network` | 2 | DTO serialization, HuggingFace API response parsing |
 | `core:telemetry` | 1 | Telemetry history storage |
 | `core:utils` | 1 | Storage utility functions |
-| `engine` | 5 | Engine repository, GGUF validation, memory estimation, config serialization |
+| `engine` | 5 | Engine repository, LiteRT container validation, memory estimation, config serialization |
 | `feature:chat` | 3 | ViewModel state management, stabilization, conversation export |
 | `feature:home` | 1 | Home ViewModel |
 | `feature:models` | 3 | Models ViewModel, download manager, compatibility analyzer |
@@ -214,9 +214,11 @@ class ChatScreenUiTest {
 
 ---
 
-## Testing the Native Engine
+## Testing the Engine
 
-The native engine is tested indirectly through the Kotlin `EngineRepository` layer:
+The engine is tested through the Kotlin `EngineRepository` layer; engine tests
+that exercise real loading/generation run as **instrumented tests with model
+files** on physical arm64 devices (the app ships arm64-v8a only):
 
 ```kotlin
 // Engine tests use a FakeEngine that implements InferenceEngine
@@ -338,6 +340,12 @@ Mock catalog JSON is stored in test resources:
 
 | Model ID | Name | Parameters | Format | Quantization |
 |---|---|---|---|---|
-| `test-gemma-2b` | Gemma 2B Test | 2B | GGUF | Q4_K_M |
-| `test-qwen-7b` | Qwen 7B Test | 7B | GGUF | Q5_K_M |
-| `test-llama-3b` | Llama 3B Test | 3B | GGUF | Q4_K_S |
+| `test-gemma-1b` | Gemma 1B Test | 1B | LITERTLM | Q4 |
+| `test-qwen-0.6b` | Qwen 0.6B Test | 0.6B | LITERTLM | mixed int4 |
+| `test-qwen2.5-1.5b` | Qwen2.5 1.5B Test | 1.5B | LITERTLM | mixed |
+
+Instrumented engine tests load small `.litertlm` files from `androidTest`
+assets or the test device's model directory, covering: container validation
+(`LiteRtValidator`), family detection (`ContainerMetadataReader`), template
+rendering, stop-sequence handling, and context-overflow failures
+(`Input token ids are too long`).

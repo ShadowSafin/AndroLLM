@@ -32,12 +32,11 @@ export const metadata: Metadata = {
     "AndroLLM",
     "Android AI",
     "local LLM",
-    "GGUF",
-    "llama.cpp",
-    "Vulkan GPU inference",
+    "LiteRT-LM",
+    "litertlm",
+    "on-device AI",
     "offline AI",
     "AI agent Android",
-    "on-device Stable Diffusion",
     "voice assistant offline",
     "MCP client Android",
   ],
@@ -95,12 +94,11 @@ const jsonLd = {
   license: site.license,
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "Local GGUF model inference with llama.cpp",
-    "Vulkan GPU acceleration with CPU fallback",
+    "Local .litertlm model inference on LiteRT-LM",
+    "CPU (XNNPACK) and OpenCL GPU acceleration with automatic fallback",
     "Offline voice assistant — wake word, ASR, TTS",
     "AI agent platform with 50+ tools",
     "Persistent memory with vector embeddings",
-    "On-device image generation via stable-diffusion.cpp",
     "MCP server integration",
     "LiteLLM-compatible cloud providers",
   ],
@@ -123,7 +121,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <a
             href="#main"
-            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-pill focus:bg-[var(--accent)] focus:px-5 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-white"
+            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-pill focus:bg-[var(--accent)] focus:px-5 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]"
           >
             Skip to content
           </a>

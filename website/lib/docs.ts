@@ -43,9 +43,9 @@ export const docGroups: DocGroup[] = [
     label: "AI Engine",
     blurb: "Inference, formats, and acceleration.",
     docs: [
-      { slug: "ai/llama-cpp", title: "llama.cpp Integration", description: "llama.cpp integration, JNI bridge, native architecture" },
-      { slug: "ai/gguf", title: "GGUF Format", description: "GGUF format specification and validation" },
-      { slug: "ai/vulkan", title: "Vulkan Acceleration", description: "Vulkan GPU acceleration and corruption recovery" },
+      { slug: "ai/litert-lm", title: "LiteRT-LM Engine", description: "LiteRT-LM runtime integration, engine lifecycle, compat layer" },
+      { slug: "ai/model-formats", title: "Model Formats", description: ".litertlm container format, catalog sources, quantizations" },
+      { slug: "ai/acceleration", title: "Acceleration", description: "CPU XNNPACK vs GPU OpenCL delegate, fallback and recovery" },
       { slug: "MODEL_SUPPORT", title: "Model Support", description: "Supported models, formats, quantizations" },
       { slug: "PERFORMANCE", title: "Performance", description: "Performance characteristics and optimization" },
     ],
@@ -53,9 +53,8 @@ export const docGroups: DocGroup[] = [
   {
     id: "features",
     label: "Features",
-    blurb: "Voice, memory, cloud, and image generation.",
+    blurb: "Voice, memory, and cloud.",
     docs: [
-      { slug: "image-generation", title: "Image Generation", description: "On-device diffusion: stable-diffusion.cpp + Vulkan, capability checks, model management, prompt studio" },
       { slug: "voice/voice-assistant", title: "Voice Assistant", description: "Complete voice pipeline: wake word, ASR, LLM, TTS" },
       { slug: "voice/text-normalization", title: "TTS Text Normalization", description: "TTS text normalization pipeline and OOV spelling" },
       { slug: "memory/memory-architecture", title: "Memory System", description: "Embeddings, retrieval, vector index, write pipeline" },

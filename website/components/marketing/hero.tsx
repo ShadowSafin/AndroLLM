@@ -36,7 +36,7 @@ export function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-[var(--accent)]" />
             </span>
-            v{site.version} · 101 curated models · Apache 2.0
+            v{site.version} · 7 curated models · Apache 2.0
           </Badge>
         </motion.div>
 
@@ -55,10 +55,9 @@ export function Hero() {
           {...fade(0.28)}
           className="mt-7 max-w-2xl text-pretty text-base leading-relaxed text-[var(--muted)] sm:text-lg"
         >
-          AndroLLM is a production-grade AI platform for Android — local GGUF inference on a
-          vendored llama.cpp engine with Vulkan GPU acceleration, a fully offline voice
-          assistant, an on-device AI agent with 50+ tools, persistent memory, and local
-          image generation. <span className="font-semibold text-[var(--ink)]">Zero data leaves your phone — unless you choose otherwise.</span>
+          AndroLLM is a production-grade AI platform for Android — local .litertlm inference on the
+          LiteRT-LM engine with CPU and OpenCL-GPU acceleration, a fully offline voice
+          assistant, an on-device AI agent with 50+ tools, and persistent memory. <span className="font-semibold text-[var(--ink)]">Zero data leaves your phone — unless you choose otherwise.</span>
         </motion.p>
 
         <motion.div {...fade(0.4)} className="mt-10 flex flex-wrap items-center justify-center gap-3">

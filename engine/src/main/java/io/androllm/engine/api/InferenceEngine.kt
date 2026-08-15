@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.emitAll
  * Abstraction over an on-device LLM runtime.
  *
  * The chat layer only depends on this interface. The sole production
- * implementation is [io.androllm.engine.llama.LlamaCppEngine] (llama.cpp),
+ * implementation is [io.androllm.engine.core.LiteRtLmEngine] (LiteRT-LM),
  * but additional runtimes can be added without touching the UI.
  */
 interface InferenceEngine {
@@ -58,7 +58,7 @@ interface InferenceEngine {
     fun getLoadedModel(): EngineModelInfo?
 
     /**
-     * Loads a GGUF model from disk.
+     * Loads a model artifact (.litertlm container) from disk.
      */
     suspend fun loadModel(model: Model, config: ModelLoadConfig): Result<EngineModelInfo>
 
@@ -82,9 +82,8 @@ interface InferenceEngine {
     fun tokenStream(prompt: String, config: GenerationConfig): Flow<Result<StreamChunk>>
 
     /**
-     * Renders a chat history with the loaded model's GGUF chat template.
-     * Returns the rendered prompt, or an error when the model has no
-     * supported chat template.
+     * Renders a chat history as plain text (LiteRT-LM applies the bundled chat
+     * template internally, so this is used for diagnostics/logging only).
      */
     suspend fun buildChatPrompt(
         messages: List<ChatPromptMessage>,
@@ -100,11 +99,10 @@ interface InferenceEngine {
     /**
      * Runs a multi-turn chat generation from the FULL message history, keeping
      * the engine's conversational state (messages + KV cache) across turns —
-     * the official llama.cpp diff-based multi-turn pattern. The engine diffs
-     * the incoming history against its accumulated conversation and decodes
-     * only the new messages' template diff; it falls back to a full re-render
-     * whenever the history is not a strict continuation (edit, delete,
-     * regenerate, new conversation, changed system prompt).
+     * the LiteRT-LM stateful conversation pattern. The engine reuses the live
+     * conversation when the incoming history is a strict continuation and
+     * re-seeds it whenever the history is not (edit, delete, regenerate, new
+     * conversation, changed system prompt).
      *
      * The default implementation renders the prompt via [buildChatPrompt] and
      * delegates to [generate]; production engines override it with the native
@@ -136,6 +134,16 @@ interface InferenceEngine {
         }
         emitAll(tokenStream(prompt, config))
     }
+
+    /**
+     * Returns (and clears) the native tool calls the model emitted as
+     * `<|tool_call|>` markers during the LAST chat generation. Empty when the
+     * model did not call any tools (or the runtime has no marker support).
+     * The chat layer reads this right after [generateChat]/[generateChatStream]
+     * completes and executes the calls through the gated tool executor — the
+     * same flow as a cloud provider's `tool_calls`.
+     */
+    fun takeLastNativeToolCalls(): List<io.androllm.engine.core.NativeToolCall> = emptyList()
 
     /**
      * Requests cancellation of an in-flight generation.

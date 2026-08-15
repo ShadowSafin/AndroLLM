@@ -4,18 +4,18 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 import { Reveal } from "@/animations/reveal";
 
 const families = [
-  { name: "Llama 3.2", sizes: "1B · 3B", note: "128K context" },
-  { name: "Qwen 2.5", sizes: "0.5B – 14B", note: "top pick range" },
-  { name: "Gemma 2", sizes: "2B · 9B", note: "Google build" },
-  { name: "DeepSeek R1", sizes: "1.5B – 8B", note: "reasoning distilled" },
-  { name: "Mistral 7B", sizes: "7B", note: "instruct + v0.2/v0.3" },
-  { name: "Phi-3", sizes: "mini · small", note: "Microsoft TTS-focus" },
+  { name: "Qwen3", sizes: "0.6B", note: "mixed int4 · agent-ready" },
+  { name: "Qwen2.5", sizes: "1.5B", note: "the everyday workhorse" },
+  { name: "Qwen2", sizes: "0.5B", note: "low-RAM pick" },
+  { name: "Gemma 3", sizes: "1B", note: "Google build" },
+  { name: "DeepSeek", sizes: "distilled", note: "reasoning on-device" },
+  { name: "Gemma Embedding", sizes: "embed", note: "local memory retrieval" },
 ];
 
 const insights = [
-  { label: "Context pages", value: "128K", note: "Llama 3.2 — long documents utterly readable" },
-  { label: "RAM floor", value: "4 GB", note: "minimum for 1B–3B models on-device" },
-  { label: "Rec. device", value: "8 GB+", note: "smooth 7B Q4 with Vulkan offload" },
+  { label: "Context pages", value: "128K", note: "long documents utterly readable" },
+  { label: "RAM floor", value: "2 GB", note: "minimum for the small .litertlm models" },
+  { label: "Rec. RAM", value: "4 GB", note: "unlocks 1.5B-class models with GPU delegate" },
   { label: "Cloud fallback", value: "0 ms", note: "hybrid mode: any model, local or cloud" },
 ];
 
@@ -25,8 +25,8 @@ export function ModelsTeaser() {
       <div className="container">
         <SectionHeading
           eyebrow="The model shelf"
-          title="101 curated models. 137 architectures."
-          description="Every bundled GGUF is validated, memory-estimated, and RAM-filterable on your device — from 1B Telegram-budget models to 14B desktop-class thinkers."
+          title="7 curated models. 5 architectures."
+          description="Every bundled .litertlm is validated, memory-estimated, and RAM-filterable on your device — from ~475 MB pocket models to 1.3 GB workhorses."
         />
 
         <div className="mt-14 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
@@ -57,7 +57,7 @@ export function ModelsTeaser() {
             </Reveal>
             <Reveal delay={0.16} className="flex-1 rounded-card border border-dashed border-[var(--line)] bg-[var(--deep)] p-6">
               <p className="font-mono text-[11px] leading-relaxed text-[var(--muted)]">
-                <span className="text-[var(--accent)]">✦</span> GGUF validation · SHA-256 verify · memory estimation before load ·
+                <span className="text-[var(--accent)]">✦</span> .litertlm validation · SHA-256 verify · memory estimation before load ·
                 RAM-filtered catalog · HuggingFace browser · manual import · benchmark tool
               </p>
               <Link

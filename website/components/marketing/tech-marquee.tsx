@@ -1,12 +1,11 @@
 import { Marquee } from "@/components/marketing/marquee";
 
 const items = [
-  "llama.cpp",
-  "Vulkan",
-  "GGUF",
+  "LiteRT-LM",
+  "OpenCL GPU",
+  ".litertlm",
   "sherpa-onnx",
   "whisper.cpp",
-  "stable-diffusion.cpp",
   "ONNX Runtime",
   "Kotlin 2.1",
   "Jetpack Compose",

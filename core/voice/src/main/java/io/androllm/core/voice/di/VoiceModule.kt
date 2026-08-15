@@ -4,7 +4,10 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoSet
+import io.androllm.core.runtime.Runtime
 import io.androllm.core.voice.asr.SpeechRecognizer
+import io.androllm.core.voice.runtime.VoiceRuntime
 import io.androllm.core.voice.stt.WhisperSpeechRecognizer
 import io.androllm.core.voice.tts.OfflineTtsEngine
 import io.androllm.core.voice.tts.PiperSpeechSynthesizer
@@ -45,4 +48,10 @@ abstract class VoiceModule {
     @Binds
     @Singleton
     abstract fun bindVoiceActivityDetector(impl: SherpaVad): VoiceActivityDetector
+
+    // Runtime Registry — this module's registration into the central
+    // io.androllm.core.runtime.RuntimeRegistry.
+    @Binds
+    @IntoSet
+    abstract fun bindVoiceRuntime(runtime: VoiceRuntime): Runtime
 }

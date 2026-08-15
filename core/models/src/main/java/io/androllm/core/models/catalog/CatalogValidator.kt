@@ -41,6 +41,16 @@ object CatalogValidator {
             requireBlank(model.downloadUrl, "downloadUrl")
             requireBlank(model.quantization, "quantization")
 
+            // LiteRT-only runtime: the app runs .litertlm containers (chat)
+            // and .tflite flatbuffers (embeddings). A catalog entry pointing
+            // at a GGUF file (the pre-migration schema) cannot be loaded —
+            // rejecting it here makes a stale remote catalog fail validation
+            // so the bundled LiteRT catalog is kept instead of being replaced
+            // by an old 101-model GGUF list.
+            if (model.fileName.isNotBlank() && !isLiteRtFileName(model.fileName)) {
+                errors += "$id: '${model.fileName}' is not a LiteRT artifact (.litertlm / .tflite) — GGUF models are not supported by this runtime"
+            }
+
             if (model.architecture.isNotBlank() && !SupportedArchitectures.isSupported(model.architecture)) {
                 errors += "$id: architecture '${model.architecture}' is not supported by this llama.cpp build"
             }
@@ -69,5 +79,10 @@ object CatalogValidator {
             if (model.downloads < 0 || model.likes < 0) errors += "$id: popularity metrics cannot be negative"
         }
         return ValidationReport(errors, warnings)
+    }
+
+    private fun isLiteRtFileName(fileName: String): Boolean {
+        val lower = fileName.lowercase()
+        return lower.endsWith(".litertlm") || lower.endsWith(".tflite")
     }
 }

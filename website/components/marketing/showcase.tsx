@@ -23,7 +23,7 @@ const quadrants = [
   {
     icon: Cpu,
     title: "Device-native compute",
-    text: "Vendored llama.cpp with Vulkan GPU validation at runtime, KleidiAI microkernels, and automatic CPU fallback.",
+    text: "LiteRT-LM runtime with OpenCL GPU delegate validation at runtime, XNNPACK CPU kernels, and automatic GPU→CPU fallback with corruption recovery.",
   },
   {
     icon: Cloud,
@@ -49,7 +49,7 @@ export function Showcase() {
           <div
             className="absolute -inset-16 -z-10 rounded-full opacity-70 blur-3xl"
             aria-hidden
-            style={{ background: "radial-gradient(closest-side, rgba(217,119,87,0.16), transparent 70%)" }}
+            style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%)" }}
           />
           <PhoneMockup />
         </div>

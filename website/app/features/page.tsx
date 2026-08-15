@@ -14,7 +14,7 @@ import { CtaBand } from "@/components/marketing/cta-band";
 export const metadata: Metadata = {
   title: "Features — AndroLLM",
   description:
-    "Every capability of AndroLLM: local GGUF inference on llama.cpp with Vulkan, offline voice, an agent platform with 50+ tools, MCP & UI automation, persistent memory, on-device image generation, cloud-when-you-want, and a local-first privacy guarantee.",
+    "Every capability of AndroLLM: local .litertlm inference on LiteRT-LM with CPU/GPU acceleration, offline voice, an agent platform with 50+ tools, MCP & UI automation, persistent memory, cloud-when-you-want, and a local-first privacy guarantee.",
   alternates: { canonical: "/features" },
 };
 
@@ -38,7 +38,7 @@ export default function FeaturesPage() {
           <SectionHeading
             eyebrow="Inside the UX"
             title="The Parchment Ledger experience."
-            description="The interface is a design system — adaptive navigation, streaming markdown, a model manager with a 101-model catalog, and security handled at the architecture level."
+            description="The interface is a design system — adaptive navigation, streaming markdown, a model manager with a 7-model catalog, and security handled at the architecture level."
           />
           <RevealStagger className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {uiFeatures.map((f, i) => (

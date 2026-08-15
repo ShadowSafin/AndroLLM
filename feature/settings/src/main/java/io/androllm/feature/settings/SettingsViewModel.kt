@@ -497,7 +497,7 @@ class SettingsViewModel @Inject constructor(
     /**
      * Points embeddings at the active cloud provider's embedding model
      * (OpenAI-compatible id, e.g. "openai/text-embedding-3-small"). Empty
-     * clears the cloud route and reverts to the local GGUF model.
+     * clears the cloud route and reverts to the local LiteRT model.
      */
     fun setCloudEmbeddingModel(modelId: String) {
         viewModelScope.launch {

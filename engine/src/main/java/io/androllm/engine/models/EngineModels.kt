@@ -6,12 +6,20 @@ import kotlinx.serialization.Serializable
 
 /**
  * Backend used for token generation.
+ *
+ * LiteRT-LM (the production runtime) executes on CPU (XNNPACK), GPU (the
+ * OpenCL-based LiteRT GPU delegate) or NPU. The legacy llama.cpp-era values
+ * ([LLAMA_CPP_VULKAN], [VULKAN]) are kept for serializer/UI compatibility
+ * with older persisted state but are never produced by the LiteRT engine.
  */
+@kotlinx.serialization.Serializable
 enum class BackendType {
     QUALCOMM_QNN,
     LLAMA_CPP_VULKAN,
     ONNX_RUNTIME,
     CPU,
+    /** LiteRT GPU delegate (OpenCL-based on Android). */
+    GPU,
     VULKAN // Alias for LLAMA_CPP_VULKAN backward compatibility
 }
 
@@ -29,16 +37,16 @@ enum class PerformanceProfile {
  */
 @Serializable
 data class EngineConfig(
-    val backend: BackendType = BackendType.VULKAN,
+    val backend: BackendType = BackendType.GPU,
     val threads: Int = ThreadManager.recommendedThreads(),
     val maxContextLength: Int = AppConstants.Model.DEFAULT_CONTEXT_LENGTH,
     val useVulkan: Boolean = true,
-    val useFlashAttention: Boolean = false,
+    val useFlashAttention: Boolean = true,
     val profile: PerformanceProfile = PerformanceProfile.BALANCED
 )
 
 /**
- * Per-model configuration applied when loading a GGUF model.
+ * Per-model configuration applied when loading a model artifact.
  */
 @Serializable
 data class ModelLoadConfig(
@@ -46,7 +54,22 @@ data class ModelLoadConfig(
     val gpuLayers: Int = -1,
     val batchSize: Int = 2048,
     val threads: Int = ThreadManager.recommendedThreads(),
-    val profile: PerformanceProfile = PerformanceProfile.BALANCED
+    val profile: PerformanceProfile = PerformanceProfile.BALANCED,
+    /**
+     * Opt-in CPU-vs-GPU correctness validation at load time. Loading a second
+     * full copy of the model on CPU doubles peak RAM and adds minutes to the
+     * load, so it defaults to OFF; the native result is diagnostic-only and
+     * never changes the active backend.
+     */
+    val runBackendValidation: Boolean = false,
+    /**
+     * Post-load coherence self-test: after the model loads, a short
+     * temperature-0 probe generation runs and its output is checked for
+     * tokenizer/weight corruption (blank, non-printable garbage, degenerate
+     * repetition). A failing model is unloaded and reported instead of
+     * producing gibberish in chat. Cheap (~12 tokens); ON by default.
+     */
+    val runSelfTest: Boolean = true
 )
 
 /**
@@ -80,6 +103,12 @@ data class GenerationConfig(
     val grammar: String = "",
     val jsonSchema: String = "",
     val reuseKvCache: Boolean = true,
+    /**
+     * Enables thinking blocks in chat templates that support it (Qwen2.5/Qwen3).
+     * `false` (the default) is the safe choice for all other models; the native
+     * template renderer threads this into the Jinja `enable_thinking` variable.
+     */
+    val enableThinking: Boolean = false,
     val seed: Long = -1,
     val stopSequences: List<String> = emptyList(),
     /**
@@ -91,8 +120,8 @@ data class GenerationConfig(
 )
 
 /**
- * A single chat message used to render the prompt with the model's
- * GGUF chat template.
+ * A single chat message used to drive the model's chat template
+ * (applied internally by LiteRT-LM).
  */
 @Serializable
 data class ChatPromptMessage(
@@ -107,7 +136,14 @@ data class StreamChunk(
     val delta: String,
     val finished: Boolean,
     val tokenCount: Long = 0,
-    val generatedTokens: Long = 0
+    val generatedTokens: Long = 0,
+    /**
+     * True when [delta] is reasoning/thinking text (Qwen3/Gemma3 thinking
+     * models) rather than the final decoded answer. Thinking text streams so
+     * the UI shows live progress, but it is never persisted as part of the
+     * assistant message.
+     */
+    val isThinking: Boolean = false
 )
 
 /**
@@ -122,6 +158,16 @@ data class EngineModelInfo(
     val quantization: String = "",
     val chatTemplate: String? = null,
     val architecture: String = "",
+    val family: String = "",
+    /** True when the family emits native `<|tool_call|>` markers (chat layer skips the compat planner). */
+    val nativeToolMarkers: Boolean = false,
+    /**
+     * Upper bound (chars) the chat layer applies to the tool-advertisement
+     * system message for this model's family (see ModelFamily); small models
+     * degrade to empty/garbage output with a long tool list.
+     */
+    val toolAdvertisementCapChars: Int = Int.MAX_VALUE,
+    val templateSource: String = "",
     val tokenizerModel: String = "",
     val generalName: String = "",
     val kvType: String = "",
@@ -142,6 +188,7 @@ data class EngineDebugInfo(
     val desc: String = "",
     val generalName: String = "",
     val architecture: String = "",
+    val family: String = "",
     val tokenizerModel: String = "",
     val backend: String = "",
     val gpuName: String = "",
@@ -228,7 +275,7 @@ data class EngineCapabilities(
     val supportsGpuAcceleration: Boolean = false,
     val supportsQuantization: Boolean = true,
     val maxContextLength: Int = AppConstants.Model.DEFAULT_CONTEXT_LENGTH,
-    val supportedFormats: List<String> = listOf("gguf")
+    val supportedFormats: List<String> = listOf("litertlm")
 )
 
 /**

@@ -12,7 +12,7 @@ export function CtaBand() {
         aria-hidden
         style={{
           background:
-            "radial-gradient(48% 90% at 50% 0%, rgba(217,119,87,0.12), transparent 70%), radial-gradient(40% 70% at 70% 100%, rgba(217,119,87,0.08), transparent 70%)",
+            "radial-gradient(48% 90% at 50% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%), radial-gradient(40% 70% at 70% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%)",
         }}
       />
       <div className="container">
@@ -27,7 +27,7 @@ export function CtaBand() {
           </h2>
           <p className="mt-5 text-base leading-relaxed text-[var(--muted)] sm:text-lg">
             Requires Android 9+ (API 28) and an ARM64 device. A fresh install ships with a curated catalog of
-            101 models — the app tells you which ones your RAM can run.
+            7 models — the app tells you which ones your RAM can run.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">

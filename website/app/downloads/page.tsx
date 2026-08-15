@@ -12,15 +12,15 @@ import { CtaBand } from "@/components/marketing/cta-band";
 export const metadata: Metadata = {
   title: "Downloads — AndroLLM",
   description:
-    "Download AndroLLM v1.0.0 for Android 9+. Requirements, installation steps, SHA-256 verification, and building from source with Android Studio, NDK r26 and the Vulkan SDK.",
+    "Download AndroLLM v1.0.0 for Android 9+. Requirements, installation steps, SHA-256 verification, and building from source with Android Studio — a pure-Kotlin build, no NDK.",
   alternates: { canonical: "/downloads" },
 };
 
 const requirements = [
   { icon: Smartphone, label: "Android version", value: "Android 9 (API 28)+", note: "Android 14 (API 34) recommended" },
-  { icon: Cpu, label: "Architecture", value: "arm64-v8a only", note: "Native engine requires ARM64" },
-  { icon: CircleDot, label: "RAM", value: "4 GB minimum", note: "8 GB+ recommended for 7B models" },
-  { icon: HardDrive, label: "Storage", value: "Model-dependent", note: "0.25 GB (IQ3) – 14 GB (Q8 classes)" },
+  { icon: Cpu, label: "Architecture", value: "arm64-v8a only", note: "LiteRT-LM runtime ships arm64-v8a" },
+  { icon: CircleDot, label: "RAM", value: "2 GB minimum", note: "4 GB+ recommended for 1.5B-class models" },
+  { icon: HardDrive, label: "Storage", value: "Model-dependent", note: "~475 MB – 1.3 GB per .litertlm model" },
 ];
 
 const steps = [
@@ -112,13 +112,13 @@ export default function DownloadsPage() {
           <SectionHeading
             eyebrow="Build from source"
             title="Compile it yourself."
-            description="The whole project builds with Android Studio — engine, voice, agent, UI. It's a big native build: 34 Gradle modules, vendored llama.cpp and sherpa-onnx, Vulkan shaders."
+            description="The whole project builds with Android Studio — engine, voice, agent, UI. 31 Gradle modules — pure Kotlin, LiteRT-LM runtime, whisper.cpp + sherpa-onnx for voice, no NDK build step."
           />
           <Reveal className="mx-auto mt-12 max-w-3xl">
             <CodeStream
               className="overflow-x-auto rounded-card border border-[var(--line)] bg-[var(--code-bg)] p-6 font-mono text-[13px] leading-relaxed text-[var(--ink-dim)] shadow-card"
               lines={[
-                "# Prerequisites: Android Studio, JDK 17, NDK r26, Vulkan SDK",
+                "# Prerequisites: Android Studio, JDK 17",
                 "git clone https://github.com/ShadowSafin/AndroLLM.git",
                 "cd AndroLLM",
                 "./gradlew assembleDebug",
@@ -126,7 +126,7 @@ export default function DownloadsPage() {
             />
             <p className="mt-5 flex items-center justify-center gap-2 text-sm text-[var(--muted)]">
               <FileCode2 className="size-4 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
-              Full requirements in the building guide — includes NDK 26.1.10909125, CMake 3.22+, and host-side shader compilation.
+              Full requirements in the building guide — a pure-Kotlin build, no NDK or CMake needed.
             </p>
             <div className="mt-6 flex justify-center gap-3">
               <Button asChild variant="secondary" size="lg">

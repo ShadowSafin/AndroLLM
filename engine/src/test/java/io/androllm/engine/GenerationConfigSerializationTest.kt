@@ -51,4 +51,26 @@ class GenerationConfigSerializationTest {
         val decoded = json.decodeFromString(GenerationConfig.serializer(), encoded)
         assertFalse(decoded.debugTokenLogging)
     }
+
+    @Test
+    fun `enableThinking round trips to the native parser key`() {
+        // The native Jinja renderer threads `enable_thinking` through the
+        // template variable of the same name (Qwen2.5/Qwen3 thinking blocks).
+        // The serialized key must survive the Kotlin → JSON handoff.
+        val encoded = json.encodeToString(
+            GenerationConfig.serializer(),
+            GenerationConfig(enableThinking = true)
+        )
+        assertTrue("enableThinking must be serialized: $encoded", encoded.contains("\"enableThinking\":true"))
+
+        val decoded = json.decodeFromString(GenerationConfig.serializer(), encoded)
+        assertTrue(decoded.enableThinking)
+    }
+
+    @Test
+    fun `legacy config without enableThinking defaults to false`() {
+        val legacy = """{"maxTokens":128}"""
+        val decoded = json.decodeFromString(GenerationConfig.serializer(), legacy)
+        assertFalse("enableThinking must default to false (safe for all models)", decoded.enableThinking)
+    }
 }

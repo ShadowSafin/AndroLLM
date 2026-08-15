@@ -2,7 +2,7 @@
 
 ### Private AI. Native Android. Your Models. Your Choice.
 
-A production-grade AI platform for Android that brings local GGUF model inference, GPU acceleration, cloud provider integration, persistent memory, and hands-free voice interaction into one unified application.
+A production-grade AI platform for Android that brings local `.litertlm` model inference on Google's LiteRT-LM runtime, CPU and GPU acceleration, cloud provider integration, persistent memory, and hands-free voice interaction into one unified application.
 
 ---
 
@@ -36,10 +36,10 @@ A production-grade AI platform for Android that brings local GGUF model inferenc
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/minSdk-26-3DDC84?style=for-the-badge&logo=android" alt="minSdk"/>
-  <img src="https://img.shields.io/badge/targetSdk-34-3DDC84?style=for-the-badge&logo=android" alt="targetSdk"/>
+  <img src="https://img.shields.io/badge/minSdk-28-3DDC84?style=for-the-badge&logo=android" alt="minSdk"/>
+  <img src="https://img.shields.io/badge/targetSdk-35-3DDC84?style=for-the-badge&logo=android" alt="targetSdk"/>
   <img src="https://img.shields.io/badge/Kotlin-2.1.20-7F52FF?style=for-the-badge" alt="Kotlin Version"/>
-  <img src="https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white" alt="Gradle"/>
+  <img src="https://img.shields.io/badge/LiteRT--LM-0.16.0-34D399?style=for-the-badge" alt="LiteRT-LM"/>
   <img src="https://img.shields.io/badge/Hilt-2.57.1-EF6C00?style=for-the-badge" alt="Hilt"/>
   <img src="https://img.shields.io/badge/Room-2.8.4-4DD0E1?style=for-the-badge" alt="Room"/>
 </p>
@@ -52,8 +52,8 @@ Most mobile AI apps either route everything through the cloud or ship as a light
 
 | | Typical Mobile AI Apps | AndroLLM |
 |---|---|---|
-| **Local LLMs** | None or limited experiments | Full llama.cpp + GGUF support |
-| **GPU Acceleration** | Rarely available | Vulkan offloading with CPU fallback |
+| **Local LLMs** | None or limited experiments | LiteRT-LM runtime + `.litertlm` containers |
+| **GPU Acceleration** | Rarely available | OpenCL GPU delegate with automatic CPU fallback |
 | **Multi-turn Chat** | None or re-prefill every turn | KV-cache persistence, diff-based continuation |
 | **Cloud Providers** | One proprietary backend | Any LiteLLM-compatible endpoint |
 | **Persistent Memory** | None | Vector embeddings + hybrid retrieval |
@@ -70,27 +70,27 @@ Most mobile AI apps either route everything through the cloud or ship as a light
 
 ### ⚡ Local Inference Engine
 
-Run GGUF language models entirely on-device through a **vendored llama.cpp** build. No internet required after model download.
+Run `.litertlm` language models entirely on-device through **Google's LiteRT-LM runtime** — a pure-Kotlin engine with zero native code. No internet required after model download.
 
-- Full C++ llama.cpp engine with JNI bridge (~3,700 lines)
-- GGUF validation and memory estimation before load
-- Streaming token output at up to 60 fps
+- LiteRT-LM 0.16.0 runtime (`com.google.ai.edge.litertlm`)
+- Container validation and memory estimation before load (`LiteRtValidator`, `MemoryEstimator`)
+- Per-family chat templates, special tokens, and stop sequences from container metadata
+- Streaming token output with stop-sequence tracking
 - Multi-turn conversations via KV-cache persistence
-- JSON and constrained decoding support
-- Automatic context shift when approaching limits
+- Tool-advertisement budgeted to the real context window (no more context overflow)
 
 </td>
 <td width="50%">
 
-### 🎮 Vulkan GPU Acceleration
+### 🎮 CPU + GPU Acceleration
 
-Compile-ready Vulkan backend for hardware-accelerated inference on supported devices.
+Hardware-accelerated inference on supported devices via the OpenCL-based LiteRT GPU delegate, with CPU (XNNPACK) always available.
 
-- Shader compilation at build time (host Vulkan SDK required)
-- Runtime GPU-vs-CPU correctness validation
-- Automatic fallback to ARM64 NEON + KleidiAI microkernels
-- Corruption recovery: NaN/INF logits, invalid tokens, device-lost escalation
-- Real-time diagnostics: `gpuFree`, `gpuTotal`, `recoveryCount`
+- CPU backend: XNNPACK, works on every arm64 device
+- GPU backend: OpenCL-based LiteRT GPU delegate
+- Automatic GPU → CPU fallback with corruption recovery (NaN/INF logits, device-lost)
+- Real-time diagnostics: `gpuFree`, `gpuTotal`, `recoveryCount`, active backend
+- NPU acceleration is next on the roadmap
 
 </td>
 </tr>
@@ -161,7 +161,7 @@ Hands-free interaction entirely on-device. Say **"Hey Andro"** and chat naturall
 
 Understand, plan, and execute multi-step tasks through a capability-based tool system.
 
-- 45+ built-in tools: weather, web search, SMS, calls, email, calendar, alarms, notes, calculator, converters, PDF/Markdown export, GitHub, QR & more
+- 47+ built-in tools: weather, web search, SMS, calls, email, calendar, alarms, notes, calculator, converters, PDF/Markdown export, GitHub, QR & more
 - Multi-round **plan → execute → re-plan** workflow engine with variables & conditionals
 - Safety gates: per-tool permission toggles + high-risk confirmations (chat card & spoken voice)
 - Contact-name resolution for messaging ("text Mom") and multipart SMS
@@ -179,6 +179,21 @@ Connect external MCP servers or drive third-party apps directly.
 - Multi-step app tasks (`ui_run`) with LLM or heuristic step planning
 - QR scanning, screenshot, share, and media control tools
 - Strict confirmations for anything that sends, pays, books or deletes
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🔒 Local-First Guarantee
+
+Every capability runs on-device by default — nothing leaves the phone unless you opt in.
+
+- **LLM inference**: LiteRT-LM, zero cloud dependency
+- **Voice**: wake word → ASR → TTS, fully offline
+- **Memory**: vector index in local SQLite
+- **MCP / cloud**: strictly opt-in per provider
+- Zero analytics, zero telemetry, zero crash reporters
 
 </td>
 </tr>
@@ -206,9 +221,9 @@ flowchart TB
     end
 
     subgraph LOCAL["Local Runtime"]
-        LLAMA["🔥 llama.cpp<br/>Vendored upstream C++"]
-        GGUF["📦 GGUF Models<br/>Validation + Quantization"]
-        GPU["🎮 Vulkan Backend<br/>GPU offload + fallback"]
+        LITERT["⚡ LiteRT-LM<br/>Google runtime · pure Kotlin"]
+        CONTAINER["📦 .litertlm Models<br/>Metadata validation + budget"]
+        GPU["🎮 GPU Delegate<br/>OpenCL · CPU fallback"]
         MEMORY["🧠 Persistent Memory<br/>Embeddings + Retrieval"]
     end
 
@@ -240,9 +255,9 @@ flowchart TB
     STREAM --> ROUTER
     ROUTER --> LOCAL
     ROUTER --> CLOUD
-    LOCAL --> LLAMA
-    LLAMA --> GGUF
-    LLAMA --> GPU
+    LOCAL --> LITERT
+    LITERT --> CONTAINER
+    LITERT --> GPU
     STREAM --> MEMORY
     CLOUD --> LITELLM
     LITELLM --> PROVIDERS
@@ -286,8 +301,8 @@ flowchart TB
 | **Async** | Kotlin Coroutines 1.8.0 + Flow | Structured concurrency |
 | **Database** | Room 2.8.4 (WAL mode, v5 schema) | Local SQL persistence |
 | **Preferences** | DataStore Preferences 1.1.1 | Reactive key-value storage |
-| **Inference Engine** | llama.cpp (vendored, stock upstream) | Local GGUF model execution |
-| **GPU Backend** | ggml Vulkan (build-time enabled) | Hardware-accelerated inference |
+| **Inference Engine** | LiteRT-LM 0.16.0 (`com.google.ai.edge.litertlm`) | Local `.litertlm` model execution |
+| **GPU Backend** | OpenCL-based LiteRT GPU delegate (+ XNNPACK CPU) | Hardware-accelerated inference |
 | **Voice Stack** | sherpa-onnx 1.13.4 (ONNX Runtime Mobile) | ASR, TTS, KWS, VAD |
 | **Networking** | Ktor 3.0.3 + Retrofit + OkHttp 4.12.0 | HTTP client for downloads & APIs |
 | **Auth** | Firebase Auth 34.12.0 | Google Sign-In + GitHub OAuth |
@@ -306,10 +321,8 @@ flowchart TB
 |---|---|---|
 | Android Studio | Hedgehog (2023.1.1) | Latest stable |
 | JDK | 17 | 17 (auto-managed by Gradle) |
-| Android SDK | API 34 | API 34 |
-| NDK | r26 (26.1.10909125) | r26 |
-| CMake | 3.22.1+ | Bundled with Android Studio |
-| Vulkan SDK | Latest | For host-side shader compilation |
+| Android SDK | API 35 | API 35 |
+| LiteRT-LM | AARs from Maven Central (no NDK/CMake needed) | Latest |
 
 ### Build & Install
 
@@ -318,7 +331,7 @@ flowchart TB
 git clone https://github.com/ShadowSafin/AndroLLM.git
 cd AndroLLM
 
-# Build debug APK
+# Build debug APK (pure Kotlin — no NDK, no CMake, no Vulkan SDK)
 ./gradlew assembleDebug
 
 # Install on connected device
@@ -329,10 +342,10 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ### First Run
 
-1. **Install** the APK on an arm64-v8a device (8 GB+ RAM recommended)
+1. **Install** the APK on an arm64-v8a device (4 GB+ RAM recommended)
 2. **Sign in** with Google or GitHub (optional — guest mode works fully)
 3. **Browse models** in the Catalog tab — filters by your device's RAM
-4. **Download and load** a model (Qwen2.5-1.5B-Q4_K_M is a good starting point)
+4. **Download and load** a model (Qwen3-0.6B mixed int4, ~475 MB, is a great starting point)
 5. **Start chatting** — messages stream in real-time with markdown rendering
 6. **Enable voice** in Settings → Voice Assistant and say "Hey Andro"
 7. **Unlock the agent** — enable Tool Calling in Settings → Automation and try a multi-step request
@@ -360,7 +373,7 @@ Complete offline voice pipeline — no internet required:
   Command Router ───► 12 local commands
        │
        ▼
-  LLM Generation ───► Local GGUF or Cloud API
+  LLM Generation ───► LiteRT-LM (.litertlm) or Cloud API
        │
        ▼
   TTS Playback
@@ -404,7 +417,7 @@ Beyond chat, AndroLLM is a full **on-device AI agent**. Enable it in
 Your request
      │
      ▼
-  PLANNER ─── local GGUF (JSON-grammar) ── or ── cloud (native tool calls)
+  PLANNER ─── local LiteRT-LM (JSON-compat planner) ── or ── cloud (native tool calls)
      │  picks tools + arguments
      ▼
   EXECUTOR ── permission gate → confirmation gate → timeout (20 s)
@@ -461,7 +474,7 @@ Conversation exchange
         │
         ├──▶ Embed content
         │       ├── Cloud path: LiteLLM embeddings API
-        │       └── Local path: dedicated llama.cpp embedding handle
+        │       └── Local path: LiteRT embedding engine (CompiledModel API)
         │
         ├──▶ Store in SQLite + CosineVectorIndex
         │
@@ -478,15 +491,15 @@ Works fully offline. Falls back to keyword/recency sorting when embeddings are u
 
 ## 📊 Model Support
 
-**Format:** GGUF (primary). The app validates headers before loading and supports 137
-architectures including `llama`, `gemma2`, `qwen2`, `deepseek`, `mistral`, `phi3`, and more.
+**Format:** `.litertlm` (LiteRT-LM engine file format) — the primary and only runnable local format. The catalog ships 7 curated models across Qwen, Gemma, and DeepSeek families (architectures: `gemma3`, `gemma4`, `gemma-embedding`, `qwen2`, `qwen3`) from the `litert-community` repos on Hugging Face and ModelScope.
 
-| Quantization | Bits | Use Case |
-|---|---|---|
-| Q8_0 | ~8 | Best quality · 8 GB+ RAM |
-| **Q5_K_M** | ~5.5 | **Recommended balance** · 4–8 GB RAM |
-| **Q4_K_M** | ~4.5 | **Sweet spot for mobile** · 2–4 GB RAM |
-| IQ3_XS | ~3.25 | Very constrained · < 2 GB available |
+| Model | Quantization | Size | Use Case |
+|---|---|---|---|
+| Qwen3-0.6B Mixed Int4 | Mixed int4 | ~475 MB | **Recommended daily driver** · 2–4 GB RAM |
+| Gemma 3 1B IT Q4 | Q4 | ~560 MB | Small + capable · 2–4 GB RAM |
+| Qwen2.5-1.5B Q8 | Q8 | ~1.3 GB | Best quality on 4 GB+ devices |
+
+Context length is detected from container metadata at load time; the tool advertisement is budgeted to the real window so small models never overflow. Legacy GGUF files can be *inspected* (metadata) in the import flow but are **not** runnable — the app has no llama.cpp runtime.
 
 📖 [Model Support Guide](documentation/MODEL_SUPPORT.md)
 
@@ -521,11 +534,11 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for full details.
 | [TROUBLESHOOTING.md](documentation/TROUBLESHOOTING.md) | Common issues and solutions |
 | [FAQ.md](documentation/FAQ.md) | Frequently asked questions |
 | [PERFORMANCE.md](documentation/PERFORMANCE.md) | Token speed, RAM, Vulkan, battery guidance |
-| [MODEL_SUPPORT.md](documentation/MODEL_SUPPORT.md) | GGUF formats, architectures, quantizations |
+| [MODEL_SUPPORT.md](documentation/MODEL_SUPPORT.md) | `.litertlm` format, families, quantizations, RAM guidance |
 | [ROADMAP.md](documentation/ROADMAP.md) | Completed, planned, and future features |
 | [CHANGELOG.md](documentation/CHANGELOG.md) | Version history |
 | [RELEASE_PROCESS.md](documentation/RELEASE_PROCESS.md) | Build, sign, and publish procedures |
-| [PROJECT_STRUCTURE.md](documentation/PROJECT_STRUCTURE.md) | 26-module dependency graph |
+| [PROJECT_STRUCTURE.md](documentation/PROJECT_STRUCTURE.md) | 34-module dependency graph |
 
 ### Deep-Dive Documentation (`documentation/`)
 
@@ -533,9 +546,9 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for full details.
 documentation/
 ├── getting-started/first-run.md        # Installation and first-time setup
 ├── ai/                                 # AI engine internals
-│   ├── llama-cpp.md                    # Native engine, JNI bridge, multi-turn strategy
-│   ├── gguf.md                         # GGUF format specification and validation
-│   └── vulkan.md                       # GPU acceleration and corruption recovery
+│   ├── litert-lm.md                    # LiteRT-LM runtime, compat layer, lifecycle
+│   ├── model-formats.md                # .litertlm containers, catalog sources, GGUF inspection
+│   └── acceleration.md                 # CPU (XNNPACK) vs GPU (OpenCL delegate), fallback
 ├── voice/voice-assistant.md            # Full voice pipeline: KWS → ASR → TTS
 ├── voice/text-normalization.md         # TTS text normalization + OOV spelling
 ├── agent/                              # AI agent platform
@@ -563,12 +576,12 @@ documentation/
 
 ## 🛠️ Project Structure
 
-**26 Gradle modules** organized into three tiers:
+**34 Gradle modules** organized into three tiers:
 
 ```
 AndroLLM/
 ├── app/                          # Entry point, navigation host, auth
-├── core/                         # 15 shared library modules
+├── core/                         # 17 shared library modules
 │   ├── common/      Base types (Result, UiState, BaseViewModel)
 │   ├── ui/          Compose theme, design system, shared components
 │   ├── database/    Room DB (4 entities, version 5, WAL mode)
@@ -583,11 +596,17 @@ AndroLLM/
 │   ├── voice/       sherpa-onnx ASR/TTS/KWS/VAD engines
 │   ├── tools/       AI agent: planner, executor, registry, workflow, traces
 │   ├── mcp/         MCP client: connection manager + remote tool adapter
-│   └── accessibility/ UI automation service, gestures, QR scanning
-├── engine/                       # llama.cpp native engine + JNI bridge
-│   ├── cpp/native_api.cpp        ~3,700 lines JNI bridge
-│   └── cpp/llama.cpp/            Vendored stock upstream llama.cpp
-├── feature/                      # 11 independent feature modules
+│   ├── accessibility/ UI automation service, gestures, QR scanning
+│   ├── runtime/     Runtime registry: tools, voice, automation registration
+│   ├── permissions/ Central permission/access manager + feature map
+├── engine/                       # LiteRT-LM inference engine (pure Kotlin)
+│   ├── api/            InferenceEngine, EngineRepository, DefaultEngineRepository
+│   ├── core/           LiteRtLmEngine — session lifecycle, streaming
+│   ├── compat/         ModelFamily, registry, templates, special tokens, metadata
+│   ├── models/         EngineModelInfo, GenerationConfig, MemoryStats, backends
+│   ├── embedding/      LiteRtEmbeddingEngine (CompiledModel API)
+│   └── utils/          MemoryEstimator, ThreadManager, CoherenceChecker, LiteRtValidator
+├── feature/                      # 12 independent feature modules
 │   ├── home/    Home screen, recent chats, quick actions
 │   ├── chat/    Chat UI, streaming, markdown, drawer
 │   ├── models/  Model catalog browser, downloader, benchmark
@@ -595,6 +614,7 @@ AndroLLM/
 │   ├── settings/ App settings, voice config, memory controls
 │   ├── splash/  Animated splash screen
 │   ├── onboarding/ First-run onboarding flow
+│   ├── setup/    First-launch permission & access setup, Permissions & Access
 │   ├── profile/ User profile with Firebase sync
 │   ├── prompts/ Prompt library
 │   ├── developer/ Developer tools and diagnostics
@@ -611,20 +631,20 @@ Feature modules depend **only** on `core:*` modules — never on each other.
 
 | Status | Feature |
 |---|---|
-| ✅ | llama.cpp native engine with Vulkan backend |
-| ✅ | GGUF model catalog with 137 architecture support |
+| ✅ | LiteRT-LM 0.16.0 runtime — pure Kotlin, no native code |
+| ✅ | `.litertlm` model catalog (7 curated models, 5 architectures) |
+| ✅ | CPU (XNNPACK) + OpenCL GPU delegate with automatic fallback |
 | ✅ | Cloud provider abstraction via LiteLLM |
 | ✅ | Persistent memory with vector embeddings |
 | ✅ | Offline voice assistant (wake word → ASR → TTS) |
 | ✅ | Firebase Auth (Google + GitHub) |
-| ✅ | 51 test classes across 19 modules |
-| ✅ | AI agent platform (45+ tools, workflow engine, confirmations) |
+| ✅ | AI agent platform (47 tools, workflow engine, confirmations) |
 | ✅ | MCP server integration (Streamable HTTP) |
 | ✅ | Accessibility UI automation (gestures, multi-step app tasks) |
 | ✅ | Voice confirmations + TTS text normalization |
+| 🔮 | **NPU backend support** (next milestone) |
 | 🚧 | Multi-language ASR (Chinese, Japanese, Korean) |
 | 🚧 | CI/CD pipeline |
-| 🔮 | QNN/NPU backend (Snapdragon) |
 | 🔮 | Multi-modal vision models |
 
 See [ROADMAP.md](documentation/ROADMAP.md) for the full list.
@@ -648,7 +668,8 @@ Third-party component licenses are listed in [LICENSES.md](LICENSES.md).
 
 ## 🔗 References
 
-- [llama.cpp](https://github.com/ggerganov/llama.cpp) — Local LLM inference engine
+- [LiteRT-LM](https://ai.google.dev/edge/litert-lm) — On-device LLM inference runtime (Google AI Edge)
+- [LiteRT](https://ai.google.dev/edge/litert) — On-device ML runtime (CompiledModel API for embeddings)
 - [sherpa-onnx](https://k2-fsa.github.io/sherpa/onnx/) — Offline voice processing
 - [Jetpack Compose](https://developer.android.com/jetpack/compose) — Modern Android UI
 - [Material 3](https://m3.material.io/) — Design system

@@ -52,8 +52,8 @@ export function Particles({ count = 34 }: { count?: number }) {
         ctx.beginPath();
         ctx.arc(p.x * w, p.y * h, p.r, 0, Math.PI * 2);
         ctx.fillStyle = p.warm
-          ? `rgba(217, 119, 87, ${p.a})`
-          : `rgba(94, 93, 89, ${p.a * 0.55})`;
+          ? `color-mix(in srgb, var(--accent) ${Math.round(p.a * 100)}%, transparent)`
+          : `color-mix(in srgb, var(--muted) ${Math.round(p.a * 55)}%, transparent)`;
         ctx.fill();
       }
       raf = requestAnimationFrame(tick);
@@ -85,11 +85,11 @@ export function GradientBlobs() {
         className="absolute -top-32 left-1/2 h-[34rem] w-[54rem] -translate-x-1/2 rounded-full opacity-60 blur-3xl"
         style={{
           background:
-            "radial-gradient(closest-side, rgba(217,119,87,0.28), rgba(217,119,87,0.10) 45%, transparent 70%)",
+            "radial-gradient(closest-side, color-mix(in srgb, var(--accent) 28%, transparent), color-mix(in srgb, var(--accent) 10%, transparent) 45%, transparent 70%)",
         }}
       />
-      <div className="absolute -left-40 top-1/3 h-[26rem] w-[26rem] animate-blob-drift rounded-full blur-3xl" style={{ background: "radial-gradient(closest-side, rgba(230,157,129,0.16), transparent 70%)" }} />
-      <div className="absolute -right-40 top-1/4 h-[30rem] w-[30rem] animate-blob-drift rounded-full blur-3xl [animation-delay:-11s]" style={{ background: "radial-gradient(closest-side, rgba(94,93,89,0.12), transparent 70%)" }} />
+      <div className="absolute -left-40 top-1/3 h-[26rem] w-[26rem] animate-blob-drift rounded-full blur-3xl" style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent-soft) 16%, transparent), transparent 70%)" }} />
+      <div className="absolute -right-40 top-1/4 h-[30rem] w-[30rem] animate-blob-drift rounded-full blur-3xl [animation-delay:-11s]" style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--muted) 12%, transparent), transparent 70%)" }} />
     </div>
   );
 }
@@ -104,7 +104,7 @@ export function MouseLight({ className }: { className?: string }) {
     const onMove = (e: MouseEvent) => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        el.style.background = `radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px, rgba(217,119,87,0.07), transparent 55%)`;
+        el.style.background = `radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px, color-mix(in srgb, var(--accent) 7%, transparent), transparent 55%)`;
       });
     };
     window.addEventListener("mousemove", onMove);

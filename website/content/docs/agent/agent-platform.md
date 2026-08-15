@@ -80,17 +80,19 @@ each round streams deltas, executes the accumulated calls, appends
 `role="tool"` results to the history, and repeats up to
 `maxToolRounds` (default 3).
 
-### Local GGUF (prompt-based planning)
+### Local LiteRT-LM (JSON-compat planning)
 
-For on-device models, the planner runs a **grammar-constrained JSON
-generation** against the loaded GGUF model:
+For on-device models, the planner falls back to **JSON-compat planning**
+against the loaded LiteRT-LM model — Qwen and Gemma families emit native
+`<|tool_call|>` markers (native loop, ≤ 3 rounds), and every other model is
+asked for JSON tool calls in a prompt-based plan:
 
 ```json
 { "calls": [ { "name": "tool_name", "arguments": { ... } } ] }
 ```
 
-- Small token budget (512), temperature 0.1, JSON-Schema grammar
-  (`PLAN_SCHEMA`) — shaped so small models can satisfy it reliably
+- Small token budget, low temperature, a `PLAN_SCHEMA` shaped so small models
+  can satisfy it reliably
 - `ToolCallParser` tolerates markdown fences, leading prose and truncated JSON
 - The planner prompt lists every available tool with its arguments and
   teaches conditional workflows (IF/ELSE, WHILE, FOR-EACH via variables)

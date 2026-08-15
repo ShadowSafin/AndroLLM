@@ -5,6 +5,7 @@ import io.androllm.core.tools.agent.AgentContextBuilder
 import io.androllm.core.tools.api.Tool
 import io.androllm.core.tools.api.ToolResult
 import io.androllm.core.tools.api.ToolSpec
+import io.androllm.core.tools.prompt.ToolPromptBuilder
 import io.androllm.core.tools.registry.ToolRegistry
 import io.androllm.core.tools.settings.AutomationSettings
 import io.androllm.core.tools.settings.AutomationSettingsStore
@@ -16,6 +17,7 @@ import io.androllm.engine.models.EngineModelInfo
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
@@ -87,7 +89,7 @@ class ToolPlannerTest {
         )
         coEvery { engineRepository.buildChatPrompt(any(), any()) } returns
             io.androllm.core.common.Result.Success("<assistant>")
-        coEvery { engineRepository.generateQuiet(any(), any()) } returns
+        coEvery { engineRepository.generateQuiet(any(), any(), any()) } returns
             io.androllm.core.common.Result.Success(
                 """{"calls":[{"name":"get_weather","arguments":{"location":"Delhi"}}]}"""
             )
@@ -111,7 +113,7 @@ class ToolPlannerTest {
         )
         coEvery { engineRepository.buildChatPrompt(any(), any()) } returns
             io.androllm.core.common.Result.Success("<assistant>")
-        coEvery { engineRepository.generateQuiet(any(), any()) } returns
+        coEvery { engineRepository.generateQuiet(any(), any(), any()) } returns
             io.androllm.core.common.Result.Success(
                 """{"calls":[{"name":"nonexistent_tool","arguments":{}}]}"""
             )
@@ -128,9 +130,64 @@ class ToolPlannerTest {
     }
 
     @Test
+    fun `planLocal is bounded - a stalled generateQuiet fails fast instead of hanging the turn`() = runTest {
+        coEvery { settingsStore.current() } returns AutomationSettings(toolCallingEnabled = true)
+        every { engineRepository.engineState } returns MutableStateFlow(
+            EngineState.Ready(
+                EngineModelInfo("test", "/tmp/m.gguf", 2048, 32000, BackendType.CPU)
+            )
+        )
+        coEvery { engineRepository.buildChatPrompt(any(), any()) } returns
+            io.androllm.core.common.Result.Success("<assistant>")
+        // The native pass never returns — only the per-pass budget can end it.
+        // The planner forwards its budget as timeoutMs; the stub must accept
+        // the three-argument form the production call now uses.
+        coEvery { engineRepository.generateQuiet(any(), any(), any()) } coAnswers {
+            delay(ToolPlanner.PLANNING_TIMEOUT_MS + 60_000L)
+            io.androllm.core.common.Result.Success("""{"calls":[]}""")
+        }
+        val p = planner(FakeTool("get_weather"))
+        val calls = p.planLocal(
+            listOf(ChatPromptMessage(role = "user", content = "What's the weather?"))
+        )
+        // Times out → empty plan → the turn answers without tools instead of
+        // stalling invisible (regression: "chat appears to do nothing").
+        assertThat(calls).isEmpty()
+    }
+
+    @Test
     fun `system prompt lists the available tools`() {
         val prompt = ToolPrompts.system(listOf(FakeTool("get_weather").spec))
         assertThat(prompt).contains("get_weather")
         assertThat(prompt).contains("calls")
+    }
+
+    @Test
+    fun `regression - every user command maps to an advertised tool`() {
+        // The regression list from the bug report: each command must be served
+        // by a tool that BOTH the planner prompt and the chat system-prompt
+        // advertisement actually carry. If a name drifts here, the model is
+        // back to answering "I don't have access…".
+        val regressionTools = listOf(
+            "get_weather",          // "Search today's weather"
+            "search_web",           // "Search GitHub" (web) — github() is the dedicated tool
+            "github",               // "Search GitHub" (dedicated)
+            "launch_app",           // "Open Discord" / "Navigate home" / "Open Settings"
+            "make_call",            // "Call Mom"
+            "send_sms",             // "Send SMS"
+            "copy_to_clipboard",    // "Copy this"
+            "take_screenshot",      // "Take a screenshot"
+            "set_bluetooth",        // "Enable Bluetooth"
+            "set_flashlight"        // "Turn on Flashlight"
+        )
+        val specs = regressionTools.map { FakeTool(it).spec }
+
+        val plannerPrompt = ToolPrompts.system(specs)
+        val advertisement = ToolPromptBuilder(mockk(relaxed = true)).render(specs)
+
+        for (name in regressionTools) {
+            assertThat(plannerPrompt).contains("- $name")
+            assertThat(advertisement).contains("- $name")
+        }
     }
 }

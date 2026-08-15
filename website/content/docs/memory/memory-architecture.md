@@ -118,12 +118,12 @@ if (cloudEmbeddingModel.isNotBlank() && cloudGateway.isConfigured()) {
     val cloudVectors = cloud.embed(texts)
     if (cloudVectors is Result.Success) return cloudVectors
 }
-return local.embed(texts)  // Llama embedding model
+return local.embed(texts)  // LiteRtEmbeddingEngine (LiteRT CompiledModel API)
 ```
 
 **Embedding options:**
 - **Cloud**: Via LiteLLM-compatible embedding endpoint (e.g., `text-embedding-3-small`)
-- **Local**: Via a separate GGUF embedding model loaded in a dedicated native handle
+- **Local**: Via the LiteRT `CompiledModel` API — `LiteRtEmbeddingEngine` (with `SentencePieceTokenizer`) runs a `.litertlm` embedding model entirely on-device
 
 If neither provider is available, memories are still stored (without vectors) and retrieval falls back to keyword matching.
 
@@ -347,7 +347,7 @@ data class MemorySettings(
     val retrievalCount: Int = 5,              // Max memories to retrieve
     val summarizationInterval: Int = 10,      // Messages between summaries
     val cloudEmbeddingModel: String = "",     // Cloud embedding model ID
-    val localEmbeddingModelPath: String = "", // Local GGUF embedding model path
+    val localEmbeddingModelPath: String = "", // Local .litertlm embedding model path
     val categories: List<String> = listOf(
         "preference", "fact", "project", "opinion"
     )

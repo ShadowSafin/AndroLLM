@@ -12,13 +12,17 @@ enum class ConfirmationMode(val displayName: String, val description: String) {
 /**
  * User-controlled automation policy. The master switch ([toolCallingEnabled])
  * turns the whole pipeline on; [disabledTools] holds the names of tools the
- * user has individually blocked in Settings → Automation. Defaults are
- * conservative: the pipeline is OFF until the user opts in, and every tool is
- * enabled the moment the master switch flips (per-tool toggles then prune).
+ * user has individually blocked in Settings → Automation.
+ *
+ * Default: **ON**. Tool calling is a first-class capability of the assistant
+ * (weather, web search, apps, SMS, …) and must work out of the box — a fresh
+ * install never answers "I don't have access to a web search tool". Users who
+ * want a pure chat assistant flip the master switch off in Settings →
+ * Automation. Every tool is enabled by default; per-tool toggles then prune.
  */
 data class AutomationSettings(
     /** Master switch for the whole tool-calling pipeline. */
-    val toolCallingEnabled: Boolean = false,
+    val toolCallingEnabled: Boolean = true,
     /** Which actions require a user confirmation. */
     val confirmationMode: ConfirmationMode = ConfirmationMode.HIGH_RISK,
     /** Tool names the user blocked (everything else is allowed). */

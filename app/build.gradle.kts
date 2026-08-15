@@ -88,6 +88,10 @@ dependencies {
     implementation(project(":core:tools"))
     implementation(project(":core:accessibility"))
     implementation(project(":core:mcp"))
+    // Direct dependency (not just via feature:setup) so the app's Hilt
+    // aggregation deterministically sees PermissionModule; a missed module
+    // silently injects an empty handler set (blank Permissions & Access).
+    implementation(project(":core:permissions"))
     implementation(project(":core:utils"))
     
     // Feature modules
@@ -97,12 +101,13 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:splash"))
     implementation(project(":feature:onboarding"))
+    implementation(project(":feature:setup"))
     implementation(project(":feature:profile"))
     implementation(project(":feature:prompts"))
     implementation(project(":feature:developer"))
     implementation(project(":feature:cloud"))
     implementation(project(":feature:voice"))
-    
+
     // Engine & Docs
     api(project(":engine"))
     implementation(project(":documentation"))
@@ -230,7 +235,7 @@ tasks.register("downloadVoiceModels") {
     doLast {
         val kwsTarball = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2"
         val ttsTarball = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-ljs.tar.bz2"
-        val tmp = buildDir.resolve("voice-models")
+        val tmp = layout.buildDirectory.get().asFile.resolve("voice-models")
         tmp.mkdirs()
         voiceKwsDir.mkdirs()
         voiceTtsDir.mkdirs()
@@ -238,13 +243,13 @@ tasks.register("downloadVoiceModels") {
         fun download(url: String, target: File) {
             if (target.exists() && target.length() > 1000) return
             logger.lifecycle("downloadVoiceModels: fetching ${url.substringAfterLast('/')}")
-            exec { commandLine("curl", "-sL", "--retry", "3", "-o", target.absolutePath, url) }
+            providers.exec { commandLine("curl", "-sL", "--retry", "3", "-o", target.absolutePath, url) }
         }
 
         // KWS + TTS — release tarballs, extract the files we need.
         val kwsTar = File(tmp, "kws.tar.bz2")
         download(kwsTarball, kwsTar)
-        exec { commandLine("tar", "-xjf", kwsTar.absolutePath, "-C", tmp.absolutePath) }
+        providers.exec { commandLine("tar", "-xjf", kwsTar.absolutePath, "-C", tmp.absolutePath) }
         val kwsDir = File(tmp, "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20")
         fun copyFrom(src: File, target: File, vararg names: String) {
             names.forEach { n ->
@@ -312,7 +317,7 @@ tasks.register("downloadVoiceModels") {
 
         val ttsTar = File(tmp, "tts.tar.bz2")
         download(ttsTarball, ttsTar)
-        exec { commandLine("tar", "-xjf", ttsTar.absolutePath, "-C", tmp.absolutePath) }
+        providers.exec { commandLine("tar", "-xjf", ttsTar.absolutePath, "-C", tmp.absolutePath) }
         copyFrom(File(tmp, "vits-ljs"), voiceTtsDir, "vits-ljs.onnx", "tokens.txt", "lexicon.txt")
         File(voiceTtsDir, "vits-ljs.onnx").renameTo(File(voiceTtsDir, "model.onnx"))
 

@@ -12,21 +12,23 @@ Token generation speed depends on multiple factors working together:
 
 | Factor | Impact | How to Optimize |
 |---|---|---|
-| **Backend** | Vulkan is 5–20× faster than CPU on capable devices | Ensure Vulkan is active (check Developer Diagnostics) |
-| **Quantization** | Lower quant = faster but less accurate | Q4_K_M is the sweet spot; Q8_0 for quality, IQ1 for speed |
+| **Backend** | GPU (LiteRT OpenCL delegate) is typically faster than CPU on capable devices | Verify backend in Developer Diagnostics (`backend` field: `GPU` or `CPU`) |
+| **Quantization** | Lower quant = faster but less accurate | Mixed-int4 containers (e.g. Qwen3 0.6B) are the speed sweet spot; Q8 for quality |
 | **Context length** | Longer context = slower (linear KV cache growth) | Use the smallest context that works for your use case |
 | **Model size** | More parameters = slower | Match model to device capability |
-| **GPU memory** | Out-of-GPU-memory causes CPU fallback | Monitor `gpuFree` in diagnostics; close other GPU apps |
+| **Device RAM pressure** | Low RAM triggers OS reclaim and GPU-to-CPU fallback | Monitor `gpuFree` in diagnostics; close other apps |
 
 ### Expected Performance Ranges
 
-These are **not benchmarks** — they are approximate ranges based on architecture:
+These are **not benchmarks** - they are approximate ranges based on the LiteRT-LM
+runtime. The measured reference point for the bundled catalog is **Qwen3 0.6B at
+~21 tokens/sec on CPU** (mid-range hardware, default settings).
 
-| Device Class | Vulkan (tokens/sec) | CPU (tokens/sec) |
+| Device Class | GPU (tokens/sec) | CPU (tokens/sec) |
 |---|---|---|
-| Flagship (Snapdragon 8 Gen 2/3) | 15–40 | 5–15 |
-| Mid-range (Snapdragon 7系, Dimensity 8系) | 8–20 | 3–8 |
-| Entry (Snapdragon 6系, older chips) | N/A (CPU only) | 2–5 |
+| Flagship (Snapdragon 8 Gen 2/3) | 20-45 | 10-25 |
+| Mid-range (Snapdragon 7-series, Dimensity 8-series) | 10-25 | 5-15 |
+| Entry (Snapdragon 6-series, older chips) | 5-15 | 2-8 |
 
 Actual numbers vary significantly by model architecture, quantization, and Android version. Use the built-in **benchmark** tool (Developer screen) to measure your device.
 
@@ -37,25 +39,26 @@ Actual numbers vary significantly by model architecture, quantization, and Andro
 ### Cold Start (First Load)
 
 Model loading involves:
-1. Memory mapping the GGUF file (fast, OS-level)
-2. Allocating tensors in RAM
-3. Optionally copying tensors to GPU memory (Vulkan)
-4. Compiling Vulkan shaders (warm-up)
+1. Validating the `.litertlm` container (`LiteRtValidator`)
+2. Reading embedded metadata (`ContainerMetadataReader` - family, template, tokenizer, context)
+3. Loading the model into the LiteRT-LM engine (CPU) and/or GPU delegate
+4. Compiling GPU kernels / warming up the delegate
 
-Typical load times:
+Typical load times (`.litertlm` containers):
 
-| Model Size | CPU Load | Vulkan Load |
+| Model Size | CPU Load | GPU Load |
 |---|---|---|
-| 1.5B (Q4) | ~3–5 sec | ~4–6 sec (shader compile adds overhead) |
-| 3B (Q4) | ~5–8 sec | ~6–10 sec |
-| 7B (Q4) | ~10–20 sec | ~8–15 sec |
-| 7B (Q8) | ~15–30 sec | ~12–20 sec |
+| 0.6B (Mixed Int4) | ~1-3 sec | ~2-4 sec (kernel compile adds overhead) |
+| 1.5B (Q8) | ~3-6 sec | ~4-8 sec |
+| 2-4B (Q8) | ~5-12 sec | ~6-15 sec |
 
-Subsequent loads are faster because the GPU shaders remain compiled.
+Subsequent loads are faster because delegate kernels remain compiled.
 
-### Warm-Up
+### Coherence Probe
 
-Call `nativeWarmUp()` after loading a model on Vulkan. This pre-compiles compute shaders so the first generation doesn't stall. The engine does this automatically.
+After loading, the engine runs a lightweight temperature-0 **self-test probe**
+(`CoherenceChecker`) to verify the model produces sane output before the UI
+marks it ready - a corrupted container fails fast instead of generating garbage.
 
 ---
 
@@ -64,64 +67,63 @@ Call `nativeWarmUp()` after loading a model on Vulkan. This pre-compiles compute
 ### Memory Breakdown
 
 ```
-Total RAM = Model Weights + KV Cache + Overhead
+Total RAM = Model Weights + KV Cache + Delegate Buffers + Overhead
 ```
 
-| Component | Formula | Example (7B Q4, 4096 ctx) |
+| Component | Notes | Example (1.5B Q8, 4096 ctx) |
 |---|---|---|
-| Model weights | `parameters × bytes_per_token` | ~4.5 GB |
-| KV cache | `2 × n_layers × n_heads × head_dim × ctx_len × 2 bytes` | ~0.5 GB |
-| CUDA/Vulkan buffers | Implementation-dependent | ~0.3 GB |
+| Model weights | `parameters x bytes_per_weight` | ~1.6 GB |
+| KV cache | Scales with context length | ~0.1-0.3 GB |
+| GPU delegate buffers | OpenCL working memory (GPU models) | ~0.2-0.5 GB |
 | App + OS overhead | Fixed | ~0.5 GB |
-| **Total** | | **~5.8 GB** |
+| **Total** | | **~2.5-3 GB** |
 
 ### Managing RAM
 
 1. **Close other apps** before loading large models
-2. **Use smaller context** — 2048 tokens uses half the KV cache of 4096
-3. **Unload models** when not in use (Models screen → Unload)
+2. **Use smaller context** - 2048 tokens uses half the KV cache of 4096
+3. **Unload models** when not in use (Models screen -> Unload)
 4. **Avoid loading multiple models** simultaneously
 5. **Restart the app** periodically to clear fragmented allocations
 
 ### Detecting Low RAM
 
-The engine's `MemoryEstimator` predicts RAM requirements from model metadata before loading. The Model Catalog shows `minRamGb` and `recommendedRamGb` for each model.
+The engine's `MemoryEstimator` predicts RAM requirements from container metadata before loading, and `ModelResourceGuard` **refuses loads** that exceed the device's available RAM. The Model Catalog shows `minRamGb` and `recommendedRamGb` for each model.
 
 ---
 
-## GPU Acceleration (Vulkan)
+## GPU Acceleration (LiteRT GPU Delegate)
 
-### When Vulkan Is Used
+### When GPU Is Used
 
-Vulkan acceleration is automatic when:
-1. The device reports Vulkan support (`nativeVulkanAvailable() == true`)
-2. The model has layers that can be offloaded (`n_gpu_layers > 0`)
-3. The Vulkan backend initializes successfully
+GPU acceleration is automatic when:
+1. `EngineConfig.backend == GPU` (the default)
+2. The device's OpenCL GPU delegate initializes successfully
+3. The model supports GPU execution (all catalog models carry `supportedBackends: [CPU, GPU]`)
 
 ### When CPU Fallback Occurs
 
-CPU fallback happens when:
-1. Device has no Vulkan support (rare on Android 9+)
-2. Vulkan initialization fails during warm-up
-3. GPU memory is insufficient for the model
-4. `VK_ERROR_DEVICE_LOST` occurs and recovery fails
+The engine falls back to CPU when:
+1. GPU delegate initialization fails (old GPUs, missing drivers)
+2. GPU memory is insufficient for the model
+3. The GPU delegate crashes during generation (recovery path re-arms the model on CPU)
 
 ### Monitoring GPU Memory
 
-Check the Developer screen → Hardware Info for:
-- `gpuFree`: Available VRAM
-- `gpuTotal`: Total VRAM
-- `gpuLayersUsed`: Number of model layers offloaded to GPU
-- `backend`: Current backend type (`VULKAN` or `CPU`)
+Check the Developer screen -> Hardware Info for:
+- `gpuFree`: Available GPU memory
+- `gpuTotal`: Total GPU memory
+- `recoveryCount`: Number of corruption-recovery cycles performed
+- `backend`: Current backend type (`GPU` or `CPU`)
 
-### Vulkan Device-Lost Recovery
+### Corruption Recovery
 
-The engine has a three-level recovery system:
-1. **Level 1**: Recreate context on same GPU backend
-2. **Level 2**: Reload context on CPU
-3. **Level 3**: Report error to user
+When the engine detects corrupted generation output (memory-corruption signature), it performs a three-level recovery:
+1. **Level 1**: Re-arms the model on the same backend
+2. **Level 2**: Reloads the model on CPU
+3. **Level 3**: Reports the error to the user
 
-Track recovery count in logs: `recoveryCount=N`, `devLostRecovered=M`.
+Track recovery count in logs: `recoveryCount=N`, `backend=gpu` -> `backend=cpu`.
 
 ---
 
@@ -131,22 +133,25 @@ Track recovery count in logs: `recoveryCount=N`, `devLostRecovered=M`.
 
 | Context Length | RAM Impact | Speed Impact | Use Case |
 |---|---|---|---|
-| 512 | Minimal | Fastest | Short Q&A, commands |
+| 512 | Minimal | Fastest | Short Q&A, commands, embeddings |
 | 1024 | Low | Fast | General chat |
-| 2048 | Moderate | Good | Most conversations |
-| 4096 | High | Slower | Long context, reasoning |
-| 8192+ | Very high | Slow | Document analysis |
+| 2048 | Moderate | Good | Most conversations (Qwen3-0.6B real window) |
+| 4096 | High | Slower | Long context, reasoning (Qwen2.5-1.5B real window) |
+| 8192+ | Very high | Slow | Document analysis (Gemma 4) |
 
 ### Optimizing Context Usage
 
-1. **Start with 2048** and increase only if needed
-2. **Use conversation summaries** (when available) to compress history
+1. **Respect the container-detected context** - the engine trusts `LlmMetadata`, not the catalog claim
+2. **Use conversation summaries** to compress history
 3. **Clear old conversations** to free KV cache memory
 4. **Avoid re-loading** models with different context lengths without unloading first
 
-### Context Shift Behavior
+### Context Overflow Behavior
 
-When the conversation approaches the context limit (`pos_check >= nCtx - 4`), older tokens after the system prompt are discarded and remaining tokens are shifted left in-place. This preserves the system prompt and recent conversation while dropping older turns.
+When a conversation fills the KV cache, LiteRT-LM raises
+`INVALID_ARGUMENT: Input token ids are too long`. The engine responds
+automatically: it trims the oldest turns (keeping system prompt + recent
+messages) and reseeds the conversation. Generation continues seamlessly.
 
 ---
 
@@ -157,7 +162,7 @@ When the conversation approaches the context limit (`pos_check >= nCtx - 4`), ol
 | Feature | Power Impact | Notes |
 |---|---|---|
 | Local inference (CPU) | Medium | Sustained CPU usage |
-| Local inference (Vulkan) | Medium-High | GPU is efficient per token |
+| Local inference (GPU) | Medium-High | GPU is efficient per token |
 | Voice assistant (listening) | Low-Medium | Continuous mic + wake word model |
 | Voice assistant (TTS) | Medium | Brief bursts during response |
 | Cloud API calls | Low | Short network bursts |
@@ -165,7 +170,7 @@ When the conversation approaches the context limit (`pos_check >= nCtx - 4`), ol
 
 ### Battery Saver Mode
 
-The voice assistant has a battery saver mode (Settings → Voice Assistant):
+The voice assistant has a battery saver mode (Settings -> Voice Assistant):
 - Runs wake word detection on a single thread
 - Disables continuous conversation mode
 - Reduces TTS quality/speed slightly
@@ -174,10 +179,10 @@ The voice assistant has a battery saver mode (Settings → Voice Assistant):
 ### Thermal Throttling
 
 Prolonged generation can cause thermal throttling, reducing clock speeds:
-- Flagship devices: throttle after ~10–15 minutes of continuous generation
-- Mid-range devices: throttle after ~5–10 minutes
+- Flagship devices: throttle after ~10-15 minutes of continuous generation
+- Mid-range devices: throttle after ~5-10 minutes
 - The engine does not currently detect or respond to thermal states
-- 🚧 Planned: thermal-aware generation pacing
+- Planned: thermal-aware generation pacing
 
 ---
 
@@ -185,9 +190,9 @@ Prolonged generation can cause thermal throttling, reducing clock speeds:
 
 ### For Users
 
-1. **Use Vulkan-capable devices** for best performance
-2. **Choose Q4_K_M or Q5_K_M** quantizations for the best quality/speed balance
-3. **Keep context length at 2048** unless you need more
+1. **Prefer GPU acceleration** (default) - check the backend in Developer Diagnostics
+2. **Choose Mixed-Int4 containers** (e.g. Qwen3 0.6B) for the best quality/speed balance
+3. **Keep context at the detected window** - smaller is faster
 4. **Close unused apps** before loading large models
 5. **Enable battery saver** for voice assistant on the go
 6. **Use the benchmark tool** to find your device's optimal settings
@@ -196,9 +201,9 @@ Prolonged generation can cause thermal throttling, reducing clock speeds:
 
 1. Profile with Android Studio's CPU/Memory profilers
 2. Use `StageTracer` to measure pipeline stage timings
-3. Check `nativeGetDebugInfo()` for detailed engine stats
+3. Check engine debug info (logcat tag `AndroLLM-Engine`) for engine stats
 4. Monitor `CosineVectorIndex` memory (grows with each memory)
-5. Test on real devices, not just emulators (emulators lack Vulkan)
+5. Test on real devices, not just emulators (emulators lack a working OpenCL GPU delegate)
 
 ---
 
@@ -206,7 +211,7 @@ Prolonged generation can cause thermal throttling, reducing clock speeds:
 
 To benchmark your device:
 
-1. Enable Developer Mode: Settings → Developer Options
+1. Enable Developer Mode: Settings -> Developer Options
 2. Open Developer screen
 3. Load a model
 4. Tap "Benchmark"
@@ -214,6 +219,6 @@ To benchmark your device:
    - Tokens per second
    - Time to first token
    - Memory usage
-   - Backend type (CPU/Vulkan)
+   - Backend type (CPU/GPU)
 
 Compare results across different models and quantizations to find the optimal configuration for your device.

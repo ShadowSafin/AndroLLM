@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Mic, Send, Wrench, Image as ImageIcon, Sparkles, Volume2, X, Check } from "lucide-react";
+import { Mic, Send, Wrench, Sparkles, Volume2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "chat" | "voice" | "tools" | "images";
+type Mode = "chat" | "voice" | "tools";
 
 const chatScript: Array<{ from: "user" | "ai"; text: string }> = [
   { from: "user", text: "Remind me to call Mom at 6pm" },
@@ -32,8 +32,6 @@ export function PhoneMockup() {
   const [mode, setMode] = useState<Mode>("chat");
   const [step, setStep] = useState(0);
   const [voiceLine, setVoiceLine] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [generated, setGenerated] = useState(false);
 
   useEffect(() => {
     if (mode !== "chat") return;
@@ -56,27 +54,10 @@ export function PhoneMockup() {
     return () => timers.forEach(clearTimeout);
   }, [mode]);
 
-  useEffect(() => {
-    if (mode !== "images") return;
-    setProgress(0);
-    setGenerated(false);
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const p = Math.min((now - start) / 5200, 1);
-      setProgress(p);
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else setGenerated(true);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [mode]);
-
   const modes: Array<{ id: Mode; label: string; icon: typeof Mic }> = [
     { id: "chat", label: "Chat", icon: Send },
     { id: "voice", label: "Voice", icon: Mic },
     { id: "tools", label: "Agent", icon: Wrench },
-    { id: "images", label: "Images", icon: ImageIcon },
   ];
 
   const reveal = (i: number) => ({
@@ -90,17 +71,17 @@ export function PhoneMockup() {
       <div
         className="absolute -inset-10 -z-10 rounded-full opacity-70 blur-3xl"
         aria-hidden
-        style={{ background: "radial-gradient(closest-side, rgba(217,119,87,0.22), transparent 70%)" }}
+        style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%)" }}
       />
       {/* Frame */}
-      <div className="relative rounded-[2.8rem] border border-[var(--line)] bg-[var(--elevated)] p-2.5 shadow-[0_40px_80px_-24px_rgba(20,20,19,0.35)] dark:border-[#3a3a37] dark:bg-[#1d1d1c] dark:shadow-[0_40px_80px_-24px_rgba(0,0,0,0.8)]">
+      <div className="relative rounded-[2.8rem] border border-[var(--frame-phone-border)] bg-[var(--frame-phone-bg)] p-2.5 shadow-[var(--frame-phone-shadow)]">
         <div className="pointer-events-none absolute left-1/2 top-2.5 z-20 h-6 w-28 -translate-x-1/2 rounded-full bg-black/85" aria-hidden />
         <div className="relative overflow-hidden rounded-[2.2rem] bg-[var(--canvas)]" style={{ height: 560 }}>
           {/* Status bar */}
           <div className="flex items-center justify-between px-6 pb-1 pt-3 text-[10px] font-semibold text-[var(--faint)]">
             <span>9:41</span>
             <span className="inline-flex items-center gap-1">
-              <VulkanBar />
+              <GpuBar />
             </span>
           </div>
 
@@ -113,15 +94,14 @@ export function PhoneMockup() {
               <div>
                 <p className="text-[11px] font-bold leading-none text-[var(--ink)]">AndroLLM</p>
                 <p className="mt-0.5 text-[9px] text-[var(--faint)]">
-                  {mode === "chat" && "Local · Qwen2.5-1.5B Q4_K_M"}
+                  {mode === "chat" && "Local · Qwen3-0.6B mixed int4"}
                   {mode === "voice" && "Listening · “Hey Andro”"}
                   {mode === "tools" && "Agent · 2 tools running"}
-                  {mode === "images" && "SD 1.5 · Vulkan GPU"}
                 </p>
               </div>
             </div>
             <span className="rounded-pill border border-[color-mix(in_srgb,var(--ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--ok)_8%,transparent)] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[var(--ok)]">
-              {mode === "images" ? "GPU" : "On-device"}
+              On-device
             </span>
           </div>
 
@@ -134,7 +114,7 @@ export function PhoneMockup() {
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[10px] font-semibold transition-all active:scale-95",
                   mode === m.id
-                    ? "bg-[var(--accent)] text-[#fbfaf4] shadow-ember"
+                    ? "bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] shadow-ember"
                     : "border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]"
                 )}
                 aria-pressed={mode === m.id}
@@ -153,7 +133,7 @@ export function PhoneMockup() {
                   {chatScript.slice(0, step).map((m, i) =>
                     m.from === "user" ? (
                       <motion.div key={i} {...reveal(i)} className="flex justify-end">
-                        <div className="max-w-[85%] rounded-slip rounded-br-sm border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))] bg-[var(--accent)] px-3 py-2 text-[11px] leading-relaxed text-[#fbfaf4]">
+                        <div className="max-w-[85%] rounded-slip rounded-br-sm border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))] bg-[var(--accent)] px-3 py-2 text-[11px] leading-relaxed text-[var(--btn-primary-text)]">
                           {m.text}
                         </div>
                       </motion.div>
@@ -179,7 +159,7 @@ export function PhoneMockup() {
                     <span className="absolute inset-0 animate-pulse-ring rounded-full border border-[var(--accent)]" aria-hidden />
                     <span className="absolute inset-0 animate-pulse-ring rounded-full border border-[var(--accent)] [animation-delay:-1.2s]" aria-hidden />
                     <div className="flex size-16 items-center justify-center rounded-full bg-[var(--accent)] shadow-ember">
-                      <Mic className="size-7 text-[#fbfaf4]" />
+                      <Mic className="size-7 text-[var(--btn-primary-text)]" />
                     </div>
                   </div>
                   <div className="flex h-8 items-end gap-[3px]" aria-hidden>
@@ -240,47 +220,6 @@ export function PhoneMockup() {
                 </motion.div>
               )}
 
-              {mode === "images" && (
-                <motion.div key="images" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2.5">
-                  <div className="rounded-slip border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-[11px] text-[var(--ink-dim)] shadow-card">
-                    <span className="font-semibold text-[var(--ink)]">Prompt:</span> “cyberpunk city at night, neon rain” · <span className="font-mono text-[10px]">euler_a · 20 steps · CFG 7</span>
-                  </div>
-                  <div className="relative overflow-hidden rounded-slip border border-[var(--line)] bg-[color-mix(in_srgb,var(--faint)_8%,var(--canvas))] aspect-square">
-                    <AnimatePresence>
-                      {!generated ? (
-                        <motion.div key="progress" exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
-                          <div className="flex items-end gap-[3px]" aria-hidden>
-                            {Array.from({ length: 16 }).map((_, i) => (
-                              <span key={i} className="w-[3px] animate-wave-bar rounded-full bg-[var(--accent)]" style={{ height: `${6 + ((i * 53) % 26)}px`, animationDelay: `${i * 0.09}s` }} />
-                            ))}
-                          </div>
-                          <div className="w-full">
-                            <div className="mb-1.5 flex justify-between font-mono text-[9px] uppercase tracking-widest text-[var(--faint)]">
-                              <span>{["preparing", "loading model", "generating", "finalizing"][Math.min(Math.floor(progress * 4), 3)]}</span>
-                              <span className="text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{Math.round(progress * 100)}%</span>
-                            </div>
-                            <div className="h-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--faint)_15%,transparent)]">
-                              <div className="h-full rounded-full bg-gradient-to-r from-[var(--accent-deep)] to-[var(--accent-soft)] transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
-                            </div>
-                          </div>
-                        </motion.div>
-                      ) : (
-                        <motion.div key="done" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="absolute inset-0">
-                          <GeneratedImageArt />
-                          <div className="absolute bottom-0 inset-x-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-8 text-[9px] font-semibold text-white">
-                            <span>512×512 · seed 42</span>
-                            <span className="rounded-pill bg-[var(--accent)] px-2 py-0.5 text-[8px] uppercase tracking-wider">Saved to gallery</span>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="flex-1 rounded-pill border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-center text-[10px] font-semibold text-[var(--muted)] shadow-card">Regenerate</span>
-                    <span className="flex-1 rounded-pill border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-center text-[10px] font-semibold text-[var(--muted)] shadow-card">Share</span>
-                  </div>
-                </motion.div>
-              )}
             </AnimatePresence>
           </div>
         </div>
@@ -326,11 +265,11 @@ function AgentTraceRow({
   );
 }
 
-function VulkanBar() {
+function GpuBar() {
   return (
     <span className="inline-flex items-center gap-1">
       <span className="inline-block size-1.5 rounded-full bg-[var(--ok)]" />
-      <span className="rounded bg-[color-mix(in_srgb,var(--ok)_12%,transparent)] px-1 py-px font-mono text-[8px] uppercase text-[var(--ok)]">Vulkan</span>
+      <span className="rounded bg-[color-mix(in_srgb,var(--ok)_12%,transparent)] px-1 py-px font-mono text-[8px] uppercase text-[var(--ok)]">GPU</span>
     </span>
   );
 }
@@ -344,7 +283,7 @@ function VoiceBubble({ text, speaker }: { text: string; speaker: "you" | "ai" | 
   return (
     <div className={cn("flex items-center gap-2", speaker === "you" && "justify-end")}>
       {speaker === "ai" && <Volume2 className="size-3 animate-ember-breathe text-[var(--accent)]" />}
-      <div className={cn("rounded-slip px-2.5 py-1.5 text-[10px] leading-snug", speaker === "you" ? "bg-[var(--accent)] text-[#fbfaf4]" : "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink-dim)] shadow-card")}>
+      <div className={cn("rounded-slip px-2.5 py-1.5 text-[10px] leading-snug", speaker === "you" ? "bg-[var(--accent)] text-[var(--btn-primary-text)]" : "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink-dim)] shadow-card")}>
         {done ? text : <span className="inline-block w-1 animate-pulse">▍</span>}
       </div>
     </div>
@@ -387,46 +326,3 @@ function TypingText({ text, onDone, fast }: { text: string; onDone: () => void; 
   );
 }
 
-function GeneratedImageArt() {
-  return (
-    <svg viewBox="0 0 240 240" className="h-full w-full" role="img" aria-label="Generated cyberpunk city illustration">
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#1a0e2e" />
-          <stop offset="0.6" stopColor="#3b1240" />
-          <stop offset="1" stopColor="#12121a" />
-        </linearGradient>
-        <linearGradient id="neon1" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#ff5fb0" />
-          <stop offset="1" stopColor="#7ef9ff" />
-        </linearGradient>
-      </defs>
-      <rect width="240" height="240" fill="url(#sky)" />
-      <circle cx="180" cy="48" r="26" fill="#ffd9a0" opacity="0.9" />
-      <circle cx="180" cy="48" r="60" fill="#ffb35c" opacity="0.12" />
-      <g opacity="0.85">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <rect key={i} x={10 + i * 26} y={90 + ((i * 19) % 60)} width={14} height={140 - ((i * 19) % 60)} fill={i % 3 === 0 ? "#241a38" : i % 3 === 1 ? "#2b1f3e" : "#1d152d"} />
-        ))}
-      </g>
-      {[0, 1, 2, 3].map((i) => (
-        <g key={i} opacity={0.5 + i * 0.1}>
-          <rect x={18 + i * 28} y={92 + ((i * 23) % 50)} width="3" height="10" fill={i % 2 ? "#7ef9ff" : "#ff5fb0"} />
-          <rect x={26 + i * 28} y={104 + ((i * 17) % 44)} width="2" height="7" fill="#ffd9a0" />
-        </g>
-      ))}
-      <path d="M0 192 Q60 176 120 190 T240 184 V240 H0 Z" fill="#0c0c14" />
-      <path d="M0 202 Q80 188 160 200 T240 196" stroke="url(#neon1)" strokeWidth="2" fill="none" opacity="0.9" />
-      <g stroke="#7ef9ff" strokeWidth="1" opacity="0.7">
-        {Array.from({ length: 14 }).map((_, i) => (
-          <line key={i} x1={8 + i * 18} y1={150 + ((i * 29) % 40)} x2={2 + i * 18} y2={238} />
-        ))}
-      </g>
-      <g opacity="0.9">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <circle key={i} cx={30 + i * 46} cy={60 + ((i * 31) % 50)} r={1 + (i % 2)} fill="#ffe9c9" />
-        ))}
-      </g>
-    </svg>
-  );
-}

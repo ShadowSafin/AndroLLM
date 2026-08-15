@@ -1,6 +1,7 @@
 package io.androllm.feature.home
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
@@ -35,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -270,7 +273,7 @@ private fun ModelStatusIsland(
                         telemetry.isModelLoaded && telemetry.currentModelName.isNotBlank() ->
                             telemetry.currentModelName
                         telemetry.isModelLoaded -> "On-Device Inference Active"
-                        else -> "Select a GGUF Model to Begin"
+                        else -> "Select a LiteRT Model to Begin"
                     },
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
@@ -454,7 +457,7 @@ private fun EmptyChatsIsland(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Start a new conversation with your local GGUF AI model",
+                text = "Start a new conversation with your local LiteRT AI model",
                 style = MaterialTheme.typography.bodySmall.copy(
                     color = DeskInk
                 )

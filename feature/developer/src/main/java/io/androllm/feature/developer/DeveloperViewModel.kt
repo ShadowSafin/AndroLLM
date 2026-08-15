@@ -1,10 +1,17 @@
 package io.androllm.feature.developer
 
+import android.app.ActivityManager
+import android.content.Context
+import android.os.Debug
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.UiState
 import io.androllm.core.common.getOrNull
+import io.androllm.core.runtime.Runtime
+import io.androllm.core.runtime.RuntimeRegistry
+import io.androllm.core.runtime.RuntimeStatus
 import io.androllm.core.telemetry.DeviceMetrics
 import io.androllm.core.telemetry.GenerationStat
 import io.androllm.core.memory.MemoryManager
@@ -32,9 +39,11 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class DeveloperViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val telemetryRepository: TelemetryRepository,
     private val engineRepository: EngineRepository,
-    private val memoryManager: MemoryManager
+    private val memoryManager: MemoryManager,
+    private val runtimeRegistry: RuntimeRegistry
 ) : BaseViewModel() {
 
     private val _debugInfo = MutableStateFlow<EngineDebugInfo?>(null)
@@ -87,12 +96,22 @@ class DeveloperViewModel @Inject constructor(
     private val _memoryStats = MutableStateFlow<MemoryInspectorStats?>(null)
     val memoryStats: StateFlow<MemoryInspectorStats?> = _memoryStats.asStateFlow()
 
+    /** Live system-RAM + native-heap snapshot (updated on refresh). */
+    private val _systemMemory = MutableStateFlow<SystemMemoryInfo?>(null)
+    val systemMemory: StateFlow<SystemMemoryInfo?> = _systemMemory.asStateFlow()
+
     private val _recentMemories = MutableStateFlow<List<Memory>>(emptyList())
     val recentMemories: StateFlow<List<Memory>> = _recentMemories.asStateFlow()
+
+    /** Every registered runtime + its availability snapshot (Runtime Registry). */
+    private val _runtimeStatuses = MutableStateFlow<List<Pair<Runtime, RuntimeStatus>>>(emptyList())
+    val runtimeStatuses: StateFlow<List<Pair<Runtime, RuntimeStatus>>> = _runtimeStatuses.asStateFlow()
 
     init {
         telemetryRepository.startSampling()
         refreshMemoryInspector()
+        refreshRuntimes()
+        refreshSystemMemory()
     }
 
     override fun onCleared() {
@@ -103,6 +122,39 @@ class DeveloperViewModel @Inject constructor(
     fun refresh() {
         telemetryRepository.refreshDeviceMetrics()
         refreshMemoryInspector()
+        refreshRuntimes()
+        refreshSystemMemory()
+    }
+
+    /**
+     * Snapshots system RAM and this process's native heap — the budgets the
+     * [io.androllm.engine.utils.ModelResourceGuard] actually checks before
+     * loading a model. Shows why a load was refused with real numbers.
+     */
+    fun refreshSystemMemory() {
+        _systemMemory.value = runCatching {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            val memInfo = ActivityManager.MemoryInfo()
+            am?.getMemoryInfo(memInfo)
+            SystemMemoryInfo(
+                totalRamBytes = memInfo.totalMem.takeIf { it > 0 } ?: 0L,
+                availableRamBytes = memInfo.availMem.takeIf { it > 0 } ?: 0L,
+                nativeHeapAllocatedBytes = Debug.getNativeHeapAllocatedSize(),
+                nativeHeapSizeBytes = Debug.getNativeHeapSize(),
+                lowMemory = memInfo.lowMemory
+            )
+        }.getOrNull()
+    }
+
+    /**
+     * Refreshes the Runtime Registry snapshot. Each runtime is evaluated in
+     * isolation inside the registry, so one failing runtime never hides the
+     * others (runtime independence).
+     */
+    fun refreshRuntimes() {
+        viewModelScope.launch {
+            _runtimeStatuses.value = runtimeRegistry.statuses()
+        }
     }
 
     /**
@@ -121,6 +173,23 @@ class DeveloperViewModel @Inject constructor(
             _debugInfo.value = engineRepository.getDebugInfo().getOrNull()
         }
     }
+}
+
+/**
+ * System RAM + native-heap snapshot used by the developer dashboard and the
+ * pre-load resource guard diagnostics.
+ */
+data class SystemMemoryInfo(
+    val totalRamBytes: Long = 0L,
+    val availableRamBytes: Long = 0L,
+    val nativeHeapAllocatedBytes: Long = 0L,
+    val nativeHeapSizeBytes: Long = 0L,
+    val lowMemory: Boolean = false
+) {
+    fun totalRamMb(): Long = totalRamBytes / (1024L * 1024L)
+    fun availableRamMb(): Long = availableRamBytes / (1024L * 1024L)
+    fun nativeHeapAllocatedMb(): Long = nativeHeapAllocatedBytes / (1024L * 1024L)
+    fun nativeHeapSizeMb(): Long = nativeHeapSizeBytes / (1024L * 1024L)
 }
 
 /**

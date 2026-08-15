@@ -6,6 +6,13 @@ import org.junit.Test
 class AutomationSettingsTest {
 
     @Test
+    fun `tool calling is enabled by default - the pipeline must never start off`() {
+        val defaults = AutomationSettings()
+        assertThat(defaults.toolCallingEnabled).isTrue()
+        assertThat(defaults.isToolEnabled("get_weather")).isTrue()
+    }
+
+    @Test
     fun `master switch gates everything`() {
         val off = AutomationSettings(toolCallingEnabled = false)
         assertThat(off.isToolEnabled("get_weather")).isFalse()

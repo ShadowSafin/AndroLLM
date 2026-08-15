@@ -5,15 +5,15 @@ import { Cpu, Zap, Database, ServerOff, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const logLines = [
-  { text: "$ androllm --model qwen2.5-7b-instruct-Q4_K_M.gguf", tone: "cmd" },
-  { text: "[Engine] libandrollm_llama.so loaded — llama.cpp (stock upstream)", tone: "ok" },
-  { text: "[GGUF] magic 47 47 55 46 ✓ · version 2 · architecture qwen2 ✓", tone: "ok" },
-  { text: "[Memory] estimated 4.2 GB across weights + 0.5 GB KV cache", tone: "info" },
-  { text: "[Vulkan] Adreno (TM) 750 · api 1.3 · gpuFree 5.1 GB", tone: "info" },
-  { text: "[Vulkan] shaders compiled — warm-up 2.4 s", tone: "warn" },
-  { text: "[VulkanDiag] validation passed · greedy + long-context + sampling", tone: "ok" },
+  { text: "$ androllm --model qwen3_0_6b_mixed_int4.litertlm", tone: "cmd" },
+  { text: "[Engine] LiteRT-LM 0.16.0 loaded — Kotlin runtime, no native code", tone: "ok" },
+  { text: "[Container] .litertlm verified ✓ · LlmMetadata proto · architecture qwen3 ✓", tone: "ok" },
+  { text: "[Memory] estimated 475 MB weights + 0.3 GB KV cache", tone: "info" },
+  { text: "[GPU] OpenCL delegate · Adreno (TM) 750 · gpuFree 5.1 GB", tone: "info" },
+  { text: "[GPU] delegate warm-up 0.9 s", tone: "warn" },
+  { text: "[RuntimeDiag] validation passed · greedy + long-context + sampling", tone: "ok" },
   { text: "[Engine] KV cache is conversation — diff-based continuation ON", tone: "info" },
-  { text: "streaming → 32.1 tok/s · 34 ms/token · backend VULKAN", tone: "accent" },
+  { text: "streaming → 32.1 tok/s · 34 ms/token · backend GPU delegate", tone: "accent" },
   { text: "[Memory] extracted 2 memories → vector index (local)", tone: "info" },
 ];
 
@@ -32,15 +32,15 @@ export function DesktopMockup() {
       <div
         className="absolute -inset-8 -z-10 rounded-full opacity-60 blur-3xl"
         aria-hidden
-        style={{ background: "radial-gradient(closest-side, rgba(217,119,87,0.14), transparent 70%)" }}
+        style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%)" }}
       />
-      <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--elevated)] shadow-[0_44px_90px_-28px_rgba(20,20,19,0.4)] dark:border-[#343432] dark:bg-[#1b1b1a] dark:shadow-[0_44px_90px_-28px_rgba(0,0,0,0.85)]">
+      <div className="overflow-hidden rounded-2xl border border-[var(--frame-desktop-border)] bg-[var(--frame-desktop-bg)] shadow-[var(--frame-desktop-shadow)]">
         {/* Window bar */}
         <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--deep)] px-4 py-3">
           <div className="flex items-center gap-1.5" aria-hidden>
-            <span className="size-2.5 rounded-full bg-[#E8836C]" />
-            <span className="size-2.5 rounded-full bg-[#E0A33D]" />
-            <span className="size-2.5 rounded-full bg-[#7BB37B]" />
+            <span className="size-2.5 rounded-full bg-[var(--dot-close)]" />
+            <span className="size-2.5 rounded-full bg-[var(--dot-minimize)]" />
+            <span className="size-2.5 rounded-full bg-[var(--dot-maximize)]" />
           </div>
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
             androllm · engine session
@@ -78,7 +78,7 @@ export function DesktopMockup() {
             <p className="ledger text-[var(--faint)]">Live telemetry</p>
             <div className="mt-4 space-y-3">
               <GaugeRow icon={Zap} label="tokens·s⁻¹" value="32.1" trend="+4.2" />
-              <GaugeRow icon={Cpu} label="backend" value="VULKAN" />
+              <GaugeRow icon={Cpu} label="backend" value="OPENCL" />
               <GaugeRow icon={Database} label="kv cache" value="512 MB" />
               <GaugeRow icon={ServerOff} label="cloud" value="0 req" />
             </div>

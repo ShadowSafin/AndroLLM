@@ -30,7 +30,7 @@ Thank you for your interest in contributing! This document covers everything you
    ```bash
    git checkout -b feat/add-new-provider
    # or
-   git checkout -b fix/vulkan-device-lost
+   git checkout -b fix/gpu-delegate-crash
    # or
    git checkout -b docs/update-voice-docs
    ```
@@ -47,22 +47,17 @@ Thank you for your interest in contributing! This document covers everything you
 |---|---|---|
 | Android Studio | Hedgehog (2023.1.1) | Latest stable preferred |
 | JDK | 17 | Managed by Gradle toolchain (foojay-resolver) |
-| Android SDK | API 34 | `compileSdk 34` |
-| Android NDK | r26 (26.1.10909125) | Required for `engine` module |
-| CMake | 3.22.1+ | Bundled with Android Studio |
-| Vulkan SDK | Latest stable | Required for host-side shader compilation |
+| Android SDK | API 35 | `compileSdk 35` |
+
+No NDK, CMake, or Vulkan SDK are required — the inference engine consumes
+LiteRT-LM / LiteRT AARs from Google Maven (the only native build in the repo is
+the `:whisper` module).
 
 ### Recommended Setup
 
 ```bash
 # Set environment variables (add to ~/.bashrc or ~/.zshrc)
 export ANDROID_HOME=$HOME/Android/Sdk
-export ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125
-export VULKAN_SDK=$HOME/VulkanSDK/1.3.275.0/x86_64
-
-# For emulator testing (x86_64 ABI)
-./gradlew :engine:build \
-  -PandrollmAbis=arm64-v8a,x86_64
 ```
 
 ### IDE Configuration
@@ -82,7 +77,7 @@ AndroLLM follows **Clean Architecture** with a clear separation between layers:
 Presentation Layer    ← Feature modules (UI, ViewModel, Compose)
 Domain Layer          ← Core modules (models, interfaces, use cases)
 Data Layer            ← Core modules (repositories, database, network)
-Native Layer          ← Engine module (JNI + llama.cpp)
+Engine Layer          ← Engine module (LiteRT-LM runtime integration)
 ```
 
 ### Rules
@@ -92,7 +87,7 @@ Native Layer          ← Engine module (JNI + llama.cpp)
 3. **All DI goes through Hilt.** Never use `object` singletons for services; use `@Singleton @Inject`.
 4. **UI state flows outward.** Use `StateFlow`/`Flow` from ViewModels to composables; never mutate UI state directly.
 5. **Prefer immutable data.** Use `data class` with `val` properties; avoid mutable state in domain objects.
-6. **Native calls are isolated.** All JNI interactions go through `LlamaJniBridge`; never call `System.loadLibrary` outside the engine module.
+6. **Engine calls stay on background dispatchers.** The engine is a pure Kotlin/Java module wrapping the LiteRT-LM runtime; never block the main thread with engine or model I/O.
 
 ---
 
@@ -103,7 +98,7 @@ Native Layer          ← Engine module (JNI + llama.cpp)
 AndroLLM follows the [official Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) plus these project-specific rules:
 
 #### Naming
-- Classes: `PascalCase` — `LlamaCppEngine`, `ChatViewModel`
+- Classes: `PascalCase` — `LiteRtLmEngine`, `ChatViewModel`
 - Functions/variables: `camelCase` — `generateChatStream()`, `engineHandle`
 - Constants: `UPPER_SNAKE_CASE` — `MAX_CONTEXT_LENGTH`, `DEFAULT_TEMPERATURE`
 - Private fields: prefix with underscore — `_messages`, `_isGenerating`
@@ -186,8 +181,8 @@ abstract class VoiceModule {
 #### Git Commits
 ```
 feat(chat): add markdown code block syntax highlighting
-fix(engine): prevent NaN logits after context shift
-docs: add Vulkan troubleshooting guide
+fix(engine): recover from GPU delegate crash with CPU fallback
+docs: add GPU acceleration troubleshooting guide
 refactor(memory): extract embedding routing into separate class
 test(models): add catalog validator edge case tests
 chore(deps): bump sherpa-onnx to 1.13.4
@@ -212,7 +207,7 @@ Tests should cover:
 - Catalog parsing and validation
 - Network response serialization
 - Memory extraction and vector math
-- GGUF validation logic
+- Engine compat layer: container metadata, chat templates, stop-sequence tracking, tool-call scanning
 
 Pattern:
 ```kotlin
@@ -256,7 +251,8 @@ Tests for:
 
 ### Model Tests
 Engine-level tests verify:
-- GGUF header parsing correctness
+- Container metadata parsing correctness (`ContainerMetadataReader`)
+- Family resolution and chat template rendering
 - Memory estimation accuracy
 - Serialization round-trips for `GenerationConfig`
 
@@ -318,9 +314,9 @@ If you add a feature visible to users, update the README feature list and any re
 Public APIs must have KDoc comments:
 ```kotlin
 /**
- * Loads a GGUF model from the given file path.
+ * Loads a .litertlm model from the given file path.
  *
- * @param modelPath Absolute path to the GGUF file
+ * @param modelPath Absolute path to the .litertlm file
  * @param config Generation configuration (temperature, top-k, etc.)
  * @return Result containing the loaded model info or an error
  * @throws IllegalStateException if the engine is not initialized

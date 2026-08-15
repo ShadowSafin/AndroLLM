@@ -162,7 +162,7 @@ No permissions are requested at app launch.
 
 ### Model Files
 
-- GGUF files stored in app-private storage
+- `.litertlm` model files stored in app-private storage
 - Not accessible to other apps without root
 - Delete removes both file and database entry atomically
 
@@ -221,15 +221,16 @@ install(HttpClientEngineConfig) {
 
 ### Threat: Malicious Model File
 
-**Scenario:** User downloads a GGUF file from an untrusted source.
+**Scenario:** User downloads a `.litertlm` file from an untrusted source.
 
 **Mitigations:**
-1. `GgufValidator` validates header structure before native loading
-2. Invalid magic bytes rejected before any native code runs
-3. Unknown architectures rejected by `SupportedArchitectures` whitelist
-4. The native engine runs in a separate process (no shared memory with attacker code)
+1. `LiteRtValidator` validates the container header before any model code loads
+2. Invalid container headers rejected before the LiteRT-LM runtime touches the file
+3. Embedded `LlmMetadata` proto is parsed defensively; unknown families rejected by the `ModelFamilyRegistry` whitelist
+4. Model files are stored in app-private storage and treated as untrusted input
+5. A post-load coherence probe (temperature-0 self-test) detects corrupted/garbage weights before use
 
-**Remaining risk:** Buffer overflow vulnerabilities in llama.cpp itself. Mitigated by keeping the vendored llama.cpp updated to latest upstream.
+**Remaining risk:** Vulnerabilities in the Google-maintained LiteRT-LM / LiteRT runtimes. Mitigated by staying current with LiteRT-LM releases.
 
 ### Threat: API Key Leakage
 
