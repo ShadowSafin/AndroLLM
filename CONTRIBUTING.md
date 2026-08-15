@@ -335,7 +335,7 @@ New features should have a corresponding `documentation/` entry explaining:
 
 ## Reporting Bugs
 
-Use the [bug report template](https://github.com/your-org/androllm/issues/new?template=bug_report.md) when filing issues. Include:
+Use the [bug report template](https://github.com/ShadowSafin/AndroLLM/issues/new?template=bug_report.md) when filing issues. Include:
 
 1. **Device info**: Model, Android version, RAM
 2. **App version**: From Settings → About
@@ -349,7 +349,7 @@ Use the [bug report template](https://github.com/your-org/androllm/issues/new?te
 
 ## Feature Requests
 
-Use the [feature request template](https://github.com/your-org/androllm/issues/new?template=feature_request.md). Please explain:
+Use the [feature request template](https://github.com/ShadowSafin/AndroLLM/issues/new?template=feature_request.md). Please explain:
 
 1. **The problem** you're trying to solve
 2. **Why it matters** to you and potentially other users
@@ -364,7 +364,7 @@ Use the [feature request template](https://github.com/your-org/androllm/issues/n
 2. Read the [ARCHITECTURE.md](documentation/ARCHITECTURE.md) doc to understand the system
 3. Ask questions in issues — maintainers are happy to help
 4. Start small: a documentation fix, a test addition, a typo correction
-5. Join the conversation in [Discussions](https://github.com/your-org/androllm/discussions)
+5. Join the conversation in [Discussions](https://github.com/ShadowSafin/AndroLLM/discussions)
 
 ---
 

@@ -10,7 +10,7 @@ Quick start guide for new users.
 
 ```bash
 # Prerequisites: Android Studio, JDK 17
-git clone https://github.com/your-org/androllm.git
+git clone https://github.com/ShadowSafin/AndroLLM.git
 cd androllm
 ./gradlew assembleDebug
 ```
@@ -143,4 +143,4 @@ For detailed troubleshooting, see [TROUBLESHOOTING.md](../TROUBLESHOOTING.md).
 - Read [ARCHITECTURE.md](../ARCHITECTURE.md) to understand how the app works
 - Check [MODEL_SUPPORT.md](../MODEL_SUPPORT.md) for model recommendations
 - Visit [FAQ.md](../FAQ.md) for common questions
-- Join the community: [GitHub Discussions](https://github.com/your-org/androllm/discussions)
+- Join the community: [GitHub Discussions](https://github.com/ShadowSafin/AndroLLM/discussions)

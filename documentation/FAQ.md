@@ -195,4 +195,4 @@ See [BUILDING.md](BUILDING.md).
 See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ### Where do I report bugs?
-File an issue on [GitHub](https://github.com/your-org/androllm/issues) using the bug report template. Include device info, logs, and repro steps.
+File an issue on [GitHub](https://github.com/ShadowSafin/AndroLLM/issues) using the bug report template. Include device info, logs, and repro steps.

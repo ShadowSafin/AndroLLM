@@ -22,7 +22,7 @@ vulnerability, please report it responsibly.
 Instead, report via:
 
 1. **GitHub Security Advisories**: Use the "Report a vulnerability" button on
-   the [AndroLLM repository](https://github.com/your-org/androllm/security)
+   the [AndroLLM repository](https://github.com/ShadowSafin/AndroLLM/security)
 2. **Email**: Send details to the maintainers at the email listed in the
    repository's `package.json` or commit history
 

@@ -17,7 +17,7 @@ Start with the documentation — most common questions are answered there:
 
 ### 2. Issue Tracker
 
-Search [existing issues](https://github.com/your-org/androllm/issues) before opening a new one.
+Search [existing issues](https://github.com/ShadowSafin/AndroLLM/issues) before opening a new one.
 Many problems have already been reported and resolved.
 
 **Bug Reports:**
@@ -40,8 +40,8 @@ See [SECURITY.md](SECURITY.md) for responsible disclosure procedures.
 
 ## Community
 
-- 🐛 **Bug reports & features**: [GitHub Issues](https://github.com/your-org/androllm/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-org/androllm/discussions)
+- 🐛 **Bug reports & features**: [GitHub Issues](https://github.com/ShadowSafin/AndroLLM/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/ShadowSafin/AndroLLM/discussions)
 - 📖 **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---

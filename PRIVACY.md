@@ -144,4 +144,4 @@ We may update this privacy policy periodically. Changes will be posted in this f
 
 For privacy-related questions or requests:
 - Email: [your-contact-email]
-- GitHub Issues: [https://github.com/your-org/androllm/issues](https://github.com/your-org/androllm/issues)
+- GitHub Issues: [https://github.com/ShadowSafin/AndroLLM/issues](https://github.com/ShadowSafin/AndroLLM/issues)

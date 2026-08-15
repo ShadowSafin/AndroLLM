@@ -95,7 +95,7 @@ This document tracks the planned development direction for AndroLLM. Items are m
 
 Want to help with a planned feature?
 
-1. Check [existing issues](https://github.com/your-org/androllm/issues) for related work
+1. Check [existing issues](https://github.com/ShadowSafin/AndroLLM/issues) for related work
 2. Comment on the issue to claim it or propose an approach
 3. Read [CONTRIBUTING.md](../CONTRIBUTING.md) for development guidelines
 4. Open a PR with your changes
