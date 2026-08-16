@@ -42,6 +42,15 @@ object StreamingParser {
         /** Token usage reported on the final chunk (or via `usage`). */
         data class UsageInfo(val usage: CloudUsage) : Parsed
 
+        /**
+         * The provider signalled the end of this completion with a specific
+         * finish reason (`stop`, `length`, `tool_calls`, `end_turn`, ...).
+         * `length` = the output hit the token ceiling — the caller must
+         * request a continuation rather than treat the answer as complete.
+         * Carries [usage] when the chunk also reported it.
+         */
+        data class Finish(val reason: String, val usage: CloudUsage? = null) : Parsed
+
         /** The `data: [DONE]` terminal marker. */
         data object Done : Parsed
 
@@ -99,13 +108,23 @@ object StreamingParser {
         if (trimmed == "[DONE]") return Parsed.Done
         val chunk = runCatching { json.decodeFromString(CloudChatChunk.serializer(), trimmed) }
             .getOrElse { return Parsed.Ignored } // partial/truncated JSON → skip
-        chunk.usage?.let { return Parsed.UsageInfo(it) }
-        val delta = chunk.choices.firstOrNull()?.delta ?: return Parsed.Ignored
-        val content = delta.content
+        val choice = chunk.choices.firstOrNull()
+        val delta = choice?.delta
+        // Content/thinking tokens first: even when a provider folds the final
+        // token into the terminal chunk, the text is NEVER dropped.
+        val content = delta?.content
         if (!content.isNullOrEmpty()) return Parsed.Content(content)
-        val reasoning = delta.reasoning_content
+        val reasoning = delta?.reasoning_content
         if (!reasoning.isNullOrEmpty()) return Parsed.Reasoning(reasoning)
-        val toolCall = delta.tool_calls?.firstOrNull()
+        // A terminal chunk carries finish_reason (possibly together with
+        // usage); surface it so `length` is never mistaken for a completed
+        // `stop` answer.
+        val finishReason = choice?.finish_reason
+        if (!finishReason.isNullOrBlank()) {
+            return Parsed.Finish(reason = finishReason, usage = chunk.usage)
+        }
+        chunk.usage?.let { return Parsed.UsageInfo(it) }
+        val toolCall = delta?.tool_calls?.firstOrNull()
         if (toolCall != null) {
             return Parsed.ToolCall(
                 index = toolCall.index,
@@ -132,6 +151,7 @@ object StreamingParser {
             completionTokens = parsed.usage.completion_tokens,
             totalTokens = parsed.usage.total_tokens
         )
+        is Parsed.Finish -> CloudStreamEvent.Finish(parsed.reason)
         Parsed.Done -> CloudStreamEvent.Done
         Parsed.Ignored -> null
     }

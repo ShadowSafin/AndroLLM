@@ -8,6 +8,7 @@ import io.androllm.core.cloud.model.CloudException
 import io.androllm.core.cloud.model.CloudHealth
 import io.androllm.core.cloud.model.CloudModelInfo
 import io.androllm.core.cloud.model.CloudModelOverrides
+import io.androllm.core.cloud.model.ModelMetadata
 import io.androllm.core.cloud.model.CloudProvider
 import io.androllm.core.cloud.model.CloudQuota
 import io.androllm.core.cloud.model.CloudStreamEvent
@@ -123,6 +124,24 @@ class LiteLLMClient(
                             )
                             StreamingParser.Parsed.Ignored
                         }
+                        is StreamingParser.Parsed.Finish -> {
+                            // Surface the provider's terminal signal — `stop`
+                            // ends the turn normally, `length` means the output
+                            // hit the token ceiling and the caller must request
+                            // a continuation instead of accepting a truncated
+                            // answer.
+                            parsed.usage?.let {
+                                emit(
+                                    CloudStreamEvent.Usage(
+                                        promptTokens = it.prompt_tokens,
+                                        completionTokens = it.completion_tokens,
+                                        totalTokens = it.total_tokens
+                                    )
+                                )
+                            }
+                            emit(CloudStreamEvent.Finish(parsed.reason))
+                            StreamingParser.Parsed.Ignored
+                        }
                         StreamingParser.Parsed.Done -> {
                             emit(CloudStreamEvent.Done)
                             StreamingParser.Parsed.Done
@@ -217,13 +236,15 @@ class LiteLLMClient(
 
     /**
      * Rich model metadata from `/v1/model/info`: maps each model id to its
-     * effective context window (when the proxy reports it).
+     * effective context window and its maximum output tokens (when the proxy
+     * reports them). The max-output map lets callers size `max_tokens` per
+     * provider instead of an artificial ceiling.
      */
     suspend fun listModelMetadata(
         provider: CloudProvider,
         apiKey: String?,
         retries: Int = 3
-    ): Map<String, Long> = withRetries(retries, "model info") {
+    ): ModelMetadata = withRetries(retries, "model info") {
         val response = api.modelInfo(v1Url(provider, null, "model/info"), buildHeaders(provider, apiKey, null))
         if (!response.isSuccessful) {
             throw CloudException(
@@ -231,9 +252,15 @@ class LiteLLMClient(
                 statusCode = response.code()
             )
         }
-        response.body()?.data.orEmpty().mapNotNull { entry ->
-            entry.info?.effectiveContextWindow?.let { entry.modelName to it }
-        }.toMap()
+        val entries = response.body()?.data.orEmpty()
+        ModelMetadata(
+            contextWindows = entries.mapNotNull { entry ->
+                entry.info?.effectiveContextWindow?.let { entry.modelName to it }
+            }.toMap(),
+            maxOutputTokens = entries.mapNotNull { entry ->
+                entry.info?.maxOutputTokens?.let { entry.modelName to it }
+            }.toMap()
+        )
     }
 
     /**

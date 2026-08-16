@@ -47,6 +47,15 @@ class CloudGateway @Inject constructor(
     }
 
     /**
+     * Best-effort maximum output tokens for the active model ([modelId]
+     * overrides the default selection), from /v1/model/info metadata. Null
+     * when unknown — requests should then omit `max_tokens` so the provider
+     * uses its own maximum instead of an artificial ceiling.
+     */
+    suspend fun maxOutputTokensFor(modelId: String? = null): Long? =
+        manager.maxOutputTokensFor(modelId)
+
+    /**
      * Streams a chat completion with the active provider + default model
      * ([modelId] overrides the selection). Throws [CloudException] when no
      * provider/model is configured or the request fails.

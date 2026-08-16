@@ -51,7 +51,8 @@ class BatteryTool @Inject constructor(
         supportedTasks = listOf(
             "battery", "battery percentage", "charging", "charge level",
             "battery health", "battery temperature"
-        )
+        ),
+        cacheable = true
     )
 
     override suspend fun execute(arguments: JsonObject): ToolResult {

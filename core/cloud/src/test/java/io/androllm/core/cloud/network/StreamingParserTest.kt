@@ -47,14 +47,33 @@ class StreamingParserTest {
     }
 
     @Test
-    fun `parses usage from final chunk`() {
+    fun `parses finish reason with usage from final chunk`() {
         val payload = """{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":3,"total_tokens":12}}"""
         val parsed = StreamingParser.parsePayload(payload)
-        assertTrue(parsed is StreamingParser.Parsed.UsageInfo)
-        val usage = (parsed as StreamingParser.Parsed.UsageInfo).usage
-        assertEquals(9L, usage.prompt_tokens)
-        assertEquals(3L, usage.completion_tokens)
-        assertEquals(12L, usage.total_tokens)
+        assertTrue(parsed is StreamingParser.Parsed.Finish)
+        val finish = parsed as StreamingParser.Parsed.Finish
+        assertEquals("stop", finish.reason)
+        assertEquals(12L, finish.usage?.total_tokens)
+        assertEquals(CloudStreamEvent.Finish("stop"), StreamingParser.toStreamEvent(payload))
+    }
+
+    @Test
+    fun `surfaces length finish reason so callers can continue`() {
+        // Providers signal truncation on a terminal chunk with an empty delta.
+        val payload = """{"choices":[{"delta":{},"finish_reason":"length"}]}"""
+        val parsed = StreamingParser.parsePayload(payload)
+        assertTrue(parsed is StreamingParser.Parsed.Finish)
+        assertEquals("length", (parsed as StreamingParser.Parsed.Finish).reason)
+        // `length` must NEVER be reported as a plain content delta — the
+        // caller has to know the answer was cut short.
+        assertEquals(CloudStreamEvent.Finish("length"), StreamingParser.toStreamEvent(payload))
+    }
+
+    @Test
+    fun `content delta in same chunk as finish reason is preserved as content`() {
+        // Some proxies fold the last content token into the terminal chunk.
+        val payload = """{"choices":[{"delta":{"content":"half"},"finish_reason":"stop"}]}"""
+        assertEquals(StreamingParser.Parsed.Content("half"), StreamingParser.parsePayload(payload))
     }
 
     @Test

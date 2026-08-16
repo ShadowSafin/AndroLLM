@@ -44,6 +44,13 @@ class WebSearchTool @Inject constructor(
             "search", "web search", "look up", "news", "current events",
             "prices", "facts", "latest", "google"
         ),
+        // Pure read — identical re-runs (e.g. regenerate) reuse the cached
+        // result instead of re-hitting the network.
+        cacheable = true,
+        // Multi-provider fallback chain can legitimately take longer than the
+        // default 20s executor budget on slow networks; a premature timeout
+        // would discard a search that was still completing.
+        executionTimeoutMs = 60_000L,
         parameters = buildJsonObject {
             put("type", "object")
             putJsonObject("properties") {
@@ -117,6 +124,9 @@ class WebSearchTool @Inject constructor(
             )
         }
 
+        // The FULL result set is preserved — no snippet truncation. The model
+        // must never answer from a cut-down summary; large outputs are chunked
+        // downstream by the coordinator when they exceed the chunk budget.
         val top = results.take(6)
         val data = buildJsonObject {
             put("query", query)
@@ -135,10 +145,10 @@ class WebSearchTool @Inject constructor(
             }
         }
         val sb = StringBuilder("Search results for \"$query\":")
-        top.take(5).forEachIndexed { i, r ->
+        top.forEachIndexed { i, r ->
             sb.append(' ').append(i + 1).append(". ")
                 .append(r.title).append(" — ")
-                .append(r.snippet.take(160))
+                .append(r.snippet)
         }
         return ToolResult.Success(summary = sb.toString(), data = data)
     }

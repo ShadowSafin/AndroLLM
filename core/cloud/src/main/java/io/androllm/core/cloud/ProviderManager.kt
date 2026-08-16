@@ -45,6 +45,7 @@ class ProviderManager @Inject constructor(
                     providerName = provider.name,
                     isCustom = false,
                     contextWindow = provider.modelContextWindows[id],
+                    maxOutputTokens = provider.modelMaxOutputTokens[id],
                     isFavorite = id in settings.favoriteModelIds,
                     isDefault = settings.defaultProviderId == provider.id && settings.defaultModelId == id,
                     enabled = provider.enabled
@@ -60,6 +61,7 @@ class ProviderManager @Inject constructor(
                     description = model.description,
                     tags = model.tags,
                     contextWindow = provider.modelContextWindows[model.modelId],
+                    maxOutputTokens = provider.modelMaxOutputTokens[model.modelId],
                     isFavorite = model.modelId in settings.favoriteModelIds,
                     isDefault = settings.defaultProviderId == provider.id && settings.defaultModelId == model.modelId,
                     enabled = provider.enabled
@@ -349,9 +351,9 @@ class ProviderManager @Inject constructor(
         val apiKey = getApiKey(provider)
         val (models, quota) = client.listModelsWithQuota(provider, apiKey)
         val modelIds = models.map { it.id }.distinct().sorted()
-        val contextWindows = runCatching { client.listModelMetadata(provider, apiKey) }
-            .getOrDefault(emptyMap())
-        persistTestResult(id, provider.latencyMs, provider.lastError, quota, modelIds, contextWindows)
+        val metadata = runCatching { client.listModelMetadata(provider, apiKey) }
+            .getOrDefault(io.androllm.core.cloud.model.ModelMetadata())
+        persistTestResult(id, provider.latencyMs, provider.lastError, quota, modelIds, metadata)
         return modelIds.size
     }
 
@@ -361,7 +363,7 @@ class ProviderManager @Inject constructor(
         error: String,
         quota: io.androllm.core.cloud.model.CloudQuota?,
         modelIds: List<String>?,
-        contextWindows: Map<String, Long> = emptyMap()
+        metadata: io.androllm.core.cloud.model.ModelMetadata = io.androllm.core.cloud.model.ModelMetadata()
     ) {
         store.update { settings ->
             settings.copy(
@@ -372,7 +374,8 @@ class ProviderManager @Inject constructor(
                         quota = quota,
                         lastCheckedAt = System.currentTimeMillis(),
                         modelIds = modelIds ?: it.modelIds,
-                        modelContextWindows = if (contextWindows.isEmpty()) it.modelContextWindows else contextWindows
+                        modelContextWindows = if (metadata.contextWindows.isEmpty()) it.modelContextWindows else metadata.contextWindows,
+                        modelMaxOutputTokens = if (metadata.maxOutputTokens.isEmpty()) it.modelMaxOutputTokens else metadata.maxOutputTokens
                     )
                 }
             )
@@ -394,6 +397,16 @@ class ProviderManager @Inject constructor(
         val defaultModel = store.current().defaultModelId
         if (defaultModel.isNotBlank()) return defaultModel
         return provider.modelIds.firstOrNull()
+    }
+
+    /**
+     * Best-effort maximum output tokens for [modelId] (the resolved default
+     * when null), from /v1/model/info metadata. Null when unknown — callers
+     * should then omit `max_tokens` and let the provider pick its own max.
+     */
+    suspend fun maxOutputTokensFor(modelId: String? = null): Long? {
+        val resolved = resolveChatModel(modelId) ?: return null
+        return resolved.provider.modelMaxOutputTokens[resolved.modelId]
     }
 
     /**

@@ -216,7 +216,9 @@ class ChatManager @Inject constructor(
                         config = CloudGenerationConfig(
                             temperature = 0.7,
                             topP = 0.95,
-                            maxTokens = 8192,
+                            // null = omit max_tokens so the provider uses its
+                            // own maximum output instead of an 8k ceiling.
+                            maxTokens = null,
                             tools = tools
                         )
                     ).collect { event ->

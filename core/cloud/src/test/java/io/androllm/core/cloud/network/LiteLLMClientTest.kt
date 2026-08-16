@@ -102,6 +102,9 @@ class LiteLLMClientTest {
                 CloudStreamEvent.Delta("Hello"),
                 CloudStreamEvent.Delta(" world"),
                 CloudStreamEvent.Usage(3, 2, 5),
+                // The terminal chunk carries finish_reason="stop" — surfaced
+                // so callers can tell a natural stop from a "length" truncation.
+                CloudStreamEvent.Finish("stop"),
                 CloudStreamEvent.Done
             ),
             events
@@ -254,22 +257,24 @@ class LiteLLMClientTest {
     }
 
     @Test
-    fun `listModelMetadata maps context windows from model info`() = runTest {
+    fun `listModelMetadata maps context windows and max output tokens from model info`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
                 .setHeader("Content-Type", "application/json")
                 .setBody(
                     """{"data":[""" +
-                        """{"model_name":"openai/gpt-4o","model_info":{"id":"gpt-4o","context_window":128000,"max_input_tokens":128000,"mode":"chat"}},""" +
-                        """{"model_name":"gemini/gemini-pro","model_info":{"id":"gemini-pro","max_input_tokens":1000000,"mode":"chat"}}]}"""
+                        """{"model_name":"openai/gpt-4o","model_info":{"id":"gpt-4o","context_window":128000,"max_input_tokens":128000,"max_output_tokens":16384,"mode":"chat"}},""" +
+                        """{"model_name":"gemini/gemini-pro","model_info":{"id":"gemini-pro","max_input_tokens":1000000,"max_output_tokens":65536,"mode":"chat"}}]}"""
                 )
         )
 
-        val windows = client.listModelMetadata(provider, "sk-test")
+        val metadata = client.listModelMetadata(provider, "sk-test")
 
-        assertEquals(128_000L, windows["openai/gpt-4o"])
-        assertEquals(1_000_000L, windows["gemini/gemini-pro"])
+        assertEquals(128_000L, metadata.contextWindows["openai/gpt-4o"])
+        assertEquals(1_000_000L, metadata.contextWindows["gemini/gemini-pro"])
+        assertEquals(16_384L, metadata.maxOutputTokens["openai/gpt-4o"])
+        assertEquals(65_536L, metadata.maxOutputTokens["gemini/gemini-pro"])
         assertEquals("/proxy/v1/model/info", server.takeRequest().path)
     }
 

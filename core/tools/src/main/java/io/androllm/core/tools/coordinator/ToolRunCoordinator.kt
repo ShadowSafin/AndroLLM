@@ -4,6 +4,8 @@ import io.androllm.core.tools.agent.AgentContextBuilder
 import io.androllm.core.cloud.model.CloudChatMessage
 import io.androllm.core.cloud.model.CloudTool
 import io.androllm.core.cloud.model.CloudToolCall
+import io.androllm.core.cloud.model.CloudToolCallFunction
+import io.androllm.core.cloud.network.RetryPolicy
 import io.androllm.core.tools.api.ToolCall
 import io.androllm.core.tools.api.ToolEvent
 import io.androllm.core.tools.api.ToolResult
@@ -40,6 +42,17 @@ data class ToolExecutionRecord(
  * The LLM never executes anything itself: it produces tool calls, this class
  * executes them through the gated [ToolExecutor], and the results are fed back
  * for the model to summarize.
+ *
+ * Hardening guarantees (see documentation/agent/tools.md):
+ * - **Never truncate tool output.** The complete result is fed back; oversized
+ *   outputs are split into sequential `role="tool"` chunks, never cut.
+ * - **Retry with backoff.** Transient failures retry up to 3 times with
+ *   exponential backoff; only a terminal failure reaches the model.
+ * - **Result cache.** Pure-read tools (web search, weather, calculator,
+ *   battery) replay identical calls from [ToolResultCache] instead of
+ *   re-executing.
+ * - **Detailed logging** of every call: name, args, duration, retries,
+ *   output size, chunk count, cache hit/miss.
  */
 @Singleton
 class ToolRunCoordinator @Inject constructor(
@@ -47,7 +60,8 @@ class ToolRunCoordinator @Inject constructor(
     private val executor: ToolExecutor,
     private val settingsStore: AutomationSettingsStore,
     private val agentContext: AgentContextBuilder,
-    private val registry: ToolRegistry
+    private val registry: ToolRegistry,
+    private val resultCache: ToolResultCache = ToolResultCache()
 ) {
 
     /** True when the user has enabled the tool-calling pipeline. */
@@ -78,13 +92,18 @@ class ToolRunCoordinator @Inject constructor(
      * Executes the accumulated cloud tool calls and returns the messages to
      * append to the OpenAI history: first the assistant message carrying the
      * `tool_calls` (plus any text the model streamed alongside them via
-     * [assistantContent]), then one `role="tool"` message per call.
+     * [assistantContent]), then one or more `role="tool"` messages per call.
      *
      * [guard] (per-turn loop protection) filters each call: a call that
      * already ran with the same arguments, a tool at its consecutive cap, a
      * disabled tool, or the turn's total-call cap are skipped WITHOUT
      * executing — the model gets no `role="tool"` reply for them, and the
      * caller can inject [ToolLoopGuard.stopReason] and stop the round.
+     *
+     * Output hardening: a result larger than [TOOL_RESULT_CHUNK_CHARS] is
+     * split into sequential chunks, each delivered as its own `role="tool"`
+     * message (the assistant message declares one synthetic sub-call per
+     * chunk so the wire format stays valid). Nothing is ever truncated.
      */
     suspend fun executeCloudToolCalls(
         calls: List<CloudToolCall>,
@@ -93,32 +112,34 @@ class ToolRunCoordinator @Inject constructor(
         guard: ToolLoopGuard? = null
     ): List<CloudChatMessage> {
         if (calls.isEmpty()) return emptyList()
-        val assistantMsg = CloudChatMessage(
-            role = "assistant",
-            content = assistantContent?.takeIf { it.isNotBlank() },
-            toolCalls = calls
-        )
-        val results = calls.mapIndexedNotNull { index, call ->
-            val name = call.function?.name ?: return@mapIndexedNotNull null
-            if (name.isBlank()) return@mapIndexedNotNull null
+        val assistantCalls = mutableListOf<CloudToolCall>()
+        val toolMessages = mutableListOf<CloudChatMessage>()
+        calls.forEachIndexed { index, call ->
+            val name = call.function?.name ?: return@forEachIndexed
+            if (name.isBlank()) return@forEachIndexed
             val args = parseArguments(call.function?.arguments)
             // Loop guard: never re-run an identical call, never run a tool at
             // its cap, never run a disabled tool — skip instead of executing.
             if (guard != null && !guard.canExecute(name, args)) {
                 Timber.i("ToolRunCoordinator: guard blocked '$name' — skipping (total=${guard.totalCalls})")
-                return@mapIndexedNotNull null
+                return@forEachIndexed
             }
-            val toolCall = ToolCall(
-                // Index suffix keeps same-name calls distinct when the provider
-                // omits ids — shared ids would collide in the confirmation map.
-                id = call.id ?: "call_${name.hashCode().toUInt().toString(16)}_$index",
-                name = name,
-                arguments = args
-            )
-            onEvent(ToolEvent.Started(name, args.toString().take(200)))
-            val result = executor.execute(toolCall)
+            val baseId = call.id ?: "call_${name.hashCode().toUInt().toString(16)}_$index"
+            val toolCall = ToolCall(id = baseId, name = name, arguments = args)
+            val argsText = args.entries.joinToString(", ") { (k, v) -> "$k=$v" }.take(200)
+            onEvent(ToolEvent.Started(name, argsText))
+
+            val startedAt = System.currentTimeMillis()
+            val (result, fromCache, retryCount) = executeWithCacheAndRetry(toolCall, onEvent)
+            val durationMs = System.currentTimeMillis() - startedAt
             guard?.record(name, args, result)
-            Timber.i("ToolRunCoordinator: cloud tool '$name' -> ${result.statusLabel}")
+
+            val summary = result.summary
+            val chunks = chunkToolOutput(summary)
+            Timber.i(
+                "ToolRunCoordinator: cloud tool '%s' -> %s in %dms (retries=%d, cache=%s, output=%dB, chunks=%d)",
+                name, result.statusLabel, durationMs, retryCount, fromCache, summary.length, chunks.size
+            )
             val declined = result is ToolResult.Failure &&
                 !result.retryable && result.summary.startsWith("The user declined")
             onEvent(
@@ -130,14 +151,51 @@ class ToolRunCoordinator @Inject constructor(
                     ToolEvent.Failed(name, result.summary)
                 }
             )
-            CloudChatMessage(
-                role = "tool",
-                content = result.summary,
-                toolCallId = call.id ?: toolCall.id
-            )
+            if (chunks.size == 1) {
+                assistantCalls += CloudToolCall(
+                    index = index,
+                    id = baseId,
+                    type = "function",
+                    function = CloudToolCallFunction(name, call.function?.arguments)
+                )
+                toolMessages += CloudChatMessage(
+                    role = "tool",
+                    content = chunks[0],
+                    toolCallId = baseId
+                )
+            } else {
+                // Oversized output: one synthetic sub-call per chunk, each
+                // answered by its own tool message — the complete result is
+                // delivered sequentially and nothing is discarded. Each chunk
+                // is labelled so the model can reassemble the full output.
+                chunks.forEachIndexed { chunkIndex, chunk ->
+                    val chunkId = "${baseId}_c${chunkIndex + 1}"
+                    assistantCalls += CloudToolCall(
+                        index = index,
+                        id = chunkId,
+                        type = "function",
+                        function = CloudToolCallFunction(name, call.function?.arguments)
+                    )
+                    val label = if (chunkIndex == 0) {
+                        "[Tool output for '$name' — part ${chunkIndex + 1}/${chunks.size}. Read ALL parts before answering.]\n"
+                    } else {
+                        "[part ${chunkIndex + 1}/${chunks.size}]\n"
+                    }
+                    toolMessages += CloudChatMessage(
+                        role = "tool",
+                        content = label + chunk,
+                        toolCallId = chunkId
+                    )
+                }
+            }
         }
-        if (results.isEmpty()) return emptyList()
-        return listOf(assistantMsg) + results
+        if (toolMessages.isEmpty()) return emptyList()
+        val assistantMsg = CloudChatMessage(
+            role = "assistant",
+            content = assistantContent?.takeIf { it.isNotBlank() },
+            toolCalls = assistantCalls
+        )
+        return listOf(assistantMsg) + toolMessages
     }
 
     // ── Local GGUF (prompt-based planning) ─────────────────────────────────
@@ -148,9 +206,10 @@ class ToolRunCoordinator @Inject constructor(
 
     /**
      * Executes calls sequentially (each may await a user confirmation), in the
-     * order the planner produced them. A transient failure is retried ONCE
-     * with the same arguments before it is reported (never for outcomes a
-     * retry cannot fix: user-declined, settings-blocked).
+     * order the planner produced them. Transient failures retry with
+     * exponential backoff (up to [TOOL_MAX_ATTEMPTS] attempts); a terminal
+     * failure is reported after every retry is exhausted. Pure-read tools
+     * reuse the result cache for identical calls.
      *
      * [guard] (per-turn loop protection) filters each call the same way the
      * cloud path does: identical re-calls, capped tools and disabled tools
@@ -168,18 +227,14 @@ class ToolRunCoordinator @Inject constructor(
             }
             val argsText = call.arguments.entries.joinToString(", ") { (k, v) -> "$k=$v" }.take(200)
             onEvent(ToolEvent.Started(call.name, argsText))
-            var result = executor.execute(call)
-            // Retry once for transient failures — but NEVER for tools that run
-            // behind the confirmation gate (a retry would re-ask the user who
-            // already approved), nor for outcomes a retry cannot fix.
-            val requiresConfirmation = registry.get(call.name)?.spec?.requiresConfirmation == true
-            if (result is ToolResult.Failure && result.retryable && !requiresConfirmation) {
-                Timber.i("ToolRunCoordinator: retrying '${call.name}' once after failure")
-                val retried = executor.execute(call)
-                if (retried.isSuccess) result = retried
-            }
+            val startedAt = System.currentTimeMillis()
+            val (result, fromCache, retryCount) = executeWithCacheAndRetry(call, onEvent)
+            val durationMs = System.currentTimeMillis() - startedAt
             guard?.record(call.name, call.arguments, result)
-            Timber.i("ToolRunCoordinator: local tool '${call.name}' -> ${result.statusLabel}")
+            Timber.i(
+                "ToolRunCoordinator: local tool '%s' -> %s in %dms (retries=%d, cache=%s, output=%dB)",
+                call.name, result.statusLabel, durationMs, retryCount, fromCache, result.summary.length
+            )
             val declined = result is ToolResult.Failure &&
                 !result.retryable && result.summary.startsWith("The user declined")
             onEvent(
@@ -244,9 +299,10 @@ class ToolRunCoordinator @Inject constructor(
     }
 
     /**
-     * Converts executed calls into a system message that is injected into the
+     * Converts executed calls into system messages that are injected into the
      * local chat history BEFORE the final answer generation, so the model can
-     * summarize what happened.
+     * summarize what happened. Large feedback is split into multiple system
+     * messages (never truncated).
      */
     fun buildLocalToolFeedback(records: List<ToolExecutionRecord>): List<ChatPromptMessage> {
         if (records.isEmpty()) return emptyList()
@@ -260,18 +316,110 @@ class ToolRunCoordinator @Inject constructor(
             val args = call.arguments.entries.joinToString(", ") { (k, v) -> "$k=$v" }
             sb.append("- ").append(call.name)
             if (args.isNotBlank()) sb.append('(').append(args.take(300)).append(')')
-            sb.append(": ").append(record.result.summary.take(600)).append('\n')
+            sb.append(": ").append(record.result.summary).append('\n')
         }
-        return listOf(ChatPromptMessage(role = "system", content = sb.toString()))
+        return chunkText(sb.toString(), LOCAL_FEEDBACK_CHUNK_CHARS)
+            .map { ChatPromptMessage(role = "system", content = it) }
     }
 
     /** Renders execution records for a chat status line (log only). */
     fun describeRecords(records: List<ToolExecutionRecord>): String =
         records.joinToString(", ") { "${it.call.name}=${it.result.statusLabel}" }
 
+    // ── Execution helpers ──────────────────────────────────────────────────
+
+    /**
+     * Runs [call] through the executor with cache replay (pure-read tools)
+     * and exponential-backoff retries for transient failures. Returns the
+     * final result plus whether it came from the cache and how many retries
+     * were needed.
+     */
+    private suspend fun executeWithCacheAndRetry(
+        call: ToolCall,
+        onEvent: suspend (ToolEvent) -> Unit
+    ): Triple<ToolResult, Boolean, Int> {
+        val spec = registry.get(call.name)?.spec
+        val cacheable = spec?.cacheable == true
+        val cacheKey = if (cacheable) resultCache.key(call.name, call.arguments) else null
+        if (cacheKey != null) {
+            resultCache.get(cacheKey)?.let { (summary, data) ->
+                Timber.i("ToolRunCoordinator: cache hit for '${call.name}' — replaying %dB output", summary.length)
+                val result = if (data != null) ToolResult.Success(summary, data) else ToolResult.Success(summary)
+                return Triple(result, true, 0)
+            }
+        }
+
+        val requiresConfirmation = spec?.requiresConfirmation == true
+        var result = executor.execute(call)
+        var retries = 0
+        // NEVER retry tools that run behind the confirmation gate (a retry
+        // would re-ask the user who already approved), nor outcomes a retry
+        // cannot fix (declined, settings-blocked).
+        while (result is ToolResult.Failure && result.retryable && !requiresConfirmation &&
+            retries < TOOL_MAX_ATTEMPTS - 1
+        ) {
+            retries++
+            Timber.i("ToolRunCoordinator: retrying '${call.name}' (%d/%d) after failure", retries, TOOL_MAX_ATTEMPTS - 1)
+            onEvent(ToolEvent.Started(call.name, "retry $retries"))
+            kotlinx.coroutines.delay(TOOL_RETRY_POLICY.delayMsForAttempt(retries))
+            result = executor.execute(call)
+        }
+        if (cacheKey != null && result.isSuccess) {
+            val data = (result as? ToolResult.Success)?.data
+            resultCache.put(cacheKey, result.summary, data)
+        }
+        return Triple(result, false, retries)
+    }
+
+    /** Parses a tool call's raw arguments JSON (tolerant of partial JSON). */
     private fun parseArguments(raw: String?): JsonObject {
         if (raw.isNullOrBlank()) return JsonObject(emptyMap())
         return runCatching { Json.parseToJsonElement(raw).jsonObject }
             .getOrElse { JsonObject(emptyMap()) }
+    }
+
+    /**
+     * Splits [text] into sequential chunks of at most [TOOL_RESULT_CHUNK_CHARS]
+     * characters, preferring newline boundaries. A single chunk is returned
+     * for small outputs (the common case stays byte-identical).
+     */
+    private fun chunkToolOutput(text: String): List<String> =
+        chunkText(text, TOOL_RESULT_CHUNK_CHARS)
+
+    private fun chunkText(text: String, maxChars: Int): List<String> {
+        if (text.length <= maxChars) return listOf(text)
+        val chunks = mutableListOf<String>()
+        var start = 0
+        while (start < text.length) {
+            var end = (start + maxChars).coerceAtMost(text.length)
+            if (end < text.length) {
+                // Back off to the last newline within the window so chunks
+                // never split mid-line.
+                val newline = text.lastIndexOf('\n', end - 1)
+                if (newline > start + maxChars / 2) end = newline + 1
+            }
+            chunks += text.substring(start, end)
+            start = end
+        }
+        return chunks
+    }
+
+    companion object {
+        /** Max attempts (including the first) for a transient tool failure. */
+        const val TOOL_MAX_ATTEMPTS = 3
+
+        /** Exponential backoff between tool retries (500ms base, 2× growth). */
+        private val TOOL_RETRY_POLICY = RetryPolicy(
+            maxAttempts = TOOL_MAX_ATTEMPTS,
+            initialDelayMs = 500,
+            maxDelayMs = 8_000,
+            jitterMs = 150
+        )
+
+        /** A tool result larger than this is delivered to the model in chunks. */
+        const val TOOL_RESULT_CHUNK_CHARS = 8_000
+
+        /** Local feedback system messages are split at this size. */
+        private const val LOCAL_FEEDBACK_CHUNK_CHARS = 6_000
     }
 }

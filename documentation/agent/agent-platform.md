@@ -146,6 +146,44 @@ Continue reasoning without further tool calls."* into the history and stops
 the tool rounds — the model then answers from what it has. Both the cloud
 loop and the local loop (native markers + compat planner) enforce the guard.
 
+### Output Hardening (`ToolRunCoordinator`)
+
+Tool results are delivered to the model **complete — never truncated**, with
+automatic chunking, retries, caching and diagnostics:
+
+- **Chunked delivery.** A result larger than 8 000 characters is split into
+  sequential `role="tool"` messages (the assistant message declares one
+  synthetic sub-call per chunk so the wire format stays valid). Every byte
+  reaches the model — nothing is silently discarded.
+- **Retry with backoff.** Transient failures (network, 5xx, tool errors
+  marked retryable) retry up to 3 attempts with exponential backoff
+  (500 ms base, 2× growth, jitter). Confirmation-gated tools are never
+  retried (a retry would re-ask the user); user-declined and
+  settings-blocked outcomes are terminal.
+- **Result cache.** Pure-read tools (`search_web`, `get_weather`,
+  `calculate`, `get_battery`) cache their complete output keyed by tool name
+  + arguments with a 10-minute TTL (32 entries). A regenerated answer that
+  re-requests the identical call replays the cached output instead of
+  re-running the search.
+- **Detailed logging.** Every execution logs name, arguments, duration,
+  retry count, cache hit/miss and output size in bytes — plus chunk count
+  when chunking kicks in.
+
+### Streaming & Continuation (cloud)
+
+- **Provider max output.** `max_tokens` is never an artificial ceiling: when
+  the user left it at the "unlimited" sentinel, the request uses the
+  provider's own maximum from `/v1/model/info` metadata, or omits the field
+  entirely so the provider picks its default.
+- **`finish_reason` surfaced.** The streaming parser reports the provider's
+  terminal signal (`stop`, `length`, `tool_calls`, `end_turn`) as a
+  `Finish` event instead of dropping it.
+- **Auto-continuation.** A `finish_reason == "length"` (output hit the token
+  ceiling mid-answer) triggers a continuation round: the partial answer is
+  fed back with a "Continue." message and the model keeps generating until
+  it stops naturally (bounded to 4 continuations). The user never has to
+  type "continue", and the merged answer stays one continuous response.
+
 ---
 
 ## Safety Gates

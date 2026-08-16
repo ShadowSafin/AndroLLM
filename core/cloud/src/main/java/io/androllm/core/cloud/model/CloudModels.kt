@@ -30,6 +30,13 @@ data class CloudProvider(
     val modelIds: List<String> = emptyList(),
     /** Best-effort context-window metadata from /v1/model/info (model id → tokens). */
     val modelContextWindows: Map<String, Long> = emptyMap(),
+    /**
+     * Best-effort per-model maximum OUTPUT tokens from /v1/model/info (model
+     * id → tokens). Used to size `max_tokens` per provider instead of a
+     * hardcoded ceiling; empty map = unknown, so requests omit the field and
+     * let the provider use its own default.
+     */
+    val modelMaxOutputTokens: Map<String, Long> = emptyMap(),
     val enabled: Boolean = true,
     val isDefault: Boolean = false,
     val lastCheckedAt: Long = 0,
@@ -112,8 +119,14 @@ data class CloudGenerationConfig(
     val temperature: Double = 0.8,
     val topP: Double = 0.95,
     val topK: Int? = null,
-    // High but provider-safe ceiling; most providers cap output around 8k.
-    val maxTokens: Int = 8192,
+    /**
+     * Max output tokens for the request. `null` = omit the field so the
+     * provider uses its own maximum — never an artificial ceiling. Callers
+     * that know a provider's limit (from /v1/model/info metadata) pass it
+     * explicitly; callers with a hard need (JSON extraction) pass a small
+     * bound.
+     */
+    val maxTokens: Int? = null,
     val seed: Long? = null,
     val stop: List<String> = emptyList(),
     /** "json_object" for structured output (LiteLLM translates per provider). */
@@ -207,7 +220,11 @@ data class CloudChatRequest(
     val temperature: Double = 0.8,
     val top_p: Double = 0.95,
     val top_k: Int? = null,
-    val max_tokens: Int = 8192,
+    /**
+     * Max output tokens. `null` = omitted from the wire format so the
+     * provider uses its own maximum output — never an artificial ceiling.
+     */
+    val max_tokens: Int? = null,
     val seed: Long? = null,
     val stop: List<String> = emptyList(),
     val stream: Boolean = false,
@@ -309,6 +326,19 @@ data class CloudModelInfoDetail(
     val effectiveContextWindow: Long? get() = maxInputTokens ?: contextWindow
 }
 
+/**
+ * Per-model capability metadata gathered from `/v1/model/info`.
+ *
+ * - [contextWindows]: model id → effective context window (tokens).
+ * - [maxOutputTokens]: model id → maximum output tokens. Empty entries mean
+ *   the proxy did not report the value; callers then omit `max_tokens` and
+ *   let the provider use its own default.
+ */
+data class ModelMetadata(
+    val contextWindows: Map<String, Long> = emptyMap(),
+    val maxOutputTokens: Map<String, Long> = emptyMap()
+)
+
 /** /v1/embeddings request. */
 @Serializable
 data class CloudEmbeddingRequest(
@@ -366,6 +396,14 @@ sealed interface CloudStreamEvent {
         val totalTokens: Long
     ) : CloudStreamEvent
 
+    /**
+     * The provider signalled the end of THIS completion with a specific
+     * finish reason (`stop`, `length`, `tool_calls`, `end_turn`, ...).
+     * `length` means the output hit the token ceiling mid-answer — the
+     * caller should request a continuation instead of treating it as done.
+     */
+    data class Finish(val reason: String) : CloudStreamEvent
+
     /** The `data: [DONE]` terminal marker. */
     data object Done : CloudStreamEvent
 }
@@ -383,6 +421,8 @@ data class CloudModelProvider(
     val description: String = "",
     val tags: List<String> = emptyList(),
     val contextWindow: Long? = null,
+    /** Max output tokens reported by /v1/model/info (null = unknown). */
+    val maxOutputTokens: Long? = null,
     val isFavorite: Boolean = false,
     val isDefault: Boolean = false,
     val enabled: Boolean = true

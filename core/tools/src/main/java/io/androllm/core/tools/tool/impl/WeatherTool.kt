@@ -50,7 +50,11 @@ class WeatherTool @Inject constructor(
         supportedTasks = listOf(
             "weather", "forecast", "temperature outside", "rain", "humidity",
             "today's weather", "weekend forecast"
-        )
+        ),
+        cacheable = true,
+        // Geocode + forecast are two network hops; give them headroom over
+        // the default 20s budget so a slow lookup is not discarded.
+        executionTimeoutMs = 45_000L
     )
 
     private val json = Json { ignoreUnknownKeys = true }

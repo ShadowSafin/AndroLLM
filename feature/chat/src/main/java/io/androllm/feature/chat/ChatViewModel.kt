@@ -1215,6 +1215,11 @@ class ChatViewModel @Inject constructor(
             // same tool, identical calls never re-run, failing tools disabled).
             val loopGuard = io.androllm.core.tools.coordinator.ToolLoopGuard()
             val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
+            // Tool rounds and continuation rounds share one loop but have
+            // separate budgets: the loop runs maxRounds + continuation cap so
+            // a long truncated answer never eats a tool round (the guard caps
+            // actual tool calls at 5 regardless).
+            val maxLoopRounds = maxRounds + MAX_CLOUD_CONTINUATIONS
             val answerBuffer = StringBuilder()
             // Throttle UI emissions to ~60fps. Publishing on EVERY delta forces
             // a full recomposition + markdown re-parse of the streaming bubble
@@ -1223,13 +1228,23 @@ class ChatViewModel @Inject constructor(
             // generation ends). Local streaming already throttles this way.
             var lastEmitTime = 0L
             var callsExecuted = false
+            var lastFinishReason: String? = null
+            var continuationCount = 0
+            val streamStartedAt = System.currentTimeMillis()
+            // Provider-aware max output tokens (resolved ONCE — the provider
+            // cannot change mid-turn): when the user left maxTokens at the
+            // "unlimited" sentinel, use the provider's own maximum from
+            // /v1/model/info when known, else omit the field entirely so the
+            // provider uses its default — never an artificial 8k ceiling that
+            // truncates long answers mid-tool-result.
+            val providerMax = runCatching { cloudGateway.maxOutputTokensFor() }.getOrNull()
             try {
-                round@ for (round in 0 until maxRounds) {
+                round@ for (round in 0 until maxLoopRounds) {
                     val roundBuffer = StringBuilder()
                     val calls = LinkedHashMap<Int, AccumulatedToolCall>()
                     cloudGateway.streamChat(
                         messages = history,
-                        config = cloudGenerationConfig(tools = tools)
+                        config = cloudGenerationConfig(tools = tools, providerMaxTokens = providerMax)
                     ).collect { event ->
                         when (event) {
                             is CloudStreamEvent.Delta -> {
@@ -1253,6 +1268,12 @@ class ChatViewModel @Inject constructor(
                             }
                             is CloudStreamEvent.Reasoning -> Unit
                             is CloudStreamEvent.Usage -> Unit
+                            // The provider's terminal signal. `length` means
+                            // the output hit the token ceiling mid-answer — we
+                            // MUST continue instead of accepting a truncated
+                            // reply. `stop`/`end_turn`/`tool_calls` end the
+                            // round normally.
+                            is CloudStreamEvent.Finish -> lastFinishReason = event.reason
                             CloudStreamEvent.Done -> Unit
                         }
                     }
@@ -1299,7 +1320,30 @@ class ChatViewModel @Inject constructor(
                         callsExecuted = true
                         continue@round
                     }
-                    answerBuffer.append(roundBuffer)
+                    // No tool calls: this is the final answer round. Append it
+                    // and keep streaming if the provider cut the output short.
+                    val finalText = roundBuffer.toString()
+                    answerBuffer.append(finalText)
+                    val truncated = lastFinishReason == "length" || lastFinishReason == "max_tokens"
+                    if (truncated && finalText.isNotBlank() && continuationCount < MAX_CLOUD_CONTINUATIONS) {
+                        continuationCount++
+                        android.util.Log.i(
+                            TAG,
+                            "CLOUD LOOP: finish=$lastFinishReason — requesting continuation $continuationCount/$MAX_CLOUD_CONTINUATIONS"
+                        )
+                        // Feed the partial answer back so the model continues
+                        // from where it stopped; the merged text stays one
+                        // continuous response in answerBuffer.
+                        history += CloudChatMessage(role = "assistant", content = finalText)
+                        history += CloudChatMessage(role = "user", content = "Continue.")
+                        continue@round
+                    }
+                    if (truncated) {
+                        android.util.Log.w(
+                            TAG,
+                            "CLOUD LOOP: finish=$lastFinishReason with ${answerBuffer.length} chars buffered and no continuation budget"
+                        )
+                    }
                     break@round
                 }
             } catch (e: CancellationException) {
@@ -1314,6 +1358,11 @@ class ChatViewModel @Inject constructor(
                 }
                 return@launch
             }
+            android.util.Log.i(
+                TAG,
+                "CLOUD LOOP done: finish=$lastFinishReason continuations=$continuationCount " +
+                    "chars=${answerBuffer.length} streamingMs=${System.currentTimeMillis() - streamStartedAt}"
+            )
             _cloudGenerating.value = false
             _cloudStreamingText.value = null
             var text = answerBuffer.toString()
@@ -1550,17 +1599,28 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Maps the chat sampler settings onto the OpenAI-compatible request. */
-    private fun cloudGenerationConfig(tools: List<CloudTool> = emptyList()): CloudGenerationConfig {
+    /**
+     * Maps the chat sampler settings onto the OpenAI-compatible request.
+     * [providerMaxTokens] is the resolved provider maximum output (null when
+     * unknown) — the request then omits `max_tokens` so the provider uses its
+     * own default instead of an artificial ceiling.
+     */
+    private fun cloudGenerationConfig(
+        tools: List<CloudTool> = emptyList(),
+        providerMaxTokens: Long? = null
+    ): CloudGenerationConfig {
         val gen = _genConfig.value
+        val maxTokens = when {
+            // User explicitly set a bounded value → honor it.
+            gen.maxTokens < UNLIMITED_MAX_TOKENS_SENTINEL -> gen.maxTokens.coerceAtLeast(1)
+            providerMaxTokens != null && providerMaxTokens > 0 -> providerMaxTokens.toInt()
+            else -> null // omit → provider default (unlimited semantics)
+        }
         return CloudGenerationConfig(
             temperature = gen.temperature.toDouble(),
             topP = gen.topP.toDouble(),
             topK = gen.topK.takeIf { it > 0 },
-            // Local is effectively unlimited (the native engine clamps to the
-            // context window), but cloud providers reject absurd max_tokens —
-            // cap at a high, provider-safe ceiling.
-            maxTokens = gen.maxTokens.coerceIn(1, CLOUD_MAX_OUTPUT_TOKENS),
+            maxTokens = maxTokens,
             seed = gen.seed.takeIf { it >= 0 },
             stop = gen.stopSequences,
             tools = tools
@@ -1598,10 +1658,18 @@ class ChatViewModel @Inject constructor(
         private const val LOCAL_PLAN_BUDGET_MS = 45_000L
 
         /**
-         * Ceiling for cloud max_tokens: most providers reject or clamp values
-         * above ~8k, and no reasonable chat answer needs more.
+         * Hard ceiling for continuation rounds after a `finish_reason=length`
+         * truncation — the provider keeps producing until it stops naturally,
+         * but a broken provider must never loop forever.
          */
-        private const val CLOUD_MAX_OUTPUT_TOKENS = 8192
+        private const val MAX_CLOUD_CONTINUATIONS = 4
+
+        /**
+         * Sentinel for "unlimited" output tokens — the local engine's
+         * GenerationConfig default. Values below this are explicit user
+         * bounds; at/above it we defer to the provider's maximum.
+         */
+        private const val UNLIMITED_MAX_TOKENS_SENTINEL = 65536
 
         /** Budget for memory retrieval on the send path (retrieval is <20ms when warm). */
         private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 400L

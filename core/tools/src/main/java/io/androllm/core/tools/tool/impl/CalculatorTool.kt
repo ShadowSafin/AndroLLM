@@ -38,7 +38,8 @@ class CalculatorTool @Inject constructor() : Tool {
         supportedTasks = listOf(
             "math", "arithmetic", "calculate", "computation", "multiply",
             "divide", "add", "subtract", "percentage", "equation", "sum"
-        )
+        ),
+        cacheable = true
     )
 
     override suspend fun execute(arguments: JsonObject): ToolResult {

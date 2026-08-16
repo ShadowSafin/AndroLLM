@@ -107,5 +107,12 @@ data class ToolSpec(
      * matches the user request against these to decide which tools the LLM
      * may see for a turn — the spec's "supported_tasks" on every tool.
      */
-    val supportedTasks: List<String> = emptyList()
+    val supportedTasks: List<String> = emptyList(),
+    /**
+     * True when the tool is a pure read (no side effects) and its output may
+     * be cached briefly and reused when the SAME call is re-requested (e.g.
+     * a regenerated answer re-running a web search). Never true for tools
+     * that send, write, or change device state.
+     */
+    val cacheable: Boolean = false
 )
