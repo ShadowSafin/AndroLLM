@@ -4,6 +4,7 @@ import io.androllm.core.common.Result
 import io.androllm.core.common.getOrNull
 import io.androllm.core.common.getOrThrow
 import io.androllm.core.models.Model
+import io.androllm.engine.backend.BackendCapabilities
 import io.androllm.engine.models.BenchmarkResult
 import io.androllm.engine.models.ChatPromptMessage
 import io.androllm.engine.models.EngineCapabilities
@@ -16,6 +17,7 @@ import io.androllm.engine.models.GenerationConfig
 import io.androllm.engine.models.ModelLoadConfig
 import io.androllm.engine.models.StreamChunk
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emitAll
 
 /**
@@ -31,6 +33,13 @@ interface InferenceEngine {
      * Static capabilities of this engine implementation.
      */
     val capabilities: EngineCapabilities
+
+    /**
+     * Result of the startup hardware probe (SoC/GPU/NPU detection). Populated
+     * by [initialize] and never changes afterwards — backend selection and the
+     * adaptive settings UI read from here.
+     */
+    val backendCapabilities: StateFlow<BackendCapabilities>
 
     /**
      * State of the native engine lifecycle.

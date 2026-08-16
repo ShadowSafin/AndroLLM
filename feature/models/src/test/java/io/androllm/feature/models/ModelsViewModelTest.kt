@@ -14,6 +14,7 @@ import io.androllm.core.network.repository.ModelRepositoryProvider
 import io.androllm.core.network.repository.RepositoryRegistry
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.backend.BackendCapabilities
 import io.androllm.feature.models.downloader.DownloadManager
 import io.mockk.coEvery
 import io.mockk.every
@@ -69,13 +70,14 @@ class ModelsViewModelTest {
         coEvery { engineRepository.initialize() } returns Result.Success(Unit)
         every { engineRepository.engineState } returns engineState
         every { engineRepository.performanceStats } returns MutableStateFlow(null)
+        every { engineRepository.backendCapabilities } returns MutableStateFlow(BackendCapabilities.UNKNOWN)
         every { modelRepository.observeAllModels() } returns flowOf(emptyList())
         every { repositoryRegistry.getActiveProvider() } returns repositoryProvider
         every { repositoryProvider.searchModels(any()) } returns flowOf(Result.Success(emptyList()))
         every { downloadManager.observeProgress(any()) } returns flowOf(null)
         every { catalogRepository.state } returns catalogState
         every { catalogRepository.refreshing } returns MutableStateFlow(false)
-        every { preferencesDataStore.forceCpuBackend } returns MutableStateFlow(false)
+        every { preferencesDataStore.backendPreference } returns MutableStateFlow("AUTO")
     }
 
     @After

@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Troubleshoot
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +59,8 @@ import io.androllm.core.runtime.Runtime
 import io.androllm.core.runtime.RuntimeStatus
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.backend.BackendCapabilities
+import io.androllm.engine.models.BackendBenchmarkResult
 
 /**
  * Developer Mode — the desk's diagnostic drawer. Every chart is backed by
@@ -74,6 +78,9 @@ fun DeveloperScreen(
     val recentMemories by viewModel.recentMemories.collectAsStateWithLifecycle()
     val runtimeStatuses by viewModel.runtimeStatuses.collectAsStateWithLifecycle()
     val systemMemory by viewModel.systemMemory.collectAsStateWithLifecycle()
+    val backendCapabilities by viewModel.backendCapabilities.collectAsStateWithLifecycle()
+    val backendBenchmark by viewModel.backendBenchmark.collectAsStateWithLifecycle()
+    val isBenchmarking by viewModel.isBenchmarking.collectAsStateWithLifecycle()
     val data = (uiState as? UiState.Success)?.data ?: DeveloperData()
 
     CloudAtmosphericBackground {
@@ -317,6 +324,16 @@ fun DeveloperScreen(
                     )
                 }
 
+                // Benchmark Backends — identical prompt through CPU / GPU / NPU
+                item {
+                    BenchmarkBackendsCard(
+                        capabilities = backendCapabilities,
+                        results = backendBenchmark,
+                        isBenchmarking = isBenchmarking,
+                        onRun = { viewModel.runBackendBenchmark() }
+                    )
+                }
+
                 // Memory Inspector
                 item {
                     SectionHeader(
@@ -520,6 +537,137 @@ private fun BackendDiagnosticsCard(
             )
         }
     }
+}
+
+@Composable
+private fun BenchmarkBackendsCard(
+    capabilities: BackendCapabilities,
+    results: List<BackendBenchmarkResult>?,
+    isBenchmarking: Boolean,
+    onRun: () -> Unit
+) {
+    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Speed,
+                    contentDescription = null,
+                    tint = LampGlow,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Benchmark Backends",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = DeskPaper
+                        )
+                    )
+                    Text(
+                        text = "Identical prompt through ${availableBackendsLabel(capabilities)}",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    )
+                }
+                if (results == null && !isBenchmarking) {
+                    Button(onClick = onRun) {
+                        Text("Run")
+                    }
+                } else if (isBenchmarking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = LampGlow
+                    )
+                }
+            }
+
+            if (isBenchmarking) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Reloading the model on each backend…",
+                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                )
+            }
+
+            results?.let { list ->
+                Spacer(modifier = Modifier.height(12.dp))
+                if (list.isEmpty()) {
+                    Text(
+                        text = "No model loaded — load a model first, then run the comparison.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                    )
+                } else {
+                    list.forEachIndexed { index, r ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = buildString {
+                                        append(r.backendLabel)
+                                        r.vendor.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+                                        r.accelerator.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+                                    },
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = DeskPaper
+                                    )
+                                )
+                                Text(
+                                    text = if (r.succeeded) {
+                                        buildString {
+                                            append("init ${r.initTimeMs} ms")
+                                            if (r.firstTokenMs > 0) append(" · first token ${r.firstTokenMs} ms")
+                                            if (r.peakRamMb > 0f) append(" · peak ${String.format("%.0f", r.peakRamMb)} MB")
+                                        }
+                                    } else {
+                                        "failed: ${r.error}"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk),
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (r.succeeded) {
+                                    String.format("%.1f tok/s", r.averageTokensPerSecond)
+                                } else {
+                                    "—"
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (r.succeeded) LampGlow else EmberRed
+                                )
+                            )
+                        }
+                        if (index < list.lastIndex) {
+                            androidx.compose.material3.HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                color = DeskInk.copy(alpha = 0.15f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun availableBackendsLabel(caps: BackendCapabilities): String {
+    val parts = buildList {
+        if (caps.npuUsable) add("NPU")
+        if (caps.gpuAvailable) add("GPU")
+        add("CPU")
+    }
+    return parts.joinToString(" / ")
 }
 
 @Composable

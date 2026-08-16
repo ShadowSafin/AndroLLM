@@ -47,7 +47,11 @@ class BatteryTool @Inject constructor(
         name = "get_battery",
         description = "Read the current battery level (%), charging status, health and temperature.",
         permission = ToolPermission.DEVICE,
-        category = ToolCategory.DEVICE
+        category = ToolCategory.DEVICE,
+        supportedTasks = listOf(
+            "battery", "battery percentage", "charging", "charge level",
+            "battery health", "battery temperature"
+        )
     )
 
     override suspend fun execute(arguments: JsonObject): ToolResult {
@@ -153,7 +157,11 @@ class DeviceInfoTool @Inject constructor(
         name = "get_device_info",
         description = "Return device information: model, manufacturer, Android version, screen resolution, RAM and free storage.",
         permission = ToolPermission.DEVICE,
-        category = ToolCategory.INFORMATION
+        category = ToolCategory.INFORMATION,
+        supportedTasks = listOf(
+            "device info", "device information", "device model", "ram",
+            "storage", "android version", "phone specs", "my phone"
+        )
     )
 
     override suspend fun execute(arguments: JsonObject): ToolResult {

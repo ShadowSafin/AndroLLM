@@ -49,5 +49,8 @@ fun CatalogModel.toDownloadModel(): Model = Model(
     minRamGb = minRamGb,
     recommendedRamGb = recommendedRamGb,
     license = license,
-    stopSequences = stopSequences
+    stopSequences = stopSequences,
+    supportsCpu = supportsCpu,
+    supportsGpu = supportsGpu,
+    supportsNpu = supportsNpu
 )

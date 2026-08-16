@@ -41,7 +41,14 @@ data class MessageEntity(
     val isBookmarked: Boolean = false,
     /** Persisted as enum name; defaults to [MessageOrigin.TYPED] for legacy rows. */
     @ColumnInfo(name = "origin")
-    val origin: String = MessageOrigin.TYPED.name
+    val origin: String = MessageOrigin.TYPED.name,
+    /**
+     * Files attached to this message, serialized as a JSON array of
+     * [io.androllm.core.attachments.model.ChatAttachment] ("" = none).
+     * Stored as TEXT so the chat layer owns the attachment-domain type.
+     */
+    @ColumnInfo(name = "attachments_json")
+    val attachmentsJson: String = ""
 )
 
 /**
@@ -56,7 +63,8 @@ fun MessageEntity.toDomain(): Message = Message(
     isPending = isPending,
     modelId = modelId,
     isBookmarked = isBookmarked,
-    origin = runCatching { MessageOrigin.valueOf(origin) }.getOrDefault(MessageOrigin.TYPED)
+    origin = runCatching { MessageOrigin.valueOf(origin) }.getOrDefault(MessageOrigin.TYPED),
+    attachmentsJson = attachmentsJson
 )
 
 /**
@@ -71,5 +79,6 @@ fun Message.toEntity(): MessageEntity = MessageEntity(
     isPending = isPending,
     modelId = modelId,
     isBookmarked = isBookmarked,
-    origin = origin.name
+    origin = origin.name,
+    attachmentsJson = attachmentsJson
 )

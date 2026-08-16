@@ -36,6 +36,7 @@ This document tracks the planned development direction for AndroLLM. Items are m
 - [x] ~62 test classes across all modules
 - [x] Adaptive navigation (phone/tablet)
 - [x] Model parameter sheet (temperature, top-p, etc.)
+- [x] **Chat Attachments** — conversation-scoped file attachments for cloud models (PDF/DOCX/PPTX/XLSX/TXT/MD/CSV/JSON/HTML/images/OCR), paperclip picker, composer chips, history cards, cloud-only gating
 
 ---
 

@@ -174,6 +174,23 @@ No permissions are requested at app launch.
 
 ---
 
+### Chat Attachment Data
+
+- Attachment files are copied into a **per-conversation cache** under
+  `filesDir/chat_attachments/{conversationId}/` — app-private, not
+  accessible to other apps
+- Parsing and OCR run **on-device**; extracted content is injected only
+  into the active conversation's prompt
+- Nothing is indexed: no vector database, no chunk storage, no persistent
+  embeddings, no searchable document library
+- The cache is removed when the conversation is deleted or the user clears
+  the attachment cache; only the extracted content required for the
+  current answer is sent to the cloud provider — entire documents are
+  never uploaded automatically
+- Local inference engines never receive attachment content or metadata
+
+---
+
 ## Network Security
 
 ### TLS Configuration

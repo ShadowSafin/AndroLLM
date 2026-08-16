@@ -102,6 +102,52 @@ Both paths share the same executor, confirmation flow, and trace store.
 
 ---
 
+## Request Routing & Loop Protection
+
+### Tool Router (`ToolRouter`)
+
+Before any tools are exposed to the model, the **latest user message** is
+classified by `ToolRouter` (deterministic keyword routing — no extra LLM
+round, identical output for identical input) and the tool list is filtered to
+that intent. The model can never pick the wrong tool "just in case" because
+it never sees the others:
+
+| Request | Tools exposed |
+|---|---|
+| Attachment question ("errors in this log?", "summarize this PDF") | **None** — extracted content is already injected into the prompt |
+| Math ("what is 23 × 48?") | Calculator + converters only |
+| Device state ("battery percentage?") | Device tools only |
+| Live info (weather, news, lookups) | Web search + weather only |
+| Communication ("text mom") | SMS / call / email / share only |
+| Small talk / writing ("hello", "write a poem") | **None** |
+| Everything else | Full enabled set (confidence-ordered) |
+
+Every `ToolSpec` carries `supportedTasks` (natural-language task phrases);
+the router scores each tool against the query (name + description + tasks)
+and exposes the highest-confidence subset. Chat, voice and the local planner
+all route through the same router.
+
+### Tool Loop Guard (`ToolLoopGuard`)
+
+One guard is created **per user turn** and shared across every round, so a
+confused model can never loop a tool indefinitely:
+
+- **Total cap**: at most 5 tool executions per turn
+- **Consecutive cap**: at most 2 back-to-back executions of the same tool
+  (a different tool resets the streak)
+- **Dedupe**: a (name, arguments) pair that already executed is never
+  re-executed
+- **Disable on failure**: a tool that fails twice (or fails non-retryably)
+  is disabled for the rest of the turn
+
+When every call in a round is blocked, the pipeline injects *"The requested
+tool has already been used and produced no additional useful information.
+Continue reasoning without further tool calls."* into the history and stops
+the tool rounds — the model then answers from what it has. Both the cloud
+loop and the local loop (native markers + compat planner) enforce the guard.
+
+---
+
 ## Safety Gates
 
 The executor is deliberately the **only** place tool code runs — plugins and

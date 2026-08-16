@@ -65,6 +65,55 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Backend compatibility flags per installed model (NPU support
+                // gating). Defaults keep today's behavior: CPU+GPU supported,
+                // NPU off until a catalog entry explicitly opts in.
+                db.execSQL("ALTER TABLE models ADD COLUMN supports_cpu INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE models ADD COLUMN supports_gpu INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE models ADD COLUMN supports_npu INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Files attached to a message ("" = none). Stored as a JSON
+                // array of ChatAttachment metadata so chat history shows the
+                // attachment cards; the file bytes live in the conversation
+                // cache, not in the database.
+                db.execSQL("ALTER TABLE messages ADD COLUMN attachments_json TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /**
+         * 7 → 8: the previous build shipped v7 with a `rag_sources` column
+         * (the removed Knowledge Base feature). v8 renames it to
+         * `attachments_json` so chat history keeps rendering attachment cards.
+         *
+         * Guarded by a PRAGMA check because two upgrade paths reach v8:
+         *  - v6 → 8: MIGRATION_6_7 already added `attachments_json`, so there
+         *    is nothing to rename here;
+         *  - v7 → 8: the old column must be renamed in place (data preserved).
+         */
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                val hasRagSources = db.query("PRAGMA table_info(messages)").use { cursor ->
+                    var found = false
+                    while (cursor.moveToNext()) {
+                        if (cursor.getString(1) == "rag_sources") {
+                            found = true
+                            break
+                        }
+                    }
+                    found
+                }
+                if (hasRagSources) {
+                    db.execSQL("ALTER TABLE messages RENAME COLUMN rag_sources TO attachments_json")
+                }
+            }
+        }
+
         /**
          * Returns the singleton database instance, creating it if necessary.
          */
@@ -80,7 +129,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // to AUTOMATIC (WAL on API 16+) — pin it so writes stay
                     // cheap even when readers are active (chat observer flows).
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

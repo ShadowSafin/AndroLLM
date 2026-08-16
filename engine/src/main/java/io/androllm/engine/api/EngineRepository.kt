@@ -2,6 +2,8 @@ package io.androllm.engine.api
 
 import io.androllm.core.common.Result
 import io.androllm.core.models.Model
+import io.androllm.engine.backend.BackendCapabilities
+import io.androllm.engine.models.BackendBenchmarkResult
 import io.androllm.engine.models.ChatPromptMessage
 import io.androllm.engine.models.EngineCapabilities
 import io.androllm.engine.models.EngineDebugInfo
@@ -41,6 +43,13 @@ interface EngineRepository {
      * Static capabilities of the underlying engine.
      */
     val capabilities: EngineCapabilities
+
+    /**
+     * Result of the startup hardware probe — SoC/GPU/NPU detection that
+     * drives automatic backend selection and the adaptive settings UI.
+     * Populated by [initialize].
+     */
+    val backendCapabilities: StateFlow<BackendCapabilities>
 
     /**
      * Initializes the engine (idempotent).
@@ -141,6 +150,16 @@ interface EngineRepository {
      * when unavailable. Used by the hidden debug panel.
      */
     suspend fun getDebugInfo(): Result<EngineDebugInfo?>
+
+    /**
+     * Runs an identical prompt through every usable backend (NPU → GPU → CPU)
+     * and returns a per-backend comparison — Developer Settings → Benchmark
+     * Backends. Reloads the currently-loaded model per backend and restores
+     * the original backend afterwards. Empty when no model is loaded.
+     */
+    suspend fun benchmarkBackends(
+        prompt: String = "Explain the theory of relativity in three bullet points."
+    ): Result<List<BackendBenchmarkResult>>
 
     /**
      * Releases all native resources.

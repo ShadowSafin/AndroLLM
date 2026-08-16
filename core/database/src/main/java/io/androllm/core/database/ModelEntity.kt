@@ -59,7 +59,15 @@ data class ModelEntity(
     @ColumnInfo(name = "added_date")
     val addedDate: Long = 0,
     @ColumnInfo(name = "last_used_date")
-    val lastUsedDate: Long = 0
+    val lastUsedDate: Long = 0,
+    // Backend compatibility flags (catalog schema v3). Default 1 = supported
+    // so legacy rows keep today's behavior (CPU+GPU, NPU off).
+    @ColumnInfo(name = "supports_cpu")
+    val supportsCpu: Boolean = true,
+    @ColumnInfo(name = "supports_gpu")
+    val supportsGpu: Boolean = true,
+    @ColumnInfo(name = "supports_npu")
+    val supportsNpu: Boolean = false
 )
 
 /**
@@ -91,7 +99,10 @@ fun ModelEntity.toDomain(): Model = Model(
     isFavorite = isFavorite,
     isDefault = isDefault,
     addedDate = addedDate,
-    lastUsedDate = lastUsedDate
+    lastUsedDate = lastUsedDate,
+    supportsCpu = supportsCpu,
+    supportsGpu = supportsGpu,
+    supportsNpu = supportsNpu
 )
 
 /**
@@ -123,5 +134,8 @@ fun Model.toEntity(): ModelEntity = ModelEntity(
     isFavorite = isFavorite,
     isDefault = isDefault,
     addedDate = addedDate,
-    lastUsedDate = lastUsedDate
+    lastUsedDate = lastUsedDate,
+    supportsCpu = supportsCpu,
+    supportsGpu = supportsGpu,
+    supportsNpu = supportsNpu
 )

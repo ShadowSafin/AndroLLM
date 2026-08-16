@@ -100,5 +100,12 @@ data class ToolSpec(
      * Execution budget override in ms. Null uses the executor's default
      * (20s). Multi-step tools like the UI-automation runner need far more.
      */
-    val executionTimeoutMs: Long? = null
+    val executionTimeoutMs: Long? = null,
+    /**
+     * Natural-language task phrases this tool handles (e.g. "math",
+     * "battery", "web search"). The [io.androllm.core.tools.router.ToolRouter]
+     * matches the user request against these to decide which tools the LLM
+     * may see for a turn — the spec's "supported_tasks" on every tool.
+     */
+    val supportedTasks: List<String> = emptyList()
 )

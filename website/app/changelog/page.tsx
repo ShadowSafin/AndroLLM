@@ -41,6 +41,9 @@ const unreleased = {
     "Markdown rendering with syntax-highlighted code blocks",
     "Developer diagnostics screen with hardware info and performance telemetry",
     "Test suite: 51 test classes covering ViewModels, repositories, parsers, catalog, and engine",
+    "Chat Attachments — ChatGPT-style, conversation-scoped file attachments for cloud models (PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, JSON, HTML, images & screenshots)",
+    "On-device parsing + OCR with a conversation-scoped cache — nothing is indexed, no searchable library",
+    "Attachment settings (max size, max per message, OCR language, image quality, preserve filenames, cache controls) — visible only for cloud models",
   ],
   changed: [
     "Migrated the inference engine to Google LiteRT-LM 0.16.0 — 100% Kotlin, removed the NDK/CMake native build step",
@@ -52,6 +55,9 @@ const unreleased = {
     "Removed NDK toolchain and Vulkan shader compilation steps from the Windows build — pure Kotlin Gradle build",
     "Fixed UTF-16 round-trip encoding for emoji/CJK character handling",
     "Fixed context shift corruption edge case when pos_check >= nCtx - 4",
+  ],
+  removed: [
+    "Knowledge Base prototype (document indexing, vector storage, background indexing) — superseded by conversation-scoped Chat Attachments; no persistent document library exists",
   ],
 };
 
@@ -97,6 +103,7 @@ export default function ChangelogPage() {
               <ReleaseList title="Added" kind="added" items={unreleased.added} />
               <ReleaseList title="Changed" kind="changed" items={unreleased.changed} />
               <ReleaseList title="Fixed" kind="fixed" items={unreleased.fixed} />
+              <ReleaseList title="Removed" kind="removed" items={unreleased.removed} />
             </div>
           </article>
 
@@ -142,7 +149,7 @@ export default function ChangelogPage() {
   );
 }
 
-function ReleaseList({ title, kind, items }: { title: string; kind: "added" | "changed" | "fixed"; items: string[] }) {
+function ReleaseList({ title, kind, items }: { title: string; kind: "added" | "changed" | "fixed" | "removed"; items: string[] }) {
   return (
     <section aria-label={title}>
       <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--faint)]">{title}</h3>

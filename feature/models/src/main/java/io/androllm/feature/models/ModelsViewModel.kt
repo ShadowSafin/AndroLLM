@@ -30,6 +30,8 @@ import io.androllm.core.utils.StorageStats
 import io.androllm.core.utils.StorageUtils
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.backend.BackendCapabilities
+import io.androllm.engine.models.BackendType
 import io.androllm.engine.models.EngineStats
 import io.androllm.engine.models.MemoryStats
 import io.androllm.engine.models.ModelLoadConfig
@@ -51,6 +53,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -115,14 +118,20 @@ class ModelsViewModel @Inject constructor(
     private val _storageStats = MutableStateFlow<StorageStats?>(null)
     val storageStats: StateFlow<StorageStats?> = _storageStats.asStateFlow()
 
-    // Debug-only backend override: true forces CPU (gpuLayers = 0) on every
-    // model load, to bisect GPU-vs-CPU output corruption and compare speeds.
-    val forceCpuBackend: StateFlow<Boolean> = preferencesDataStore.forceCpuBackend
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /**
+     * User-selected execution backend (AUTO / NPU / GPU / CPU), persisted.
+     * AUTO (default) lets the engine pick the best available backend silently.
+     */
+    val backendPreference: StateFlow<BackendType> = preferencesDataStore.backendPreference
+        .map { value -> runCatching { BackendType.valueOf(value) }.getOrDefault(BackendType.AUTO) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BackendType.AUTO)
 
-    fun setForceCpuBackend(enabled: Boolean) {
-        viewModelScope.launch { preferencesDataStore.setForceCpuBackend(enabled) }
+    fun setBackendPreference(type: BackendType) {
+        viewModelScope.launch { preferencesDataStore.setBackendPreference(type.name) }
     }
+
+    /** Startup hardware probe (SoC/GPU/NPU) — drives the adaptive backend selector. */
+    val backendCapabilities: StateFlow<BackendCapabilities> = engineRepository.backendCapabilities
 
     val hardwareInfo: DeviceHardwareInfo = DeviceInfoCollector.collectDeviceInfo(context)
 
@@ -148,9 +157,10 @@ class ModelsViewModel @Inject constructor(
             _benchmarkReport,
             _isBenchmarking,
             _remoteModels,
-            _isSearchingRemote
-        ) { benchReport, isBenchmarking, remoteModels, isSearchingRemote ->
-            listOf(benchReport, isBenchmarking, remoteModels, isSearchingRemote)
+            _isSearchingRemote,
+            engineRepository.backendCapabilities
+        ) { benchReport, isBenchmarking, remoteModels, isSearchingRemote, caps ->
+            listOf(benchReport, isBenchmarking, remoteModels, isSearchingRemote, caps)
         },
         combine(
             _selectedRemoteDetails,
@@ -188,6 +198,7 @@ class ModelsViewModel @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         val remoteModels = group3[2] as List<RemoteModelSummary>
         val isSearchingRemote = group3[3] as Boolean
+        val caps = group3[4] as BackendCapabilities
 
         val remoteDetails = group4[0] as RemoteModelDetails?
         val readme = group4[1] as String?
@@ -249,7 +260,8 @@ class ModelsViewModel @Inject constructor(
                 showFirstLaunchDialog = installedModels.none { it.isDownloaded },
                 engineState = engineState,
                 memoryStats = memStats,
-                inferenceTokensPerSecond = performanceStats?.tokensPerSecond ?: 0f
+                inferenceTokensPerSecond = performanceStats?.tokensPerSecond ?: 0f,
+                backendCapabilities = caps
             )
         )
     }.stateIn(
@@ -406,14 +418,15 @@ class ModelsViewModel @Inject constructor(
                     return@withContext null
                 }
 
-                // Debug override: when "Force CPU backend" is on, request a
-                // CPU-only load (accelerator off). The engine respects an
-                // explicit backend request instead of always selecting the best
-                // available accelerator.
-                val loadConfig = if (forceCpuBackend.value) {
-                    ModelLoadConfig(gpuLayers = 0)
-                } else {
-                    ModelLoadConfig()
+                // Backend preference → explicit load request. AUTO leaves the
+                // decision to the engine's startup probe (NPU → GPU → CPU with
+                // silent fallback); explicit selections are honored verbatim
+                // and fall back the same way when they cannot initialize.
+                val loadConfig = when (backendPreference.value) {
+                    BackendType.CPU -> ModelLoadConfig(backend = BackendType.CPU)
+                    BackendType.GPU -> ModelLoadConfig(backend = BackendType.GPU)
+                    BackendType.NPU -> ModelLoadConfig(backend = BackendType.NPU)
+                    else -> ModelLoadConfig()
                 }
                 engineRepository.loadModel(model, loadConfig)
             }
@@ -658,5 +671,6 @@ data class ModelsData(
     val showFirstLaunchDialog: Boolean = false,
     val engineState: EngineState = EngineState.Unloaded,
     val memoryStats: MemoryStats? = null,
-    val inferenceTokensPerSecond: Float = 0f
+    val inferenceTokensPerSecond: Float = 0f,
+    val backendCapabilities: BackendCapabilities = BackendCapabilities.UNKNOWN
 )

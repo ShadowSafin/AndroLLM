@@ -3,7 +3,10 @@ package io.androllm.feature.chat.ui.components
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -15,6 +18,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,10 +62,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.androllm.core.attachments.model.ChatAttachment
 import io.androllm.core.models.MessageRole
 import io.androllm.core.ui.components.LampDot
+import io.androllm.feature.chat.ChatAttachmentJson
 import io.androllm.core.ui.theme.DeskHairline
 import io.androllm.core.ui.theme.DeskHairlineSoft
 import io.androllm.core.ui.theme.DeskInk
@@ -69,6 +76,7 @@ import io.androllm.core.ui.theme.DeskInkFaint
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.DeskWalnut
 import io.androllm.core.ui.theme.DeskWalnutRaised
+import io.androllm.core.ui.theme.EmberRed
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.feature.chat.ChatMessage
@@ -97,6 +105,13 @@ fun MessageCard(
     markdownEnabled: Boolean = true,
     codeWrapping: Boolean = false,
     cloudMode: Boolean = false,
+    /**
+     * True when the active model supports attachments (cloud only). When an
+     * older conversation carries attachments but the user is on a local
+     * model, the cards stay visible but non-interactive, with a subtle
+     * cloud-only notice.
+     */
+    attachmentsEnabled: Boolean = true,
     messageAnimations: Boolean = true,
     selected: Boolean = false,
     selectionActive: Boolean = false,
@@ -111,6 +126,12 @@ fun MessageCard(
     val context = LocalContext.current
     val isUser = message.role == MessageRole.USER
     val isAssistant = message.role == MessageRole.ASSISTANT
+
+    // Files attached to this message ("" = none). Rendered as attachment
+    // cards under the bubble; tapping one opens the original file.
+    val attachments = remember(message.attachmentsJson) {
+        ChatAttachmentJson.decodeFromString(message.attachmentsJson)
+    }
 
     val formattedTime = remember(message.timestamp) {
         if (message.timestamp > 0) {
@@ -285,6 +306,29 @@ fun MessageCard(
                                     )
                                 }
                             }
+
+                            // ── Attached files ───────────────────────────────
+                            if (attachments.isNotEmpty() && !isStreaming) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                AttachmentCards(
+                                    attachments = attachments,
+                                    enabled = attachmentsEnabled,
+                                    onOpen = { attachment ->
+                                        openAttachment(context, attachment)
+                                    }
+                                )
+                                // Old chats opened on a local model: cards stay
+                                // visible but inactive, with a subtle notice.
+                                if (!attachmentsEnabled) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "This conversation contains cloud-only attachments. Switch to a cloud model to use them.",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = DeskInkFaint
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -411,6 +455,110 @@ private fun copyToClipboard(context: Context, text: String, toast: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("Message", text))
     Toast.makeText(context, toast, Toast.LENGTH_SHORT).show()
+}
+
+/**
+ * Attachment cards rendered under a message that carried files. Each card
+ * shows the file icon, name, size and a processing status; tapping a ready
+ * card opens the original file. Mirrors the ChatGPT attachment chip.
+ */
+@Composable
+private fun AttachmentCards(
+    attachments: List<ChatAttachment>,
+    enabled: Boolean = true,
+    onOpen: (ChatAttachment) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        attachments.forEach { attachment ->
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (enabled) DeskWalnutRaised.copy(alpha = 0.8f) else DeskWalnutRaised.copy(alpha = 0.45f),
+                border = BorderStroke(
+                    0.5.dp,
+                    if (attachment.isFailed) EmberRed.copy(alpha = 0.5f) else DeskHairline
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // Local models: cards render but interaction is disabled.
+                    .clickable(enabled = enabled && attachment.isReady) { onOpen(attachment) }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // File-type glyph: paperclip for documents, image icon for photos.
+                    val glyph = if (attachment.type == io.androllm.core.attachments.model.AttachmentType.IMAGE) {
+                        "🖼"
+                    } else {
+                        "📄"
+                    }
+                    Text(text = glyph, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = attachment.name,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = DeskPaper,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = when {
+                                attachment.isFailed -> "Failed to process"
+                                attachment.status == io.androllm.core.attachments.model.AttachmentStatus.PROCESSING -> "Processing…"
+                                else -> attachment.label.substringAfter(" · ")
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (attachment.isFailed) EmberRed else DeskInkFaint
+                            )
+                        )
+                    }
+                    if (attachment.isReady) {
+                        Text(
+                            text = attachment.type.label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = LampDeep,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Opens an attached file in the system viewer. Prefers the private copy via
+ * FileProvider (granted automatically), falling back to the original SAF URI.
+ * Never throws — failures surface as a toast so chat stays usable.
+ */
+private fun openAttachment(context: Context, attachment: ChatAttachment) {
+    try {
+        val file = java.io.File(attachment.filePath)
+        val uri: Uri = if (file.exists()) {
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+        } else if (attachment.sourceUri.isNotBlank()) {
+            Uri.parse(attachment.sourceUri)
+        } else {
+            Toast.makeText(context, "File no longer available", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val mime = attachment.mimeType.ifBlank { "*/*" }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Open ${attachment.name}"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "Could not open file: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
 }
 
 /**

@@ -57,6 +57,14 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE,NOTICE}"
         }
         jniLibs {
+            // NPU (Qualcomm QNN) deployment requirement: LiteRT's dispatch
+            // delegate locates its vendor libraries via a filesystem readdir
+            // of applicationInfo.nativeLibraryDir. Without legacy packaging
+            // that dir is empty (libs stay compressed inside the APK) and the
+            // NPU backend can never initialize. See documentation/ai/
+            // acceleration.md.
+            useLegacyPackaging = true
+
             // Oryon-SoC workaround (Snapdragon 8 Elite / 8s Gen 4, SME): ONNX
             // Runtime 1.27.0 (bundled in the sherpa-onnx AAR) miscomputes
             // streaming-zipformer encoders there -> silent KWS/ASR failure

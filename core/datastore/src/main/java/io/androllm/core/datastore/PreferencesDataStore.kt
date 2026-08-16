@@ -50,6 +50,7 @@ class PreferencesDataStore @Inject constructor(
         val AVATAR_INDEX = intPreferencesKey("avatar_index")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
         val FORCE_CPU_BACKEND = booleanPreferencesKey("force_cpu_backend")
+        val BACKEND_PREFERENCE = stringPreferencesKey("backend_preference")
     }
 
     private val dataStore: DataStore<Preferences> = context.preferencesDataStore
@@ -267,6 +268,24 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setForceCpuBackend(enabled: Boolean) {
         dataStore.edit { preferences -> preferences[Keys.FORCE_CPU_BACKEND] = enabled }
+    }
+
+    /**
+     * User-selected execution backend: one of "AUTO" / "NPU" / "GPU" / "CPU"
+     * (see [io.androllm.engine.models.BackendType]). Defaults to AUTO. The
+     * legacy [forceCpuBackend] flag is honored when this key is absent, so
+     * existing "force CPU" users keep their behavior after the upgrade.
+     */
+    val backendPreference: Flow<String> = dataStore.data.map { preferences ->
+        preferences[Keys.BACKEND_PREFERENCE] ?: if (preferences[Keys.FORCE_CPU_BACKEND] == true) "CPU" else "AUTO"
+    }
+
+    suspend fun setBackendPreference(value: String) {
+        dataStore.edit { preferences ->
+            preferences[Keys.BACKEND_PREFERENCE] = value
+            // Clear the legacy toggle so the two sources can never disagree.
+            preferences.remove(Keys.FORCE_CPU_BACKEND)
+        }
     }
 
     /**

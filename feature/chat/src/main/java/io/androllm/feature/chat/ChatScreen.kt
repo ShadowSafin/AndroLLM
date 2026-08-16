@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -352,6 +354,7 @@ fun ChatScreen(
                                         markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
                                         codeWrapping = successState?.userPreferences?.codeWrapping ?: false,
                                         cloudMode = successState?.cloudMode == true,
+                                        attachmentsEnabled = successState?.attachmentsSupported == true,
                                         messageAnimations = successState?.userPreferences?.messageAnimations ?: true,
                                         selected = currentMsg.id in multiSelectIds,
                                         selectionActive = selectionActive,
@@ -379,6 +382,7 @@ fun ChatScreen(
                                             markdownEnabled = successState?.userPreferences?.markdownEnabled ?: true,
                                             codeWrapping = successState?.userPreferences?.codeWrapping ?: false,
                                             cloudMode = successState?.cloudMode == true,
+                                            attachmentsEnabled = successState?.attachmentsSupported == true,
                                             messageAnimations = false,
                                             onStop = { viewModel.cancelGeneration() }
                                         )
@@ -471,6 +475,22 @@ fun ChatScreen(
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
 
+                        // Pending attachment chips above the composer (only when
+                        // the active model supports attachments — local LiteRT
+                        // models have no attachment pipeline and the feature
+                        // simply does not exist).
+                        if (successState?.attachmentsSupported == true) {
+                            val pendingAttachments = successState.pendingAttachments
+                            val attachmentsProcessing = successState.attachmentsProcessing
+                            if (pendingAttachments.isNotEmpty() || attachmentsProcessing) {
+                                PendingAttachmentChips(
+                                    attachments = pendingAttachments,
+                                    processing = attachmentsProcessing,
+                                    onRemove = { id -> viewModel.removeAttachment(id) }
+                                )
+                            }
+                        }
+
                         ComposeInputArea(
                             text = inputMessageText,
                             onTextChanged = { inputMessageText = it },
@@ -479,7 +499,12 @@ fun ChatScreen(
                                 inputMessageText = ""
                             },
                             onStopGeneration = { viewModel.cancelGeneration() },
-                            isGenerating = isGenerating
+                            isGenerating = isGenerating,
+                            onAttachFiles = { uris -> viewModel.attachFiles(uris) },
+                            // Capability-driven: the paperclip only exists for
+                            // cloud models. Local models get a clean composer
+                            // with no gap and no attachment affordance.
+                            showAttachButton = successState?.attachmentsSupported == true
                         )
                     }
 
@@ -546,6 +571,24 @@ fun ChatScreen(
                 viewModel.toggleSearch(false)
             },
             onDismiss = { viewModel.toggleSearch(false) }
+        )
+    }
+
+    // Cloud → local switch with pending attachments: confirm that switching
+    // discards them (attachments are cloud-only).
+    if (successState?.confirmCloudToLocalSwitch == true) {
+        AlertDialog(
+            onDismissRequest = { viewModel.confirmSwitchToLocal(false) },
+            title = { Text("Switch to local model?") },
+            text = {
+                Text("Attachments are only supported by cloud models. Switching to a local model will remove the current attachments.")
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmSwitchToLocal(true) }) { Text("Switch") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.confirmSwitchToLocal(false) }) { Text("Cancel") }
+            }
         )
     }
 
@@ -656,10 +699,14 @@ fun ChatScreen(
                             "Backend",
                             when (info.backend) {
                                 "gpu" -> "LiteRT GPU"
+                                "npu" -> "NPU"
                                 "cpu" -> "CPU"
                                 else -> info.backend
                             }
                         )
+                        DebugRow("Delegate", info.delegate)
+                        DebugRow("NPU", if (info.backend == "npu") info.npuAccelerator else "—")
+                        DebugRow("NPU vendor", if (info.backend == "npu") info.npuVendor else "—")
                         DebugRow("GPU", info.gpuName)
                         DebugRow("Driver", info.gpuDriverVersion)
                         DebugRow("GPU Layers", "${info.gpuLayers}/${info.totalLayers}")
@@ -1079,5 +1126,92 @@ private fun ChatMessage.toCoreMessage(): io.androllm.core.models.Message = io.an
     role = role,
     content = content,
     timestamp = timestamp,
-    isBookmarked = isBookmarked
+    isBookmarked = isBookmarked,
+    origin = origin,
+    attachmentsJson = attachmentsJson
 )
+
+/**
+ * Pending attachment chips above the composer (cloud mode only). Each chip
+ * shows the file name, size and status; tapping ✕ removes it before sending.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PendingAttachmentChips(
+    attachments: List<io.androllm.core.attachments.model.ChatAttachment>,
+    processing: Boolean,
+    onRemove: (String) -> Unit
+) {
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        attachments.forEach { attachment ->
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = io.androllm.core.ui.theme.DeskWalnutRaised.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 10.dp, end = 2.dp, top = 4.dp, bottom = 4.dp)
+                ) {
+                    Text(
+                        text = if (attachment.type == io.androllm.core.attachments.model.AttachmentType.IMAGE) "🖼" else "📄",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Column {
+                        Text(
+                            text = attachment.name,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = io.androllm.core.ui.theme.DeskPaper,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 160.dp)
+                        )
+                        Text(
+                            text = when {
+                                attachment.isFailed -> "Failed"
+                                attachment.isReady -> io.androllm.core.attachments.model.ChatAttachment.formatSize(attachment.sizeBytes)
+                                else -> "Processing…"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (attachment.isFailed) io.androllm.core.ui.theme.EmberRed else io.androllm.core.ui.theme.DeskInkFaint
+                            )
+                        )
+                    }
+                    IconButton(
+                        onClick = { onRemove(attachment.id) },
+                        modifier = Modifier.size(26.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Remove ${attachment.name}",
+                            tint = io.androllm.core.ui.theme.DeskInkFaint,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+        }
+        if (processing) {
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = io.androllm.core.ui.theme.DeskWalnutRaised.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline)
+            ) {
+                Text(
+                    text = "Processing…",
+                    style = MaterialTheme.typography.labelSmall.copy(color = io.androllm.core.ui.theme.DeskInkFaint),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}

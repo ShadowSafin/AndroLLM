@@ -4,8 +4,11 @@ import io.androllm.core.common.Result
 import io.androllm.core.common.getOrNull
 import io.androllm.core.common.getOrThrow
 import io.androllm.core.models.Model
+import io.androllm.engine.backend.BackendCapabilities
+import io.androllm.engine.backend.BackendSelector
 import io.androllm.engine.utils.CoherenceChecker
 import io.androllm.engine.utils.CoherenceResult
+import io.androllm.engine.models.BackendBenchmarkResult
 import io.androllm.engine.models.EngineCapabilities
 import io.androllm.engine.models.EngineConfig
 import io.androllm.engine.models.EngineDebugInfo
@@ -60,6 +63,9 @@ class NoOpInferenceEngine : InferenceEngine {
         version = "1.0.0",
         backend = BackendType.CPU
     )
+
+    private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+    override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
 
     private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
     override val engineState = _engineState.asStateFlow()
@@ -184,6 +190,9 @@ class DefaultEngineRepository @Inject constructor(
     private val _memoryStats = MutableStateFlow<MemoryStats?>(null)
     override val memoryStats: StateFlow<MemoryStats?> = _memoryStats.asStateFlow()
 
+    private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+    override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
+
     /**
      * Serializes [generate] and [generateQuiet] so interactive chat generation
      * and background memory extraction/summarization never overlap on the
@@ -204,6 +213,12 @@ class DefaultEngineRepository @Inject constructor(
         get() = engine.capabilities
 
     init {
+        // Forward the startup probe from the engine so the adaptive settings
+        // UI and the developer benchmark stay in sync with it.
+        scope.launch {
+            engine.backendCapabilities.collect { _backendCapabilities.value = it }
+        }
+
         engine.engineState
             .onEach { state ->
                 _engineState.value = state
@@ -904,6 +919,104 @@ class DefaultEngineRepository @Inject constructor(
     }
 
     override suspend fun getDebugInfo(): Result<EngineDebugInfo?> = engine.getDebugInfo()
+
+    override suspend fun benchmarkBackends(
+        prompt: String
+    ): Result<List<BackendBenchmarkResult>> = generationMutex.withLock {
+        io.androllm.core.common.runCatching {
+            val info = engine.getLoadedModel() ?: return Result.Success(emptyList())
+            val caps = backendCapabilities.value
+            val model = Model(
+                id = info.id,
+                name = info.generalName,
+                filePath = info.filePath,
+                quantization = info.quantization,
+                architecture = info.architecture,
+                family = info.family
+            )
+            // Chain: NPU → GPU → CPU, pruned by the probe + model flags — the
+            // same order the engine uses for an AUTO load.
+            val candidates = BackendSelector.orderedCandidates(BackendType.AUTO, caps, model)
+                .map { it.type }
+                .distinct()
+            val original = caps.selectedBackend
+            val results = mutableListOf<BackendBenchmarkResult>()
+            for (type in candidates) {
+                results += benchmarkSingleBackend(model, type, prompt)
+            }
+            // Restore the backend the user had selected before benchmarking.
+            runCatching { engine.loadModel(model, ModelLoadConfig(backend = original)) }
+            results
+        }
+    }
+
+    /**
+     * Loads [model] on [type] and runs [prompt] once, measuring throughput,
+     * first-token latency, initialization time and peak RAM. Never throws — a
+     * failed backend is reported as a non-succeeded result so the comparison
+     * table still shows every backend it tried.
+     */
+    private suspend fun benchmarkSingleBackend(
+        model: Model,
+        type: BackendType,
+        prompt: String
+    ): BackendBenchmarkResult {
+        val loadStartedAt = System.currentTimeMillis()
+        val load = engine.loadModel(model, ModelLoadConfig(backend = type, runSelfTest = false))
+        if (load is Result.Error) {
+            android.util.Log.w(TAG, "Backend benchmark: ${type.name} load failed — ${load.exception.message}")
+            return BackendBenchmarkResult(
+                backend = type,
+                backendLabel = type.name,
+                succeeded = false,
+                error = load.exception.message ?: "load failed"
+            )
+        }
+        val initTimeMs = (System.currentTimeMillis() - loadStartedAt).coerceAtLeast(0L)
+        val loadedInfo = engine.getLoadedModel()
+        var tokenCount = 0L
+        var firstTokenMs = 0L
+        val startedAt = System.currentTimeMillis()
+        var failed = false
+        var failure: String? = null
+        try {
+            engine.tokenStream(prompt, GenerationConfig(maxTokens = 64))
+                .collect { res ->
+                    when (res) {
+                        is Result.Success -> {
+                            val chunk = res.data
+                            if (chunk.delta.isNotEmpty() && !chunk.finished) {
+                                if (firstTokenMs == 0L) firstTokenMs = System.currentTimeMillis() - startedAt
+                                if (!chunk.isThinking) tokenCount++
+                            }
+                        }
+                        is Result.Error -> throw res.exception
+                    }
+                }
+        } catch (e: Throwable) {
+            failed = true
+            failure = e.message ?: "generation failed"
+            android.util.Log.w(TAG, "Backend benchmark: ${type.name} generation failed — $failure")
+        }
+        val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
+        val stats = engine.stats.firstOrNull()
+        val tps = if (tokenCount > 0) tokenCount * 1000f / elapsedMs else 0f
+        return BackendBenchmarkResult(
+            backend = type,
+            backendLabel = type.name,
+            vendor = loadedInfo?.vendor.orEmpty(),
+            accelerator = loadedInfo?.accelerator.orEmpty(),
+            averageTokensPerSecond = tps,
+            peakTokensPerSecond = tps,
+            promptLatencyMs = stats?.promptTimeMs ?: 0L,
+            firstTokenMs = firstTokenMs,
+            generationTimeMs = elapsedMs,
+            initTimeMs = initTimeMs,
+            peakRamBytes = stats?.memoryPeakBytes ?: 0L,
+            succeeded = !failed,
+            error = failure.orEmpty()
+        )
+    }
 
     override fun release() {
         engine.release()

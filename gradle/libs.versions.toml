@@ -65,6 +65,10 @@ mcpKotlinSdk = "0.10.0"
 # QR decoding (pure-Java, no Play Services)
 zxing = "3.5.4"
 
+# Document parsing + OCR (Knowledge Base RAG)
+pdfbox = "2.0.27.0"
+mlkitTextRecognition = "16.0.1"
+
 # Testing
 junit = "4.13.2"
 junitJupiter = "5.10.2"
@@ -191,6 +195,10 @@ ktor-client-plugins = { group = "io.ktor", name = "ktor-client-plugins", version
 
 # QR
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+
+# Document parsing + OCR (Knowledge Base RAG)
+pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfbox" }
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

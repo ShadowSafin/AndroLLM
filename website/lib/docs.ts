@@ -59,6 +59,7 @@ export const docGroups: DocGroup[] = [
       { slug: "voice/text-normalization", title: "TTS Text Normalization", description: "TTS text normalization pipeline and OOV spelling" },
       { slug: "memory/memory-architecture", title: "Memory System", description: "Embeddings, retrieval, vector index, write pipeline" },
       { slug: "cloud/cloud-providers", title: "Cloud Providers", description: "LiteLLM integration, provider management, streaming" },
+      { slug: "features/chat-attachments", title: "Chat Attachments", description: "Conversation-scoped file attachments for cloud models — supported formats, workflow, privacy" },
     ],
   },
   {

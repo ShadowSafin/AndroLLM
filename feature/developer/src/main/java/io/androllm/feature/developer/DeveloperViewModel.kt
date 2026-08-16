@@ -21,6 +21,8 @@ import io.androllm.core.telemetry.TelemetryRepository
 import io.androllm.core.telemetry.TelemetrySample
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.backend.BackendCapabilities
+import io.androllm.engine.models.BackendBenchmarkResult
 import io.androllm.engine.models.EngineDebugInfo
 import io.androllm.engine.models.EngineStats
 import io.androllm.engine.models.MemoryStats
@@ -48,6 +50,33 @@ class DeveloperViewModel @Inject constructor(
 
     private val _debugInfo = MutableStateFlow<EngineDebugInfo?>(null)
     val debugInfo: StateFlow<EngineDebugInfo?> = _debugInfo.asStateFlow()
+
+    /** Startup hardware probe — which backends this device can actually run. */
+    val backendCapabilities: StateFlow<BackendCapabilities> = engineRepository.backendCapabilities
+
+    private val _backendBenchmark = MutableStateFlow<List<BackendBenchmarkResult>?>(null)
+    val backendBenchmark: StateFlow<List<BackendBenchmarkResult>?> = _backendBenchmark.asStateFlow()
+
+    private val _isBenchmarking = MutableStateFlow(false)
+    val isBenchmarking: StateFlow<Boolean> = _isBenchmarking.asStateFlow()
+
+    /**
+     * Runs the identical prompt through every usable backend (NPU → GPU →
+     * CPU) and stores the comparison. The repository reloads the currently
+     * loaded model per backend and restores the original backend afterwards.
+     */
+    fun runBackendBenchmark() {
+        if (_isBenchmarking.value) return
+        viewModelScope.launch {
+            _isBenchmarking.value = true
+            _backendBenchmark.value = null
+            try {
+                _backendBenchmark.value = engineRepository.benchmarkBackends().getOrNull()
+            } finally {
+                _isBenchmarking.value = false
+            }
+        }
+    }
 
     val uiState: StateFlow<UiState<DeveloperData>> = combine(
         telemetryRepository.history,

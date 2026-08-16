@@ -49,7 +49,7 @@ class ToolPromptBuilderTest {
     @Test
     fun `advertisement returns null when the pipeline reports no tools`() = runTest {
         val planner = mockk<ToolPlanner>()
-        coEvery { planner.allowedTools() } returns emptyList()
+        coEvery { planner.routedTools(any(), any()) } returns emptyList()
         val builder = ToolPromptBuilder(planner)
 
         assertThat(builder.advertisement()).isNull()
@@ -81,7 +81,7 @@ class ToolPromptBuilderTest {
     @Test
     fun `advertisement wraps the rendered block`() = runTest {
         val planner = mockk<ToolPlanner>()
-        coEvery { planner.allowedTools() } returns listOf(weather)
+        coEvery { planner.routedTools(any(), any()) } returns listOf(weather)
         val builder = ToolPromptBuilder(planner)
 
         val ad = builder.advertisement()

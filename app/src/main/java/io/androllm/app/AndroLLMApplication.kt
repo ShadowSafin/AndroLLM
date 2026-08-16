@@ -50,6 +50,15 @@ class AndroLLMApplication : Application(), WorkConfiguration.Provider {
             Timber.plant(Timber.DebugTree())
         }
 
+        // NPU (Qualcomm QNN) pre-init: the Hexagon DSP loads libQnnHtpV81Skel.so
+        // via FastRPC from ADSP_LIBRARY_PATH, and libQnnHtp.so reads that env
+        // var ONCE when it is dlopened. Seeding here (before any LiteRT lib
+        // load) is mandatory — setting it later in engine init is too late and
+        // the NPU init silently fails. The device's own skel dirs are included
+        // so the DSP can fall back to the vendor copies; every entry is
+        // best-effort and harmless when absent.
+        seedNpuLibraryPaths()
+
         // Background health probing for configured LiteLLM providers.
         providerHealthMonitor.start()
 
@@ -85,5 +94,35 @@ class AndroLLMApplication : Application(), WorkConfiguration.Provider {
 
             override fun onConfigurationChanged(newConfig: Configuration) { /* no-op */ }
         })
+    }
+
+    /**
+     * Sets the DSP/vendor library search paths the Qualcomm QNN backend needs
+     * to reach the Hexagon skeleton. Must run before the first dlopen of any
+     * LiteRT/QNN library, hence in [onCreate].
+     */
+    private fun seedNpuLibraryPaths() {
+        runCatching {
+            val nativeLibDir = applicationInfo.nativeLibraryDir
+            val paths = listOf(
+                nativeLibDir,
+                // This device (SM8845 / OnePlus) keeps its V81 skel here.
+                "/odm/lib64/aiframe/cdsp/unsigned",
+                "/odm/lib64/aiframe/cdsp/signed",
+                "/odm/lib64/aiframe",
+                "/odm/lib64",
+                "/vendor/dsp/cdsp",
+                "/vendor/lib64",
+                "/vendor/lib64/snap",
+                "/system/lib64",
+                "/system/vendor/lib64"
+            ).filter { it.isNotBlank() }
+            val joined = paths.joinToString(":")
+            android.system.Os.setenv("ADSP_LIBRARY_PATH", joined, true)
+            android.system.Os.setenv("LD_LIBRARY_PATH", joined, true)
+            Timber.d("[NPU] ADSP_LIBRARY_PATH=$joined")
+        }.onFailure { e ->
+            Timber.w("[NPU] Could not seed ADSP_LIBRARY_PATH: ${e.message}")
+        }
     }
 }

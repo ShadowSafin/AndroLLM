@@ -1,6 +1,7 @@
 package io.androllm.engine.models
 
 import io.androllm.core.common.AppConstants
+import io.androllm.engine.backend.BackendCapabilities
 import io.androllm.engine.utils.ThreadManager
 import kotlinx.serialization.Serializable
 
@@ -8,9 +9,11 @@ import kotlinx.serialization.Serializable
  * Backend used for token generation.
  *
  * LiteRT-LM (the production runtime) executes on CPU (XNNPACK), GPU (the
- * OpenCL-based LiteRT GPU delegate) or NPU. The legacy llama.cpp-era values
- * ([LLAMA_CPP_VULKAN], [VULKAN]) are kept for serializer/UI compatibility
- * with older persisted state but are never produced by the LiteRT engine.
+ * OpenCL-based LiteRT GPU delegate) or NPU (LiteRT dispatch delegates —
+ * Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor). The legacy
+ * llama.cpp-era values ([LLAMA_CPP_VULKAN], [VULKAN]) are kept for
+ * serializer/UI compatibility with older persisted state but are never
+ * produced by the LiteRT engine.
  */
 @kotlinx.serialization.Serializable
 enum class BackendType {
@@ -20,7 +23,16 @@ enum class BackendType {
     CPU,
     /** LiteRT GPU delegate (OpenCL-based on Android). */
     GPU,
-    VULKAN // Alias for LLAMA_CPP_VULKAN backward compatibility
+    VULKAN, // Alias for LLAMA_CPP_VULKAN backward compatibility
+
+    /**
+     * Automatic backend selection: NPU → GPU → CPU, decided at model load
+     * from the startup hardware probe. Never persisted as an *active*
+     * backend — it resolves to a concrete backend before any engine is built.
+     */
+    AUTO,
+    /** LiteRT NPU delegate (vendor dispatch — Qualcomm/MediaTek/Google Tensor). */
+    NPU
 }
 
 /**
@@ -37,7 +49,11 @@ enum class PerformanceProfile {
  */
 @Serializable
 data class EngineConfig(
-    val backend: BackendType = BackendType.GPU,
+    /**
+     * Desired backend. AUTO (default) resolves at model load via the startup
+     * probe (NPU → GPU → CPU); the engine never persists this value.
+     */
+    val backend: BackendType = BackendType.AUTO,
     val threads: Int = ThreadManager.recommendedThreads(),
     val maxContextLength: Int = AppConstants.Model.DEFAULT_CONTEXT_LENGTH,
     val useVulkan: Boolean = true,
@@ -52,6 +68,14 @@ data class EngineConfig(
 data class ModelLoadConfig(
     val contextLength: Int = 0,
     val gpuLayers: Int = -1,
+    /**
+     * Explicit backend request. Null (default) means automatic selection:
+     * [BackendType.AUTO] behavior driven by the startup probe (NPU → GPU →
+     * CPU, silently skipping backends the model or device cannot use), or
+     * the legacy [gpuLayers] == 0 CPU-forcing convention. [BackendType.CPU]
+     * is the equivalent of the old `gpuLayers = 0` debug override.
+     */
+    val backend: BackendType? = null,
     val batchSize: Int = 2048,
     val threads: Int = ThreadManager.recommendedThreads(),
     val profile: PerformanceProfile = PerformanceProfile.BALANCED,
@@ -159,6 +183,14 @@ data class EngineModelInfo(
     val chatTemplate: String? = null,
     val architecture: String = "",
     val family: String = "",
+    /** Accelerator vendor of the ACTIVE backend (e.g. "Qualcomm", "ARM"). */
+    val vendor: String = "",
+    /** Accelerator block (e.g. "Hexagon HTP", "Adreno"). */
+    val accelerator: String = "",
+    /** Runtime delegate label (e.g. "LiteRT Delegate"). */
+    val delegate: String = "",
+    /** Time to build the native engine on this backend, in ms. */
+    val backendInitMs: Long = 0L,
     /** True when the family emits native `<|tool_call|>` markers (chat layer skips the compat planner). */
     val nativeToolMarkers: Boolean = false,
     /**
@@ -194,6 +226,20 @@ data class EngineDebugInfo(
     val gpuName: String = "",
     val gpuDriverVersion: String = "",
     val gpuApiVersion: String = "",
+    // NPU diagnostics of the active backend (empty when not on NPU).
+    val npuName: String = "",
+    val npuVendor: String = "",
+    val npuAccelerator: String = "",
+    /** Runtime delegate label of the ACTIVE backend ("XNNPACK" / "LiteRT GPU" / "LiteRT Delegate"). */
+    val delegate: String = "",
+    /** LiteRT runtime version of the active delegate. */
+    val delegateVersion: String = "",
+    /** Wall-clock time to build the native engine on the active backend (ms). */
+    val backendInitMs: Long = 0,
+    /** Current native heap of this process at snapshot time (bytes). */
+    val currentRamBytes: Long = 0,
+    /** Peak tok/s observed in the last generation. */
+    val peakTokensPerSecond: Float = 0f,
     val gpuLayers: Int = 0,
     val totalLayers: Int = 0,
     val nCtxTrain: Long = 0,
@@ -261,7 +307,15 @@ data class EngineStats(
     val tokensPerSecond: Float = 0f,
     val memoryPeakBytes: Long = 0,
     val firstTokenMs: Long = 0,
-    val stopReason: String = ""
+    val stopReason: String = "",
+    // Backend runtime metrics of the last generation (""/0 when unknown).
+    val backend: String = "",
+    val delegate: String = "",
+    val vendor: String = "",
+    val accelerator: String = "",
+    val initTimeMs: Long = 0,
+    val peakTokensPerSecond: Float = 0f,
+    val currentRamBytes: Long = 0
 )
 
 /**
@@ -273,9 +327,15 @@ data class EngineCapabilities(
     val backend: BackendType,
     val supportsStreaming: Boolean = true,
     val supportsGpuAcceleration: Boolean = false,
+    val supportsNpuAcceleration: Boolean = false,
     val supportsQuantization: Boolean = true,
     val maxContextLength: Int = AppConstants.Model.DEFAULT_CONTEXT_LENGTH,
-    val supportedFormats: List<String> = listOf("litertlm")
+    val supportedFormats: List<String> = listOf("litertlm"),
+    /**
+     * Full startup hardware probe (SoC, GPU/NPU names, usable backends).
+     * Populated by the engine's `initialize()`; safe default all-unknown.
+     */
+    val backendCapabilities: BackendCapabilities = BackendCapabilities()
 )
 
 /**
@@ -288,6 +348,30 @@ data class BenchmarkResult(
     val bestTokensPerSecond: Float,
     val averagePromptTokensPerSecond: Float
 )
+
+/**
+ * One backend's result in a cross-backend comparison benchmark (Developer
+ * Settings → Benchmark Backends). Runs the identical prompt on each backend
+ * and reports throughput, latency, initialization time and peak RAM.
+ */
+@Serializable
+data class BackendBenchmarkResult(
+    val backend: BackendType,
+    val backendLabel: String = "",
+    val vendor: String = "",
+    val accelerator: String = "",
+    val averageTokensPerSecond: Float = 0f,
+    val peakTokensPerSecond: Float = 0f,
+    val promptLatencyMs: Long = 0,
+    val firstTokenMs: Long = 0,
+    val generationTimeMs: Long = 0,
+    val initTimeMs: Long = 0,
+    val peakRamBytes: Long = 0,
+    val succeeded: Boolean = true,
+    val error: String = ""
+) {
+    val peakRamMb: Float get() = peakRamBytes / (1024f * 1024f)
+}
 
 /**
  * Error raised by the inference engine.

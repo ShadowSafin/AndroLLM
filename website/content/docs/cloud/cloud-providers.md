@@ -12,6 +12,10 @@ Cloud features are **optional and opt-in**. The app works fully offline without 
 
 ---
 
+Cloud models also support **Chat Attachments** (conversation-scoped file
+uploads — PDF, Office, text, images/OCR). Attachments are a cloud-only
+capability; local models never expose them. See
+[Chat Attachments](../features/chat-attachments.md).
 ## Provider Architecture
 
 ```

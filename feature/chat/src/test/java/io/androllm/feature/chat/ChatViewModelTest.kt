@@ -1,5 +1,8 @@
 ﻿package io.androllm.feature.chat
 
+import android.content.Context
+import io.androllm.core.attachments.AttachmentProcessor
+import io.androllm.core.attachments.AttachmentSettingsStore
 import io.androllm.core.cloud.CloudGateway
 import io.androllm.core.cloud.model.CloudSettings
 import io.androllm.core.database.repository.ConversationRepository
@@ -55,7 +58,10 @@ class ChatViewModelTest {
     private val conversationRepository = mockk<ConversationRepository>()
     private val messageRepository = mockk<MessageRepository>()
     private val preferencesDataStore = mockk<PreferencesDataStore>()
+    private val appContext = mockk<Context>(relaxed = true)
     private val memoryManager = mockk<MemoryManager>(relaxed = true)
+    private val attachmentProcessor = mockk<AttachmentProcessor>(relaxed = true)
+    private val attachmentSettingsStore = mockk<AttachmentSettingsStore>(relaxed = true)
     private val cloudGateway = mockk<CloudGateway>(relaxed = true)
     private val toolCoordinator = mockk<ToolRunCoordinator>(relaxed = true)
     private val confirmationManager = ToolConfirmationManager()
@@ -114,11 +120,14 @@ class ChatViewModelTest {
         )
         coEvery { engineRepository.resetChat() } returns io.androllm.core.common.Result.Success(Unit)
         return ChatViewModel(
+            appContext,
             engineRepository,
             conversationRepository,
             messageRepository,
             preferencesDataStore,
             memoryManager,
+            attachmentProcessor,
+            attachmentSettingsStore,
             cloudGateway,
             toolCoordinator,
             confirmationManager,

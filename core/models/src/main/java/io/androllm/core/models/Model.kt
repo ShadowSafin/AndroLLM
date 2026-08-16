@@ -61,5 +61,16 @@ data class Model(
      * on the first occurrence of any of them — never streaming a stop token
      * to the UI and never running past a natural end.
      */
-    val stopSequences: List<String> = emptyList()
+    val stopSequences: List<String> = emptyList(),
+
+    // ---- backend compatibility flags (catalog schema) ----
+    // Gate which inference backends this artifact may run on. The engine's
+    // automatic selection skips a backend the model does not support and
+    // silently falls back (NPU → GPU → CPU) without user interaction. CPU is
+    // the universal default; NPU defaults to false because LiteRT-LM NPU
+    // execution requires SoC-specific model builds — an ordinary container
+    // would fail NPU initialization and burn load time on the attempt.
+    val supportsCpu: Boolean = true,
+    val supportsGpu: Boolean = true,
+    val supportsNpu: Boolean = false
 )

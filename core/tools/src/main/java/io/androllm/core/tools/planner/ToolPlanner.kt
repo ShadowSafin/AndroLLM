@@ -6,6 +6,8 @@ import io.androllm.core.tools.api.ToolCallParser
 import io.androllm.core.tools.api.ToolSpec
 import io.androllm.core.common.getOrNull
 import io.androllm.core.tools.registry.ToolRegistry
+import io.androllm.core.tools.router.ToolIntent
+import io.androllm.core.tools.router.ToolRouter
 import io.androllm.core.tools.settings.AutomationSettingsStore
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.models.ChatPromptMessage
@@ -39,7 +41,8 @@ class ToolPlanner @Inject constructor(
     private val registry: ToolRegistry,
     private val settingsStore: AutomationSettingsStore,
     private val engineRepository: EngineRepository,
-    private val agentContext: AgentContextBuilder
+    private val agentContext: AgentContextBuilder,
+    private val router: ToolRouter
 ) {
 
     /**
@@ -64,10 +67,14 @@ class ToolPlanner @Inject constructor(
     }
 
     /**
-     * OpenAI-compatible `tools` array for the cloud path.
+     * OpenAI-compatible `tools` array for the cloud path. When [query] is
+     * non-blank the list is ROUTED to the request (math → calculator only,
+     * device → device tools, attachments → none), so the provider's model can
+     * never pick the wrong tool "just in case". Blank query = the full
+     * enabled set (voice/backward-compatible callers).
      */
-    suspend fun buildCloudTools(): List<io.androllm.core.cloud.model.CloudTool> =
-        allowedTools().map { spec ->
+    suspend fun buildCloudTools(query: String = "", hasAttachments: Boolean = false): List<io.androllm.core.cloud.model.CloudTool> =
+        routedTools(query, hasAttachments).map { spec ->
             io.androllm.core.cloud.model.CloudTool(
                 type = "function",
                 function = io.androllm.core.cloud.model.CloudToolFunction(
@@ -79,12 +86,37 @@ class ToolPlanner @Inject constructor(
         }
 
     /**
+     * Tools visible for a request: the full enabled set, filtered by the
+     * [ToolRouter]. Blank [query] = everything enabled (diagnostics screens).
+     */
+    suspend fun routedTools(query: String = "", hasAttachments: Boolean = false): List<ToolSpec> {
+        val enabled = allowedTools()
+        if (enabled.isEmpty()) return emptyList()
+        if (query.isBlank()) return enabled
+        return router.route(query, hasAttachments, enabled).specs
+    }
+
+    /**
      * Runs the local planner against the loaded GGUF model and returns the
      * tool calls it wants to make (empty when none / model unavailable).
      */
-    suspend fun planLocal(messages: List<ChatPromptMessage>): List<ToolCall> {
-        val specs = allowedTools()
-        if (specs.isEmpty()) return emptyList()
+    suspend fun planLocal(
+        messages: List<ChatPromptMessage>,
+        hasAttachments: Boolean = false
+    ): List<ToolCall> {
+        // Route by the LATEST user message: math → calculator only, device →
+        // device tools, attachments → no tools (content already injected),
+        // small talk / writing → none. A routed-empty plan skips the LLM
+        // round entirely — no inference burned proving no tools are needed.
+        val latestUser = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val routed = router.route(latestUser, hasAttachments = hasAttachments, enabledTools = allowedTools())
+        if (routed.specs.isEmpty()) {
+            if (routed.intent != ToolIntent.GENERAL) {
+                Timber.i("ToolPlanner: route=${routed.intent.name} — no tools exposed, skipping plan")
+            }
+            return emptyList()
+        }
+        val specs = routed.specs
         // Defensive: planning needs a loaded GGUF model.
         if (engineRepository.engineState.value !is io.androllm.engine.api.EngineState.Ready) {
             Timber.w("ToolPlanner: no model loaded — skipping plan")

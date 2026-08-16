@@ -185,6 +185,19 @@ Connect external MCP servers or drive third-party apps directly.
 <tr>
 <td width="50%">
 
+### 📎 Chat Attachments (Cloud)
+
+ChatGPT-style, **conversation-scoped** file attachments for cloud models.
+
+- Attach PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, JSON, HTML, images & screenshots
+- Files are parsed/OCR'd **on-device**; only extracted content rides with the prompt
+- Conversation-scoped: nothing is indexed, no searchable library, and the temporary cache is removed when the conversation is deleted
+- Paperclip picker: **Files / Images / Camera / Gallery**, with processing chips and attachment cards in chat history
+- **Cloud-only** — local models hide the feature entirely (no button, no settings)
+
+</td>
+<td width="50%">
+
 ### 🔒 Local-First Guarantee
 
 Every capability runs on-device by default — nothing leaves the phone unless you opt in.

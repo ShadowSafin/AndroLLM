@@ -34,5 +34,14 @@ data class Message(
     val modelId: String? = null,
     val isBookmarked: Boolean = false,
     /** Source channel — keyboard, voice, etc. Defaults to [MessageOrigin.TYPED]. */
-    val origin: MessageOrigin = MessageOrigin.TYPED
+    val origin: MessageOrigin = MessageOrigin.TYPED,
+    /**
+     * Files attached to this message, serialized as a JSON array of
+     * [io.androllm.core.attachments.model.ChatAttachment] ("" = none).
+     * Conversation-scoped: the metadata persists with the message so history
+     * shows the attachment cards, while the actual file lives in the
+     * conversation cache. Kept as a string so core/models stays
+     * dependency-free.
+     */
+    val attachmentsJson: String = ""
 )

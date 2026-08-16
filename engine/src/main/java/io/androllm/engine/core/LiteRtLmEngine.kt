@@ -1,7 +1,7 @@
 package io.androllm.engine.core
 
 import android.content.Context
-import com.google.ai.edge.litertlm.Backend
+import android.os.Debug
 import com.google.ai.edge.litertlm.Channel as LiteRtChannel
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -18,6 +18,10 @@ import io.androllm.core.common.runCatching
 import io.androllm.core.models.Model
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.api.InferenceEngine
+import io.androllm.engine.backend.BackendCapabilities
+import io.androllm.engine.backend.BackendSelector
+import io.androllm.engine.backend.HardwareBackendProbe
+import io.androllm.engine.backend.InferenceBackend
 import io.androllm.engine.compat.ChatTemplateRenderer
 import io.androllm.engine.compat.ContainerMetadataReader
 import io.androllm.engine.compat.ModelCompatibilityException
@@ -69,8 +73,9 @@ import kotlinx.coroutines.withContext
  * the `.litertlm` model and one [Conversation] per chat session keeps the
  * multi-turn context (chat template, KV cache) across messages. Streaming is
  * `conversation.sendMessageAsync(text)` returning a `Flow<Message>`; cancel is
- * `conversation.cancelProcess()`; accelerator selection is
- * [Backend.GPU] with a [Backend.CPU] fallback decided at load time.
+ * `conversation.cancelProcess()`; accelerator selection is a proper backend
+ * layer ([io.androllm.engine.backend.InferenceBackend]) probing the device at
+ * startup and falling back silently through NPU → GPU → CPU at load time.
  *
  * Embeddings (memory search) run through the raw LiteRT CompiledModel API in
  * [io.androllm.engine.embedding.LiteRtEmbeddingEngine] — see that class.
@@ -100,6 +105,9 @@ class LiteRtLmEngine @Inject constructor(
 
     private val _stats = MutableStateFlow<EngineStats?>(null)
     override val stats: StateFlow<EngineStats?> = _stats.asStateFlow()
+
+    private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+    override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
 
     /** The stateful LiteRT-LM engine (created per model load). */
     @Volatile
@@ -146,9 +154,17 @@ class LiteRtLmEngine @Inject constructor(
 
     private var promptCount = 0
 
-    /** Active backend (GPU when the device supports it and load succeeded). */
+    /**
+     * The ACTIVE backend of the last successful load — an [InferenceBackend]
+     * carrying the display metadata (vendor/accelerator/delegate) the status
+     * UI and debug panel read. Re-selected per load by [BackendSelector].
+     */
     @Volatile
-    private var activeBackend: Backend = Backend.CPU()
+    private var activeBackendInfo: InferenceBackend? = null
+
+    /** Wall-clock time to build the native engine on the active backend (ms). */
+    @Volatile
+    private var activeBackendInitMs: Long = 0L
 
     /**
      * Native `<|tool_call|>` markers the model emitted in the last chat
@@ -173,13 +189,26 @@ class LiteRtLmEngine @Inject constructor(
 
     override suspend fun initialize(config: EngineConfig): Result<Unit> = io.androllm.core.common.runCatching {
         // LiteRT-LM loads its native library on first Engine construction; no
-        // global initialization is required. Capabilities are fixed up here.
+        // global initialization is required. The startup HARDWARE PROBE runs
+        // here — once, cheaply, best-effort — and drives every later backend
+        // decision (automatic selection + adaptive settings UI).
+        val probe = HardwareBackendProbe.probe(context)
+        _backendCapabilities.value = probe
+        val best = BackendSelector.bestAvailable(probe)
         _capabilities = _capabilities.copy(
             version = LITERTLM_VERSION,
             supportsGpuAcceleration = true,
-            backend = BackendType.CPU
+            supportsNpuAcceleration = probe.npuUsable,
+            backend = best,
+            backendCapabilities = probe.copy(selectedBackend = best)
         )
-        logger.i("LiteRT-LM engine ready (runtime $LITERTLM_VERSION)")
+        logger.i(
+            "LiteRT-LM engine ready (runtime $LITERTLM_VERSION): " +
+                "SoC-NPU=${if (probe.npuAvailable) "present" else "absent"} " +
+                "NPU-usable=${probe.npuUsable} vendor=${probe.npuVendor ?: "—"} " +
+                "GPU=${probe.gpuName ?: "—"} NNAPI=${probe.nnApiAvailable} " +
+                "best=${best.name}"
+        )
     }
 
     override fun isLoaded(): Boolean = engine != null && loadedModel != null
@@ -196,32 +225,28 @@ class LiteRtLmEngine @Inject constructor(
 
             _engineState.value = EngineState.Loading("Initializing LiteRT-LM…")
 
-            // Backend selection: GPU requested unless the caller forces CPU
-            // (gpuLayers == 0). LiteRT-LM throws on initialize() when the GPU
-            // backend cannot be created on this device/driver — that is caught
-            // by the repository's load path and retried with gpuLayers = 0
-            // (CPU fallback), matching the local-LLM spec: an accelerator must
-            // fail safely, never crash the app.
-            val requestedGpu = config.gpuLayers != 0
-            val backend: Backend =
-                if (requestedGpu) Backend.GPU() else Backend.CPU(threadCount = config.threads)
+            // Backend selection: an explicit request wins; otherwise AUTO
+            // (NPU → GPU → CPU) or the legacy `gpuLayers == 0` CPU-forcing
+            // convention. The engine ATTEMPTS each candidate in order and falls
+            // through to the next on initialization failure — a backend that
+            // cannot initialize on this device/driver must fail safely and
+            // silently, never crash the app (local-LLM spec). Model
+            // compatibility flags prune candidates before any attempt.
+            val preference = config.backend
+                ?: if (config.gpuLayers == 0) BackendType.CPU else BackendType.AUTO
+            val candidates = BackendSelector.orderedCandidates(preference, _backendCapabilities.value, model)
+            check(candidates.isNotEmpty()) {
+                "No backend available for this model (all declared backends unusable)"
+            }
 
             val cacheDir = runCatching { context.cacheDir.absolutePath }.getOrNull()
+            // The directory that must hold the vendor NPU dispatch libraries
+            // (`libLiteRtDispatch_*.so`); passed to Backend.NPU(nativeLibraryDir).
+            val npuLibDir = runCatching { context.applicationInfo.nativeLibraryDir }.getOrNull()
 
-            withContext(Dispatchers.Default) {
+            val (selectedBackend, initMs) = withContext(Dispatchers.Default) {
                 ThreadManager.withBackgroundInferencePriority {
-                    val newEngine = Engine(
-                        LitertEngineConfig(
-                            modelPath = path,
-                            backend = backend,
-                            cacheDir = cacheDir
-                        )
-                    )
-                    newEngine.initialize()
-                    engine?.let { old ->
-                        runCatching { old.close() }
-                    }
-                    engine = newEngine
+                    createEngineWithFallback(path, cacheDir, candidates, config.threads, npuLibDir)
                 }
             }
 
@@ -272,11 +297,16 @@ class LiteRtLmEngine @Inject constructor(
                     "(source ${family.source.name.lowercase()}), sidecars=${sidecars.present.joinToString(",") { it }}"
             )
 
-            activeBackend = backend
+            activeBackendInfo = selectedBackend
+            activeBackendInitMs = initMs
             // Report the ACTIVE backend (not the hardcoded CPU default) so the
-            // UI/dev-screen shows GPU when the LiteRT GPU delegate is in use.
+            // UI/dev-screen shows NPU/GPU when a delegate is in use, and mirror
+            // the selection back into the probe (engine status reads it).
             _capabilities = _capabilities.copy(
-                backend = if (backend is Backend.GPU) BackendType.GPU else BackendType.CPU
+                backend = selectedBackend.type,
+                backendCapabilities = _backendCapabilities.value.copy(
+                    selectedBackend = selectedBackend.type
+                )
             )
             loadedFilePath = path
             modelLoadedAtMs = System.currentTimeMillis()
@@ -314,7 +344,11 @@ class LiteRtLmEngine @Inject constructor(
                 filePath = path,
                 contextLength = contextLength,
                 vocabSize = 0,
-                backend = if (backend is Backend.GPU) BackendType.GPU else BackendType.CPU,
+                backend = selectedBackend.type,
+                vendor = selectedBackend.vendor.orEmpty(),
+                accelerator = selectedBackend.accelerator.orEmpty(),
+                delegate = selectedBackend.delegate,
+                backendInitMs = initMs,
                 quantization = model.quantization,
                 architecture = model.architecture.ifBlank { family.family.displayName },
                 generalName = model.name,
@@ -338,7 +372,10 @@ class LiteRtLmEngine @Inject constructor(
                 promptCount = 0,
                 loadedSinceMs = modelLoadedAtMs
             )
-            logger.i("LiteRT-LM model loaded: ${model.name} backend=$activeBackend")
+            logger.i(
+                "LiteRT-LM model loaded: ${model.name} backend=${selectedBackend.displayName} " +
+                    "delegate=${selectedBackend.delegate} init=${initMs}ms"
+            )
             loadedModel!!
         }
 
@@ -435,14 +472,14 @@ class LiteRtLmEngine @Inject constructor(
                 val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
                 val firstMs = if (firstTokenSeenAt.get() > 0) firstTokenSeenAt.get() - startedAt else elapsedMs
                 logger.i("generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, text='${stripControlTokens(emittedBuilder.toString()).take(120)}'")
-                _stats.value = EngineStats(
+                _stats.value = applyBackendFields(EngineStats(
                     promptTokens = 0,
                     generatedTokens = tokenCount,
                     totalTimeMs = elapsedMs,
                     tokensPerSecond = tokenCount * 1000f / elapsedMs,
                     firstTokenMs = firstMs,
                     stopReason = stopReason
-                )
+                ))
                 trySend(Result.Success(StreamChunk("", true, tokenCount, tokenCount)))
                 close()
             }
@@ -582,11 +619,11 @@ class LiteRtLmEngine @Inject constructor(
                     val rawResult = sendMessageWithRetry(conv, prompt, config)
                     val result = decoderFor(config)?.clean(rawResult) ?: rawResult
                     val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
-                    _stats.value = EngineStats(
+                    _stats.value = applyBackendFields(EngineStats(
                         generatedTokens = 0,
                         totalTimeMs = elapsedMs,
                         stopReason = "eos"
-                    )
+                    ))
                     result
                 }
             } finally {
@@ -622,11 +659,11 @@ class LiteRtLmEngine @Inject constructor(
                 val stripped = NativeToolCallScanner.strip(rawResult)
                 val cleanResult = decoderFor(config)?.clean(stripped) ?: stripped
                 val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
-                _stats.value = EngineStats(
+                _stats.value = applyBackendFields(EngineStats(
                     generatedTokens = 0,
                     totalTimeMs = elapsedMs,
                     stopReason = "eos"
-                )
+                ))
                 updateConsumedTranscript(messages, cleanResult)
                 cleanResult
             }
@@ -765,13 +802,13 @@ class LiteRtLmEngine @Inject constructor(
             }
             lastNativeToolCalls = NativeToolCallScanner.scan(scanRaw)
             logger.i("chat generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, text='${stripControlTokens(fullClean).take(120)}' nativeCalls=${lastNativeToolCalls.size}")
-            _stats.value = EngineStats(
+            _stats.value = applyBackendFields(EngineStats(
                 generatedTokens = tokenCount,
                 totalTimeMs = elapsedMs,
                 tokensPerSecond = tokenCount * 1000f / elapsedMs,
                 firstTokenMs = firstMs,
                 stopReason = stopReason
-            )
+            ))
             trySend(Result.Success(StreamChunk("", true, tokenCount, tokenCount)))
             // The persisted transcript must be the FILTERED text (what the
             // next turn seeds its conversation with) — never raw markers.
@@ -1213,6 +1250,72 @@ class LiteRtLmEngine @Inject constructor(
     private fun eng(): Engine = checkNotNull(engine) { "Model not loaded" }
 
     /**
+     * Builds the native LiteRT-LM engine, trying each [candidates] backend in
+     * order and falling through SILENTLY on initialization failure (NPU → GPU →
+     * CPU). The winner is the first backend whose `Engine.initialize()` does
+     * not throw; if every candidate fails the last error is rethrown (the
+     * repository surfaces it — inference must never silently disappear).
+     */
+    private fun createEngineWithFallback(
+        path: String,
+        cacheDir: String?,
+        candidates: List<InferenceBackend>,
+        threads: Int,
+        npuLibDir: String?
+    ): Pair<InferenceBackend, Long> {
+        var lastError: Throwable? = null
+        var attempted = 0
+        for (candidate in candidates) {
+            attempted++
+            var newEngine: Engine? = null
+            val startedAt = System.currentTimeMillis()
+            try {
+                newEngine = Engine(
+                    LitertEngineConfig(
+                        modelPath = path,
+                        backend = candidate.toLiteRtBackend(threads, npuLibDir),
+                        cacheDir = cacheDir
+                    )
+                )
+                newEngine.initialize()
+                engine?.let { old -> runCatching { old.close() } }
+                engine = newEngine
+                val initMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                if (attempted > 1) {
+                    logger.w("LiteRT-LM backend fallback: running on ${candidate.displayName} after $attempted attempt(s)")
+                }
+                return candidate to initMs
+            } catch (e: Throwable) {
+                lastError = e
+                runCatching { newEngine?.close() }
+                logger.w(
+                    "Backend ${candidate.displayName} (${candidate.delegate}) init failed " +
+                        "(${e.message}) — ${if (candidates.size > attempted) "falling back" else "no more backends"}"
+                )
+            }
+        }
+        throw lastError ?: EngineException("No backend could be initialized")
+    }
+
+    /**
+     * Merges the ACTIVE backend identity + runtime metrics into a fresh stats
+     * record so the UI (status dashboard, generation panel, developer screen)
+     * always reports which delegate produced the tokens.
+     */
+    private fun applyBackendFields(stats: EngineStats, peakTps: Float = 0f): EngineStats {
+        val backend = activeBackendInfo
+        return stats.copy(
+            backend = backend?.type?.name?.lowercase() ?: "",
+            delegate = backend?.delegate ?: "",
+            vendor = backend?.vendor.orEmpty(),
+            accelerator = backend?.accelerator.orEmpty(),
+            initTimeMs = activeBackendInitMs,
+            peakTokensPerSecond = maxOf(peakTps, stats.tokensPerSecond),
+            currentRamBytes = runCatching { Debug.getNativeHeapAllocatedSize() }.getOrDefault(0L)
+        )
+    }
+
+    /**
      * Discovers the container's REAL max context (tokens) by sending an
      * oversized prompt and reading the limit from LiteRT's error message
      * ("Exceeding the maximum number of tokens allowed: N >= M" → M). The
@@ -1425,13 +1528,25 @@ class LiteRtLmEngine @Inject constructor(
     override suspend fun getDebugInfo(): Result<EngineDebugInfo?> = io.androllm.core.common.runCatching {
         val model = loadedModel ?: return Result.Success(null)
         val fam = familyConfig
+        val backend = activeBackendInfo
+        val stats = _stats.value
+        val isGpu = backend?.type == BackendType.GPU
+        val isNpu = backend?.type == BackendType.NPU
         EngineDebugInfo(
             desc = "LiteRT-LM (${LITERTLM_VERSION})",
             generalName = model.generalName,
             architecture = model.architecture,
             family = model.family,
-            backend = if (activeBackend is Backend.GPU) "gpu" else "cpu",
-            gpuName = if (activeBackend is Backend.GPU) "LiteRT GPU" else "",
+            backend = backend?.type?.name?.lowercase() ?: "cpu",
+            gpuName = if (isGpu) (backend?.accelerator ?: "LiteRT GPU") else "",
+            npuName = if (isNpu) (backend?.accelerator ?: "NPU") else "",
+            npuVendor = if (isNpu) backend?.vendor.orEmpty() else "",
+            npuAccelerator = if (isNpu) backend?.accelerator.orEmpty() else "",
+            delegate = backend?.delegate ?: "",
+            delegateVersion = LITERTLM_VERSION,
+            backendInitMs = activeBackendInitMs,
+            currentRamBytes = runCatching { Debug.getNativeHeapAllocatedSize() }.getOrDefault(0L),
+            peakTokensPerSecond = stats?.peakTokensPerSecond ?: 0f,
             nCtx = model.contextLength,
             nThreads = model.nThreads,
             quantization = model.quantization,
@@ -1441,9 +1556,9 @@ class LiteRtLmEngine @Inject constructor(
             eosToken = fam?.specialTokens?.eos ?: "",
             modelSizeBytes = File(model.filePath).length(),
             promptTokens = 0,
-            generatedTokens = _stats.value?.generatedTokens ?: 0,
-            firstTokenMs = _stats.value?.firstTokenMs ?: 0,
-            stopReason = _stats.value?.stopReason ?: ""
+            generatedTokens = stats?.generatedTokens ?: 0,
+            firstTokenMs = stats?.firstTokenMs ?: 0,
+            stopReason = stats?.stopReason ?: ""
         )
     }
 
@@ -1463,19 +1578,21 @@ class LiteRtLmEngine @Inject constructor(
 
     private fun fetchMemoryStats(): MemoryStats? {
         val model = loadedModel ?: return null
+        val backend = activeBackendInfo
         val fileSize = runCatching { File(model.filePath).length() }.getOrDefault(0L)
+        val type = backend?.type ?: BackendType.CPU
         return MemoryStats(
             modelSizeBytes = fileSize,
             contextSizeBytes = 0,
             peakMemoryBytes = fileSize,
-            backend = if (activeBackend is Backend.GPU) "gpu" else "cpu",
-            backendReason = if (activeBackend is Backend.GPU) {
-                "LiteRT GPU delegate active"
-            } else {
-                "CPU (XNNPACK)"
+            backend = type.name.lowercase(),
+            backendReason = when (type) {
+                BackendType.NPU -> "LiteRT NPU delegate active"
+                BackendType.GPU -> "LiteRT GPU delegate active"
+                else -> "CPU (XNNPACK)"
             },
-            gpuName = if (activeBackend is Backend.GPU) "LiteRT GPU" else "",
-            gpuInferenceVerified = activeBackend is Backend.GPU,
+            gpuName = if (type == BackendType.GPU) "LiteRT GPU" else "",
+            gpuInferenceVerified = type == BackendType.GPU,
             loadedSinceMs = modelLoadedAtMs
         )
     }

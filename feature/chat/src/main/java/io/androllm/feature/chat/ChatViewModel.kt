@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.androllm.core.cloud.CloudGateway
 import io.androllm.core.cloud.model.CloudChatMessage
+import io.androllm.core.cloud.model.CloudContentPart
 import io.androllm.core.cloud.model.CloudGenerationConfig
 import io.androllm.core.cloud.model.CloudStreamEvent
 import io.androllm.core.cloud.model.CloudTool
@@ -14,6 +15,12 @@ import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.getOrNull
 import io.androllm.core.database.repository.ConversationRepository
 import io.androllm.core.database.repository.MessageRepository
+import io.androllm.core.attachments.AttachmentCache
+import io.androllm.core.attachments.AttachmentProcessor
+import io.androllm.core.attachments.AttachmentSettingsStore
+import io.androllm.core.attachments.ProviderCapabilities
+import io.androllm.core.attachments.model.AttachmentStatus
+import io.androllm.core.attachments.model.ChatAttachment
 import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.datastore.UserPreferences
 import io.androllm.core.memory.MemoryManager
@@ -35,6 +42,10 @@ import io.androllm.core.models.MessageOrigin
 import io.androllm.core.models.MessageRole
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
+import android.content.Context
+import android.net.Uri
+import java.io.File
+import java.util.Base64
 import io.androllm.engine.api.GenerationState
 import io.androllm.engine.core.NativeToolCall
 import io.androllm.engine.models.ChatPromptMessage
@@ -70,11 +81,14 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: Context,
     private val engineRepository: EngineRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     private val preferencesDataStore: PreferencesDataStore,
     private val memoryManager: MemoryManager,
+    private val attachmentProcessor: AttachmentProcessor,
+    private val attachmentSettingsStore: AttachmentSettingsStore,
     private val cloudGateway: CloudGateway,
     private val toolCoordinator: ToolRunCoordinator,
     private val confirmationManager: ToolConfirmationManager,
@@ -96,6 +110,33 @@ class ChatViewModel @Inject constructor(
     private val _cloudGenerating = MutableStateFlow(false)
     private val _cloudStreamingText = MutableStateFlow<String?>(null)
     private val _cloudDefaultModel = MutableStateFlow("")
+
+    /**
+     * Files attached to the CURRENT message being composed. Conversation-
+     * scoped by construction: cleared on conversation switch and after send,
+     * never indexed or shared across chats. The processed chips render above
+     * the composer; their content is packaged into the next prompt.
+     */
+    private val _pendingAttachments = MutableStateFlow<List<ChatAttachment>>(emptyList())
+    private val _attachmentsProcessing = MutableStateFlow(false)
+
+    /**
+     * True while a cloud→local switch with pending attachments is awaiting
+     * user confirmation ("switching removes the current attachments").
+     */
+    private val _cloudToLocalConfirm = MutableStateFlow(false)
+
+    /** Attachments of the CURRENT turn that will be packaged into the prompt. */
+    private var turnAttachments: List<ChatAttachment> = emptyList()
+
+    /**
+     * Live capability check (cloud mode + a resolved cloud model). Local
+     * models pass no cloud model id → false. Used by every backend gate so
+     * attachments can never reach a local inference engine.
+     */
+    private fun attachmentsSupportedNow(): Boolean =
+        _cloudMode.value &&
+            io.androllm.core.attachments.ProviderCapabilities.supportsAttachments(_cloudDefaultModel.value)
 
     /** Tool action currently awaiting user approval (chat confirmation card). */
     private val _pendingToolConfirmation = MutableStateFlow<PendingToolConfirmation?>(null)
@@ -193,7 +234,10 @@ class ChatViewModel @Inject constructor(
             _pendingToolConfirmation,
             _toolActivity,
             _toolEvents,
-            _preparing
+            _preparing,
+            _pendingAttachments,
+            _attachmentsProcessing,
+            _cloudToLocalConfirm
         ) { values: Array<Any?> ->
             @Suppress("UNCHECKED_CAST")
             CloudUiBits(
@@ -207,7 +251,10 @@ class ChatViewModel @Inject constructor(
                 pendingToolConfirmation = values[7] as PendingToolConfirmation?,
                 toolActivity = values[8] as String?,
                 toolEvents = values[9] as List<ToolInvocationUi>,
-                isPreparing = values[10] as Boolean
+                isPreparing = values[10] as Boolean,
+                pendingAttachments = values[11] as List<ChatAttachment>,
+                attachmentsProcessing = values[12] as Boolean,
+                confirmCloudToLocalSwitch = values[13] as Boolean
             )
         }
     ) { convData, engineData, searchData ->
@@ -251,6 +298,14 @@ class ChatViewModel @Inject constructor(
             isSearchOpen = bits.isSearchOpen,
             cloudMode = bits.cloudMode,
             cloudDefaultModel = bits.cloudDefaultModel,
+            // Capability-driven: attachments exist only when a cloud model is
+            // active. Local LiteRT/llama.cpp models pass no cloud model id, so
+            // this resolves to false without any provider-name checks.
+            attachmentsSupported = bits.cloudMode &&
+                io.androllm.core.attachments.ProviderCapabilities.supportsAttachments(bits.cloudDefaultModel),
+            pendingAttachments = bits.pendingAttachments,
+            attachmentsProcessing = bits.attachmentsProcessing,
+            confirmCloudToLocalSwitch = bits.confirmCloudToLocalSwitch,
             pendingToolConfirmation = bits.pendingToolConfirmation,
             toolActivity = bits.toolActivity,
             toolEvents = bits.toolEvents
@@ -326,6 +381,96 @@ class ChatViewModel @Inject constructor(
                 _cloudDefaultModel.value = settings.defaultModelId
             }
         }
+    }
+
+    /** Pending attachments for the composer chips. */
+    val pendingAttachments: StateFlow<List<ChatAttachment>> = _pendingAttachments
+
+    /**
+     * Processes picked files ([uris]) into ready attachments for the current
+     * conversation. Each chip updates as its file is copied/parsed; failures
+     * surface per-chip instead of aborting the batch. Attachments are capped
+     * by the settings' max-per-message limit.
+     */
+    fun attachFiles(uris: List<Uri>) {
+        if (uris.isEmpty() || _attachmentsProcessing.value) return
+        // Capability gate: attachments are cloud-only. Local models never
+        // parse/OCR/process files — the UI hides the button, this is the
+        // backend enforcement (spec: no parsing for local providers).
+        if (!attachmentsSupportedNow()) {
+            android.util.Log.w(TAG, "attachFiles rejected: attachments are not supported for local models")
+            appendErrorMessage("Attachments are not supported for local models.")
+            return
+        }
+        val convId = _currentConversationId.value
+        if (convId.isBlank()) {
+            // No conversation yet — create one so the attachments have a home.
+            createNewConversation()
+            return
+        }
+        viewModelScope.launch {
+            val settings = attachmentSettingsStore.current()
+            val room = (settings.maxAttachmentsPerMessage - _pendingAttachments.value.size)
+                .coerceAtLeast(0)
+            val toProcess = uris.take(room)
+            if (toProcess.isEmpty()) return@launch
+            _attachmentsProcessing.value = true
+            try {
+                val results = attachmentProcessor.processBatch(
+                    conversationId = convId,
+                    uris = toProcess,
+                    onProgress = { _, _, _ -> }
+                )
+                val ready = results.map { it.attachment }
+                _pendingAttachments.value = (_pendingAttachments.value + ready).takeLast(
+                    settings.maxAttachmentsPerMessage
+                )
+            } finally {
+                _attachmentsProcessing.value = false
+            }
+        }
+    }
+
+    /** Removes one pending attachment before sending. */
+    fun removeAttachment(attachmentId: String) {
+        val removed = _pendingAttachments.value.find { it.id == attachmentId }
+        _pendingAttachments.value = _pendingAttachments.value.filterNot { it.id == attachmentId }
+        // Drop the private copy from the conversation cache (best-effort).
+        removed?.let { att ->
+            viewModelScope.launch {
+                runCatching { java.io.File(att.filePath).delete() }
+            }
+        }
+    }
+
+    /** Clears all pending attachments (e.g. on conversation switch). */
+    fun clearPendingAttachments() {
+        _pendingAttachments.value = emptyList()
+    }
+
+    /**
+     * Packages the current turn's ready attachments into a numbered context
+     * block injected before the user message. Text documents contribute their
+     * extracted text; images contribute OCR text (native image parts are
+     * handled separately in [runCloudGeneration] for vision providers).
+     * Returns "" when there is nothing to inject.
+     */
+    private fun buildAttachmentContext(): String {
+        // Backend enforcement: never inject attachment content into a local
+        // inference prompt. The send guard rejects attachment messages while
+        // local, so this is belt-and-braces for mode switches mid-turn.
+        if (!attachmentsSupportedNow()) return ""
+        val attachments = turnAttachments.filter { it.isReady && it.text.isNotBlank() }
+        if (attachments.isEmpty()) return ""
+        val block = buildString {
+            append("The user attached the following files to this message:\n")
+            attachments.forEachIndexed { index, att ->
+                append("\n[File ${index + 1}: ").append(att.name)
+                if (att.fromOcr) append(" (text extracted by OCR)")
+                append("]\n").append(att.text.take(MAX_ATTACHMENT_CHARS_PER_FILE)).append("\n")
+            }
+        }
+        return block
     }
 
     /** Mirrors the shared confirmation hub into the chat UI state. */
@@ -494,6 +639,14 @@ class ChatViewModel @Inject constructor(
             if (memoryContext.systemText.isNotBlank()) {
                 android.util.Log.i(TAG, "MEMORY CONTEXT (${memoryContext.memories.size} memories, ${memoryContext.summaries.size} summaries)")
             }
+            // Attachment context: the current turn's attached files (text
+            // documents + OCR'd images) are injected as a numbered block so
+            // the model can answer about them. Native image parts for vision
+            // providers are handled in the cloud generation path.
+            val attachmentContext = buildAttachmentContext()
+            if (attachmentContext.isNotBlank()) {
+                android.util.Log.i(TAG, "ATTACHMENT CONTEXT (${turnAttachments.size} files, ${attachmentContext.length} chars)")
+            }
             // Context-window guard: a conversation longer than nCtx makes the
             // native engine freeze (encode of an oversized prompt) or decode
             // garbage at the clamped tail — both reported as "the model never
@@ -538,16 +691,27 @@ class ChatViewModel @Inject constructor(
                 (engineRepository.engineState.value as? EngineState.Ready)
                     ?.model?.toolAdvertisementCapChars
                     ?: Int.MAX_VALUE
+            // Route the advertisement to THIS request (spec: never expose
+            // every tool simultaneously). The latest user message + attachment
+            // presence drive the router: attachment questions advertise no
+            // tools (content is already injected), math advertises only the
+            // calculator, device queries only device tools, etc. — so the
+            // model cannot pick the wrong tool "just in case".
+            val routeQuery = history.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty()
+            val routeHasAttachments = turnAttachments.isNotEmpty()
             val toolAdvertisement = toolPromptBuilder.advertisement(
-                maxChars = minOf(systemCharsBudget, familyAdCapChars)
+                maxChars = minOf(systemCharsBudget, familyAdCapChars),
+                query = routeQuery,
+                hasAttachments = routeHasAttachments
             )
 
-            // Reserve the ACTUAL system-turn cost (memory context + tool
-            // advertisement + template framing) rather than a fixed guess, so
-            // a large injected memory block can never silently push the
-            // rendered prompt over nCtx after trimming.
+            // Reserve the ACTUAL system-turn cost (memory context + attachment
+            // block + tool advertisement + template framing) rather than a
+            // fixed guess, so a large injected attachment can never silently
+            // push the rendered prompt over nCtx after trimming.
             val systemTokenOverhead = SYSTEM_TEMPLATE_FRAMING_TOKENS +
                 ChatHistoryTrimmer.estimateTokens(memoryContext.systemText) +
+                (if (attachmentContext.isNotBlank()) ChatHistoryTrimmer.estimateTokens(attachmentContext) else 0) +
                 (toolAdvertisement?.let { ChatHistoryTrimmer.estimateTokens(it) } ?: 0)
             val trimmedHistory = ChatHistoryTrimmer.trim(
                 history = history,
@@ -565,6 +729,9 @@ class ChatViewModel @Inject constructor(
             val messages = buildList {
                 if (memoryContext.systemText.isNotBlank()) {
                     add(ChatPromptMessage(role = "system", content = memoryContext.systemText))
+                }
+                if (attachmentContext.isNotBlank()) {
+                    add(ChatPromptMessage(role = "system", content = attachmentContext))
                 }
                 toolAdvertisement?.let {
                     add(ChatPromptMessage(role = "system", content = it))
@@ -664,7 +831,25 @@ class ChatViewModel @Inject constructor(
 
     fun sendMessage(content: String) {
         val trimmed = content.trim()
-        if (trimmed.isEmpty()) return
+        // A message with attachments may have an empty prompt ("ask about these
+        // files"), so only reject a completely empty message with no files.
+        if (trimmed.isEmpty() && _pendingAttachments.value.isEmpty()) return
+
+        // Backend enforcement (spec): a request carrying attachments must never
+        // reach a local inference engine. Reject immediately — never silently
+        // ignore the attachments.
+        if (_pendingAttachments.value.isNotEmpty() && !attachmentsSupportedNow()) {
+            android.util.Log.w(TAG, "sendMessage rejected: ${_pendingAttachments.value.size} attachment(s) on a local model")
+            appendErrorMessage("Attachments are not supported for local models.")
+            return
+        }
+
+        // Snapshot the composer's attachments for this turn, then clear the
+        // chips so the next message starts fresh. The snapshot rides along in
+        // the user message metadata (history cards) and its content is
+        // packaged into the prompt by [generateFromHistory].
+        turnAttachments = _pendingAttachments.value
+        _pendingAttachments.value = emptyList()
 
         // Runtime stabilization: never start a new turn while one is running.
         // A queued/dropped prompt beats a corrupt context.
@@ -715,7 +900,8 @@ class ChatViewModel @Inject constructor(
                     conversationId = id,
                     role = MessageRole.USER,
                     content = trimmed,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = System.currentTimeMillis(),
+                    attachmentsJson = serializeAttachments(turnAttachments)
                 )
                 android.util.Log.i(TAG, "MESSAGE CREATED id=${userMessage.id} conv=$id")
 
@@ -857,8 +1043,11 @@ class ChatViewModel @Inject constructor(
     fun deleteConversation(conversationId: String) {
         viewModelScope.launch {
             conversationRepository.deleteById(conversationId)
+            // Conversation-scoped attachment cache goes with the conversation.
+            runCatching { AttachmentCache.clearConversation(appContext, conversationId) }
             if (_currentConversationId.value == conversationId) {
                 _currentConversationId.value = ""
+                clearPendingAttachments()
                 // The active conversation is gone — clear the resident native
                 // chat state (messages + KV cache) so the next sendMessage()
                 // that opens a fresh conversation starts from a clean slate.
@@ -896,13 +1085,48 @@ class ChatViewModel @Inject constructor(
      * Flips the Local GGUF / Cloud (LiteLLM) chat mode. Purely a UI toggle:
      * cloud failures never touch the local engine, so switching back is
      * instant.
+     *
+     * Cloud → local with pending attachments asks first: attachments are
+     * cloud-only, so switching would discard them. The dialog flows through
+     * [confirmSwitchToLocal].
      */
     fun toggleCloudMode() {
         val enable = !_cloudMode.value
+        // Cloud → local with attachments staged in the composer: confirm before
+        // discarding them (spec: "switching to a local model will remove the
+        // current attachments").
+        if (!enable && _pendingAttachments.value.isNotEmpty()) {
+            _cloudToLocalConfirm.value = true
+            return
+        }
         // Switching back to local stops any in-flight cloud stream immediately.
         if (!enable) cloudJob?.cancel()
         viewModelScope.launch {
             cloudGateway.setCloudModeEnabled(enable)
+        }
+    }
+
+    /**
+     * Resolves a pending cloud→local switch confirmation. On confirm: clear
+     * pending attachments + the conversation's temporary cache, then switch.
+     * On cancel: keep everything as-is.
+     */
+    fun confirmSwitchToLocal(confirmed: Boolean) {
+        if (!_cloudToLocalConfirm.value) return
+        _cloudToLocalConfirm.value = false
+        if (!confirmed) return
+        // Remove pending attachments and the conversation's cached copies.
+        _pendingAttachments.value = emptyList()
+        turnAttachments = emptyList()
+        val convId = _currentConversationId.value
+        if (convId.isNotBlank()) {
+            viewModelScope.launch {
+                io.androllm.core.attachments.AttachmentCache.clearConversation(appContext, convId)
+            }
+        }
+        cloudJob?.cancel()
+        viewModelScope.launch {
+            cloudGateway.setCloudModeEnabled(false)
         }
     }
 
@@ -936,7 +1160,46 @@ class ChatViewModel @Inject constructor(
             _cloudStreamingText.value = ""
             val history = mutableListOf<CloudChatMessage>()
             history += messages.map { CloudChatMessage(role = it.role, content = it.content) }
-            val tools = runCatching { toolCoordinator.cloudTools() }.getOrDefault(emptyList())
+            // Native image attachment for vision providers: rebuild the LAST
+            // user message as a multimodal content array (text + image data
+            // URIs). Non-vision providers already received the OCR text via
+            // the attachment context block injected by generateFromHistory —
+            // we never fake vision by sending image parts to a text model.
+            val resolvedTarget = runCatching { cloudGateway.resolveChatTarget() }.getOrNull()
+            val visionSupported = ProviderCapabilities.supportsVision(resolvedTarget?.second)
+            if (visionSupported) {
+                val imageAttachments = turnAttachments.filter {
+                    it.isReady && it.type == io.androllm.core.attachments.model.AttachmentType.IMAGE
+                }
+                if (imageAttachments.isNotEmpty() && history.isNotEmpty()) {
+                    val lastIndex = history.size - 1
+                    val last = history[lastIndex]
+                    if (last.role == "user") {
+                        val dataUris = imageAttachments.mapNotNull { imageDataUri(it) }
+                        if (dataUris.isNotEmpty()) {
+                            val lastContent = last.content.orEmpty()
+                            val parts = buildList {
+                                if (lastContent.isNotBlank()) add(CloudContentPart.Text(lastContent))
+                                dataUris.forEach { add(CloudContentPart.Image(it)) }
+                            }
+                            history[lastIndex] = CloudChatMessage(
+                                role = "user",
+                                content = null,
+                                contentParts = parts
+                            )
+                        }
+                    }
+                }
+            }
+            // ROUTED tools: only the tools relevant to THIS request (math →
+            // calculator only, device → device tools, attachments → none).
+            // The model can never call a tool "just in case" because it never
+            // sees the others. Blank fallback = full set (defensive).
+            val routeQuery = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+            val routeHasAttachments = turnAttachments.isNotEmpty()
+            val tools = runCatching {
+                toolCoordinator.cloudTools(routeQuery, routeHasAttachments)
+            }.getOrDefault(emptyList())
             // Agent context (device facts + workflow variables) injected in
             // front of the tool-calling rounds so the model plans with the
             // real device state instead of asking the user.
@@ -948,6 +1211,9 @@ class ChatViewModel @Inject constructor(
                 // (injected by the Prompt Builder in generateFromHistory) —
                 // adding it again here would double the token cost.
             }
+            // Per-turn loop protection (spec: max 5 calls, max 2 consecutive
+            // same tool, identical calls never re-run, failing tools disabled).
+            val loopGuard = io.androllm.core.tools.coordinator.ToolLoopGuard()
             val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
             val answerBuffer = StringBuilder()
             // Throttle UI emissions to ~60fps. Publishing on EVERY delta forces
@@ -1009,13 +1275,28 @@ class ChatViewModel @Inject constructor(
                         val interimText = roundBuffer.toString()
                         if (interimText.isNotBlank()) answerBuffer.append(interimText)
                         _toolActivity.value = "Running ${cloudCalls.size} tool call${if (cloudCalls.size == 1) "" else "s"}…"
-                        history += toolCoordinator.executeCloudToolCalls(
+                        val toolMessages = toolCoordinator.executeCloudToolCalls(
                             cloudCalls,
                             assistantContent = interimText.takeIf { it.isNotBlank() },
-                            onEvent = ::onToolEvent
+                            onEvent = ::onToolEvent,
+                            guard = loopGuard
                         )
-                        callsExecuted = true
                         _toolActivity.value = null
+                        if (toolMessages.isEmpty() && loopGuard.blockedThisTurn) {
+                            // Every call this round was blocked by the loop
+                            // guard (identical re-call, consecutive cap, total
+                            // cap, or a disabled tool): abort tool execution and
+                            // tell the model to answer WITHOUT further calls.
+                            android.util.Log.w(TAG, "CLOUD LOOP: all calls blocked by guard — stopping tool rounds")
+                            history += CloudChatMessage(
+                                role = "system",
+                                content = loopGuard.stopReason()
+                                    ?: "The requested tools have already been used and produced no additional useful information. Continue reasoning without further tool calls."
+                            )
+                            break@round
+                        }
+                        history += toolMessages
+                        callsExecuted = true
                         continue@round
                     }
                     answerBuffer.append(roundBuffer)
@@ -1068,7 +1349,10 @@ class ChatViewModel @Inject constructor(
         try {
             var history = messages
             val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
-            val executedKeys = mutableSetOf<String>()
+            // Per-turn loop protection shared by the pre-planner and every
+            // native round: total cap 5, consecutive-same-tool cap 2, dedupe
+            // of identical (name, arguments) calls, disable-on-repeated-failure.
+            val loopGuard = io.androllm.core.tools.coordinator.ToolLoopGuard()
 
             // Compatibility pre-planner: only for families WITHOUT native
             // `<|tool_call|>` markers (Qwen3/2.5/2 and the function-calling
@@ -1082,13 +1366,15 @@ class ChatViewModel @Inject constructor(
                 ?.model?.nativeToolMarkers
             if (nativeMarkers != true) {
                 android.util.Log.i(TAG, "NATIVE LOOP: compat pre-planner (nativeMarkers=$nativeMarkers)")
-                val planned = toolCoordinator.planLocal(history)
-                val fresh = planned.filter { "${it.name}|${it.arguments}" !in executedKeys }
+                val planned = toolCoordinator.planLocal(
+                    history,
+                    hasAttachments = turnAttachments.isNotEmpty()
+                )
+                val fresh = planned.filter { loopGuard.canExecute(it.name, it.arguments) }
                 if (fresh.isNotEmpty()) {
                     android.util.Log.i(TAG, "NATIVE LOOP: pre-planner returned ${fresh.size} call(s)")
-                    val records = executeToolCallsWithStatus(fresh)
+                    val records = executeToolCallsWithStatus(fresh, loopGuard)
                     if (records.isNotEmpty()) {
-                        executedKeys += fresh.map { "${it.name}|${it.arguments}" }
                         toolsExecutedThisTurn = true
                         history = history + toolCoordinator.buildLocalToolFeedback(records)
                     }
@@ -1130,12 +1416,36 @@ class ChatViewModel @Inject constructor(
                 // Native markers found: execute, feed the results back and
                 // continue the same conversation (cloud-style round trip).
                 val calls = nativeToToolCalls(nativeCalls)
-                val records = executeToolCallsWithStatus(calls)
+                val records = executeToolCallsWithStatus(calls, loopGuard)
                 if (records.isEmpty()) {
+                    if (loopGuard.blockedThisTurn) {
+                        // Every native call this round was blocked (identical
+                        // re-call, consecutive cap, total cap, disabled tool):
+                        // tell the model to continue reasoning WITHOUT tools
+                        // and let it produce the final answer.
+                        android.util.Log.w(TAG, "LOCAL LOOP: all calls blocked by guard — asking model to answer without tools")
+                        val guardMessage = loopGuard.stopReason()
+                            ?: "The requested tools have already been used and produced no additional useful information. Continue reasoning without further tool calls."
+                        history = history + listOf(
+                            ChatPromptMessage(role = "assistant", content = text),
+                            ChatPromptMessage(role = "system", content = guardMessage)
+                        )
+                        engineRepository.generateChat(
+                            messages = history,
+                            addAssistant = true,
+                            config = _genConfig.value
+                        )
+                        val finalState = engineRepository.generationState.value
+                        if (finalState is GenerationState.Completed) {
+                            commitLocalAnswer(finalState.text)
+                        } else {
+                            commitLocalAnswer(text)
+                        }
+                        return true
+                    }
                     commitLocalAnswer(text)
                     return true
                 }
-                executedKeys += calls.map { "${it.name}|${it.arguments}" }
                 toolsExecutedThisTurn = true
                 val assistantTurn = if (text.isNotBlank()) {
                     listOf(ChatPromptMessage(role = "assistant", content = text))
@@ -1154,10 +1464,13 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Executes calls with a status chip + tool cards; returns the records. */
-    private suspend fun executeToolCallsWithStatus(calls: List<ToolCall>): List<ToolExecutionRecord> {
+    private suspend fun executeToolCallsWithStatus(
+        calls: List<ToolCall>,
+        guard: io.androllm.core.tools.coordinator.ToolLoopGuard? = null
+    ): List<ToolExecutionRecord> {
         if (calls.isEmpty()) return emptyList()
         _toolActivity.value = "Running ${calls.size} tool call${if (calls.size == 1) "" else "s"}…"
-        val records = toolCoordinator.executeCalls(calls, onEvent = ::onToolEvent)
+        val records = toolCoordinator.executeCalls(calls, onEvent = ::onToolEvent, guard = guard)
         _toolActivity.value = null
         return records
     }
@@ -1292,6 +1605,13 @@ class ChatViewModel @Inject constructor(
 
         /** Budget for memory retrieval on the send path (retrieval is <20ms when warm). */
         private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 400L
+
+        /**
+         * Per-file cap for attachment text injected into the prompt. A huge
+         * document could otherwise blow the context window; the tail is what
+         * matters for a chat answer, and the model can ask for the rest.
+         */
+        private const val MAX_ATTACHMENT_CHARS_PER_FILE = 12_000
 
         /** Max tool cards kept in the chat for one turn (oldest dropped). */
         private const val MAX_TOOL_CARDS = 8
@@ -1467,6 +1787,28 @@ class ChatViewModel @Inject constructor(
     private fun generateTitleFromMessage(firstMessageText: String): String {
         return if (firstMessageText.length > 25) firstMessageText.take(25) + "..." else firstMessageText
     }
+
+    /**
+     * Serializes the attachments of the current turn into the JSON stored on
+     * the message ("" when none). Best-effort: a serialization failure
+     * degrades to no attachment cards rather than failing the send.
+     */
+    private fun serializeAttachments(attachments: List<ChatAttachment>): String =
+        if (attachments.isEmpty()) ""
+        else runCatching { ChatAttachmentJson.encodeToString(attachments) }.getOrDefault("")
+
+    /**
+     * Builds a base64 data URI for an image attachment so vision providers
+     * receive it through their native image API. Returns null when the file
+     * is missing or unreadable (falls back to the OCR text already injected).
+     */
+    private fun imageDataUri(attachment: ChatAttachment): String? = runCatching {
+        val file = File(attachment.filePath)
+        if (!file.exists()) return@runCatching null
+        val mime = attachment.mimeType.ifBlank { "image/jpeg" }
+        val bytes = file.readBytes()
+        "data:$mime;base64," + java.util.Base64.getEncoder().encodeToString(bytes)
+    }.getOrNull()
 }
 
 /**
@@ -1492,6 +1834,18 @@ sealed interface ChatUiState {
         val isSearchOpen: Boolean = false,
         val cloudMode: Boolean = false,
         val cloudDefaultModel: String = "",
+        /** Files attached to the message being composed (chips above composer). */
+        val pendingAttachments: List<ChatAttachment> = emptyList(),
+        /** True while picked files are being copied/parsed. */
+        val attachmentsProcessing: Boolean = false,
+        /**
+         * True when the active model supports the attachment pipeline (cloud
+         * only). Drives the paperclip visibility, message-card interaction and
+         * settings visibility — never a provider-name check.
+         */
+        val attachmentsSupported: Boolean = false,
+        /** True while a cloud→local switch with pending attachments awaits confirmation. */
+        val confirmCloudToLocalSwitch: Boolean = false,
         val pendingToolConfirmation: PendingToolConfirmation? = null,
         val toolActivity: String? = null,
         val toolEvents: List<ToolInvocationUi> = emptyList()
@@ -1525,7 +1879,14 @@ data class ChatMessage(
     val content: String,
     val timestamp: Long,
     val isBookmarked: Boolean = false,
-    val origin: MessageOrigin = MessageOrigin.TYPED
+    val origin: MessageOrigin = MessageOrigin.TYPED,
+    /**
+     * Files attached to this message, serialized as a JSON array of
+     * [io.androllm.core.attachments.model.ChatAttachment] ("" = none).
+     * Rendered as attachment cards under the bubble; tapping one opens the
+     * original file from the conversation cache.
+     */
+    val attachmentsJson: String = ""
 )
 
 /** Accumulates a streaming cloud `tool_calls` fragment by index. */
@@ -1550,7 +1911,10 @@ private data class CloudUiBits(
     val pendingToolConfirmation: PendingToolConfirmation? = null,
     val toolActivity: String? = null,
     val toolEvents: List<ToolInvocationUi> = emptyList(),
-    val isPreparing: Boolean = false
+    val isPreparing: Boolean = false,
+    val pendingAttachments: List<ChatAttachment> = emptyList(),
+    val attachmentsProcessing: Boolean = false,
+    val confirmCloudToLocalSwitch: Boolean = false
 )
 
 private fun Message.toChatMessage(): ChatMessage = ChatMessage(
@@ -1560,7 +1924,8 @@ private fun Message.toChatMessage(): ChatMessage = ChatMessage(
     content = content,
     timestamp = timestamp,
     isBookmarked = isBookmarked,
-    origin = origin
+    origin = origin,
+    attachmentsJson = attachmentsJson
 )
 
 private fun MessageRole.toTemplateRole(): String = when (this) {
@@ -1576,5 +1941,6 @@ private fun ChatMessage.toCoreMessage(): Message = Message(
     content = content,
     timestamp = timestamp,
     isBookmarked = isBookmarked,
-    origin = origin
+    origin = origin,
+    attachmentsJson = attachmentsJson
 )

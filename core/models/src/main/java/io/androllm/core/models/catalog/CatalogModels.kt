@@ -102,7 +102,18 @@ data class CatalogModel(
     /** Shared-expert count for MoE models (0 = none). */
     val sharedExperts: Int = 0,
     /** Routed expert count for MoE models (0 = dense). */
-    val expertCount: Int = 0
+    val expertCount: Int = 0,
+
+    // ---- backend compatibility flags ----
+    // Declare which inference backends this artifact supports. The engine's
+    // automatic selection (NPU → GPU → CPU) skips a backend the model does
+    // not support and falls back silently. CPU/GPU default true; NPU defaults
+    // false because LiteRT-LM NPU execution requires SoC-specific model
+    // builds (e.g. the Gemma3-1B NPU editions) — an ordinary container fails
+    // NPU initialization, so entries opt in only when an NPU build ships.
+    val supportsCpu: Boolean = true,
+    val supportsGpu: Boolean = true,
+    val supportsNpu: Boolean = false
 ) {
     /** Quantization tier, auto-classified from [quantization]. */
     val quantLevel: QuantLevel get() = QuantClassifier.classify(quantization)

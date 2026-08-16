@@ -117,6 +117,8 @@ import io.androllm.core.utils.DeviceInfoCollector
 import io.androllm.feature.models.benchmark.BenchmarkReport
 import io.androllm.feature.models.benchmark.ModelBenchmarker
 import io.androllm.engine.api.EngineState
+import io.androllm.engine.backend.BackendCapabilities
+import io.androllm.engine.models.BackendType
 import io.androllm.engine.models.MemoryStats
 import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudGlassCard
@@ -380,35 +382,18 @@ private fun InstalledModelsTab(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Debug-only backend override: force CPU loads to bisect GPU
-            // output corruption and compare token speeds (see
-            // ModelsViewModel.forceCpuBackend). Persisted across launches.
-            item(key = "force_cpu_toggle") {
-                val forceCpu by viewModel.forceCpuBackend.collectAsStateWithLifecycle()
-                CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.setForceCpuBackend(!forceCpu) }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Force CPU backend (debug)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = if (forceCpu) "ON — forces the CPU backend (no GPU delegate)" else "OFF — models use the GPU delegate when available",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                        Switch(checked = forceCpu, onCheckedChange = { viewModel.setForceCpuBackend(it) })
-                    }
-                }
+            // Execution Backend — adaptive selector. The NPU option appears
+            // ONLY when the startup probe found a usable NPU delegate on this
+            // device (silent NPU support: no NPU ⇒ no NPU option, exactly like
+            // today). AUTO lets the engine pick NPU → GPU → CPU with silent
+            // fallback. Persisted across launches.
+            item(key = "backend_selector") {
+                val preference by viewModel.backendPreference.collectAsStateWithLifecycle()
+                BackendSelectorCard(
+                    preference = preference,
+                    capabilities = data.backendCapabilities,
+                    onSelect = { viewModel.setBackendPreference(it) }
+                )
             }
 
             // Model Status Dashboard - shown when a model is active
@@ -1586,6 +1571,77 @@ private fun FirstLaunchRecommendationDialog(
 }
 
 /**
+ * Adaptive execution-backend selector. The NPU option is offered ONLY when
+ * the startup probe found a usable NPU delegate on this device
+ * ([BackendCapabilities.npuOptionVisible]) — on any other device the card
+ * shows Auto / GPU / CPU, i.e. exactly today's options (silent NPU support:
+ * no NPU detected ⇒ no NPU option, no disabled buttons, no banners).
+ *
+ * AUTO lets the engine pick NPU → GPU → CPU at load with silent fallback;
+ * explicit selections are honored and fall back the same way when the
+ * backend cannot initialize on this device.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BackendSelectorCard(
+    preference: BackendType,
+    capabilities: BackendCapabilities,
+    onSelect: (BackendType) -> Unit
+) {
+    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Execution Backend",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "AUTO picks the fastest accelerator on this device (NPU → GPU → CPU) with silent fallback.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+            if (capabilities.npuOptionVisible) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = buildString {
+                        append("NPU detected: ")
+                        append(capabilities.npuVendor ?: "NPU")
+                        if (!capabilities.npuAccelerator.isNullOrBlank()) {
+                            append(" · ")
+                            append(capabilities.npuAccelerator)
+                        }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val options = buildList {
+                    add(BackendType.AUTO to "Auto")
+                    if (capabilities.npuOptionVisible) add(BackendType.NPU to "NPU")
+                    add(BackendType.GPU to "GPU")
+                    add(BackendType.CPU to "CPU")
+                }
+                options.forEach { (type, label) ->
+                    FilterChip(
+                        selected = preference == type,
+                        onClick = { onSelect(type) },
+                        label = { Text(label) },
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * Persistent model status dashboard showing engine state, memory telemetry,
  * backend info, and unload controls.
  */
@@ -1734,7 +1790,15 @@ private fun ModelStatusDashboard(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                val isNpu = stats.backend == "npu"
+                val npuModel = (engineState as? EngineState.Ready)?.model
+                    ?: (engineState as? EngineState.Generating)?.model
                 val successGreen = Color(0xFF52C41A)
+                LedgerStatRow(
+                    "NPU",
+                    if (isNpu) "✓ ${npuModel?.accelerator?.ifBlank { "NPU" } ?: "NPU"}" else "—",
+                    valueColor = if (isNpu) successGreen else MaterialTheme.colorScheme.outline
+                )
                 LedgerStatRow(
                     "GPU",
                     if (stats.isGpuAccelerated) "${stats.gpuBackendLabel} ✓" else "—",
@@ -1743,8 +1807,8 @@ private fun ModelStatusDashboard(
                 LedgerStatRow("CPU", "Host ✓", valueColor = successGreen)
                 LedgerStatRow(
                     "Mode",
-                    stats.executionMode,
-                    valueColor = if (stats.isGpuAccelerated) successGreen else io.androllm.core.ui.theme.LampAmber
+                    if (isNpu) "NPU only" else stats.executionMode,
+                    valueColor = if (isNpu || stats.isGpuAccelerated) successGreen else io.androllm.core.ui.theme.LampAmber
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1755,17 +1819,22 @@ private fun ModelStatusDashboard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val isVulkan = stats.isGpuAccelerated
+                    val activeLabel = when {
+                        isNpu -> "🟢 NPU" + (npuModel?.vendor?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")
+                        isVulkan -> "🟢 ${stats.gpuBackendLabel}"
+                        else -> "🟡 CPU"
+                    }
                     AssistChip(
                         onClick = {},
                         label = {
                             Text(
-                                text = if (isVulkan) "🟢 ${stats.gpuBackendLabel}" else "🟡 CPU",
+                                text = activeLabel,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
                         },
                         colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (isVulkan)
+                            containerColor = if (isNpu || isVulkan)
                                 Color(0xFF52C41A).copy(alpha = 0.15f)
                             else
                                 Color(0xFFE0A33D).copy(alpha = 0.18f)
@@ -1784,6 +1853,19 @@ private fun ModelStatusDashboard(
                     }
                 }
 
+                if (isNpu) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = buildString {
+                            append("NPU: ")
+                            append(npuModel?.accelerator?.ifBlank { "NPU" } ?: "NPU")
+                            npuModel?.vendor?.takeIf { it.isNotBlank() }?.let { append(" • $it") }
+                            npuModel?.delegate?.takeIf { it.isNotBlank() }?.let { append(" • $it") }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = successGreen
+                    )
+                }
                 if (stats.isGpuAccelerated) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
@@ -1808,6 +1890,11 @@ private fun ModelStatusDashboard(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                if (isNpu) {
+                    LedgerStatRow("NPU", npuModel?.delegate?.ifBlank { "LiteRT Delegate" } ?: "LiteRT Delegate")
+                    LedgerStatRow("Accelerator", npuModel?.accelerator?.ifBlank { "—" } ?: "—")
+                    LedgerStatRow("Vendor", npuModel?.vendor?.ifBlank { "—" } ?: "—")
+                }
                 LedgerStatRow("GPU", stats.gpuBackendLabel.ifBlank { "—" })
                 LedgerStatRow("CPU", "ARM64 NEON")
                 LedgerStatRow(

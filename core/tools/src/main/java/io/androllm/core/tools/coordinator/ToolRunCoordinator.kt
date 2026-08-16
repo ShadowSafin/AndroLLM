@@ -63,8 +63,14 @@ class ToolRunCoordinator @Inject constructor(
         return if (msg.content.isBlank()) null else msg
     }
 
-    /** OpenAI-compatible `tools` array for the cloud path. */
-    suspend fun cloudTools(): List<CloudTool> = planner.buildCloudTools()
+    /**
+     * OpenAI-compatible `tools` array for the cloud path, ROUTED to the
+     * request: the model only ever sees tools relevant to [query] (math →
+     * calculator only, device → device tools, attachments → none). Blank
+     * query = full enabled set (voice / backward-compatible callers).
+     */
+    suspend fun cloudTools(query: String = "", hasAttachments: Boolean = false): List<CloudTool> =
+        planner.buildCloudTools(query, hasAttachments)
 
     // ── Cloud (native function calling) ────────────────────────────────────
 
@@ -73,11 +79,18 @@ class ToolRunCoordinator @Inject constructor(
      * append to the OpenAI history: first the assistant message carrying the
      * `tool_calls` (plus any text the model streamed alongside them via
      * [assistantContent]), then one `role="tool"` message per call.
+     *
+     * [guard] (per-turn loop protection) filters each call: a call that
+     * already ran with the same arguments, a tool at its consecutive cap, a
+     * disabled tool, or the turn's total-call cap are skipped WITHOUT
+     * executing — the model gets no `role="tool"` reply for them, and the
+     * caller can inject [ToolLoopGuard.stopReason] and stop the round.
      */
     suspend fun executeCloudToolCalls(
         calls: List<CloudToolCall>,
         assistantContent: String? = null,
-        onEvent: suspend (ToolEvent) -> Unit = {}
+        onEvent: suspend (ToolEvent) -> Unit = {},
+        guard: ToolLoopGuard? = null
     ): List<CloudChatMessage> {
         if (calls.isEmpty()) return emptyList()
         val assistantMsg = CloudChatMessage(
@@ -89,6 +102,12 @@ class ToolRunCoordinator @Inject constructor(
             val name = call.function?.name ?: return@mapIndexedNotNull null
             if (name.isBlank()) return@mapIndexedNotNull null
             val args = parseArguments(call.function?.arguments)
+            // Loop guard: never re-run an identical call, never run a tool at
+            // its cap, never run a disabled tool — skip instead of executing.
+            if (guard != null && !guard.canExecute(name, args)) {
+                Timber.i("ToolRunCoordinator: guard blocked '$name' — skipping (total=${guard.totalCalls})")
+                return@mapIndexedNotNull null
+            }
             val toolCall = ToolCall(
                 // Index suffix keeps same-name calls distinct when the provider
                 // omits ids — shared ids would collide in the confirmation map.
@@ -98,6 +117,7 @@ class ToolRunCoordinator @Inject constructor(
             )
             onEvent(ToolEvent.Started(name, args.toString().take(200)))
             val result = executor.execute(toolCall)
+            guard?.record(name, args, result)
             Timber.i("ToolRunCoordinator: cloud tool '$name' -> ${result.statusLabel}")
             val declined = result is ToolResult.Failure &&
                 !result.retryable && result.summary.startsWith("The user declined")
@@ -123,20 +143,29 @@ class ToolRunCoordinator @Inject constructor(
     // ── Local GGUF (prompt-based planning) ─────────────────────────────────
 
     /** Runs the local planner; empty when no tools are needed. */
-    suspend fun planLocal(messages: List<ChatPromptMessage>): List<ToolCall> =
-        planner.planLocal(messages)
+    suspend fun planLocal(messages: List<ChatPromptMessage>, hasAttachments: Boolean = false): List<ToolCall> =
+        planner.planLocal(messages, hasAttachments)
 
     /**
      * Executes calls sequentially (each may await a user confirmation), in the
      * order the planner produced them. A transient failure is retried ONCE
      * with the same arguments before it is reported (never for outcomes a
      * retry cannot fix: user-declined, settings-blocked).
+     *
+     * [guard] (per-turn loop protection) filters each call the same way the
+     * cloud path does: identical re-calls, capped tools and disabled tools
+     * are skipped without executing.
      */
     suspend fun executeCalls(
         calls: List<ToolCall>,
-        onEvent: suspend (ToolEvent) -> Unit = {}
+        onEvent: suspend (ToolEvent) -> Unit = {},
+        guard: ToolLoopGuard? = null
     ): List<ToolExecutionRecord> =
-        calls.map { call ->
+        calls.mapNotNull { call ->
+            if (guard != null && !guard.canExecute(call.name, call.arguments)) {
+                Timber.i("ToolRunCoordinator: guard blocked '${call.name}' — skipping (total=${guard.totalCalls})")
+                return@mapNotNull null
+            }
             val argsText = call.arguments.entries.joinToString(", ") { (k, v) -> "$k=$v" }.take(200)
             onEvent(ToolEvent.Started(call.name, argsText))
             var result = executor.execute(call)
@@ -149,6 +178,7 @@ class ToolRunCoordinator @Inject constructor(
                 val retried = executor.execute(call)
                 if (retried.isSuccess) result = retried
             }
+            guard?.record(call.name, call.arguments, result)
             Timber.i("ToolRunCoordinator: local tool '${call.name}' -> ${result.statusLabel}")
             val declined = result is ToolResult.Failure &&
                 !result.retryable && result.summary.startsWith("The user declined")
@@ -178,32 +208,37 @@ class ToolRunCoordinator @Inject constructor(
     suspend fun runLocalWorkflow(
         messages: List<ChatPromptMessage>,
         onActivity: suspend (String?) -> Unit = {},
-        onEvent: suspend (ToolEvent) -> Unit = {}
+        onEvent: suspend (ToolEvent) -> Unit = {},
+        guard: ToolLoopGuard? = null
     ): List<ChatPromptMessage> {
         if (!isToolUseEnabled()) return messages
         val maxRounds = settingsStore.current().maxToolRounds.coerceAtLeast(1)
+        // Per-turn loop guard (created here when the caller did not pass one,
+        // e.g. the voice pipeline): total-call cap, consecutive-same-tool cap
+        // and (name, arguments) dedupe — a confused model that re-plans the
+        // SAME call every round (e.g. get_battery after its result was fed
+        // back) can never burn the whole turn re-executing it.
+        val loopGuard = guard ?: ToolLoopGuard()
         var current = messages
-        // Dedupe guard: a confused model that re-plans the SAME call every
-        // round (e.g. get_battery after its result was already fed back) must
-        // not burn all rounds re-executing it. Once a (name, arguments) pair
-        // has executed, re-plans of it stop the loop and the turn answers.
-        val executedKeys = mutableSetOf<String>()
         for (round in 0 until maxRounds) {
             val calls = planner.planLocal(current)
             if (calls.isEmpty()) break
-            val fresh = calls.filter { "${it.name}|${it.arguments}" !in executedKeys }
+            val fresh = calls.filter { loopGuard.canExecute(it.name, it.arguments) }
             if (fresh.isEmpty()) {
-                Timber.i("ToolRunCoordinator: planner re-proposed only already-executed calls — stopping")
+                Timber.i("ToolRunCoordinator: planner re-proposed only blocked calls — stopping")
                 break
             }
             onActivity(
                 "Step ${round + 1}: running ${fresh.size} tool call${if (fresh.size == 1) "" else "s"}…"
             )
-            val records = executeCalls(fresh, onEvent)
+            val records = executeCalls(fresh, onEvent, loopGuard)
             onActivity(null)
             if (records.isEmpty()) break
-            executedKeys += fresh.map { "${it.name}|${it.arguments}" }
             current = current + buildLocalToolFeedback(records)
+            if (loopGuard.stopReason() != null) {
+                Timber.i("ToolRunCoordinator: loop guard triggered — stopping workflow")
+                break
+            }
         }
         return current
     }

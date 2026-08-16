@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
@@ -81,6 +83,7 @@ import io.androllm.core.ui.components.CloudCapsuleButton
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.SectionHeader
+import io.androllm.core.ui.theme.DeskHairline
 import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskInkFaint
 import io.androllm.core.ui.theme.DeskPaper
@@ -106,6 +109,10 @@ fun SettingsScreen(
     val memorySettings by viewModel.memorySettings.collectAsStateWithLifecycle()
     val memoryStats by viewModel.memoryStats.collectAsStateWithLifecycle()
     val memoryMessage by viewModel.memoryMessage.collectAsStateWithLifecycle()
+    val attachmentSettings by viewModel.attachmentSettings.collectAsStateWithLifecycle()
+    val attachmentMessage by viewModel.attachmentMessage.collectAsStateWithLifecycle()
+    val attachmentCacheBytes by viewModel.attachmentCacheBytes.collectAsStateWithLifecycle()
+    val attachmentsSupported by viewModel.attachmentsSupported.collectAsStateWithLifecycle()
     val storageStats by viewModel.storageStats.collectAsStateWithLifecycle()
     val voiceSettings by viewModel.voiceSettings.collectAsStateWithLifecycle()
     val voiceState by viewModel.voiceState.collectAsStateWithLifecycle()
@@ -374,6 +381,28 @@ fun SettingsScreen(
                                 onClick = { navController.navigate(io.androllm.core.navigation.Routes.CLOUD_PROVIDERS) }
                             )
                         }
+                    }
+                }
+
+                // 8b. Chat Attachments (conversation-scoped files, cloud chat).
+                // Only visible when the active model supports attachments —
+                // local models hide OCR / upload / cache settings entirely.
+                if (attachmentsSupported) {
+                    item {
+                        SectionHeader(title = "Chat Attachments")
+                        AttachmentSettingsCard(
+                        settings = attachmentSettings,
+                        feedback = attachmentMessage,
+                        cacheBytes = attachmentCacheBytes,
+                        onImageQualityChange = { value -> viewModel.updateAttachmentSettings { it.copy(imageQuality = value) } },
+                        onOcrLanguageChange = { value -> viewModel.updateAttachmentSettings { it.copy(ocrLanguage = value) } },
+                        onMaxSizeChange = { value -> viewModel.updateAttachmentSettings { it.copy(maxAttachmentBytes = value) } },
+                        onMaxPerMessageChange = { value -> viewModel.updateAttachmentSettings { it.copy(maxAttachmentsPerMessage = value) } },
+                        onAutoCompressChange = { value -> viewModel.updateAttachmentSettings { it.copy(autoCompressImages = value) } },
+                        onPreserveFilenamesChange = { value -> viewModel.updateAttachmentSettings { it.copy(preserveFilenames = value) } },
+                        onCacheProcessedChange = { value -> viewModel.updateAttachmentSettings { it.copy(cacheProcessedAttachments = value) } },
+                        onClearCache = { viewModel.clearAttachmentCache() }
+                        )
                     }
                 }
 
@@ -924,3 +953,257 @@ private fun ThemeMode.displayName(): String = when (this) {
 }
 
 private fun Boolean.displayYesNo(): String = if (this) "Yes" else "No"
+
+/**
+ * Knowledge Base (RAG) settings card: master switch, chunking, retrieval,
+ * OCR language, auto/background indexing and embedding-source testing. All
+ * values are plain on-device preferences.
+ */
+/**
+ * Chat Attachment settings card: image quality, OCR language, size limits,
+ * auto-compression, filename handling and the conversation-scoped cache.
+ * There is no document index anymore — these only govern how a picked file
+ * is processed for the current chat.
+ */
+@Composable
+private fun AttachmentSettingsCard(
+    settings: io.androllm.core.attachments.model.AttachmentSettings,
+    feedback: String?,
+    cacheBytes: Long,
+    onImageQualityChange: (Int) -> Unit,
+    onOcrLanguageChange: (String) -> Unit,
+    onMaxSizeChange: (Long) -> Unit,
+    onMaxPerMessageChange: (Int) -> Unit,
+    onAutoCompressChange: (Boolean) -> Unit,
+    onPreserveFilenamesChange: (Boolean) -> Unit,
+    onCacheProcessedChange: (Boolean) -> Unit,
+    onClearCache: () -> Unit
+) {
+    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AttachFile,
+                    contentDescription = null,
+                    tint = LampAmber,
+                    modifier = Modifier.size(20.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Chat Attachments",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = DeskPaper
+                        )
+                    )
+                    Text(
+                        text = "Files you attach to a cloud chat are processed only for that conversation — nothing is indexed",
+                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+
+            if (feedback != null) {
+                Text(
+                    text = feedback,
+                    style = MaterialTheme.typography.bodySmall.copy(color = LampAmber),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
+            // Image quality
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = "Image processing quality: ${settings.imageQuality}",
+                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                )
+                Slider(
+                    value = settings.imageQuality.toFloat(),
+                    onValueChange = { onImageQualityChange(it.toInt()) },
+                    valueRange = io.androllm.core.attachments.model.AttachmentSettings.IMAGE_QUALITY_MIN.toFloat()..
+                        io.androllm.core.attachments.model.AttachmentSettings.IMAGE_QUALITY_MAX.toFloat(),
+                    steps = 10,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // OCR language
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "OCR language",
+                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk),
+                    modifier = Modifier.weight(1f)
+                )
+                listOf("en", "de", "fr", "es", "it", "pt").forEach { lang ->
+                    val selected = settings.ocrLanguage == lang
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (selected) LampAmber.copy(alpha = 0.2f) else DeskHairline.copy(alpha = 0.3f),
+                                CircleShape
+                            )
+                            .clickable { onOcrLanguageChange(lang) }
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = lang.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (selected) LampGlow else DeskInk
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Maximum attachment size
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = "Maximum file size: ${settings.maxAttachmentBytes / (1024 * 1024)} MB",
+                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                )
+                Slider(
+                    value = (settings.maxAttachmentBytes / (1024 * 1024)).toFloat(),
+                    onValueChange = { onMaxSizeChange((it.toLong() * 1024 * 1024)) },
+                    valueRange = 1f..50f,
+                    steps = 9,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Max attachments per message
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = "Max attachments per message: ${settings.maxAttachmentsPerMessage}",
+                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                )
+                Slider(
+                    value = settings.maxAttachmentsPerMessage.toFloat(),
+                    onValueChange = { onMaxPerMessageChange(it.toInt()) },
+                    valueRange = io.androllm.core.attachments.model.AttachmentSettings.MAX_ATTACHMENTS_MIN.toFloat()..
+                        io.androllm.core.attachments.model.AttachmentSettings.MAX_ATTACHMENTS_MAX.toFloat(),
+                    steps = io.androllm.core.attachments.model.AttachmentSettings.MAX_ATTACHMENTS_MAX -
+                        io.androllm.core.attachments.model.AttachmentSettings.MAX_ATTACHMENTS_MIN - 1,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Auto-compress images
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onAutoCompressChange(!settings.autoCompressImages) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Auto-compress images",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                    )
+                    Text(
+                        text = "Downscale photos before sending to vision models",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                    )
+                }
+                Switch(
+                    checked = settings.autoCompressImages,
+                    onCheckedChange = onAutoCompressChange,
+                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                )
+            }
+
+            // Preserve filenames
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPreserveFilenamesChange(!settings.preserveFilenames) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Preserve original filenames",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                    )
+                    Text(
+                        text = "Keep the source name for copied attachments",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                    )
+                }
+                Switch(
+                    checked = settings.preserveFilenames,
+                    onCheckedChange = onPreserveFilenamesChange,
+                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                )
+            }
+
+            // Cache processed attachments (current conversation only)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onCacheProcessedChange(!settings.cacheProcessedAttachments) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Cache processed attachments",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                    )
+                    Text(
+                        text = "Keep parsed text for the current conversation only",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                    )
+                }
+                Switch(
+                    checked = settings.cacheProcessedAttachments,
+                    onCheckedChange = onCacheProcessedChange,
+                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                )
+            }
+
+            // Cache usage + clear
+            HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Temporary cache",
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                    )
+                    Text(
+                        text = if (cacheBytes > 0) {
+                            io.androllm.core.attachments.model.ChatAttachment.formatSize(cacheBytes) + " in use"
+                        } else {
+                            "Nothing cached"
+                        },
+                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                    )
+                }
+                TextButton(onClick = onClearCache) {
+                    Text("Clear cache", color = LampGlow)
+                }
+            }
+        }
+    }
+}

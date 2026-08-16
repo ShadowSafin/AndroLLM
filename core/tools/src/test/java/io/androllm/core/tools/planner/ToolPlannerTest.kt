@@ -7,6 +7,7 @@ import io.androllm.core.tools.api.ToolResult
 import io.androllm.core.tools.api.ToolSpec
 import io.androllm.core.tools.prompt.ToolPromptBuilder
 import io.androllm.core.tools.registry.ToolRegistry
+import io.androllm.core.tools.router.ToolRouter
 import io.androllm.core.tools.settings.AutomationSettings
 import io.androllm.core.tools.settings.AutomationSettingsStore
 import io.androllm.engine.api.EngineRepository
@@ -44,7 +45,7 @@ class ToolPlannerTest {
 
     private fun planner(vararg tools: Tool): ToolPlanner {
         val registry = ToolRegistry().apply { registerAll(tools.toList()) }
-        return ToolPlanner(registry, settingsStore, engineRepository, agentContext)
+        return ToolPlanner(registry, settingsStore, engineRepository, agentContext, ToolRouter())
     }
 
     @Test

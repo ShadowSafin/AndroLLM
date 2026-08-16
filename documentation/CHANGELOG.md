@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Foreground voice service with system overlay and barge-in detection
 - Firebase Authentication: Google Sign-In + GitHub OAuth
 - Hilt/Dagger dependency injection across all modules
+- **Chat Attachments** — ChatGPT-style, conversation-scoped file attachments for cloud models: PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, JSON, HTML, images & screenshots; on-device parsing + OCR; native image parts for vision providers; paperclip picker (Files/Images/Camera/Gallery), composer chips and history attachment cards
+- Conversation-scoped attachment cache — removed with the conversation, no persistent indexing, no searchable library
+- Attachment settings (max size, max per message, OCR language, image quality, preserve filenames, cache controls) — visible only for cloud models
 - Room database v5 with WAL mode, 4 entities, 4 migrations
 - DataStore preferences for user settings
 - Navigation Compose with 15 routes and deep link support
@@ -66,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - On-device image generation (stable-diffusion.cpp)
+- Knowledge Base prototype (document indexing, vector storage, background indexing) — superseded by conversation-scoped Chat Attachments; no persistent document library exists
 
 ### Fixed
 - Fixed UTF-16 round-trip encoding for emoji/CJK character handling in JNI bridge (legacy, removed)

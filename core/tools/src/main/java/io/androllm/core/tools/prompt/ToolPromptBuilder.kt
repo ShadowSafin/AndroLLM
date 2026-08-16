@@ -4,6 +4,7 @@ import io.androllm.core.tools.api.ToolSpec
 import io.androllm.core.tools.planner.ToolPlanner
 import javax.inject.Inject
 import javax.inject.Singleton
+import timber.log.Timber
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -41,9 +42,18 @@ class ToolPromptBuilder @Inject constructor(
      * header stays and tools are dropped from the end (smallest-value-first
      * alphabetical tail) until it fits.
      */
-    suspend fun advertisement(maxChars: Int = 0): String? {
-        val specs = planner.allowedTools()
-        if (specs.isEmpty()) return null
+    suspend fun advertisement(maxChars: Int = 0, query: String = "", hasAttachments: Boolean = false): String? {
+        // Route the advertisement to the request (spec: never expose every
+        // tool simultaneously). Attachment-scoped / math / device / web
+        // requests advertise only the relevant subset — an attachment
+        // question advertises NOTHING (its content is already injected).
+        val specs = planner.routedTools(query, hasAttachments)
+        if (specs.isEmpty()) {
+            if (query.isNotBlank()) {
+                Timber.i("ToolPromptBuilder: no tools advertised for this request (query routed empty)")
+            }
+            return null
+        }
         return render(specs, maxChars)
     }
 

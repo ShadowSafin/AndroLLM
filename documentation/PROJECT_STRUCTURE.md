@@ -173,6 +173,20 @@ See [Memory Architecture Deep Dive](memory/memory-architecture.md) for details.
 | `background/` | `MemoryBackgroundScheduler`, `MemoryIndexingWorker` (WorkManager) |
 | `di/MemoryModule` | Hilt bindings |
 
+### `core:attachments` — Chat Attachments
+Namespace: `io.androllm.core.attachments`
+
+Conversation-scoped file attachments for cloud models (see
+[Chat Attachments](features/chat-attachments.md)). Files are parsed and
+OCR'd on-device, cached per conversation, and never indexed.
+
+| Sub-package | Classes |
+|---|---|
+| `model/` | `ChatAttachment`, `AttachmentStatus`, `AttachmentSettings` |
+| `parser/` | `ParserRegistry`, `DocumentParser`, `TextParser`, `PdfParser` (PDFBox), `OfficeParsers` (DOCX/PPTX/XLSX/EPUB), `ImageParser` (ML Kit OCR) |
+| — | `AttachmentProcessor` (copy → parse → OCR), `AttachmentCache` (per-conversation dir), `AttachmentSettingsStore` (DataStore), `ProviderCapabilities` (supportsAttachments / supportsVision / supportsStreaming / supportsToolCalling) |
+| `di/AttachmentModule` | Hilt bindings |
+
 ### `core:permissions` — Permission & Access Manager
 Namespace: `io.androllm.core.permissions`
 

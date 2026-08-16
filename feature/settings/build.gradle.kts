@@ -48,6 +48,8 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
     implementation(project(":core:memory"))
+    implementation(project(":core:cloud"))
+    implementation(project(":core:attachments"))
     implementation(project(":core:voice"))
     implementation(project(":core:tools"))
     implementation(project(":core:accessibility"))

@@ -3,6 +3,7 @@
 import android.content.Context
 import io.androllm.core.common.UiState
 import io.androllm.core.database.repository.SettingsRepository
+import io.androllm.core.attachments.AttachmentSettingsStore
 import io.androllm.core.memory.MemoryManager
 import io.androllm.core.memory.model.MemoryInspectorStats
 import io.androllm.core.memory.model.MemorySettings
@@ -50,6 +51,8 @@ class SettingsViewModelTest {
     private val context: Context = mockk(relaxed = true)
     private val settingsRepository: SettingsRepository = mockk(relaxed = true)
     private val memoryManager: MemoryManager = mockk(relaxed = true)
+    private val cloudGateway: io.androllm.core.cloud.CloudGateway = mockk(relaxed = true)
+    private val attachmentSettingsStore: AttachmentSettingsStore = mockk(relaxed = true)
     private val voiceSettingsStore: VoiceSettingsStore = mockk(relaxed = true)
     private val voiceController: VoiceAssistantController = mockk(relaxed = true)
     private val wakeWordEngine: WakeWordEngine = mockk(relaxed = true)
@@ -79,6 +82,7 @@ class SettingsViewModelTest {
         every { voiceController.state } returns MutableStateFlow(VoiceUiState())
         every { mcpSettingsStore.servers } returns flowOf(emptyList())
         every { mcpConnectionManager.states } returns MutableStateFlow(emptyMap())
+        every { cloudGateway.settings } returns flowOf(io.androllm.core.cloud.model.CloudSettings())
     }
 
     @After
@@ -93,7 +97,7 @@ class SettingsViewModelTest {
         )
 
         val viewModel = SettingsViewModel(
-            context, settingsRepository, memoryManager, voiceSettingsStore, voiceController,
+            context, settingsRepository, memoryManager, cloudGateway, attachmentSettingsStore, voiceSettingsStore, voiceController,
             wakeWordEngine, whisperModelManager, whisperSpeechRecognizer,
             automationSettingsStore, toolRegistry, accessibilitySettingsStore, accessibilityController,
             mcpSettingsStore, mcpConnectionManager
@@ -111,7 +115,7 @@ class SettingsViewModelTest {
         every { settingsRepository.observeSettings() } returns flowOf(AppSettings())
 
         val viewModel = SettingsViewModel(
-            context, settingsRepository, memoryManager, voiceSettingsStore, voiceController,
+            context, settingsRepository, memoryManager, cloudGateway, attachmentSettingsStore, voiceSettingsStore, voiceController,
             wakeWordEngine, whisperModelManager, whisperSpeechRecognizer,
             automationSettingsStore, toolRegistry, accessibilitySettingsStore, accessibilityController,
             mcpSettingsStore, mcpConnectionManager

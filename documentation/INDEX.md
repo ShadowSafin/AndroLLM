@@ -98,6 +98,7 @@ Deep technical documentation lives in this `documentation/` folder.
 | Document | Description |
 |---|---|
 | [memory-architecture.md](memory/memory-architecture.md) | Embeddings, retrieval, vector index, write pipeline |
+| [chat-attachments.md](features/chat-attachments.md) | Conversation-scoped file attachments for cloud models: formats, workflow, settings, privacy |
 
 ### AI Agent & Automation
 

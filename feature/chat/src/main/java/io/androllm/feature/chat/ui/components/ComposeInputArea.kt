@@ -1,6 +1,9 @@
 package io.androllm.feature.chat.ui.components
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,6 +26,8 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +36,10 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,9 +71,39 @@ fun ComposeInputArea(
     isGenerating: Boolean,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    maxCharacterLimit: Int = 4096
+    maxCharacterLimit: Int = 4096,
+    onAttachFiles: (List<Uri>) -> Unit = {},
+    /**
+     * True when the active model supports attachments (cloud only). When
+     * false the paperclip is removed entirely — no empty gap, the composer
+     * row just holds the text field and the send capsule.
+     */
+    showAttachButton: Boolean = true
 ) {
     val context = LocalContext.current
+
+    // Attach menu: Files / Images / Camera / Gallery. Camera captures into a
+    // temp file whose URI is handed to the same processing pipeline.
+    var attachMenuOpen by remember { mutableStateOf(false) }
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+
+    val fileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris -> if (uris.isNotEmpty()) onAttachFiles(uris) }
+
+    val imageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris -> if (uris.isNotEmpty()) onAttachFiles(uris) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) cameraImageUri?.let { onAttachFiles(listOf(it)) }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
+    ) { uris -> if (uris.isNotEmpty()) onAttachFiles(uris) }
 
     Surface(
         modifier = modifier
@@ -87,18 +126,75 @@ fun ComposeInputArea(
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Attach — a quiet marginal note.
-                IconButton(
-                    onClick = {
-                        Toast.makeText(context, "File attachments coming soon", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AttachFile,
-                        contentDescription = "Attach file",
-                        tint = DeskInk
-                    )
+                // Attach — a quiet marginal note with Files/Images/Camera/Gallery.
+                // Hidden entirely for local models (no gap: the row simply
+                // lacks the button — attachments are cloud-only).
+                if (showAttachButton) Box {
+                    IconButton(
+                        onClick = { attachMenuOpen = true },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = "Attach file",
+                            tint = DeskInk
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = attachMenuOpen,
+                        onDismissRequest = { attachMenuOpen = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Files") },
+                            onClick = {
+                                attachMenuOpen = false
+                                fileLauncher.launch(
+                                    arrayOf(
+                                        "application/pdf", "application/msword",
+                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        "text/plain", "text/markdown", "text/csv", "application/json", "text/html", "application/epub+zip"
+                                    )
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Images") },
+                            onClick = {
+                                attachMenuOpen = false
+                                imageLauncher.launch("image/*")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Camera") },
+                            onClick = {
+                                attachMenuOpen = false
+                                val photoFile = java.io.File(
+                                    context.cacheDir,
+                                    "camera_${System.currentTimeMillis()}.jpg"
+                                )
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    photoFile
+                                )
+                                cameraImageUri = uri
+                                cameraLauncher.launch(uri)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Gallery") },
+                            onClick = {
+                                attachMenuOpen = false
+                                galleryLauncher.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    )
+                                )
+                            }
+                        )
+                    }
                 }
 
                 OutlinedTextField(

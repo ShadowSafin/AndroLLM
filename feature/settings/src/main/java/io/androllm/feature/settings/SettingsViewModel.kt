@@ -61,6 +61,8 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val memoryManager: MemoryManager,
+    private val cloudGateway: io.androllm.core.cloud.CloudGateway,
+    private val attachmentSettingsStore: io.androllm.core.attachments.AttachmentSettingsStore,
     private val voiceSettingsStore: VoiceSettingsStore,
     private val voiceController: VoiceAssistantController,
     private val wakeWordEngine: WakeWordEngine,
@@ -89,6 +91,25 @@ class SettingsViewModel @Inject constructor(
     private val _memoryMessage = MutableStateFlow<String?>(null)
     val memoryMessage: StateFlow<String?> = _memoryMessage.asStateFlow()
 
+    // ── Chat attachments ──
+
+    private val _attachmentSettings = MutableStateFlow(io.androllm.core.attachments.model.AttachmentSettings())
+    val attachmentSettings: StateFlow<io.androllm.core.attachments.model.AttachmentSettings> = _attachmentSettings.asStateFlow()
+
+    private val _attachmentMessage = MutableStateFlow<String?>(null)
+    val attachmentMessage: StateFlow<String?> = _attachmentMessage.asStateFlow()
+
+    private val _attachmentCacheBytes = MutableStateFlow(0L)
+    val attachmentCacheBytes: StateFlow<Long> = _attachmentCacheBytes.asStateFlow()
+
+    /**
+     * True when the active model supports attachments (cloud mode with a
+     * configured model). Gates the whole Attachment settings card — local
+     * models hide OCR / upload / cache settings entirely.
+     */
+    private val _attachmentsSupported = MutableStateFlow(false)
+    val attachmentsSupported: StateFlow<Boolean> = _attachmentsSupported.asStateFlow()
+
     private val _storageStats = MutableStateFlow<io.androllm.core.utils.StorageStats?>(null)
     val storageStats: StateFlow<io.androllm.core.utils.StorageStats?> = _storageStats.asStateFlow()
 
@@ -109,6 +130,33 @@ class SettingsViewModel @Inject constructor(
     private fun observeAutomationSettings() {
         viewModelScope.launch {
             automationSettingsStore.settings.collect { _automationSettings.value = it }
+        }
+    }
+
+    // ── Chat attachment settings ──
+
+    fun updateAttachmentSettings(transform: (io.androllm.core.attachments.model.AttachmentSettings) -> io.androllm.core.attachments.model.AttachmentSettings) {
+        viewModelScope.launch {
+            attachmentSettingsStore.update(transform)
+            _attachmentMessage.value = null
+        }
+    }
+
+    fun clearAttachmentCache() {
+        viewModelScope.launch {
+            io.androllm.core.attachments.AttachmentCache.clearAll(context)
+            refreshAttachmentCacheBytes()
+            _attachmentMessage.value = "Temporary attachment cache cleared"
+        }
+    }
+
+    fun clearAttachmentMessage() {
+        _attachmentMessage.value = null
+    }
+
+    fun refreshAttachmentCacheBytes() {
+        viewModelScope.launch {
+            _attachmentCacheBytes.value = io.androllm.core.attachments.AttachmentCache.totalBytes(context)
         }
     }
 
@@ -313,6 +361,8 @@ class SettingsViewModel @Inject constructor(
         observeAccessibilitySettings()
         observeMcp()
         refreshWhisperFromInit()
+        observeAttachmentSettings()
+        refreshAttachmentCacheBytes()
     }
 
     // ── Voice assistant ──
@@ -445,6 +495,21 @@ class SettingsViewModel @Inject constructor(
     private fun observeMemorySettings() {
         viewModelScope.launch {
             memoryManager.settings.collect { _memorySettings.value = it }
+        }
+    }
+
+    private fun observeAttachmentSettings() {
+        viewModelScope.launch {
+            attachmentSettingsStore.settings.collect { _attachmentSettings.value = it }
+        }
+        // Capability gate for the Attachment settings card: only visible when
+        // the selected provider supports attachments (cloud, capability-driven
+        // — never a provider-name check).
+        viewModelScope.launch {
+            cloudGateway.settings.collect { settings ->
+                _attachmentsSupported.value = settings.enabled &&
+                    io.androllm.core.attachments.ProviderCapabilities.supportsAttachments(settings.defaultModelId)
+            }
         }
     }
 

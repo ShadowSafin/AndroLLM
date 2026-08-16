@@ -58,6 +58,8 @@ AndroLLM/
     │   └── cloud-providers.md     # Cloud provider architecture
     ├── memory/
     │   └── memory-architecture.md # Memory system deep dive
+    ├── features/
+    │   └── chat-attachments.md # Chat Attachments (cloud-only, conversation-scoped)
     ├── ui/
     │   ├── ui-architecture.md     # UI design system
     │   └── chat-architecture.md   # Chat feature deep dive

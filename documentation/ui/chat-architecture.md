@@ -307,6 +307,31 @@ Follow-up suggestion chips appear after each assistant response:
 
 ---
 
+## Chat Attachments (Cloud Only)
+
+Attachments (files, images, camera shots, screenshots) are a **cloud-only**
+capability, gated by `ProviderCapabilities.supportsAttachments(modelId)` — a
+capability flag, never a provider-name check:
+
+- **Cloud models** (`supportsAttachments = true`): the paperclip appears in the
+  composer; files are parsed/OCR'd on-device and the extracted content (or
+  native image parts for vision models) rides with the prompt.
+- **Local models** (`supportsAttachments = false`): the paperclip is removed
+  entirely (no gap — the composer row simply lacks it), no parsing/OCR runs,
+  and a request carrying attachments is **rejected** at the ViewModel with
+  "Attachments are not supported for local models." Attachment content is
+  never injected into a local inference prompt.
+- **Switching cloud → local with pending attachments** shows a confirmation
+  dialog ("switching will remove the current attachments"); confirming clears
+  the chips and the conversation's temporary cache before switching.
+- **Old conversations** opened on a local model keep their attachment cards
+  visible but non-interactive, with a subtle notice: "This conversation
+  contains cloud-only attachments. Switch to a cloud model to use them."
+- **Settings → Chat Attachments** is hidden for local models (OCR, image
+  upload and cache settings are cloud-only).
+
+---
+
 ## Keyboard Handling
 
 The chat screen uses `android:windowSoftInputMode="adjustResize"` in the manifest. This ensures:

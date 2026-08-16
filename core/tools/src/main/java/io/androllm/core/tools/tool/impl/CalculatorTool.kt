@@ -34,7 +34,11 @@ class CalculatorTool @Inject constructor() : Tool {
             putJsonArray("required") { add("expression") }
         },
         permission = ToolPermission.CALCULATOR,
-        category = ToolCategory.INFORMATION
+        category = ToolCategory.INFORMATION,
+        supportedTasks = listOf(
+            "math", "arithmetic", "calculate", "computation", "multiply",
+            "divide", "add", "subtract", "percentage", "equation", "sum"
+        )
     )
 
     override suspend fun execute(arguments: JsonObject): ToolResult {

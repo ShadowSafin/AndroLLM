@@ -40,6 +40,10 @@ class WebSearchTool @Inject constructor(
     override val spec = ToolSpec(
         name = "search_web",
         description = "Search the web for a query and return the top results with titles, snippets and URLs. Use when asked to look something up, check news, prices or facts.",
+        supportedTasks = listOf(
+            "search", "web search", "look up", "news", "current events",
+            "prices", "facts", "latest", "google"
+        ),
         parameters = buildJsonObject {
             put("type", "object")
             putJsonObject("properties") {

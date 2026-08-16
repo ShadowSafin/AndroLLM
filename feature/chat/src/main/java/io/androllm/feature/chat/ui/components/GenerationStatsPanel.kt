@@ -191,6 +191,9 @@ fun GenerationStatsPanel(
                     TelemetryRow("Backend", backendLabel)
                     if (model != null) {
                         TelemetryRow("Model", model.id, accent = LampDeep)
+                        if (model.delegate.isNotBlank()) TelemetryRow("Delegate", model.delegate)
+                        if (model.vendor.isNotBlank()) TelemetryRow("Vendor", model.vendor)
+                        if (model.accelerator.isNotBlank()) TelemetryRow("Accelerator", model.accelerator)
                         if (model.kvType.isNotBlank()) TelemetryRow("KV cache", model.kvType)
                         if (model.nBatch > 0) TelemetryRow("Batch", "${model.nBatch}/${model.nUbatch}")
                         if (model.nThreads > 0) TelemetryRow("Threads", "${model.nThreads}")

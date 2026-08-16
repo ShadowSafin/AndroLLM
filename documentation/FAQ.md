@@ -144,6 +144,25 @@ Go to Settings → On-device Memory → Delete all memories.
 
 ---
 
+## Chat Attachments
+
+### Can I upload PDFs?
+Yes — when using a **cloud model**. Attach a PDF (or DOCX, PPTX, XLSX, TXT, Markdown, CSV, JSON, HTML, images or screenshots) with the paperclip button and ask about it. Local models do not support attachments.
+
+### Can local models analyze files?
+Not at this time. Attachments require cloud-scale document understanding, so the feature is available only for cloud models. The attachment button and settings are hidden while a local model is selected.
+
+### Are my files permanently stored?
+No. Attachments are **conversation-scoped** and are not indexed into a persistent library. Files are processed temporarily on-device; the temporary cache is removed when the conversation is deleted or the attachment cache is cleared.
+
+### Why can't I see the attachment button?
+The currently selected model does not support attachments. Switch to a compatible cloud model (cloud chat mode with a configured provider) to attach files.
+
+### What happens to attachments when I switch to a local model?
+You are asked to confirm first: switching removes the pending attachments. Attachments already in a conversation stay visible but become read-only until you switch back to a cloud model.
+
+---
+
 ## Cloud Providers
 
 ### What cloud providers are supported?

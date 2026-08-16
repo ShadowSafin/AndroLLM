@@ -8,6 +8,7 @@ import io.androllm.engine.api.EngineState
 import io.androllm.engine.api.GenerationState
 import io.androllm.engine.api.InferenceEngine
 import io.androllm.engine.api.NoOpInferenceEngine
+import io.androllm.engine.backend.BackendCapabilities
 import io.androllm.engine.models.EngineCapabilities
 import io.androllm.engine.models.EngineModelInfo
 import io.androllm.engine.models.GenerationConfig
@@ -41,6 +42,9 @@ class EngineRepositoryTest {
             version = "1.0",
             backend = BackendType.CPU
         )
+
+        private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+        override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
 
         /** When set, the chat stream reports this stop reason instead of a clean finish. */
         var stopReasonOverride: String? = null

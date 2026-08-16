@@ -46,7 +46,11 @@ class WeatherTool @Inject constructor(
             putJsonArray("required") { add("location") }
         },
         permission = ToolPermission.WEATHER,
-        category = ToolCategory.INFORMATION
+        category = ToolCategory.INFORMATION,
+        supportedTasks = listOf(
+            "weather", "forecast", "temperature outside", "rain", "humidity",
+            "today's weather", "weekend forecast"
+        )
     )
 
     private val json = Json { ignoreUnknownKeys = true }

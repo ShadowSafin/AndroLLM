@@ -187,6 +187,10 @@ Access from the Models screen → Diagnostics tab.
 
 ---
 
+**Attachments (cloud-only):** file attachments are a cloud-model feature —
+local `.litertlm` models do not parse or process attached files. See
+[Chat Attachments](features/chat-attachments.md).
+
 ## Finding Models
 
 ### Official Model Catalog (bundled)

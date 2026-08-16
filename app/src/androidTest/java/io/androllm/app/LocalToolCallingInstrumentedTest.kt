@@ -106,7 +106,13 @@ class LocalToolCallingInstrumentedTest {
         }
         val settingsStore = AutomationSettingsStore(context)
         val agentContext = AgentContextBuilder(DeviceContextProvider(context), AgentVariableStore())
-        planner = ToolPlanner(registry, settingsStore, repository, agentContext)
+        planner = ToolPlanner(
+            registry,
+            settingsStore,
+            repository,
+            agentContext,
+            io.androllm.core.tools.router.ToolRouter()
+        )
         return registry to planner
     }
 

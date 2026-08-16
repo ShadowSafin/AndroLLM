@@ -21,6 +21,7 @@ import {
   Plug,
   Accessibility,
   BookMarked,
+  Paperclip,
 } from "lucide-react";
 
 export interface Feature {
@@ -144,6 +145,20 @@ export const pillars: Feature[] = [
       "Model discovery via /v1/models",
     ],
     stat: { value: "0", label: "cloud dependency by default — every capability runs on-device first" },
+  },
+  {
+    id: "attachments",
+    icon: Paperclip,
+    name: "Chat Attachments",
+    tagline: "Files in the conversation, cloud models",
+    description:
+      "ChatGPT-style, conversation-scoped attachments for cloud models: attach PDFs, Office documents, text files or images and ask about them — parsed on-device, never indexed, no searchable library.",
+    bullets: [
+      "PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, JSON, HTML, images & screenshots",
+      "On-device parsing + OCR; native image parts for vision providers",
+      "Conversation-scoped cache — removed with the conversation",
+      "Cloud-only: the paperclip simply doesn't exist for local models",
+    ],
   },
   {
     id: "privacy",
@@ -287,12 +302,12 @@ export const fallbackSearch: Feature[] = [
     bullets: ["Catalog: search, filter, sort, recommend", "Chat: title + content search overlay", "HuggingFace: search by author or repo"],
   },
   {
-    id: "rag",
+    id: "memory-retrieval",
     icon: Database,
-    name: "RAG",
-    tagline: "Retrieval-augmented, private",
+    name: "Memory Retrieval",
+    tagline: "Private memory, hybrid search",
     description:
-      "Memories are embedded (locally or via cloud), retrieved with hybrid vector + keyword search, and injected into the system prompt before every turn.",
+      "The persistent memory system embeds memories (locally or via cloud), retrieves them with hybrid vector + keyword search, and injects them into the system prompt before every turn.",
     bullets: ["Hybrid boost: vector + keyword +0.06", "Pinned, importance, recency ranking", "Summaries injected for long conversations"],
   },
   {

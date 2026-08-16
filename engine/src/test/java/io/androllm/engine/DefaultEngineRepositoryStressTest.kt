@@ -8,6 +8,7 @@ import io.androllm.engine.api.DefaultEngineRepository
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.api.GenerationState
 import io.androllm.engine.api.InferenceEngine
+import io.androllm.engine.backend.BackendCapabilities
 import io.androllm.engine.models.EngineCapabilities
 import io.androllm.engine.models.EngineModelInfo
 import io.androllm.engine.models.EngineStats
@@ -21,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -65,6 +67,9 @@ class DefaultEngineRepositoryStressTest {
             version = "1.0",
             backend = BackendType.CPU
         )
+
+        private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+        override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
 
         private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
         override val engineState: Flow<EngineState> = _engineState.asStateFlow()
@@ -311,6 +316,9 @@ class DefaultEngineRepositoryStressTest {
         override val capabilities = EngineCapabilities(
             name = "StallFake", version = "1.0", backend = BackendType.CPU
         )
+
+        private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+        override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
         private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
         override val engineState: Flow<EngineState> = _engineState.asStateFlow()
         private val _stats = MutableStateFlow<EngineStats?>(null)
@@ -407,6 +415,9 @@ class DefaultEngineRepositoryStressTest {
         override val capabilities = EngineCapabilities(
             name = "QuietStall", version = "1.0", backend = BackendType.CPU
         )
+
+        private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+        override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
         private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
         override val engineState: Flow<EngineState> = _engineState.asStateFlow()
         private val _stats = MutableStateFlow<EngineStats?>(null)
@@ -488,6 +499,9 @@ class DefaultEngineRepositoryStressTest {
         override val capabilities = EngineCapabilities(
             name = "HungProbe", version = "1.0", backend = BackendType.CPU
         )
+
+        private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+        override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
         private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
         override val engineState: Flow<EngineState> = _engineState.asStateFlow()
         private val _stats = MutableStateFlow<EngineStats?>(null)

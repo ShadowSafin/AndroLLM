@@ -128,6 +128,39 @@ ChatViewModel.sendMessage(text)
        MemoryManager.processExchange()  [async, 2s delay]
 ```
 
+### Chat Attachments Flow
+
+Conversation-scoped file attachments (cloud models only) — the pipeline is
+temporary by design: nothing is indexed, nothing is stored in a searchable
+library, and the per-conversation cache is removed when the conversation is
+deleted.
+
+```
+User
+   │
+   ▼
+Attach Files                        [paperclip picker: Files / Images / Camera / Gallery]
+   │
+   ▼
+Temporary Parsing                   [core:attachments — PDF/Office/text parsers + ML Kit OCR]
+   │
+   ▼
+Conversation Context                [extracted text injected with the prompt;
+   │                                  native image parts for vision providers]
+   ▼
+Cloud Model
+   │
+   ▼
+Response
+```
+
+The whole feature is gated by capability flags (`supportsAttachments`,
+`supportsVision`) — never provider names. Local models pass no cloud model
+id, so every flag resolves to false: no parsing, no OCR, no uploads, and the
+paperclip button and attachment settings are hidden. A request carrying
+attachments is rejected at the ViewModel before it can reach a local
+inference engine.
+
 ### Voice Assistant Flow
 
 ```
