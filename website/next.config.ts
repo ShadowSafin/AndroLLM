@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Self-hosted production build. Coolify (and other PaaS/Docker hosts) run
+  // `.next/standalone/server.js`, so the container needs no dev tooling.
+  output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
   images: {

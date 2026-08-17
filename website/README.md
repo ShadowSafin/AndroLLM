@@ -1,7 +1,7 @@
 # AndroLLM Website
 
-The public website for [AndroLLM](https://github.com/ShadowSafin/AndroLLM) — a fully static
-[Next.js](https://nextjs.org) export (App Router, `output: "export"`), rendered in the project's
+The public website for [AndroLLM](https://github.com/ShadowSafin/AndroLLM) — a [Next.js](https://nextjs.org)
+App Router site (self-hosted server, `output: "standalone"`), rendered in the project's
 **Parchment Ledger** design system: parchment surfaces, ochre accents, serif headlines, and a
 ledger-line grid.
 
@@ -10,12 +10,32 @@ ledger-line grid.
 ```bash
 npm install      # install dependencies
 npm run dev      # local dev server at http://localhost:3000
-npm run build    # typecheck + lint + static export to ./out
+npm run build    # production build -> .next (standalone output in .next/standalone)
+npm run start    # production server (after build) at http://localhost:3000
 npx tsc --noEmit # typecheck only
 ```
 
-The `out/` directory is fully portable: a plain static server (GitHub Pages, Netlify, S3, `npx serve out`)
-can host it. There is no server runtime, no database, and no analytics.
+There is no database and no analytics. All content is static — the pages never depend on a
+backend, so the production server only needs to serve the pre-rendered HTML.
+
+## Deployment (Coolify / Docker)
+
+The repository ships a `Dockerfile` in this directory, so Coolify builds and runs the site
+without any Nixpacks auto-detection:
+
+- Multi-stage build on `node:22-alpine`; the final image only contains the
+  `.next/standalone` output, `.next/static`, and `public/`.
+- The server listens on `0.0.0.0:3000` (`EXPOSE 3000`, `PORT` overridable via environment).
+  Coolify reads `EXPOSE` to configure its reverse proxy target.
+- Runs as an unprivileged user with a built-in health check against `/`.
+
+```bash
+docker build -t androllm-website .
+docker run --rm -p 3000:3000 androllm-website
+```
+
+In Coolify, point the application at this repo with base directory `/website`; the Dockerfile
+is picked up automatically and no start command / port configuration is required.
 
 ## Structure
 
