@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { site } from "@/lib/site";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Navbar } from "@/components/layout/navbar";
@@ -118,6 +119,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           } as React.CSSProperties
         }
       >
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-LZ1H7X4BYD" strategy="afterInteractive" />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-LZ1H7X4BYD');
+          `}
+        </Script>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <a
             href="#main"
