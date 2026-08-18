@@ -46,6 +46,18 @@ A production-grade AI platform for Android that brings local `.litertlm` model i
 
 ---
 
+## 🎬 Introduction
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=1FScG98urkw">
+    <img src="https://img.youtube.com/vi/1FScG98urkw/maxresdefault.jpg" width="560" alt="AndroLLM Introduction Video" />
+  </a>
+  <br/>
+  <em>Click the thumbnail to watch the introduction on YouTube</em>
+</p>
+
+---
+
 ## ✨ What Makes AndroLLM Different
 
 Most mobile AI apps either route everything through the cloud or ship as a lightweight demo. **AndroLLM is a complete, production-quality product**:
