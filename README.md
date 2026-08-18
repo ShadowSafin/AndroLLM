@@ -49,9 +49,11 @@ A production-grade AI platform for Android that brings local `.litertlm` model i
 ## 🎬 Introduction
 
 <p align="center">
-  <video controls width="560" poster="https://img.youtube.com/vi/1FScG98urkw/maxresdefault.jpg" src="https://media.githubusercontent.com/media/ShadowSafin/AndroLLM/main/videos/introduction.mp4"></video>
+  <a href="https://www.youtube.com/watch?v=1FScG98urkw">
+    <img src="https://img.youtube.com/vi/1FScG98urkw/maxresdefault.jpg" width="560" alt="AndroLLM Introduction Video" />
+  </a>
   <br/>
-  <em>Or watch it <a href="https://www.youtube.com/watch?v=1FScG98urkw">on YouTube</a></em>
+  <em>Click the thumbnail to watch the introduction <a href="https://www.youtube.com/watch?v=1FScG98urkw">on YouTube</a></em>
 </p>
 
 ---
