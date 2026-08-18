@@ -91,7 +91,8 @@ data class DownloadProgress(
     val modelId: String,
     val bytesDownloaded: Long = 0,
     val totalBytes: Long = 0,
-    val speedMbps: Float = 0f,
+    /** Download speed in bytes per second (binary: 1 KB = 1024 bytes). */
+    val speedBytesPerSec: Float = 0f,
     val etaSeconds: Long = 0,
     val progressPercent: Int = 0,
     val status: DownloadStatus = DownloadStatus.NOT_DOWNLOADED,

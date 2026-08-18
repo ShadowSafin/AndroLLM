@@ -23,35 +23,36 @@ class ConversationRepository @Inject constructor(
 ) : BaseRepository<Conversation, String> {
 
     override fun getById(id: String): Flow<Result<Conversation>> =
-        conversationDao.observeById(id).map { entity ->
-            entity?.toDomain()?.let { Result.success(it) } ?: Result.error("Conversation not found: $id")
+        conversationDao.observeByIdWithStats(id).map { stats ->
+            stats?.toDomain()?.let { Result.success(it) } ?: Result.error("Conversation not found: $id")
         }
 
     override fun getAll(): Flow<Result<List<Conversation>>> =
-        conversationDao.observeAll().map { entities ->
-            Result.success(entities.map { it.toDomain() })
+        conversationDao.observeAllWithStats().map { statsList ->
+            Result.success(statsList.map { it.toDomain() })
         }
 
     /**
-     * Returns active (unarchived) conversations.
+     * Returns active (unarchived) conversations with live message counts,
+     * last-message previews, and timestamps computed from the messages table.
      */
     fun observeActive(): Flow<List<Conversation>> =
-        conversationDao.observeActive().map { entities -> entities.map { it.toDomain() } }
+        conversationDao.observeActiveWithStats().map { statsList -> statsList.map { it.toDomain() } }
 
     /**
-     * Returns pinned conversations.
+     * Returns pinned conversations with live message stats.
      */
     fun observePinned(): Flow<List<Conversation>> =
-        conversationDao.observePinned().map { entities -> entities.map { it.toDomain() } }
+        conversationDao.observePinnedWithStats().map { statsList -> statsList.map { it.toDomain() } }
 
     /**
-     * Returns archived conversations.
+     * Returns archived conversations with live message stats.
      */
     fun observeArchived(): Flow<List<Conversation>> =
-        conversationDao.observeArchived().map { entities -> entities.map { it.toDomain() } }
+        conversationDao.observeArchivedWithStats().map { statsList -> statsList.map { it.toDomain() } }
 
     /**
-     * Returns recent conversations as a Flow of domain models.
+     * Returns recent (active, unarchived) conversations with live message stats.
      */
     fun observeRecent(): Flow<List<Conversation>> = observeActive()
 
@@ -93,7 +94,7 @@ class ConversationRepository @Inject constructor(
     }
 
     fun searchByTitle(query: String): Flow<List<Conversation>> =
-        conversationDao.searchByTitle(query).map { entities -> entities.map { it.toDomain() } }
+        conversationDao.searchByTitleWithStats(query).map { statsList -> statsList.map { it.toDomain() } }
 
     override suspend fun upsert(entity: Conversation): Result<String> = io.androllm.core.common.runCatching {
         conversationDao.upsert(entity.toEntity())

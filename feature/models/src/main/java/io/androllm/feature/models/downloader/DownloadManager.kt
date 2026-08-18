@@ -154,7 +154,7 @@ class DownloadManager @Inject constructor(
                     modelId = modelId,
                     bytesDownloaded = progressData.getLong(ModelDownloadWorker.KEY_BYTES_DOWNLOADED, 0L),
                     totalBytes = progressData.getLong(ModelDownloadWorker.KEY_TOTAL_BYTES, 0L),
-                    speedMbps = progressData.getFloat(ModelDownloadWorker.KEY_SPEED_MBPS, 0f),
+                    speedBytesPerSec = progressData.getFloat(ModelDownloadWorker.KEY_SPEED_BYTES_PER_SEC, 0f),
                     etaSeconds = progressData.getLong(ModelDownloadWorker.KEY_ETA_SECONDS, 0L),
                     progressPercent = progressData.getInt(ModelDownloadWorker.KEY_PROGRESS_PERCENT, 0),
                     status = status,

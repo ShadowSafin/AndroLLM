@@ -559,7 +559,7 @@ private fun DownloadCard(
     val percent = progress?.progressPercent ?: 0
     val bytes = progress?.bytesDownloaded ?: 0L
     val total = progress?.totalBytes ?: model.fileSize
-    val speed = progress?.speedMbps ?: 0f
+    val speed = progress?.speedBytesPerSec ?: 0f
     val eta = progress?.etaSeconds ?: 0L
     val status = progress?.status ?: model.downloadStatus
 
@@ -614,7 +614,7 @@ private fun DownloadCard(
 
                 when (status) {
                     DownloadStatus.DOWNLOADING -> Text(
-                        text = "${"%.1f".format(speed)} MB/s • ${eta}s left",
+                        text = "${speed.formatSpeed()} • ${if (eta > 0) "${eta}s left" else "Calculating..."}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
@@ -1516,6 +1516,24 @@ private fun Long.formatSize(): String {
         this < 1024 * 1024 -> String.format(java.util.Locale.getDefault(), "%.1f KB", this / 1024.0)
         this < 1024 * 1024 * 1024 -> String.format(java.util.Locale.getDefault(), "%.1f MB", this / (1024.0 * 1024.0))
         else -> String.format(java.util.Locale.getDefault(), "%.1f GB", this / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+/**
+ * Formats bytes/sec into a human-readable speed string using binary units.
+ *
+ * Conversion rules:
+ *   < 1024 B     -> "512 B/s"
+ *   < 1024 KB    -> "845 KB/s"
+ *   < 1024 MB    -> "9.82 MB/s"
+ *   >= 1024 MB   -> "1.50 GB/s"
+ */
+private fun Float.formatSpeed(): String {
+    return when {
+        this < 1024f -> String.format(java.util.Locale.getDefault(), "%.0f B/s", this)
+        this < 1024f * 1024f -> String.format(java.util.Locale.getDefault(), "%.0f KB/s", this / 1024f)
+        this < 1024f * 1024f * 1024f -> String.format(java.util.Locale.getDefault(), "%.2f MB/s", this / (1024f * 1024f))
+        else -> String.format(java.util.Locale.getDefault(), "%.2f GB/s", this / (1024f * 1024f * 1024f))
     }
 }
 

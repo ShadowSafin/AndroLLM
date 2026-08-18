@@ -39,12 +39,14 @@ class ModelDownloadWorker(
         const val KEY_PROGRESS_PERCENT = "progress_percent"
         const val KEY_BYTES_DOWNLOADED = "bytes_downloaded"
         const val KEY_TOTAL_BYTES = "total_bytes"
-        const val KEY_SPEED_MBPS = "speed_mbps"
+        const val KEY_SPEED_BYTES_PER_SEC = "speed_bytes_per_sec"
         const val KEY_ETA_SECONDS = "eta_seconds"
         const val KEY_ERROR_MESSAGE = "error_message"
 
         private const val CHANNEL_ID = "download_channel"
         private const val NOTIFICATION_ID = 4001
+        private const val SPEED_SMOOTHING_FACTOR = 0.3f
+        private const val MIN_SPEED_UPDATE_MS = 500L
     }
 
     private val notificationManager =
@@ -86,6 +88,8 @@ class ModelDownloadWorker(
             var bytesRead: Int
             val startTime = System.currentTimeMillis()
             var lastProgressTime = startTime
+            var lastReportedBytes = downloadedBytes
+            var smoothedSpeedBytesPerSec = 0f
 
             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                 if (isStopped) {
@@ -99,25 +103,41 @@ class ModelDownloadWorker(
                 downloadedBytes += bytesRead
 
                 val currentTime = System.currentTimeMillis()
-                if (currentTime - lastProgressTime > 500) {
-                    val elapsedTimeSec = ((currentTime - startTime) / 1000f).coerceAtLeast(0.1f)
-                    val speedBytesPerSec = downloadedBytes / elapsedTimeSec
-                    val speedMbps = (speedBytesPerSec * 8) / (1024f * 1024f)
+                val elapsedSinceUpdate = currentTime - lastProgressTime
+                if (elapsedSinceUpdate >= MIN_SPEED_UPDATE_MS) {
+                    // Delta-based speed: bytes downloaded in this interval / time elapsed
+                    val deltaBytes = (downloadedBytes - lastReportedBytes).toFloat()
+                    val deltaTimeSec = (elapsedSinceUpdate / 1000f).coerceAtLeast(0.001f)
+                    val instantSpeedBytesPerSec = deltaBytes / deltaTimeSec
+
+                    // Exponential moving average for smooth display
+                    if (smoothedSpeedBytesPerSec == 0f) {
+                        smoothedSpeedBytesPerSec = instantSpeedBytesPerSec
+                    } else {
+                        smoothedSpeedBytesPerSec = SPEED_SMOOTHING_FACTOR * instantSpeedBytesPerSec +
+                            (1f - SPEED_SMOOTHING_FACTOR) * smoothedSpeedBytesPerSec
+                    }
+
                     val remainingBytes = totalBytes - downloadedBytes
-                    val etaSeconds = if (speedBytesPerSec > 0) (remainingBytes / speedBytesPerSec).toLong() else 0L
+                    val etaSeconds = if (smoothedSpeedBytesPerSec > 0f) {
+                        (remainingBytes / smoothedSpeedBytesPerSec).toLong()
+                    } else {
+                        0L
+                    }
                     val progressPercent = if (totalBytes > 0) ((downloadedBytes * 100) / totalBytes).toInt() else 0
 
                     val progressData = workDataOf(
                         KEY_PROGRESS_PERCENT to progressPercent,
                         KEY_BYTES_DOWNLOADED to downloadedBytes,
                         KEY_TOTAL_BYTES to totalBytes,
-                        KEY_SPEED_MBPS to speedMbps,
+                        KEY_SPEED_BYTES_PER_SEC to smoothedSpeedBytesPerSec,
                         KEY_ETA_SECONDS to etaSeconds
                     )
                     setProgress(progressData)
 
-                    updateNotification(modelName, progressPercent, downloadedBytes, totalBytes, speedMbps, etaSeconds)
+                    updateNotification(modelName, progressPercent, downloadedBytes, totalBytes, smoothedSpeedBytesPerSec, etaSeconds)
                     lastProgressTime = currentTime
+                    lastReportedBytes = downloadedBytes
                 }
             }
 
@@ -201,11 +221,13 @@ class ModelDownloadWorker(
         progress: Int,
         downloadedBytes: Long,
         totalBytes: Long,
-        speedMbps: Float,
+        speedBytesPerSec: Float,
         etaSeconds: Long
     ) {
         val downloadedText = "${downloadedBytes.formatSize()} / ${totalBytes.formatSize()}"
-        val statusText = "$downloadedText • ${"%.1f".format(speedMbps)} MB/s • ${etaSeconds}s remaining"
+        val speedText = speedBytesPerSec.formatSpeed()
+        val etaText = if (etaSeconds > 0) " • ${etaSeconds}s remaining" else ""
+        val statusText = "$downloadedText • $speedText$etaText"
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Downloading $name")
@@ -340,6 +362,24 @@ class ModelDownloadWorker(
             this < 1024 * 1024 -> String.format(java.util.Locale.getDefault(), "%.1f KB", this / 1024.0)
             this < 1024 * 1024 * 1024 -> String.format(java.util.Locale.getDefault(), "%.1f MB", this / (1024.0 * 1024.0))
             else -> String.format(java.util.Locale.getDefault(), "%.1f GB", this / (1024.0 * 1024.0 * 1024.0))
+        }
+    }
+
+    /**
+     * Formats bytes/sec into a human-readable speed string using binary units.
+     *
+     * Conversion rules:
+     *   < 1024 B     -> "512 B/s"
+     *   < 1024 KB    -> "845 KB/s"
+     *   < 1024 MB    -> "9.82 MB/s"
+     *   >= 1024 MB   -> "1.50 GB/s"
+     */
+    private fun Float.formatSpeed(): String {
+        return when {
+            this < 1024f -> String.format(java.util.Locale.getDefault(), "%.0f B/s", this)
+            this < 1024f * 1024f -> String.format(java.util.Locale.getDefault(), "%.0f KB/s", this / 1024f)
+            this < 1024f * 1024f * 1024f -> String.format(java.util.Locale.getDefault(), "%.2f MB/s", this / (1024f * 1024f))
+            else -> String.format(java.util.Locale.getDefault(), "%.2f GB/s", this / (1024f * 1024f * 1024f))
         }
     }
 }

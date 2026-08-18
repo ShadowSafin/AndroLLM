@@ -131,7 +131,7 @@ fun ChatActivityCard(
                     }
 
                     Text(
-                        text = "${conversation.messageCount} messages",
+                        text = if (conversation.messageCount == 1) "1 message" else "${conversation.messageCount} messages",
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = DeskInk
                         )

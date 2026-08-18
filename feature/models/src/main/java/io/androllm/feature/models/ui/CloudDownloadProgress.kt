@@ -46,7 +46,7 @@ import io.androllm.core.ui.theme.LampGlow
 @Composable
 fun CloudDownloadProgress(
     progressPercent: Int,
-    speedMbps: Float,
+    speedBytesPerSec: Float,
     etaSeconds: Long,
     isCompleted: Boolean = false,
     modifier: Modifier = Modifier
@@ -110,9 +110,9 @@ fun CloudDownloadProgress(
                         color = DeskPaper
                     )
                 )
-                if (speedMbps > 0f) {
+                if (speedBytesPerSec > 0f) {
                     Text(
-                        text = "%.1fMB/s".format(speedMbps),
+                        text = speedBytesPerSec.formatSpeed(),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 9.sp,
                             color = DeskInk
@@ -121,5 +121,23 @@ fun CloudDownloadProgress(
                 }
             }
         }
+    }
+}
+
+/**
+ * Formats bytes/sec into a human-readable speed string using binary units.
+ *
+ * Conversion rules:
+ *   < 1024 B     -> "512 B/s"
+ *   < 1024 KB    -> "845 KB/s"
+ *   < 1024 MB    -> "9.82 MB/s"
+ *   >= 1024 MB   -> "1.50 GB/s"
+ */
+private fun Float.formatSpeed(): String {
+    return when {
+        this < 1024f -> String.format(java.util.Locale.getDefault(), "%.0f B/s", this)
+        this < 1024f * 1024f -> String.format(java.util.Locale.getDefault(), "%.0f KB/s", this / 1024f)
+        this < 1024f * 1024f * 1024f -> String.format(java.util.Locale.getDefault(), "%.2f MB/s", this / (1024f * 1024f))
+        else -> String.format(java.util.Locale.getDefault(), "%.2f GB/s", this / (1024f * 1024f * 1024f))
     }
 }
