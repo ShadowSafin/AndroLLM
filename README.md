@@ -49,11 +49,12 @@ A production-grade AI platform for Android that brings local `.litertlm` model i
 ## 🎬 Introduction
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=1FScG98urkw">
-    <img src="https://img.youtube.com/vi/1FScG98urkw/maxresdefault.jpg" width="560" alt="AndroLLM Introduction Video" />
-  </a>
+  <video controls width="560" poster="https://img.youtube.com/vi/1FScG98urkw/maxresdefault.jpg">
+    <source src="./docs/videos/introduction.mp4" type="video/mp4" />
+    Your browser does not support the video tag. <a href="https://www.youtube.com/watch?v=1FScG98urkw">Watch on YouTube</a>.
+  </video>
   <br/>
-  <em>Click the thumbnail to watch the introduction on YouTube</em>
+  <em>Or watch it <a href="https://www.youtube.com/watch?v=1FScG98urkw">on YouTube</a></em>
 </p>
 
 ---
