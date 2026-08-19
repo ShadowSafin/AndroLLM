@@ -995,7 +995,7 @@ private fun CatalogModelCard(
             .wrapContentHeight(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = if (recommended) RecommendationGreen.copy(alpha = 0.07f) else Color.White
+            containerColor = Color.White
         ),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
