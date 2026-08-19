@@ -35,7 +35,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -161,6 +163,13 @@ fun ModelsScreen(
     }
 
     var sortMenuExpanded by remember { mutableStateOf(false) }
+
+    // One scroll state per tab, hoisted here so switching tabs (or changing
+    // catalog filters / sort) keeps each list exactly where the user left it.
+    val installedListState = rememberLazyListState()
+    val downloadsListState = rememberLazyListState()
+    val catalogListState = rememberLazyListState()
+    val huggingFaceListState = rememberLazyListState()
 
     val activeDownloads = remember(data.installedModels) {
         data.installedModels.filter { !it.isDownloaded }
@@ -299,21 +308,25 @@ fun ModelsScreen(
                 ModelsTab.INSTALLED -> InstalledModelsTab(
                     data = data,
                     viewModel = viewModel,
-                    onImportClick = { importLauncher.launch(arrayOf("*/*")) }
+                    onImportClick = { importLauncher.launch(arrayOf("*/*")) },
+                    listState = installedListState
                 )
                 ModelsTab.DOWNLOADS -> DownloadsTab(
                     activeDownloads = activeDownloads,
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    listState = downloadsListState
                 )
                 ModelsTab.CATALOG -> CatalogTab(
                     data = data,
                     viewModel = viewModel,
-                    installedModels = data.installedModels
+                    installedModels = data.installedModels,
+                    listState = catalogListState
                 )
                 ModelsTab.HUGGINGFACE -> HuggingFaceTab(
                     remoteModels = data.remoteModels,
                     isSearching = data.isSearchingRemote,
-                    onSelectModel = { summary -> viewModel.fetchRemoteDetails(summary.id) }
+                    onSelectModel = { summary -> viewModel.fetchRemoteDetails(summary.id) },
+                    listState = huggingFaceListState
                 )
                 ModelsTab.DIAGNOSTICS -> HardwareDiagnosticsTab(
                     hardwareInfo = data.hardwareInfo ?: DeviceInfoCollector.collectDeviceInfo(context)
@@ -346,7 +359,8 @@ fun ModelsScreen(
 private fun InstalledModelsTab(
     data: ModelsData,
     viewModel: ModelsViewModel,
-    onImportClick: () -> Unit
+    onImportClick: () -> Unit,
+    listState: LazyListState
 ) {
     val installedOnly = remember(data.installedModels) {
         data.installedModels.filter { it.isDownloaded }
@@ -389,6 +403,7 @@ private fun InstalledModelsTab(
         }
     } else {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
@@ -480,7 +495,8 @@ ModelStatusDashboard(
 @Composable
 private fun DownloadsTab(
     activeDownloads: List<Model>,
-    viewModel: ModelsViewModel
+    viewModel: ModelsViewModel,
+    listState: LazyListState
 ) {
     if (activeDownloads.isEmpty()) {
         Box(
@@ -545,6 +561,7 @@ private fun DownloadsTab(
             Spacer(modifier = Modifier.height(8.dp))
 
             LazyColumn(
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -704,7 +721,8 @@ private fun DownloadCard(
 private fun CatalogTab(
     data: ModelsData,
     viewModel: ModelsViewModel,
-    installedModels: List<Model>
+    installedModels: List<Model>,
+    listState: LazyListState
 ) {
     when (val state = data.catalogState) {
         is CatalogState.Loading -> CatalogLoadingPlaceholder()
@@ -738,7 +756,8 @@ private fun CatalogTab(
         is CatalogState.Ready -> CatalogList(
             data = data,
             viewModel = viewModel,
-            installedModels = installedModels
+            installedModels = installedModels,
+            listState = listState
         )
     }
 }
@@ -747,9 +766,31 @@ private fun CatalogTab(
 private fun CatalogList(
     data: ModelsData,
     viewModel: ModelsViewModel,
-    installedModels: List<Model>
+    installedModels: List<Model>,
+    listState: LazyListState
 ) {
+    // The recommended row is a device-based shortcut, meaningful only when
+    // browsing the full catalog. While searching or filtering it would show
+    // stale, off-query models — hide it then. The models it shows are drawn
+    // from the SAME filtered source and excluded from the main list below,
+    // so every catalog model appears exactly once.
+    val showRecommended = data.recommendedCatalogModels.isNotEmpty() &&
+        data.searchQuery.isBlank() &&
+        data.catalogFilters.sections.isEmpty() &&
+        !data.catalogInstalledOnly &&
+        !data.catalogDownloadedOnly
+    val recommendedShown = if (showRecommended) data.recommendedCatalogModels.take(4) else emptyList()
+    val recommendedIds = remember(data.recommendedCatalogModels) {
+        data.recommendedCatalogModels.map { it.id }.toSet()
+    }
+    val visibleModels = if (showRecommended) {
+        data.catalogModels.filter { it.id !in recommendedIds }
+    } else {
+        data.catalogModels
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
@@ -813,7 +854,7 @@ private fun CatalogList(
             }
         }
 
-        if (data.recommendedCatalogModels.isNotEmpty()) {
+        if (recommendedShown.isNotEmpty()) {
             item(key = "rec_header") {
                 Text(
                     text = "⭐ Recommended for your device",
@@ -822,7 +863,7 @@ private fun CatalogList(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            items(data.recommendedCatalogModels.take(4), key = { "rec_${it.id}" }) { model ->
+            items(recommendedShown, key = { "rec_${it.id}" }) { model ->
                 CatalogModelCard(
                     model = model,
                     installedModels = installedModels,
@@ -895,13 +936,13 @@ private fun CatalogList(
 
         item(key = "results_header") {
             Text(
-                text = "${data.catalogModels.size} models",
+                text = "${visibleModels.size + recommendedShown.size} models",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline
             )
         }
 
-        if (data.catalogModels.isEmpty()) {
+        if (visibleModels.isEmpty()) {
             item(key = "empty") {
                 Box(
                     modifier = Modifier
@@ -918,7 +959,7 @@ private fun CatalogList(
             }
         }
 
-        items(data.catalogModels, key = { it.id }) { model ->
+        items(visibleModels, key = { it.id }) { model ->
             CatalogModelCard(
                 model = model,
                 installedModels = installedModels,
@@ -1372,7 +1413,8 @@ private val SORT_OPTIONS = listOf(
 private fun HuggingFaceTab(
     remoteModels: List<RemoteModelSummary>,
     isSearching: Boolean,
-    onSelectModel: (RemoteModelSummary) -> Unit
+    onSelectModel: (RemoteModelSummary) -> Unit,
+    listState: LazyListState
 ) {
     if (isSearching) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1384,6 +1426,7 @@ private fun HuggingFaceTab(
         }
     } else {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
