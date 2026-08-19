@@ -12,17 +12,14 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "Models — AndroLLM",
   description:
-    "7 curated .litertlm models across 5 architectures. Quantization guide, RAM requirements, and model management: catalog filtering, HuggingFace browsing, compatibility analysis, and benchmarking.",
+    "21 curated .litertlm models across 11 architectures. Quantization guide, RAM requirements, and model management: catalog filtering, HuggingFace browsing, compatibility analysis, and benchmarking.",
   alternates: { canonical: "/models" },
 };
 
 const recommended = [
-  { name: "Qwen3-0.6B", quant: "mixed int4", ram: "2 GB", note: "Agent-ready reasoning with native tool calling" },
-  { name: "Gemma 3 1B", quant: "Q4", ram: "2 GB", note: "Google's compact, efficient 1B" },
-  { name: "Qwen2.5-1.5B", quant: "Q8", ram: "4 GB", note: "Blazing-fast everyday assistant" },
-  { name: "Qwen2-0.5B", quant: "int8", ram: "2 GB", note: "The low-RAM champion" },
-  { name: "DeepSeek R1", quant: "mixed int4", ram: "4 GB", note: "Reasoning distilled for on-device use" },
-  { name: "Gemma Embedding", quant: "embedding", ram: "2 GB", note: "Local embeddings for memory retrieval" },
+  { name: "Gemma 4 E2B IT", quant: "Q8", ram: "8 GB", note: "Google's flagship Gemma 4 — best quality-per-GB, GPU-optimized" },
+  { name: "Gemma 4 12B IT", quant: "Q8", ram: "16 GB", note: "Multimodal (text + image), largest Gemma 4 for high-end devices" },
+  { name: "Qwen3 0.6B", quant: "mixed int4", ram: "4 GB", note: "Agent-ready reasoning with native tool calling" },
 ];
 
 const quantRows = [
@@ -33,18 +30,29 @@ const quantRows = [
 ];
 
 const sizeGuide = [
-  { model: "Qwen2-0.5B", format: "int8", size: "~0.5 GB", ram: "2 GB", best: "Everyday chat on any device" },
-  { model: "Qwen3-0.6B", format: "mixed int4", size: "~475 MB", ram: "2 GB", best: "Agent & tool calling" },
-  { model: "Gemma 3 1B", format: "Q4", size: "~560 MB", ram: "2 GB", best: "Google's compact all-rounder" },
-  { model: "Gemma Embedding", format: "embedding", size: "~0.5 GB", ram: "2 GB", best: "Memory retrieval" },
-  { model: "Qwen2.5-1.5B", format: "Q8", size: "~1.3 GB", ram: "4 GB", best: "Speed + quality" },
+  { model: "SmolLM2 135M", format: "Q8", size: "~136 MB", ram: "2 GB", best: "Any Android device" },
+  { model: "SmolLM2 360M", format: "Q8", size: "~356 MB", ram: "3 GB", best: "Tiny & fast on any device" },
+  { model: "Qwen3 0.6B", format: "mixed int4", size: "~475 MB", ram: "4 GB", best: "Agent & tool calling" },
+  { model: "FastVLM 0.5B", format: "Q8", size: "~1.1 GB", ram: "4 GB", best: "Instant image understanding" },
+  { model: "SmolVLM2 500M", format: "Q8", size: "~344 MB", ram: "6 GB", best: "Vision-language on a phone" },
+  { model: "Qwen3 1.7B", format: "mixed int4", size: "~1.9 GB", ram: "6 GB", best: "Sweet spot for mid-range phones" },
+  { model: "Qwen2.5 1.5B", format: "Q8", size: "~1.5 GB", ram: "6 GB", best: "Multilingual + structured output" },
+  { model: "DeepSeek R1 1.5B", format: "Q8", size: "~1.7 GB", ram: "6 GB", best: "Step-by-step math & logic" },
+  { model: "Phi-4 Mini 3.8B", format: "Q8", size: "~3.6 GB", ram: "10 GB", best: "Code & reasoning on mid-range" },
+  { model: "Qwen3 4B", format: "mixed int4", size: "~2.5 GB", ram: "8 GB", best: "Strong reasoning + tool calling" },
+  { model: "Gemma 4 E2B IT", format: "Q8", size: "~2.4 GB", ram: "8 GB", best: "Flagship quality, GPU-optimized" },
+  { model: "Mage-VL 1.5B", format: "Q8", size: "~2.6 GB", ram: "6 GB", best: "CLIP-based vision encoder" },
+  { model: "Gemma 4 E4B IT", format: "Q8", size: "~3.4 GB", ram: "12 GB", best: "Near 7B-level quality on a phone" },
+  { model: "Qwen3 8B", format: "mixed int4", size: "~4.6 GB", ram: "12 GB", best: "Near-frontier reasoning" },
+  { model: "Gemma 4 12B IT", format: "Q8", size: "~6.1 GB", ram: "16 GB", best: "Multimodal flagship" },
+  { model: "Qwen3 14B", format: "mixed int4", size: "~8.1 GB", ram: "16 GB", best: "Flagship reasoning & tool use" },
 ];
 
 const catalogFacts = [
-  { icon: Database, value: 7, label: "models in the shipped catalog", note: "litert-community on HuggingFace & ModelScope" },
-  { icon: Cpu, value: 5, label: "architectures supported", note: "gemma3, gemma4, gemma-embedding, qwen2, qwen3" },
-  { icon: Gauge, value: 6, label: "models marked recommended", note: "RAM-filtered for real devices" },
-  { icon: MemoryStick, value: 3, label: "Qwen-family models", note: "the largest family in the catalog" },
+  { icon: Database, value: 21, label: "models in the shipped catalog", note: "litert-community on HuggingFace & ModelScope" },
+  { icon: Cpu, value: 11, label: "architectures supported", note: "gemma4, qwen3, qwen2, phi4, llama, smolvlm2, fastvlm, mage-vl, whisper, moonshine, parakeet" },
+  { icon: Gauge, value: 7, label: "models marked recommended", note: "RAM-filtered for real devices" },
+  { icon: MemoryStick, value: 8, label: "Qwen-family models", note: "the largest family in the catalog" },
 ];
 
 const features = [
@@ -61,7 +69,7 @@ export default function ModelsPage() {
         <div className="container">
           <SectionHeading
             eyebrow="The model shelf"
-            title="A catalog of 7 curated models, ready to run."
+            title="A catalog of 21 curated models, ready to run."
             description="Every model shipped in the catalog is a real, tested .litertlm container — validated, memory-estimated, and RAM-filterable on your device. All facts on this page come from the shipped catalog."
           />
 
@@ -82,7 +90,7 @@ export default function ModelsPage() {
 
       <section className="border-y border-[var(--line)] bg-[var(--deep)] py-24" aria-label="Recommended models">
         <div className="container">
-          <SectionHeading align="left" eyebrow="Start here" title="The 6 recommended models" description="Marked recommended in the shipped catalog — chosen for real phones, not benchmark tables. All six shown with their required RAM." />
+          <SectionHeading align="left" eyebrow="Start here" title="The 7 recommended models" description="Marked recommended in the shipped catalog — chosen for real phones, not benchmark tables. All shown with their required RAM." />
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recommended.map((m, i) => (
               <Reveal key={m.name} delay={i * 0.04}>
@@ -95,7 +103,7 @@ export default function ModelsPage() {
                   </div>
                   <p className="mt-1 text-sm text-[var(--muted)]">{m.note}</p>
                   <p className="mt-auto pt-4 text-xs text-[var(--faint)]">
-                    <span className="font-mono text-[var(--ink-dim)]">{m.ram}</span> recommended RAM
+                    <span className="font-mono text-[var(--ink-dim)]">{m.ram}</span> RAM
                   </p>
                 </HoverCard>
               </Reveal>
@@ -164,8 +172,8 @@ export default function ModelsPage() {
               The 2–4 GB RAM rule
             </p>
             <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
-              2 GB RAM runs the small models (Qwen3-0.6B, Gemma 3 1B, Qwen2-0.5B) — 4 GB unlocks
-              Qwen2.5-1.5B and DeepSeek-class models. The app does this math for you before you download.
+              2 GB RAM runs the smallest models (SmolLM2 135M/360M). 4 GB unlocks Qwen3 0.6B and vision models.
+              6–8 GB hits the sweet spot with Qwen3 1.7B, Gemma 4 E2B, and Phi-4 Mini. 12–16 GB for flagship 8–14B models. The app does this math for you before you download.
             </p>
           </Reveal>
         </div>
