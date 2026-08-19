@@ -37,6 +37,7 @@ import io.androllm.core.ui.components.LampDot
 import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.LampGlow
 import kotlinx.coroutines.delay
+import io.androllm.core.ui.theme.ledger
 
 /**
  * The desk in thought — shown while the model is forming its first words.
@@ -99,7 +100,7 @@ fun TypingAndThinkingIndicator(
                     text = text,
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 0.8.sp,
-                        color = DeskInk
+                        color = MaterialTheme.ledger.deskInk
                     )
                 )
             }
@@ -139,7 +140,7 @@ private fun LampPulsingDots() {
                     .size(6.dp)
                     .scale(animatable.value)
                     .clip(CircleShape)
-                    .background(LampGlow.copy(alpha = 0.5f + animatable.value * 0.5f))
+                    .background(MaterialTheme.ledger.lampGlow.copy(alpha = 0.5f + animatable.value * 0.5f))
             )
         }
     }

@@ -16,14 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import io.androllm.core.ui.theme.DeskHairline
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskNight
-import io.androllm.core.ui.theme.DeskNightRaised
-import io.androllm.core.ui.theme.DeskWalnutDeep
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampHalo
+import androidx.compose.ui.graphics.luminance
 import kotlin.random.Random
+import io.androllm.core.ui.theme.ledger
+import androidx.compose.material3.MaterialTheme
 
 /**
  * The Parchment Ledger background — the warm daylight desk.
@@ -71,15 +67,30 @@ fun CloudAtmosphericBackground(
         }
     }
 
+    val ledger = MaterialTheme.ledger
+    val isDark = ledger.deskNight.luminance() < 0.5f
+    val deskNight = ledger.deskNight
+    val deskNightRaised = ledger.deskNightRaised
+    val deskWalnutDeep = ledger.deskWalnutDeep
+    val lampAmber = ledger.lampAmber
+    val lampHalo = ledger.lampHalo
+    val deskHairline = ledger.deskHairline
+    val deskInkFaint = ledger.deskInkFaint
+    // The same pool of light reads differently on the night desk: lift its
+    // alpha so the terracotta still reads against the darker ground.
+    val sunGlowAlpha = if (isDark) 0.20f + sunBreath * 0.10f else 0.16f + sunBreath * 0.08f
+    val deskGlowAlpha = if (isDark) 0.10f else 0.06f
+    val dustTwinkleRange = if (isDark) 0.12f to 0.5f else 0.06f to 0.4f
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        DeskNight,
-                        DeskNightRaised,
-                        DeskWalnutDeep
+                        deskNight,
+                        deskNightRaised,
+                        deskWalnutDeep
                     )
                 )
             )
@@ -94,8 +105,8 @@ fun CloudAtmosphericBackground(
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        LampAmber.copy(alpha = 0.16f + sunBreath * 0.08f),
-                        LampHalo.copy(alpha = 0.05f),
+                        lampAmber.copy(alpha = sunGlowAlpha),
+                        lampHalo.copy(alpha = 0.05f),
                         Color.Transparent
                     ),
                     center = sunCenter,
@@ -110,7 +121,7 @@ fun CloudAtmosphericBackground(
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        LampAmber.copy(alpha = 0.06f),
+                        lampAmber.copy(alpha = deskGlowAlpha),
                         Color.Transparent
                     ),
                     center = deskGlowCenter,
@@ -123,13 +134,13 @@ fun CloudAtmosphericBackground(
             // Layer 3: the ruled horizon — the desk edge receding into the page.
             val horizonY = height * 0.82f
             drawLine(
-                color = DeskHairline.copy(alpha = 0.7f),
+                color = deskHairline.copy(alpha = if (isDark) 0.5f else 0.7f),
                 start = Offset(0f, horizonY),
                 end = Offset(width, horizonY),
                 strokeWidth = 1.2f
             )
             drawLine(
-                color = DeskInkFaint.copy(alpha = 0.22f),
+                color = deskInkFaint.copy(alpha = if (isDark) 0.16f else 0.22f),
                 start = Offset(0f, horizonY + 14f),
                 end = Offset(width, horizonY + 14f),
                 strokeWidth = 1f
@@ -141,9 +152,9 @@ fun CloudAtmosphericBackground(
                 val x = mote.xPct * width
                 val y = floatY * height
                 val twinkle = (0.12f + 0.3f * kotlin.math.sin(dustShift * 0.04f + mote.seed * 9f))
-                    .coerceIn(0.06f, 0.4f)
+                    .coerceIn(dustTwinkleRange.first, dustTwinkleRange.second)
                 drawCircle(
-                    color = LampAmber.copy(alpha = twinkle),
+                    color = lampAmber.copy(alpha = twinkle),
                     radius = mote.radius,
                     center = Offset(x, y)
                 )

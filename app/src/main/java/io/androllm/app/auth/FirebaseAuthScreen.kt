@@ -87,6 +87,7 @@ import io.androllm.core.ui.theme.LampGlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Authentication Entrance — Cloud Intelligence edition.
@@ -411,7 +412,7 @@ fun FirebaseAuthScreen(
                 text = "Welcome back",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    color = io.androllm.core.ui.theme.DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
 
@@ -420,7 +421,7 @@ fun FirebaseAuthScreen(
             Text(
                 text = "Your private AI stays on your device.\nSign in to keep your profile in sync.",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = io.androllm.core.ui.theme.DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 ),
                 textAlign = TextAlign.Center
             )
@@ -433,7 +434,7 @@ fun FirebaseAuthScreen(
                 Text(
                     text = "Connecting securely…",
                     style = MaterialTheme.typography.labelMedium.copy(
-                        color = io.androllm.core.ui.theme.DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         letterSpacing = 1.sp
                     )
                 )
@@ -505,11 +506,11 @@ fun FirebaseAuthScreen(
             // Legal footer
             val legal = buildAnnotatedString {
                 append("By continuing you agree to the ")
-                withStyle(SpanStyle(color = io.androllm.core.ui.theme.LampDeep, fontWeight = FontWeight.SemiBold)) {
+                withStyle(SpanStyle(color = MaterialTheme.ledger.lampDeep, fontWeight = FontWeight.SemiBold)) {
                     append("Privacy Policy")
                 }
                 append(" and ")
-                withStyle(SpanStyle(color = io.androllm.core.ui.theme.LampDeep, fontWeight = FontWeight.SemiBold)) {
+                withStyle(SpanStyle(color = MaterialTheme.ledger.lampDeep, fontWeight = FontWeight.SemiBold)) {
                     append("Terms of Service")
                 }
                 append(".")
@@ -517,7 +518,7 @@ fun FirebaseAuthScreen(
             Text(
                 text = legal,
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = io.androllm.core.ui.theme.DeskInk,
+                    color = MaterialTheme.ledger.deskInk,
                     fontSize = 11.sp
                 ),
                 textAlign = TextAlign.Center,
@@ -538,7 +539,7 @@ fun FirebaseAuthScreen(
             Text(
                 text = doc.body,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = io.androllm.core.ui.theme.DeskInk,
+                    color = MaterialTheme.ledger.deskInk,
                     lineHeight = 18.sp
                 )
             )
@@ -555,7 +556,7 @@ private fun ProviderButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     gradient: Brush,
-    textColor: Color = io.androllm.core.ui.theme.DeskPaper,
+    textColor: Color = MaterialTheme.ledger.deskPaper,
     glyph: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }

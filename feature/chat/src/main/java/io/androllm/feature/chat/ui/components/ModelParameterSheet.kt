@@ -50,6 +50,7 @@ import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import kotlin.math.roundToInt
+import io.androllm.core.ui.theme.ledger
 
 /**
  * The lamp's tuner — Temperature, Top-P, Repeat Penalty, and system personas.
@@ -81,7 +82,7 @@ fun ModelParameterSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = DeskNight,
+        containerColor = MaterialTheme.ledger.deskNight,
         scrimColor = Color.Black.copy(alpha = 0.6f)
     ) {
         Column(
@@ -99,7 +100,7 @@ fun ModelParameterSheet(
                     Icon(
                         imageVector = Icons.Default.Tune,
                         contentDescription = null,
-                        tint = LampDeep,
+                        tint = MaterialTheme.ledger.lampDeep,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
@@ -107,7 +108,7 @@ fun ModelParameterSheet(
                         text = "Engine Parameter Tuning",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                 }
@@ -115,7 +116,7 @@ fun ModelParameterSheet(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(LampGlow.copy(alpha = 0.18f))
+                        .background(MaterialTheme.ledger.lampGlow.copy(alpha = 0.18f))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
@@ -123,7 +124,7 @@ fun ModelParameterSheet(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 0.6.sp,
-                        color = LampDeep
+                        color = MaterialTheme.ledger.lampDeep
                     )
                 }
             }
@@ -140,14 +141,14 @@ fun ModelParameterSheet(
                         text = "Temperature (Creativity)",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = String.format("%.2f", temperature),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = LampGlow
+                            color = MaterialTheme.ledger.lampGlow
                         )
                     )
                 }
@@ -157,9 +158,9 @@ fun ModelParameterSheet(
                     onValueChange = { temperature = it },
                     valueRange = 0.1f..1.5f,
                     colors = SliderDefaults.colors(
-                        thumbColor = LampGlow,
-                        activeTrackColor = LampAmber,
-                        inactiveTrackColor = DeskHairline
+                        thumbColor = MaterialTheme.ledger.lampGlow,
+                        activeTrackColor = MaterialTheme.ledger.lampAmber,
+                        inactiveTrackColor = MaterialTheme.ledger.deskHairline
                     )
                 )
             }
@@ -176,14 +177,14 @@ fun ModelParameterSheet(
                         text = "Top-P (Nucleus Sampling)",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = String.format("%.2f", topP),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = LampAmber
+                            color = MaterialTheme.ledger.lampAmber
                         )
                     )
                 }
@@ -193,9 +194,9 @@ fun ModelParameterSheet(
                     onValueChange = { topP = it },
                     valueRange = 0.1f..1.0f,
                     colors = SliderDefaults.colors(
-                        thumbColor = LampAmber,
-                        activeTrackColor = LampAmber,
-                        inactiveTrackColor = DeskHairline
+                        thumbColor = MaterialTheme.ledger.lampAmber,
+                        activeTrackColor = MaterialTheme.ledger.lampAmber,
+                        inactiveTrackColor = MaterialTheme.ledger.deskHairline
                     )
                 )
             }
@@ -212,14 +213,14 @@ fun ModelParameterSheet(
                         text = "Max Output Length (tokens)",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = "%.0f".format(maxTokens),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = LampGlow
+                            color = MaterialTheme.ledger.lampGlow
                         )
                     )
                 }
@@ -233,15 +234,15 @@ fun ModelParameterSheet(
                     // providers get the same 8192 ceiling.
                     valueRange = 256f..8192f,
                     colors = SliderDefaults.colors(
-                        thumbColor = LampGlow,
-                        activeTrackColor = LampAmber,
-                        inactiveTrackColor = DeskHairline
+                        thumbColor = MaterialTheme.ledger.lampGlow,
+                        activeTrackColor = MaterialTheme.ledger.lampAmber,
+                        inactiveTrackColor = MaterialTheme.ledger.deskHairline
                     )
                 )
                 Text(
                     text = "Answers run until the model finishes (bounded by the context window). Lower this to force shorter replies.",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = DeskInkFaint
+                        color = MaterialTheme.ledger.deskInkFaint
                     )
                 )
             }
@@ -253,7 +254,7 @@ fun ModelParameterSheet(
                 text = "System Persona",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
 
@@ -265,7 +266,7 @@ fun ModelParameterSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) LampDeep else DeskHairline.copy(alpha = 0.5f))
+                            .background(if (isSelected) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskHairline.copy(alpha = 0.5f))
                             .clickable { selectedPreset = name }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
@@ -273,7 +274,7 @@ fun ModelParameterSheet(
                             text = name,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) LampGlow else DeskInkFaint
+                            color = if (isSelected) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInkFaint
                         )
                     }
                 }

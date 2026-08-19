@@ -54,6 +54,7 @@ import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.SunsetGlowAmber
 import kotlinx.coroutines.launch
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Adaptive app shell: renders the floating bottom dock on compact (phone)
@@ -151,9 +152,9 @@ private fun CloudNavigationRail(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
                         listOf(
-                            CloudGlassBorderHighlight,
-                            CloudGlassBorder,
-                            SunsetGlowAmber.copy(alpha = 0.3f)
+                            MaterialTheme.ledger.cloudGlassBorderHighlight,
+                            MaterialTheme.ledger.cloudGlassBorder,
+                            MaterialTheme.ledger.sunsetGlowAmber.copy(alpha = 0.3f)
                         )
                     ),
                     shape = RoundedCornerShape(32.dp)
@@ -171,7 +172,7 @@ private fun CloudNavigationRail(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(
-                            if (selected) LampDeep.copy(alpha = 0.14f) else Color.Transparent
+                            if (selected) MaterialTheme.ledger.lampDeep.copy(alpha = 0.14f) else Color.Transparent
                         )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -190,7 +191,7 @@ private fun CloudNavigationRail(
                     Icon(
                         imageVector = tab.icon,
                         contentDescription = tab.title,
-                        tint = if (selected) LampAmber else DeskInkFaint,
+                        tint = if (selected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -199,7 +200,7 @@ private fun CloudNavigationRail(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 10.sp,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) DeskPaper else DeskInk.copy(alpha = 0.7f)
+                            color = if (selected) MaterialTheme.ledger.deskPaper else MaterialTheme.ledger.deskInk.copy(alpha = 0.7f)
                         )
                     )
                 }

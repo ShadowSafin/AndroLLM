@@ -38,6 +38,7 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Parchment — a lit progress ring for the model shelf. One terracotta sweep
@@ -61,6 +62,13 @@ fun CloudDownloadProgress(
         modifier = modifier.size(100.dp),
         contentAlignment = Alignment.Center
     ) {
+        val ledger = MaterialTheme.ledger
+        val trackColor = ledger.lampDeep.copy(alpha = 0.3f)
+        val progressColors = listOf(ledger.lampAmber, ledger.lampGlow, ledger.lampAmber, ledger.lampAmber)
+        val completedColor = ledger.lampGlow
+        val textColor = ledger.deskPaper
+        val speedColor = ledger.deskInk
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             val strokeWidth = 8.dp.toPx()
             val diameter = size.minDimension - strokeWidth
@@ -69,7 +77,7 @@ fun CloudDownloadProgress(
 
             // Track Arc — the quiet cream ring
             drawArc(
-                color = LampDeep.copy(alpha = 0.3f),
+                color = trackColor,
                 startAngle = 0f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -80,9 +88,7 @@ fun CloudDownloadProgress(
 
             // Progress Arc — the terracotta sweep
             drawArc(
-                brush = Brush.sweepGradient(
-                    listOf(LampAmber, LampGlow, LampAmber, LampAmber)
-                ),
+                brush = Brush.sweepGradient(progressColors),
                 startAngle = -90f,
                 sweepAngle = 360f * animatedProgress,
                 useCenter = false,
@@ -99,7 +105,7 @@ fun CloudDownloadProgress(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Completed",
-                    tint = LampGlow,
+                    tint = completedColor,
                     modifier = Modifier.size(32.dp)
                 )
             } else {
@@ -107,7 +113,7 @@ fun CloudDownloadProgress(
                     text = "$progressPercent%",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = textColor
                     )
                 )
                 if (speedBytesPerSec > 0f) {
@@ -115,7 +121,7 @@ fun CloudDownloadProgress(
                         text = speedBytesPerSec.formatSpeed(),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 9.sp,
-                            color = DeskInk
+                            color = speedColor
                         )
                     )
                 }

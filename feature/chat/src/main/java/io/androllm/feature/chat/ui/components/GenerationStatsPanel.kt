@@ -42,6 +42,7 @@ import io.androllm.core.ui.theme.LampDeep
 import io.androllm.engine.models.EngineModelInfo
 import io.androllm.engine.models.EngineStats
 import kotlin.math.roundToInt
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Expandable live telemetry panel, hidden by default.
@@ -70,8 +71,8 @@ fun GenerationStatsPanel(
         // ── The compact pill ──────────────────────────────────────────────────
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = DeskWalnutRaised.copy(alpha = 0.92f),
-        border = BorderStroke(1.dp, DeskHairline),
+        color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
         shadowElevation = 1.dp,
         modifier = Modifier
             .fillMaxWidth()
@@ -93,7 +94,7 @@ fun GenerationStatsPanel(
                         style = MaterialTheme.typography.labelMedium.copy(
                             letterSpacing = 1.1.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
 
@@ -106,7 +107,7 @@ fun GenerationStatsPanel(
                                 text = String.format("%.1f tok/s", stats?.tokensPerSecond ?: 0f),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = LampDeep
+                                    color = MaterialTheme.ledger.lampDeep
                                 )
                             )
                         } else if (stats != null && stats.generatedTokens > 0) {
@@ -114,14 +115,14 @@ fun GenerationStatsPanel(
                                 text = String.format("%.1f tok/s", stats.tokensPerSecond),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
-                                    color = DeskInk
+                                    color = MaterialTheme.ledger.deskInk
                                 )
                             )
                         }
                         Icon(
                             imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                             contentDescription = if (expanded) "Collapse stats" else "Expand stats",
-                            tint = DeskInkFaint,
+                            tint = MaterialTheme.ledger.deskInkFaint,
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     }
@@ -134,8 +135,8 @@ fun GenerationStatsPanel(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(3.dp)
-                            .background(LampAmber.copy(alpha = 0.12f), RoundedCornerShape(999.dp)),
-                        color = if (usedTokens.toFloat() / contextLength > 0.85f) EmberRed else LampAmber,
+                            .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.12f), RoundedCornerShape(999.dp)),
+                        color = if (usedTokens.toFloat() / contextLength > 0.85f) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.lampAmber,
                         trackColor = androidx.compose.ui.graphics.Color.Transparent
                     )
                 }
@@ -150,8 +151,8 @@ fun GenerationStatsPanel(
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = DeskWalnutRaised.copy(alpha = 0.9f),
-                border = BorderStroke(1.dp, DeskHairline),
+                color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -167,7 +168,7 @@ fun GenerationStatsPanel(
                         if (isGenerating) liveTokenCount else (gen?.generatedTokens ?: 0L)
 
                     if (isGenerating) {
-                        TelemetryRow("Generating", "$liveTokenCount tokens", LampDeep)
+                        TelemetryRow("Generating", "$liveTokenCount tokens", MaterialTheme.ledger.lampDeep)
                     }
                     TelemetryRow(
                         "Tokens",
@@ -190,7 +191,7 @@ fun GenerationStatsPanel(
                     }
                     TelemetryRow("Backend", backendLabel)
                     if (model != null) {
-                        TelemetryRow("Model", model.id, accent = LampDeep)
+                        TelemetryRow("Model", model.id, accent = MaterialTheme.ledger.lampDeep)
                         if (model.delegate.isNotBlank()) TelemetryRow("Delegate", model.delegate)
                         if (model.vendor.isNotBlank()) TelemetryRow("Vendor", model.vendor)
                         if (model.accelerator.isNotBlank()) TelemetryRow("Accelerator", model.accelerator)
@@ -206,7 +207,7 @@ fun GenerationStatsPanel(
 }
 
 @Composable
-private fun TelemetryRow(label: String, value: String, accent: androidx.compose.ui.graphics.Color = DeskInk) {
+private fun TelemetryRow(label: String, value: String, accent: androidx.compose.ui.graphics.Color = MaterialTheme.ledger.deskInk) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -216,7 +217,7 @@ private fun TelemetryRow(label: String, value: String, accent: androidx.compose.
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(
                 letterSpacing = 0.8.sp,
-                color = DeskInkFaint
+                color = MaterialTheme.ledger.deskInkFaint
             )
         )
         Text(

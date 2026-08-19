@@ -61,6 +61,7 @@ import io.androllm.core.ui.theme.LampGlow
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.backend.BackendCapabilities
 import io.androllm.engine.models.BackendBenchmarkResult
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Developer Mode — the desk's diagnostic drawer. Every chart is backed by
@@ -96,13 +97,13 @@ fun DeveloperScreen(
                                 text = "Developer Mode",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = DeskPaper
+                                    color = MaterialTheme.ledger.deskPaper
                                 )
                             )
                             Text(
                                 text = "Live engine & device telemetry",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampDeep,
+                                    color = MaterialTheme.ledger.lampDeep,
                                     fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 0.8.sp
                                 )
@@ -111,7 +112,7 @@ fun DeveloperScreen(
                     },
                     actions = {
                         IconButton(onClick = { viewModel.refresh() }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = DeskInk)
+                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = MaterialTheme.ledger.deskInk)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -143,7 +144,7 @@ fun DeveloperScreen(
                             Icon(
                                 imageVector = Icons.Filled.Bolt,
                                 contentDescription = null,
-                                tint = LampGlow,
+                                tint = MaterialTheme.ledger.lampGlow,
                                 modifier = Modifier.size(28.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -152,20 +153,20 @@ fun DeveloperScreen(
                                     text = "Tool Execution Log",
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                                 Text(
                                     text = "Every automation call: prompt → tool → result → LLM output",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = DeskInk
+                                        color = MaterialTheme.ledger.deskInk
                                     )
                                 )
                             }
                             Icon(
                                 imageVector = Icons.Filled.KeyboardArrowRight,
                                 contentDescription = null,
-                                tint = DeskInk
+                                tint = MaterialTheme.ledger.deskInk
                             )
                         }
                     }
@@ -180,7 +181,7 @@ fun DeveloperScreen(
                     ) {
                         CloudLineChart(
                             dataPoints = data.speedHistory.ifEmpty { listOf(0f, 0f) },
-                            accent = LampGlow,
+                            accent = MaterialTheme.ledger.lampGlow,
                             height = 120.dp
                         )
                     }
@@ -195,7 +196,7 @@ fun DeveloperScreen(
                     ) {
                         CloudLineChart(
                             dataPoints = data.ramHistory.ifEmpty { listOf(0f, 0f) },
-                            accent = LampAmber,
+                            accent = MaterialTheme.ledger.lampAmber,
                             height = 110.dp
                         )
                     }
@@ -211,7 +212,7 @@ fun DeveloperScreen(
                         Column {
                             CloudLineChart(
                                 dataPoints = data.gpuHistory.ifEmpty { listOf(0f, 0f) },
-                                accent = LampGlow,
+                                accent = MaterialTheme.ledger.lampGlow,
                                 height = 90.dp
                             )
                             Spacer(modifier = Modifier.height(10.dp))
@@ -224,7 +225,7 @@ fun DeveloperScreen(
                                 fraction = if (totalNativeMb > 0f) {
                                     (data.memoryStats?.contextSizeMb() ?: 0f) / totalNativeMb
                                 } else 0f,
-                                accent = LampAmber
+                                accent = MaterialTheme.ledger.lampAmber
                             )
                         }
                     }
@@ -243,13 +244,13 @@ fun DeveloperScreen(
                                     text = "Context Window",
                                     style = MaterialTheme.typography.titleSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                                 Text(
                                     text = "${data.contextTokensUsed} / ${data.contextLength} tokens",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = if (data.contextUsageFraction > 0.85f) EmberRed else LampGlow,
+                                        color = if (data.contextUsageFraction > 0.85f) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.lampGlow,
                                         fontWeight = FontWeight.Bold
                                     )
                                 )
@@ -259,7 +260,7 @@ fun DeveloperScreen(
                                 label = "Used",
                                 valueText = "${(data.contextUsageFraction * 100).toInt()}%",
                                 fraction = data.contextUsageFraction,
-                                accent = if (data.contextUsageFraction > 0.85f) EmberRed else LampGlow
+                                accent = if (data.contextUsageFraction > 0.85f) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.lampGlow
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             val promptTokens = data.lastStats?.promptTokens ?: 0L
@@ -267,7 +268,7 @@ fun DeveloperScreen(
                             Text(
                                 text = "Last generation: $promptTokens prompt + $generatedTokens generated tokens",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = DeskInk
+                                    color = MaterialTheme.ledger.deskInk
                                 )
                             )
                         }
@@ -287,13 +288,13 @@ fun DeveloperScreen(
                                 text = "Latency per generation (ms)",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = DeskInk
+                                    color = MaterialTheme.ledger.deskInk
                                 )
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             CloudBarChart(
                                 values = data.generationLatencies.ifEmpty { listOf(0f, 0f) },
-                                accent = LampGlow,
+                                accent = MaterialTheme.ledger.lampGlow,
                                 height = 110.dp
                             )
                             Spacer(modifier = Modifier.height(14.dp))
@@ -301,13 +302,13 @@ fun DeveloperScreen(
                                 text = "Tokens/sec per generation",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = DeskInk
+                                    color = MaterialTheme.ledger.deskInk
                                 )
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             CloudBarChart(
                                 values = data.generationSpeeds.ifEmpty { listOf(0f, 0f) },
-                                accent = LampAmber,
+                                accent = MaterialTheme.ledger.lampAmber,
                                 height = 110.dp
                             )
                         }
@@ -377,7 +378,7 @@ private fun DeviceSummaryCard(data: DeveloperData) {
             Icon(
                 imageVector = Icons.Filled.Troubleshoot,
                 contentDescription = null,
-                tint = LampGlow,
+                tint = MaterialTheme.ledger.lampGlow,
                 modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
@@ -386,7 +387,7 @@ private fun DeviceSummaryCard(data: DeveloperData) {
                     text = data.modelName.ifBlank { "No model loaded" },
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Text(
@@ -396,14 +397,14 @@ private fun DeviceSummaryCard(data: DeveloperData) {
                         append(" • ${data.deviceMetrics?.cpuCores ?: 0} cores")
                     },
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = DeskInk
+                        color = MaterialTheme.ledger.deskInk
                     )
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
                 CloudChip(
                     text = "Backend ${data.backendLabel}",
-                    accentColor = if (data.backendLabel.contains("VULKAN", ignoreCase = true)) LampGlow else LampAmber,
+                    accentColor = if (data.backendLabel.contains("VULKAN", ignoreCase = true)) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber,
                     icon = Icons.Filled.Bolt
                 )
                 Spacer(modifier = Modifier.height(6.dp))
@@ -418,9 +419,9 @@ private fun DeviceSummaryCard(data: DeveloperData) {
                         EngineState.Unloaded -> "Idle"
                     },
                     accentColor = when (data.engineState) {
-                        is EngineState.Ready, is EngineState.Generating -> LampGlow
-                        is EngineState.Failed -> EmberRed
-                        else -> LampDeep
+                        is EngineState.Ready, is EngineState.Generating -> MaterialTheme.ledger.lampGlow
+                        is EngineState.Failed -> MaterialTheme.ledger.emberRed
+                        else -> MaterialTheme.ledger.lampDeep
                     },
                     icon = Icons.Filled.Memory
                 )
@@ -448,13 +449,13 @@ private fun ChartCard(
                         text = title,
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
                 }
@@ -462,7 +463,7 @@ private fun ChartCard(
                     text = liveValue,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = LampAmber
+                        color = MaterialTheme.ledger.lampAmber
                     )
                 )
             }
@@ -490,11 +491,11 @@ private fun BackendDiagnosticsCard(
                     text = "Backend Diagnostics",
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Speed, contentDescription = "Refresh diagnostics", tint = DeskInk, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Speed, contentDescription = "Refresh diagnostics", tint = MaterialTheme.ledger.deskInk, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -517,7 +518,7 @@ private fun BackendDiagnosticsCard(
             // actually checks (llama.cpp memory is native, not Java heap).
             androidx.compose.material3.HorizontalDivider(
                 modifier = Modifier.padding(vertical = 6.dp),
-                color = DeskInk.copy(alpha = 0.15f)
+                color = MaterialTheme.ledger.deskInk.copy(alpha = 0.15f)
             )
             DiagRow(
                 "System RAM",
@@ -555,7 +556,7 @@ private fun BenchmarkBackendsCard(
                 Icon(
                     imageVector = Icons.Filled.Speed,
                     contentDescription = null,
-                    tint = LampGlow,
+                    tint = MaterialTheme.ledger.lampGlow,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -564,12 +565,12 @@ private fun BenchmarkBackendsCard(
                         text = "Benchmark Backends",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = "Identical prompt through ${availableBackendsLabel(capabilities)}",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                 }
                 if (results == null && !isBenchmarking) {
@@ -580,7 +581,7 @@ private fun BenchmarkBackendsCard(
                     CircularProgressIndicator(
                         modifier = Modifier.size(22.dp),
                         strokeWidth = 2.dp,
-                        color = LampGlow
+                        color = MaterialTheme.ledger.lampGlow
                     )
                 }
             }
@@ -589,7 +590,7 @@ private fun BenchmarkBackendsCard(
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = "Reloading the model on each backend…",
-                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
             }
 
@@ -598,7 +599,7 @@ private fun BenchmarkBackendsCard(
                 if (list.isEmpty()) {
                     Text(
                         text = "No model loaded — load a model first, then run the comparison.",
-                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                 } else {
                     list.forEachIndexed { index, r ->
@@ -617,7 +618,7 @@ private fun BenchmarkBackendsCard(
                                     },
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                                 Text(
@@ -630,7 +631,7 @@ private fun BenchmarkBackendsCard(
                                     } else {
                                         "failed: ${r.error}"
                                     },
-                                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk),
+                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk),
                                     maxLines = 2,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
@@ -644,14 +645,14 @@ private fun BenchmarkBackendsCard(
                                 },
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (r.succeeded) LampGlow else EmberRed
+                                    color = if (r.succeeded) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.emberRed
                                 )
                             )
                         }
                         if (index < list.lastIndex) {
                             androidx.compose.material3.HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 2.dp),
-                                color = DeskInk.copy(alpha = 0.15f)
+                                color = MaterialTheme.ledger.deskInk.copy(alpha = 0.15f)
                             )
                         }
                     }
@@ -687,25 +688,25 @@ private fun MemoryInspectorCard(
                     text = "Memory Store",
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh memory inspector", tint = DeskInk, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh memory inspector", tint = MaterialTheme.ledger.deskInk, modifier = Modifier.size(18.dp))
                 }
             }
 
             if (stats == null) {
                 Text(
                     text = "Memory system is idle — enable it in Settings.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
             } else {
                 if (!stats.enabled) {
                     Text(
                         text = "Disabled in Settings",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = LampAmber,
+                            color = MaterialTheme.ledger.lampAmber,
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -762,7 +763,7 @@ private fun MemoryInspectorCard(
                         text = "Context preview (most recent)",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -777,14 +778,14 @@ private fun MemoryInspectorCard(
                             Text(
                                 text = memory.category.name.take(4).uppercase(),
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampGlow,
+                                    color = MaterialTheme.ledger.lampGlow,
                                     fontWeight = FontWeight.Bold
                                 ),
                                 modifier = Modifier.width(44.dp)
                             )
                             Text(
                                 text = memory.content.take(80),
-                                style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper),
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskPaper),
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
@@ -793,7 +794,7 @@ private fun MemoryInspectorCard(
                                 Text(
                                     text = "PIN",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = LampAmber,
+                                        color = MaterialTheme.ledger.lampAmber,
                                         fontWeight = FontWeight.Bold
                                     )
                                 )
@@ -809,7 +810,7 @@ private fun MemoryInspectorCard(
                         text = "Extraction logs",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -818,9 +819,9 @@ private fun MemoryInspectorCard(
                             text = entry.message.take(120),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = when (entry.level) {
-                                    io.androllm.core.memory.model.MemoryLogLevel.ERROR -> EmberRed
-                                    io.androllm.core.memory.model.MemoryLogLevel.WARN -> LampAmber
-                                    else -> DeskInk
+                                    io.androllm.core.memory.model.MemoryLogLevel.ERROR -> MaterialTheme.ledger.emberRed
+                                    io.androllm.core.memory.model.MemoryLogLevel.WARN -> MaterialTheme.ledger.lampAmber
+                                    else -> MaterialTheme.ledger.deskInk
                                 }
                             ),
                             maxLines = 1,
@@ -849,18 +850,18 @@ private fun RuntimeRegistryCard(
                     text = "Registered Runtimes",
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh runtimes", tint = DeskInk, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh runtimes", tint = MaterialTheme.ledger.deskInk, modifier = Modifier.size(18.dp))
                 }
             }
 
             if (runtimes.isEmpty()) {
                 Text(
                     text = "Collecting runtime status…",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
             } else {
                 runtimes.forEachIndexed { index, (runtime, status) ->
@@ -876,24 +877,24 @@ private fun RuntimeRegistryCard(
                                     text = runtime.displayName,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 CloudChip(
                                     text = runtime.category.displayName,
-                                    accentColor = LampDeep
+                                    accentColor = MaterialTheme.ledger.lampDeep
                                 )
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = status.summary,
-                                style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                             )
                             status.detail?.let {
                                 Text(
                                     text = it,
-                                    style = MaterialTheme.typography.labelSmall.copy(color = LampDeep),
+                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.lampDeep),
                                     maxLines = 2,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
@@ -904,14 +905,14 @@ private fun RuntimeRegistryCard(
                             text = if (status.available) "● Ready" else "● Off",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = if (status.available) LampGlow else LampDeep
+                                color = if (status.available) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampDeep
                             )
                         )
                     }
                     if (index < runtimes.lastIndex) {
                         androidx.compose.material3.HorizontalDivider(
                             modifier = Modifier.padding(vertical = 4.dp),
-                            color = DeskInk.copy(alpha = 0.15f)
+                            color = MaterialTheme.ledger.deskInk.copy(alpha = 0.15f)
                         )
                     }
                 }
@@ -930,12 +931,12 @@ private fun StatMini(label: String, value: String, modifier: Modifier = Modifier
             text = value,
             style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.ExtraBold,
-                color = LampAmber
+                color = MaterialTheme.ledger.lampAmber
             )
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall.copy(color = DeskInk),
+            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk),
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
@@ -953,13 +954,13 @@ private fun DiagRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = DeskInk
+            color = MaterialTheme.ledger.deskInk
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
-            color = DeskPaper
+            color = MaterialTheme.ledger.deskPaper
         )
     }
 }

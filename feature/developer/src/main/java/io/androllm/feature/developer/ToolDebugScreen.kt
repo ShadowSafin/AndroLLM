@@ -61,6 +61,7 @@ import io.androllm.core.ui.theme.LampGlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Tool Debug — the per-call execution log of the automation pipeline. Every
@@ -85,7 +86,7 @@ fun ToolDebugScreen(
                     modifier = Modifier.statusBarsPadding(),
                     navigationIcon = {
                         IconButton(onClick = { navController.navigateUp() }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DeskInk)
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.ledger.deskInk)
                         }
                     },
                     title = {
@@ -94,13 +95,13 @@ fun ToolDebugScreen(
                                 text = "Tool Execution Log",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = DeskPaper
+                                    color = MaterialTheme.ledger.deskPaper
                                 )
                             )
                             Text(
                                 text = "${traces.size} call(s) • prompt → tool → result → LLM output",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampDeep,
+                                    color = MaterialTheme.ledger.lampDeep,
                                     fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 0.6.sp
                                 )
@@ -109,7 +110,7 @@ fun ToolDebugScreen(
                     },
                     actions = {
                         IconButton(onClick = { viewModel.clear() }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear log", tint = DeskInk)
+                            Icon(Icons.Filled.Clear, contentDescription = "Clear log", tint = MaterialTheme.ledger.deskInk)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -140,7 +141,7 @@ fun ToolDebugScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Bolt,
                                     contentDescription = null,
-                                    tint = LampGlow,
+                                    tint = MaterialTheme.ledger.lampGlow,
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
@@ -148,13 +149,13 @@ fun ToolDebugScreen(
                                     text = "No tool executions yet",
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Ask the assistant something like “Open Discord” or “Search the web for NVIDIA news”. Every tool call — the arguments, status, result, timing and final LLM output — will appear here.",
-                                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                                 )
                             }
                         }
@@ -188,19 +189,19 @@ private fun ToolRegistryStatusCard(
                         text = "Tool Registry",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = "Registered tools • pipeline • prompt injection",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = DeskInk,
+                            color = MaterialTheme.ledger.deskInk,
                             fontWeight = FontWeight.SemiBold
                         )
                     )
                 }
                 IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh tool registry", tint = DeskInk, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh tool registry", tint = MaterialTheme.ledger.deskInk, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -210,15 +211,15 @@ private fun ToolRegistryStatusCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CloudChip(
                     text = if (diagnostics.pipelineEnabled) "● Pipeline ON" else "○ Pipeline OFF",
-                    accentColor = if (diagnostics.pipelineEnabled) LampGlow else LampAmber
+                    accentColor = if (diagnostics.pipelineEnabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber
                 )
                 CloudChip(
                     text = "${diagnostics.registeredCount} registered",
-                    accentColor = LampDeep
+                    accentColor = MaterialTheme.ledger.lampDeep
                 )
                 CloudChip(
                     text = "${diagnostics.advertisedCount} advertised",
-                    accentColor = if (diagnostics.advertisedCount > 0) LampGlow else LampAmber
+                    accentColor = if (diagnostics.advertisedCount > 0) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber
                 )
             }
 
@@ -230,7 +231,7 @@ private fun ToolRegistryStatusCard(
                 else
                     "PROMPT INJECTION — nothing advertised (pipeline off, or every tool blocked)",
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = if (diagnostics.advertisementPreview.isNotBlank()) LampGlow else LampAmber,
+                    color = if (diagnostics.advertisementPreview.isNotBlank()) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.6.sp
                 )
@@ -240,7 +241,7 @@ private fun ToolRegistryStatusCard(
                 Text(
                     text = diagnostics.advertisementPreview,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         fontFamily = FontFamily.Monospace
                     ),
                     maxLines = 5,
@@ -250,7 +251,7 @@ private fun ToolRegistryStatusCard(
 
             // ── Model tool-call capability ────────────────────────────────
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = DeskInk.copy(alpha = 0.15f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskInk.copy(alpha = 0.15f))
             Spacer(modifier = Modifier.height(8.dp))
             val cap = diagnostics.capability
             Row(
@@ -262,7 +263,7 @@ private fun ToolRegistryStatusCard(
                     Text(
                         text = "Model Tool Capability",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = DeskPaper,
+                            color = MaterialTheme.ledger.deskPaper,
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -274,7 +275,7 @@ private fun ToolRegistryStatusCard(
                             else -> "Parser compatibility mode"
                         },
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = if (cap.nativeJsonSupport) LampGlow else LampAmber
+                            color = if (cap.nativeJsonSupport) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber
                         )
                     )
                 }
@@ -288,7 +289,7 @@ private fun ToolRegistryStatusCard(
                     text = "Model: ${cap.modelName.ifBlank { "—" }} • " +
                         "${cap.planningRounds} round${if (cap.planningRounds == 1) "" else "s"}: " +
                         "${cap.cleanParses} clean / ${cap.fallbackParses} parser-salvaged",
-                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
                 )
             }
             if (cap.lastOutputSample.isNotBlank()) {
@@ -296,7 +297,7 @@ private fun ToolRegistryStatusCard(
                 Text(
                     text = cap.lastOutputSample,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         fontFamily = FontFamily.Monospace
                     ),
                     maxLines = 3,
@@ -307,7 +308,7 @@ private fun ToolRegistryStatusCard(
             // Registered tools (tap a row to expand its function schema)
             if (diagnostics.tools.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = DeskInk.copy(alpha = 0.15f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInk.copy(alpha = 0.15f))
                 Spacer(modifier = Modifier.height(8.dp))
                 var expanded by remember { mutableStateOf<String?>(null) }
                 diagnostics.tools.forEach { tool ->
@@ -321,7 +322,7 @@ private fun ToolRegistryStatusCard(
                     ) {
                         Text(
                             text = if (tool.enabled) "●" else "○",
-                            color = if (tool.enabled) LampGlow else LampAmber,
+                            color = if (tool.enabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber,
                             style = MaterialTheme.typography.labelSmall
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -329,7 +330,7 @@ private fun ToolRegistryStatusCard(
                             text = tool.name,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = DeskPaper
+                                color = MaterialTheme.ledger.deskPaper
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -337,7 +338,7 @@ private fun ToolRegistryStatusCard(
                             Text(
                                 text = "confirm",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampAmber,
+                                    color = MaterialTheme.ledger.lampAmber,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             )
@@ -346,7 +347,7 @@ private fun ToolRegistryStatusCard(
                         Text(
                             text = tool.category,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = LampDeep,
+                                color = MaterialTheme.ledger.lampDeep,
                                 fontWeight = FontWeight.SemiBold
                             )
                         )
@@ -354,7 +355,7 @@ private fun ToolRegistryStatusCard(
                         Icon(
                             imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                             contentDescription = null,
-                            tint = DeskInk,
+                            tint = MaterialTheme.ledger.deskInk,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -366,13 +367,13 @@ private fun ToolRegistryStatusCard(
                         ) {
                             Text(
                                 text = tool.description,
-                                style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = tool.parametersJson.ifBlank { "{}" },
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampDeep,
+                                    color = MaterialTheme.ledger.lampDeep,
                                     fontFamily = FontFamily.Monospace
                                 ),
                                 maxLines = 8,
@@ -400,14 +401,14 @@ private fun TraceCard(trace: ToolExecutionTrace) {
                     text = trace.toolName,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "${trace.durationMs} ms",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = DeskInk,
+                            color = MaterialTheme.ledger.deskInk,
                             fontWeight = FontWeight.SemiBold
                         )
                     )
@@ -415,9 +416,9 @@ private fun TraceCard(trace: ToolExecutionTrace) {
                     CloudChip(
                         text = trace.status,
                         accentColor = when (trace.status) {
-                            "ok" -> LampGlow
-                            "blocked" -> LampAmber
-                            else -> EmberRed
+                            "ok" -> MaterialTheme.ledger.lampGlow
+                            "blocked" -> MaterialTheme.ledger.lampAmber
+                            else -> MaterialTheme.ledger.emberRed
                         }
                     )
                 }
@@ -434,12 +435,12 @@ private fun TraceCard(trace: ToolExecutionTrace) {
             }
             // Result line.
             if (trace.result.isNotBlank()) {
-                TraceRow(label = "Result", value = trace.result, color = DeskPaper)
+                TraceRow(label = "Result", value = trace.result, color = MaterialTheme.ledger.deskPaper)
             }
             // Error line (red).
             val error = trace.error
             if (!error.isNullOrBlank()) {
-                TraceRow(label = "Error", value = error, color = EmberRed)
+                TraceRow(label = "Error", value = error, color = MaterialTheme.ledger.emberRed)
             }
             // LLM output line.
             val llmOutput = trace.llmOutput
@@ -452,7 +453,7 @@ private fun TraceCard(trace: ToolExecutionTrace) {
             Text(
                 text = TIME.format(Date(trace.at)),
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = LampDeep,
+                    color = MaterialTheme.ledger.lampDeep,
                     fontWeight = FontWeight.SemiBold
                 )
             )
@@ -461,13 +462,13 @@ private fun TraceCard(trace: ToolExecutionTrace) {
 }
 
 @Composable
-private fun TraceRow(label: String, value: String, color: Color = DeskInk) {
+private fun TraceRow(label: String, value: String, color: Color = MaterialTheme.ledger.deskInk) {
     Spacer(modifier = Modifier.height(6.dp))
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
-                color = LampDeep,
+                color = MaterialTheme.ledger.lampDeep,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.8.sp
             )

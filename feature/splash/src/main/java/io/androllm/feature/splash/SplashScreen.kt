@@ -37,6 +37,7 @@ import io.androllm.feature.splash.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Parchment Ledger Cinematic Splash.
@@ -127,7 +128,7 @@ fun SplashScreen(
                     text = "AndroLLM",
                     style = MaterialTheme.typography.displayMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = DeskPaper,
+                        color = MaterialTheme.ledger.deskPaper,
                         letterSpacing = 2.sp
                     ),
                     modifier = Modifier.alpha(taglineAlpha.value)
@@ -138,7 +139,7 @@ fun SplashScreen(
                 Text(
                     text = stringResource(R.string.splash_tagline),
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = LampDeep,
+                        color = MaterialTheme.ledger.lampDeep,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp
                     ),
@@ -150,7 +151,7 @@ fun SplashScreen(
                 Text(
                     text = stringResource(R.string.splash_loading),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         letterSpacing = 1.5.sp
                     ),
                     modifier = Modifier.alpha(loadingAlpha.value)

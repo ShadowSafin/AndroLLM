@@ -117,6 +117,7 @@ import io.androllm.feature.chat.ui.components.TypingAndThinkingIndicator
 import io.androllm.feature.chat.ui.drawer.ConversationDrawerContent
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import io.androllm.core.ui.theme.ledger
 
 /**
  * THE PARCHMENT LEDGER — Chat. Your correspondence in ink on paper: ruled
@@ -547,8 +548,8 @@ fun ChatScreen(
                                     if (targetIndex >= 0) listState.animateScrollToItem(targetIndex)
                                 }
                             },
-                            containerColor = io.androllm.core.ui.theme.LampAmber,
-                            contentColor = io.androllm.core.ui.theme.InkOnLamp,
+                            containerColor = MaterialTheme.ledger.lampAmber,
+                            contentColor = MaterialTheme.ledger.inkOnLamp,
                             elevation = FloatingActionButtonDefaults.elevation(8.dp),
                             modifier = Modifier.size(44.dp)
                         ) {
@@ -789,7 +790,7 @@ private fun SmartReplyChips(onSend: (String) -> Unit) {
             text = "FOLLOW UP",
             style = MaterialTheme.typography.labelSmall.copy(
                 letterSpacing = 1.6.sp,
-                color = io.androllm.core.ui.theme.DeskInkFaint
+                color = MaterialTheme.ledger.deskInkFaint
             )
         )
         FlowRow(
@@ -799,8 +800,8 @@ private fun SmartReplyChips(onSend: (String) -> Unit) {
             suggestions.forEach { suggestion ->
                 Surface(
                     shape = RoundedCornerShape(999.dp),
-                    color = io.androllm.core.ui.theme.DeskWalnutRaised.copy(alpha = 0.85f),
-                    border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline),
+                    color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.85f),
+                    border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
                     modifier = Modifier
                         .shadow(1.dp, RoundedCornerShape(999.dp))
                         .clickable { onSend(suggestion) }
@@ -808,7 +809,7 @@ private fun SmartReplyChips(onSend: (String) -> Unit) {
                     Text(
                         text = suggestion,
                         style = MaterialTheme.typography.labelMedium.copy(
-                            color = io.androllm.core.ui.theme.DeskInk,
+                            color = MaterialTheme.ledger.deskInk,
                             fontWeight = FontWeight.Medium
                         ),
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -831,8 +832,8 @@ private fun SelectionActionBar(
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = io.androllm.core.ui.theme.DeskWalnutRaised,
-        border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline),
+        color = MaterialTheme.ledger.deskWalnutRaised,
+        border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
         shadowElevation = 4.dp,
         modifier = modifier.padding(12.dp)
     ) {
@@ -844,27 +845,27 @@ private fun SelectionActionBar(
                 Icon(
                     Icons.Default.Close,
                     contentDescription = "Close selection",
-                    tint = io.androllm.core.ui.theme.DeskInk
+                    tint = MaterialTheme.ledger.deskInk
                 )
             }
             Text(
                 text = if (count == 1) "1 selected" else "$count selected",
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = io.androllm.core.ui.theme.DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 ),
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 4.dp)
             )
             IconButton(onClick = onCopy) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Copy selected", tint = io.androllm.core.ui.theme.DeskInk)
+                Icon(Icons.Default.ContentCopy, contentDescription = "Copy selected", tint = MaterialTheme.ledger.deskInk)
             }
             IconButton(onClick = onShare) {
-                Icon(Icons.Default.Share, contentDescription = "Share selected", tint = io.androllm.core.ui.theme.DeskInk)
+                Icon(Icons.Default.Share, contentDescription = "Share selected", tint = MaterialTheme.ledger.deskInk)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete selected", tint = io.androllm.core.ui.theme.EmberRed)
+                Icon(Icons.Default.Delete, contentDescription = "Delete selected", tint = MaterialTheme.ledger.emberRed)
             }
         }
     }
@@ -882,13 +883,13 @@ private fun DebugRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = io.androllm.core.ui.theme.DeskInk,
+            color = MaterialTheme.ledger.deskInk,
             modifier = Modifier.weight(0.4f)
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodySmall,
-            color = DeskPaper,
+            color = MaterialTheme.ledger.deskPaper,
             modifier = Modifier.weight(0.6f)
         )
     }
@@ -915,7 +916,7 @@ private fun SamplerSettingsSheet(
             Text(
                 "Applied to the next message. Defaults mirror llama.cpp.",
                 style = MaterialTheme.typography.bodySmall,
-                color = io.androllm.core.ui.theme.DeskInk
+                color = MaterialTheme.ledger.deskInk
             )
 
             SamplerSlider(
@@ -990,7 +991,7 @@ private fun SamplerSlider(
             Text(
                 format(value),
                 style = MaterialTheme.typography.labelMedium,
-                color = io.androllm.core.ui.theme.DeskInk
+                color = MaterialTheme.ledger.deskInk
             )
         }
         Slider(value = value, onValueChange = onValueChange, valueRange = range)
@@ -1025,7 +1026,7 @@ private fun ChatTopBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge.copy(
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
 
@@ -1050,14 +1051,14 @@ private fun ChatTopBar(
                     text = statusLabel.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 1.4.sp,
-                        color = io.androllm.core.ui.theme.LampDeep
+                        color = MaterialTheme.ledger.lampDeep
                     )
                 )
             }
         },
         navigationIcon = {
             IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Default.Menu, contentDescription = "Open Drawer", tint = DeskPaper)
+                Icon(Icons.Default.Menu, contentDescription = "Open Drawer", tint = MaterialTheme.ledger.deskPaper)
             }
         },
         actions = {
@@ -1065,21 +1066,21 @@ private fun ChatTopBar(
                 Icon(
                     imageVector = if (cloudMode) Icons.Filled.CloudDone else Icons.Filled.Cloud,
                     contentDescription = if (cloudMode) "Switch to local GGUF" else "Switch to cloud (LiteLLM)",
-                    tint = if (cloudMode) io.androllm.core.ui.theme.LampDeep else DeskPaper
+                    tint = if (cloudMode) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskPaper
                 )
             }
 
             IconButton(onClick = onOpenSearch) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = DeskPaper)
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.ledger.deskPaper)
             }
 
             IconButton(onClick = onOpenSampler) {
-                Icon(Icons.Default.Tune, contentDescription = "Sampler settings", tint = DeskPaper)
+                Icon(Icons.Default.Tune, contentDescription = "Sampler settings", tint = MaterialTheme.ledger.deskPaper)
             }
 
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = DeskPaper)
+                    Icon(Icons.Default.MoreVert, contentDescription = "More options", tint = MaterialTheme.ledger.deskPaper)
                 }
 
                 DropdownMenu(
@@ -1155,8 +1156,8 @@ private fun PendingAttachmentChips(
         attachments.forEach { attachment ->
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = io.androllm.core.ui.theme.DeskWalnutRaised.copy(alpha = 0.9f),
-                border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline)
+                color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1171,7 +1172,7 @@ private fun PendingAttachmentChips(
                         Text(
                             text = attachment.name,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = io.androllm.core.ui.theme.DeskPaper,
+                                color = MaterialTheme.ledger.deskPaper,
                                 fontWeight = FontWeight.SemiBold
                             ),
                             maxLines = 1,
@@ -1185,7 +1186,7 @@ private fun PendingAttachmentChips(
                                 else -> "Processing…"
                             },
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (attachment.isFailed) io.androllm.core.ui.theme.EmberRed else io.androllm.core.ui.theme.DeskInkFaint
+                                color = if (attachment.isFailed) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInkFaint
                             )
                         )
                     }
@@ -1196,7 +1197,7 @@ private fun PendingAttachmentChips(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Remove ${attachment.name}",
-                            tint = io.androllm.core.ui.theme.DeskInkFaint,
+                            tint = MaterialTheme.ledger.deskInkFaint,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -1206,12 +1207,12 @@ private fun PendingAttachmentChips(
         if (processing) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = io.androllm.core.ui.theme.DeskWalnutRaised.copy(alpha = 0.9f),
-                border = BorderStroke(1.dp, io.androllm.core.ui.theme.DeskHairline)
+                color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline)
             ) {
                 Text(
                     text = "Processing…",
-                    style = MaterialTheme.typography.labelSmall.copy(color = io.androllm.core.ui.theme.DeskInkFaint),
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                 )
             }

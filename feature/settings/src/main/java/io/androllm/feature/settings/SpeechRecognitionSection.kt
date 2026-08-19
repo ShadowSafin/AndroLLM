@@ -46,6 +46,7 @@ import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.voice.model.VoiceSettings
 import io.androllm.core.voice.stt.WhisperModel
+import io.androllm.core.ui.theme.ledger
 
 /**
  * "Speech Recognition" — whisper.cpp engine selection, model download/delete,
@@ -74,7 +75,7 @@ fun SpeechRecognitionSection(
             subtitle = "Engine: whisper.cpp (offline) · ${activeModel?.displayName ?: "no model installed"}"
         )
 
-        HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+        HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
         // ── Model download / select ──
         models.forEachIndexed { index, model ->
@@ -93,7 +94,7 @@ fun SpeechRecognitionSection(
                     Icon(
                         imageVector = if (active) Icons.Filled.CheckCircle else Icons.Filled.GraphicEq,
                         contentDescription = null,
-                        tint = if (active) LampAmber else DeskInkFaint,
+                        tint = if (active) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(12.dp))
@@ -101,14 +102,14 @@ fun SpeechRecognitionSection(
                         Text(
                             text = model.displayName,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = DeskPaper,
+                            color = MaterialTheme.ledger.deskPaper,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = model.sizeLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     }
                     Spacer(Modifier.width(8.dp))
@@ -116,7 +117,7 @@ fun SpeechRecognitionSection(
                         Text(
                             text = if (installed) "In use" else "…",
                             style = MaterialTheme.typography.labelSmall,
-                            color = LampAmber
+                            color = MaterialTheme.ledger.lampAmber
                         )
                     }
                     if (!installed) {
@@ -129,7 +130,7 @@ fun SpeechRecognitionSection(
                             Text(
                                 text = if (downloading) "Downloading" else "Download",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = LampAmber,
+                                color = MaterialTheme.ledger.lampAmber,
                                 maxLines = 1
                             )
                         }
@@ -160,7 +161,7 @@ fun SpeechRecognitionSection(
                 }
                 if (index < models.lastIndex) {
                     HorizontalDivider(
-                        color = DeskInkFaint.copy(alpha = 0.15f),
+                        color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f),
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
@@ -171,12 +172,12 @@ fun SpeechRecognitionSection(
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodySmall,
-                color = DeskInk,
+                color = MaterialTheme.ledger.deskInk,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
 
-        HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+        HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
         // ── Language ──
         ToggleRowStt(
@@ -203,7 +204,7 @@ fun SpeechRecognitionSection(
             onCheckedChange = { onUpdate(settings.copy(sttStreaming = it)) }
         )
 
-        HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+        HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
 
         SliderRow(
             label = { "CPU threads  ${if (settings.sttThreads < 0) "auto" else settings.sttThreads}" },
@@ -240,7 +241,7 @@ fun SpeechRecognitionSection(
             Text(
                 text = "Models stored: ${storageLabel(storageBytes)}",
                 style = MaterialTheme.typography.labelSmall,
-                color = DeskInk,
+                color = MaterialTheme.ledger.deskInk,
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )
@@ -283,7 +284,7 @@ private fun SliderRow(
     onValue: (Float) -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Text(label(), style = MaterialTheme.typography.labelSmall, color = DeskInk)
+        Text(label(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.ledger.deskInk)
         Slider(
             value = value.coerceIn(range.start, range.endInclusive),
             onValueChange = onValue,
@@ -308,15 +309,15 @@ private fun ToggleRowStt(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = LampGlow, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = DeskInk)
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.ledger.deskInk)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
         )
     }
 }
@@ -330,10 +331,10 @@ private fun SectionRow(icon: ImageVector, title: String, subtitle: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = LampAmber, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.ledger.lampAmber, modifier = Modifier.size(20.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = DeskPaper)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = DeskInk)
+            Text(title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.ledger.deskPaper)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.ledger.deskInk)
         }
     }
 }

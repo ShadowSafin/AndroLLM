@@ -78,6 +78,7 @@ import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.utils.StorageUtils
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Writer's Night Desk — Profile. The desk ledger: identity at the lamp,
@@ -125,7 +126,7 @@ fun ProfileScreen(
                             text = "Profile",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                color = DeskPaper
+                                color = MaterialTheme.ledger.deskPaper
                             )
                         )
                     },
@@ -164,7 +165,7 @@ fun ProfileScreen(
                             } else {
                                 0f
                             },
-                            accent = LampAmber
+                            accent = MaterialTheme.ledger.lampAmber
                         )
                     }
                 }
@@ -187,21 +188,21 @@ fun ProfileScreen(
                                 icon = Icons.Filled.Code,
                                 title = "Prompt Studio",
                                 subtitle = "Curated prompt templates",
-                                accent = LampGlow,
+                                accent = MaterialTheme.ledger.lampGlow,
                                 onClick = { navController.navigate(Routes.PROMPTS) }
                             )
                             ActionRow(
                                 icon = Icons.Filled.Speed,
                                 title = "Developer Mode",
                                 subtitle = "Live engine & device telemetry",
-                                accent = LampAmber,
+                                accent = MaterialTheme.ledger.lampAmber,
                                 onClick = { navController.navigate(Routes.DEVELOPER) }
                             )
                             ActionRow(
                                 icon = Icons.Filled.Tune,
                                 title = "Settings",
                                 subtitle = "Appearance, generation, privacy",
-                                accent = LampGlow,
+                                accent = MaterialTheme.ledger.lampGlow,
                                 onClick = { navController.navigate(Routes.SETTINGS) }
                             )
                             if (user != null && user?.isGuest == false) {
@@ -209,7 +210,7 @@ fun ProfileScreen(
                                     icon = Icons.Filled.Star,
                                     title = "Edit Profile",
                                     subtitle = "Display name & avatar",
-                                    accent = LampAmber,
+                                    accent = MaterialTheme.ledger.lampAmber,
                                     onClick = {
                                         editNameText = user?.displayName ?: ""
                                         showEditDialog = true
@@ -219,14 +220,14 @@ fun ProfileScreen(
                                     icon = Icons.Filled.Logout,
                                     title = "Sign Out",
                                     subtitle = "Return to local-only mode",
-                                    accent = LampDeep,
+                                    accent = MaterialTheme.ledger.lampDeep,
                                     onClick = { viewModel.signOut() }
                                 )
                                 ActionRow(
                                     icon = Icons.Filled.Delete,
                                     title = "Delete Account",
                                     subtitle = "Permanently remove account data",
-                                    accent = EmberRed,
+                                    accent = MaterialTheme.ledger.emberRed,
                                     onClick = { showDeleteDialog = true }
                                 )
                             }
@@ -251,7 +252,7 @@ fun ProfileScreen(
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
-                                    listOf(LampGlow, LampAmber, LampDeep)
+                                    listOf(MaterialTheme.ledger.lampGlow, MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampDeep)
                                 )
                             )
                             .clickable {
@@ -261,7 +262,7 @@ fun ProfileScreen(
                     ) {
                         if (isAvatarUploading) {
                             CircularProgressIndicator(
-                                color = DeskPaper,
+                                color = MaterialTheme.ledger.deskPaper,
                                 strokeWidth = 3.dp,
                                 modifier = Modifier.size(28.dp)
                             )
@@ -270,7 +271,7 @@ fun ProfileScreen(
                                 text = "Upload\navatar",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = DeskPaper
+                                    color = MaterialTheme.ledger.deskPaper
                                 ),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -314,7 +315,7 @@ fun ProfileScreen(
                             Toast.makeText(context, message ?: "Delete failed", Toast.LENGTH_LONG).show()
                         }
                     }
-                }) { Text("Delete", color = EmberRed) }
+                }) { Text("Delete", color = MaterialTheme.ledger.emberRed) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
@@ -340,7 +341,7 @@ private fun IdentityHeader(
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
-                            listOf(LampGlow, LampAmber, LampDeep)
+                            listOf(MaterialTheme.ledger.lampGlow, MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampDeep)
                         )
                     ),
                 contentAlignment = Alignment.Center
@@ -358,7 +359,7 @@ private fun IdentityHeader(
                             ?: "AI",
                         style = MaterialTheme.typography.headlineLarge.copy(
                             fontWeight = FontWeight.ExtraBold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                 }
@@ -370,13 +371,13 @@ private fun IdentityHeader(
                 text = user?.displayName ?: "Local Intelligence",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
             Text(
                 text = user?.email ?: "Guest — 100% on-device",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 )
             )
 
@@ -384,14 +385,14 @@ private fun IdentityHeader(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (user == null) {
-                    CloudChip(text = "Offline Mode", accentColor = LampGlow, icon = Icons.Filled.Memory)
+                    CloudChip(text = "Offline Mode", accentColor = MaterialTheme.ledger.lampGlow, icon = Icons.Filled.Memory)
                 } else {
                     CloudChip(
                         text = if (user?.isEmailVerified == true) "Verified" else "Not verified",
-                        accentColor = if (user?.isEmailVerified == true) LampGlow else LampAmber,
+                        accentColor = if (user?.isEmailVerified == true) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber,
                         icon = Icons.Filled.VerifiedUser
                     )
-                    CloudChip(text = "Synced", accentColor = LampAmber, icon = Icons.Filled.Storage)
+                    CloudChip(text = "Synced", accentColor = MaterialTheme.ledger.lampAmber, icon = Icons.Filled.Storage)
                 }
             }
 
@@ -401,11 +402,11 @@ private fun IdentityHeader(
                     Icon(
                         imageVector = Icons.Filled.MarkEmailRead,
                         contentDescription = null,
-                        tint = LampGlow,
+                        tint = MaterialTheme.ledger.lampGlow,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Resend verification email", color = LampGlow)
+                    Text("Resend verification email", color = MaterialTheme.ledger.lampGlow)
                 }
             }
         }
@@ -418,16 +419,16 @@ private fun StatsGrid(data: ProfileData) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        StatCell(value = data.conversationCount.toString(), label = "Chats", accent = LampGlow, modifier = Modifier.weight(1f))
-        StatCell(value = data.modelCount.toString(), label = "Models", accent = LampAmber, modifier = Modifier.weight(1f))
+        StatCell(value = data.conversationCount.toString(), label = "Chats", accent = MaterialTheme.ledger.lampGlow, modifier = Modifier.weight(1f))
+        StatCell(value = data.modelCount.toString(), label = "Models", accent = MaterialTheme.ledger.lampAmber, modifier = Modifier.weight(1f))
     }
     Spacer(modifier = Modifier.height(12.dp))
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        StatCell(value = data.downloadCount.toString(), label = "Downloads", accent = LampGlow, modifier = Modifier.weight(1f))
-        StatCell(value = String.format("%.1f", data.tokensPerSecond), label = "Tokens/sec", accent = LampAmber, modifier = Modifier.weight(1f))
+        StatCell(value = data.downloadCount.toString(), label = "Downloads", accent = MaterialTheme.ledger.lampGlow, modifier = Modifier.weight(1f))
+        StatCell(value = String.format("%.1f", data.tokensPerSecond), label = "Tokens/sec", accent = MaterialTheme.ledger.lampAmber, modifier = Modifier.weight(1f))
     }
 }
 
@@ -451,7 +452,7 @@ private fun StatCell(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 )
             )
         }
@@ -468,7 +469,7 @@ private fun FavoriteModelRow(model: Model) {
             Icon(
                 imageVector = Icons.Filled.Star,
                 contentDescription = null,
-                tint = LampGlow,
+                tint = MaterialTheme.ledger.lampGlow,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
@@ -477,13 +478,13 @@ private fun FavoriteModelRow(model: Model) {
                     text = model.name,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Text(
                     text = "${model.quantization.ifBlank { "GGUF" }} • ${model.contextLength} ctx",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = DeskInkFaint
+                        color = MaterialTheme.ledger.deskInkFaint
                     )
                 )
             }
@@ -521,13 +522,13 @@ private fun ActionRow(
                 text = title,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 )
             )
         }

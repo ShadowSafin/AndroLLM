@@ -69,6 +69,7 @@ import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.LampHalo
 import kotlin.math.cos
 import kotlin.math.sin
+import io.androllm.core.ui.theme.ledger
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Provider glyphs (used by the authentication screen)
@@ -163,7 +164,7 @@ data class CloudAccent(
     val name: String,
     val argbHex: String
 ) {
-    val color: Color get() = runCatching { Color(argbHex.toLong(16)) }.getOrDefault(LampAmber)
+    val color: Color = Color(argbHex.toLong(16))
 }
 
 /**
@@ -182,14 +183,18 @@ val CloudAccentOptions: List<CloudAccent> = listOf(
 /**
  * Gradient presets for the CloudAvatar — warm washes, not neon.
  */
-val CloudAvatarGradients: List<List<Color>> = listOf(
-    listOf(LampAmber, LampGlow),
-    listOf(Color(0xFFB3573E), Color(0xFF8C3C2A)),
-    listOf(Color(0xFFB08D6E), Color(0xFF8C6A4E)),
-    listOf(Color(0xFF9AA86E), Color(0xFF7A8558)),
-    listOf(Color(0xFF8A9AA8), Color(0xFF64717E)),
-    listOf(Color(0xFFE0A489), Color(0xFFB3573E))
-)
+@Composable
+fun CloudAvatarGradients(): List<List<Color>> {
+    val ledger = MaterialTheme.ledger
+    return listOf(
+        listOf(ledger.lampAmber, ledger.lampGlow),
+        listOf(Color(0xFFB3573E), Color(0xFF8C3C2A)),
+        listOf(Color(0xFFB08D6E), Color(0xFF8C6A4E)),
+        listOf(Color(0xFF9AA86E), Color(0xFF7A8558)),
+        listOf(Color(0xFF8A9AA8), Color(0xFF64717E)),
+        listOf(Color(0xFFE0A489), Color(0xFFB3573E))
+    )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scaffold & TopBar
@@ -240,14 +245,14 @@ fun CloudTopBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = DeskPaper
+                    tint = MaterialTheme.ledger.deskPaper
                 )
             }
         }
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge.copy(
-                color = DeskPaper
+                color = MaterialTheme.ledger.deskPaper
             ),
             modifier = Modifier.weight(1f),
             textAlign = if (onBack != null) TextAlign.Start else TextAlign.Center
@@ -280,24 +285,24 @@ fun CloudTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
-        label = label?.let { { Text(it, color = DeskInk) } },
-        placeholder = placeholder?.let { { Text(it, color = DeskInkFaint) } },
-        leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null, tint = LampAmber) } },
+        label = label?.let { { Text(it, color = MaterialTheme.ledger.deskInk) } },
+        placeholder = placeholder?.let { { Text(it, color = MaterialTheme.ledger.deskInkFaint) } },
+        leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null, tint = MaterialTheme.ledger.lampAmber) } },
         singleLine = singleLine,
         enabled = enabled,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = keyboardType),
         shape = DeskPillShape,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = LampAmber,
-            unfocusedBorderColor = DeskHairline,
-            focusedTextColor = DeskPaper,
-            unfocusedTextColor = DeskPaper,
-            cursorColor = LampGlow,
+            focusedBorderColor = MaterialTheme.ledger.lampAmber,
+            unfocusedBorderColor = MaterialTheme.ledger.deskHairline,
+            focusedTextColor = MaterialTheme.ledger.deskPaper,
+            unfocusedTextColor = MaterialTheme.ledger.deskPaper,
+            cursorColor = MaterialTheme.ledger.lampGlow,
             focusedContainerColor = Color.Transparent,
             unfocusedContainerColor = Color.Transparent,
-            disabledTextColor = DeskPaper.copy(alpha = 0.45f),
-            focusedLabelColor = LampAmber,
-            unfocusedLabelColor = DeskInk
+            disabledTextColor = MaterialTheme.ledger.deskPaper.copy(alpha = 0.45f),
+            focusedLabelColor = MaterialTheme.ledger.lampAmber,
+            unfocusedLabelColor = MaterialTheme.ledger.deskInk
         )
     )
 }
@@ -312,7 +317,8 @@ fun CloudAvatar(
     initials: String = "",
     size: Dp = 64.dp
 ) {
-    val gradient = CloudAvatarGradients[(index % CloudAvatarGradients.size + CloudAvatarGradients.size) % CloudAvatarGradients.size]
+    val gradients = CloudAvatarGradients()
+    val gradient = gradients[(index % gradients.size + gradients.size) % gradients.size]
     Box(
         modifier = modifier
             .size(size)
@@ -325,14 +331,14 @@ fun CloudAvatar(
                 text = initials.take(2).uppercase(),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    color = InkOnLamp
+                    color = MaterialTheme.ledger.inkOnLamp
                 )
             )
         } else {
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
-                tint = DeskPaper.copy(alpha = 0.85f),
+                tint = MaterialTheme.ledger.deskPaper.copy(alpha = 0.85f),
                 modifier = Modifier.size(size * 0.5f)
             )
         }
@@ -375,7 +381,7 @@ fun CloudSection(
             text = title.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
                 letterSpacing = 1.6.sp,
-                color = DeskInk
+                color = MaterialTheme.ledger.deskInk
             )
         )
         Spacer(modifier = Modifier.height(10.dp))
@@ -413,14 +419,19 @@ fun CloudProgress(
     )
 
     val scale = if (reduceMotion) 1f else pulse
+    val ledger = MaterialTheme.ledger
+    val lampAmber = ledger.lampAmber
+    val lampHalo = ledger.lampHalo
+    val lampGlow = ledger.lampGlow
+
     Canvas(modifier = modifier.size(size)) {
         val base = size.toPx() / 2f
         // Ambient lamp halo
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    LampAmber.copy(alpha = glow),
-                    LampHalo.copy(alpha = glow * 0.4f),
+                    lampAmber.copy(alpha = glow),
+                    lampHalo.copy(alpha = glow * 0.4f),
                     Color.Transparent
                 )
             ),
@@ -437,11 +448,11 @@ fun CloudProgress(
                 lineTo(center.x - base * 0.30f, center.y)
                 close()
             },
-            brush = Brush.verticalGradient(listOf(LampGlow.copy(alpha = 0.95f), LampAmber.copy(alpha = 0.9f)))
+            brush = Brush.verticalGradient(listOf(lampGlow.copy(alpha = 0.95f), lampAmber.copy(alpha = 0.9f)))
         )
         // The filament
         drawCircle(
-            color = LampGlow.copy(alpha = 0.95f * glow * 2f),
+            color = lampGlow.copy(alpha = 0.95f * glow * 2f),
             radius = base * 0.05f,
             center = androidx.compose.ui.geometry.Offset(center.x - base * 0.04f, center.y - base * 0.02f)
         )
@@ -451,7 +462,7 @@ fun CloudProgress(
             val a = angle + i * 120f
             val sx = center.x + cos(Math.toRadians(a.toDouble())).toFloat() * base * 1.05f
             val sy = center.y + sin(Math.toRadians(a.toDouble())).toFloat() * base * 0.9f
-            drawCircle(LampGlow.copy(alpha = 0.4f), radius = base * 0.045f, center = androidx.compose.ui.geometry.Offset(sx, sy))
+            drawCircle(lampGlow.copy(alpha = 0.4f), radius = base * 0.045f, center = androidx.compose.ui.geometry.Offset(sx, sy))
         }
     }
 }
@@ -472,15 +483,15 @@ fun CloudDialog(
         Surface(
             modifier = modifier,
             shape = DeskCardShape,
-            color = DeskWalnutRaised,
-            border = BorderStroke(1.dp, DeskHairline),
+            color = MaterialTheme.ledger.deskWalnutRaised,
+            border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
             shadowElevation = 16.dp
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -493,14 +504,14 @@ fun CloudDialog(
                 ) {
                     if (onConfirm != null) {
                         TextButton(onClick = onDismiss) {
-                            Text("Cancel", color = DeskInk)
+                            Text("Cancel", color = MaterialTheme.ledger.deskInk)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     TextButton(onClick = onConfirm ?: onDismiss) {
                         Text(
                             confirmText,
-                            color = LampAmber,
+                            color = MaterialTheme.ledger.lampAmber,
                             fontWeight = FontWeight.SemiBold
                         )
                     }

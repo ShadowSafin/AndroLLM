@@ -73,6 +73,7 @@ import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import java.util.Locale
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Model discovery screen for a cloud provider: browse cached models
@@ -112,19 +113,19 @@ fun CloudModelsScreen(
                         Column {
                             Text(
                                 text = "Cloud Models",
-                                color = DeskPaper,
+                                color = MaterialTheme.ledger.deskPaper,
                                 style = MaterialTheme.typography.titleLarge
                             )
                             Text(
                                 text = provider?.name ?: "No provider",
-                                color = DeskInk,
+                                color = MaterialTheme.ledger.deskInk,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = { navController.navigateUp() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = DeskPaper)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.ledger.deskPaper)
                         }
                     },
                     actions = {
@@ -132,11 +133,11 @@ fun CloudModelsScreen(
                             if (uiState.refreshing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
-                                    color = LampDeep,
+                                    color = MaterialTheme.ledger.lampDeep,
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Icon(Icons.Filled.Refresh, contentDescription = "Refresh models", tint = DeskPaper)
+                                Icon(Icons.Filled.Refresh, contentDescription = "Refresh models", tint = MaterialTheme.ledger.deskPaper)
                             }
                         }
                     },
@@ -147,8 +148,8 @@ fun CloudModelsScreen(
                 if (provider != null) {
                     FloatingActionButton(
                         onClick = { customForm = CustomModelFormState() },
-                        containerColor = LampAmber,
-                        contentColor = DeskPaper
+                        containerColor = MaterialTheme.ledger.lampAmber,
+                        contentColor = MaterialTheme.ledger.deskPaper
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = "Add custom model")
                     }
@@ -168,7 +169,7 @@ fun CloudModelsScreen(
                             CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                                 Text(
                                     text = "Add a provider in Cloud Providers first, then come back here to browse its models.",
-                                    color = DeskInk,
+                                    color = MaterialTheme.ledger.deskInk,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -180,14 +181,14 @@ fun CloudModelsScreen(
                                 Column {
                                     Text(
                                         text = "No models yet",
-                                        color = DeskPaper,
+                                        color = MaterialTheme.ledger.deskPaper,
                                         style = MaterialTheme.typography.titleMedium
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
                                         text = "Refresh (top right) to pull the model list from /v1/models, " +
                                             "or use the + button to add a custom LiteLLM model manually.",
-                                        color = DeskInk,
+                                        color = MaterialTheme.ledger.deskInk,
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
@@ -198,7 +199,7 @@ fun CloudModelsScreen(
                         item {
                             Text(
                                 text = "Tap a model to make it the chat default.",
-                                color = DeskInk,
+                                color = MaterialTheme.ledger.deskInk,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -257,7 +258,7 @@ fun CloudModelsScreen(
                 TextButton(onClick = {
                     viewModel.deleteCustomModel(custom.id)
                     confirmDelete = null
-                }) { Text("Delete", color = EmberRed) }
+                }) { Text("Delete", color = MaterialTheme.ledger.emberRed) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }
@@ -289,7 +290,7 @@ private fun ModelRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = model.label,
-                        color = if (model.isDefault) LampDeep else DeskPaper,
+                        color = if (model.isDefault) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskPaper,
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -298,10 +299,10 @@ private fun ModelRow(
                         Spacer(Modifier.width(8.dp))
                         Box(
                             modifier = Modifier
-                                .background(LampAmber.copy(alpha = 0.15f), CircleShape)
+                                .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.15f), CircleShape)
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text(text = "CUSTOM", color = LampGlow, style = MaterialTheme.typography.labelSmall)
+                            Text(text = "CUSTOM", color = MaterialTheme.ledger.lampGlow, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -314,7 +315,7 @@ private fun ModelRow(
                 if (meta.isNotEmpty()) {
                     Text(
                         text = meta.joinToString(" · "),
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -324,7 +325,7 @@ private fun ModelRow(
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = description,
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 2
                     )
@@ -333,7 +334,7 @@ private fun ModelRow(
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = "Default chat model",
-                        color = LampAmber,
+                        color = MaterialTheme.ledger.lampAmber,
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -342,13 +343,13 @@ private fun ModelRow(
                 Box(
                     modifier = Modifier
                         .size(28.dp)
-                        .background(LampAmber.copy(alpha = 0.15f), CircleShape),
+                        .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Star,
                         contentDescription = "Favorite",
-                        tint = LampAmber,
+                        tint = MaterialTheme.ledger.lampAmber,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -357,15 +358,15 @@ private fun ModelRow(
                 Icon(
                     imageVector = if (model.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                     contentDescription = if (model.isFavorite) "Unfavorite" else "Favorite",
-                    tint = if (model.isFavorite) LampAmber else DeskInk
+                    tint = if (model.isFavorite) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInk
                 )
             }
             if (custom != null) {
                 IconButton(onClick = onEditCustom) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit custom model", tint = DeskInk)
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit custom model", tint = MaterialTheme.ledger.deskInk)
                 }
                 IconButton(onClick = onDeleteCustom) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Delete custom model", tint = EmberRed)
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete custom model", tint = MaterialTheme.ledger.emberRed)
                 }
             }
         }
@@ -487,7 +488,7 @@ private fun CustomModelFormDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 error?.let {
-                    Text(text = it, color = EmberRed, style = MaterialTheme.typography.bodySmall)
+                    Text(text = it, color = MaterialTheme.ledger.emberRed, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -498,7 +499,7 @@ private fun CustomModelFormDialog(
                     modelId.isBlank() -> error = "LiteLLM model identifier is required"
                     else -> onSave(modelName, modelId.trim(), apiBaseUrl.trim(), apiKey, apiKeyHeader, headersText, description, tagsText)
                 }
-            }) { Text("Save", color = LampAmber) }
+            }) { Text("Save", color = MaterialTheme.ledger.lampAmber) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

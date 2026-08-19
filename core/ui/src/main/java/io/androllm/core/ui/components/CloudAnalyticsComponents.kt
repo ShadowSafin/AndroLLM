@@ -53,6 +53,7 @@ import io.androllm.core.ui.theme.RevolutCyberCyan
 import io.androllm.core.ui.theme.RevolutGoldTier
 import io.androllm.core.ui.theme.RevolutNeonEmerald
 import io.androllm.core.ui.theme.SunsetGlowAmber
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Parchment hardware & on-device AI gauge card.
@@ -83,14 +84,14 @@ fun RevolutResourceGaugeCard(
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(
-                                Brush.linearGradient(listOf(LampAmber, LampGlow))
+                                Brush.linearGradient(listOf(MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampGlow))
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Speed,
                             contentDescription = null,
-                            tint = io.androllm.core.ui.theme.CloudWhite,
+                            tint = MaterialTheme.ledger.cloudWhite,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -100,7 +101,7 @@ fun RevolutResourceGaugeCard(
                             text = "On-Device Engine Health",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = DeskPaper
+                                color = MaterialTheme.ledger.deskPaper
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -108,7 +109,7 @@ fun RevolutResourceGaugeCard(
                         Text(
                             text = if (vulkanEnabled) "Vulkan GPU Acceleration Active" else "CPU Multi-Thread Mode",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (vulkanEnabled) RevolutNeonEmerald else DeskInkFaint
+                                color = if (vulkanEnabled) MaterialTheme.ledger.revolutNeonEmerald else MaterialTheme.ledger.deskInkFaint
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -133,7 +134,7 @@ fun RevolutResourceGaugeCard(
                     label = "RAM Allocated",
                     valueText = "${String.format("%.1f", ramUsedGb)} / ${String.format("%.0f", ramTotalGb)} GB",
                     progress = ramPct,
-                    color = LampAmber
+                    color = MaterialTheme.ledger.lampAmber
                 )
 
                 // Radial Tokens/sec Meter
@@ -142,7 +143,7 @@ fun RevolutResourceGaugeCard(
                     label = "Inference Speed",
                     valueText = "${String.format("%.1f", tokensPerSecond)} t/s",
                     progress = speedPct,
-                    color = RevolutNeonEmerald
+                    color = MaterialTheme.ledger.revolutNeonEmerald
                 )
             }
         }
@@ -161,6 +162,10 @@ private fun CircularGaugeItem(
         animatedProgress.animateTo(progress, animationSpec = tween(durationMillis = 1200))
     }
 
+    val ledger = MaterialTheme.ledger
+    val trackColor = ledger.cloudGlassBorder
+    val glowColor = ledger.sunsetGlowAmber
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier.size(76.dp),
@@ -173,7 +178,7 @@ private fun CircularGaugeItem(
 
                 // Background Track Arc
                 drawArc(
-                    color = CloudGlassBorder,
+                    color = trackColor,
                     startAngle = 135f,
                     sweepAngle = 270f,
                     useCenter = false,
@@ -185,7 +190,7 @@ private fun CircularGaugeItem(
                 // Active Progress Arc
                 drawArc(
                     brush = Brush.sweepGradient(
-                        colors = listOf(color.copy(alpha = 0.5f), color, SunsetGlowAmber)
+                        colors = listOf(color.copy(alpha = 0.5f), color, glowColor)
                     ),
                     startAngle = 135f,
                     sweepAngle = 270f * animatedProgress.value,
@@ -200,7 +205,7 @@ private fun CircularGaugeItem(
                 text = "${(progress * 100).toInt()}%",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Black,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
         }
@@ -211,13 +216,13 @@ private fun CircularGaugeItem(
             text = valueText,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.Bold,
-                color = DeskPaper
+                color = MaterialTheme.ledger.deskPaper
             )
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall.copy(
-                color = DeskInk
+                color = MaterialTheme.ledger.deskInk
             )
         )
     }
@@ -233,15 +238,15 @@ fun RevolutHardwareBadge(isVulkan: Boolean) {
             .clip(RoundedCornerShape(14.dp))
             .background(
                 if (isVulkan) {
-                    Brush.horizontalGradient(listOf(RevolutGoldTier.copy(alpha = 0.25f), SunsetGlowAmber.copy(alpha = 0.15f)))
+                    Brush.horizontalGradient(listOf(MaterialTheme.ledger.revolutGoldTier.copy(alpha = 0.25f), MaterialTheme.ledger.sunsetGlowAmber.copy(alpha = 0.15f)))
                 } else {
-                    Brush.horizontalGradient(listOf(CloudGlassBorder, Color.Transparent))
+                    Brush.horizontalGradient(listOf(MaterialTheme.ledger.cloudGlassBorder, Color.Transparent))
                 }
             )
             .border(
                 width = 1.dp,
                 brush = Brush.horizontalGradient(
-                    if (isVulkan) listOf(RevolutGoldTier, SunsetGlowAmber) else listOf(CloudGlassBorder, Color.Transparent)
+                    if (isVulkan) listOf(MaterialTheme.ledger.revolutGoldTier, MaterialTheme.ledger.sunsetGlowAmber) else listOf(MaterialTheme.ledger.cloudGlassBorder, Color.Transparent)
                 ),
                 shape = RoundedCornerShape(14.dp)
             )
@@ -251,7 +256,7 @@ fun RevolutHardwareBadge(isVulkan: Boolean) {
             Icon(
                 imageVector = Icons.Default.Bolt,
                 contentDescription = null,
-                tint = if (isVulkan) RevolutGoldTier else DeskInkFaint,
+                tint = if (isVulkan) MaterialTheme.ledger.revolutGoldTier else MaterialTheme.ledger.deskInkFaint,
                 modifier = Modifier.size(14.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
@@ -260,7 +265,7 @@ fun RevolutHardwareBadge(isVulkan: Boolean) {
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 0.8.sp,
-                color = if (isVulkan) RevolutGoldTier else DeskInk
+                color = if (isVulkan) MaterialTheme.ledger.revolutGoldTier else MaterialTheme.ledger.deskInk
             )
         }
     }
@@ -276,6 +281,13 @@ fun RevolutPerformanceChartCard(
     title: String = "Generation Throughput",
     subtitle: String = "Live Stream"
 ) {
+    val ledger = MaterialTheme.ledger
+    val fillStart = ledger.revolutCyberCyan
+    val fillEnd = ledger.lampAmber
+    val lineStart = ledger.lampAmber
+    val lineMid = ledger.revolutCyberCyan
+    val lineEnd = ledger.revolutNeonEmerald
+
     CloudGlassCard(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -287,7 +299,7 @@ fun RevolutPerformanceChartCard(
                     text = title,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -296,7 +308,7 @@ fun RevolutPerformanceChartCard(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = RevolutNeonEmerald,
+                        color = MaterialTheme.ledger.revolutNeonEmerald,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -344,8 +356,8 @@ fun RevolutPerformanceChartCard(
                     path = fillPath,
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            RevolutCyberCyan.copy(alpha = 0.35f),
-                            LampAmber.copy(alpha = 0.05f),
+                            fillStart.copy(alpha = 0.35f),
+                            fillEnd.copy(alpha = 0.05f),
                             Color.Transparent
                         )
                     )
@@ -355,7 +367,7 @@ fun RevolutPerformanceChartCard(
                 drawPath(
                     path = path,
                     brush = Brush.horizontalGradient(
-                        colors = listOf(LampAmber, RevolutCyberCyan, RevolutNeonEmerald)
+                        colors = listOf(lineStart, lineMid, lineEnd)
                     ),
                     style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                 )

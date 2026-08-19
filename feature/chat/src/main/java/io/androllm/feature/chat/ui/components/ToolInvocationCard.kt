@@ -41,6 +41,7 @@ import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.feature.chat.ToolInvocationStatus
 import io.androllm.feature.chat.ToolInvocationUi
+import io.androllm.core.ui.theme.ledger
 
 private val SuccessGreen = Color(0xFF52C41A)
 
@@ -105,10 +106,10 @@ private fun ToolInvocationCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val statusColor = when (event.status) {
-        ToolInvocationStatus.RUNNING -> LampAmber
+        ToolInvocationStatus.RUNNING -> MaterialTheme.ledger.lampAmber
         ToolInvocationStatus.SUCCESS -> SuccessGreen
-        ToolInvocationStatus.FAILED -> LampDeep
-        ToolInvocationStatus.DECLINED -> DeskInkFaint
+        ToolInvocationStatus.FAILED -> MaterialTheme.ledger.lampDeep
+        ToolInvocationStatus.DECLINED -> MaterialTheme.ledger.deskInkFaint
     }
     val statusLabel = when (event.status) {
         ToolInvocationStatus.RUNNING -> "Running…"
@@ -120,7 +121,7 @@ private fun ToolInvocationCard(
 
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = DeskWalnutRaised,
+        color = MaterialTheme.ledger.deskWalnutRaised,
         border = BorderStroke(1.dp, statusColor.copy(alpha = 0.35f)),
         modifier = modifier
             .fillMaxWidth()
@@ -143,7 +144,7 @@ private fun ToolInvocationCard(
                     text = toolTitle(event.name),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     ),
                     modifier = Modifier.weight(1f)
                 )
@@ -160,7 +161,7 @@ private fun ToolInvocationCard(
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = if (expanded) "Collapse" else "Expand",
-                    tint = DeskInkFaint,
+                    tint = MaterialTheme.ledger.deskInkFaint,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -193,18 +194,18 @@ private fun DetailSection(label: String, value: String) {
             text = label.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = LampGlow,
+                color = MaterialTheme.ledger.lampGlow,
                 letterSpacing = 0.8.sp
             )
         )
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = DeskWalnutDeep
+            color = MaterialTheme.ledger.deskWalnutDeep
         ) {
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = DeskInk,
+                    color = MaterialTheme.ledger.deskInk,
                     fontFamily = FontFamily.Monospace
                 ),
                 modifier = Modifier

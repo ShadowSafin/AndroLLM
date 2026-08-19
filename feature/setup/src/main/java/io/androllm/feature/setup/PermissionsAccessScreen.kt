@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.androllm.core.permissions.PermissionState
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import timber.log.Timber
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Settings → Permissions & Access — manage every permission/access gate after
@@ -88,7 +89,7 @@ fun PermissionsAccessScreen(
                         text = "Permissions & Access",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = io.androllm.core.ui.theme.DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                 },
@@ -97,7 +98,7 @@ fun PermissionsAccessScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = io.androllm.core.ui.theme.DeskPaper
+                            tint = MaterialTheme.ledger.deskPaper
                         )
                     }
                 },
@@ -118,7 +119,7 @@ fun PermissionsAccessScreen(
                         text = "Each row explains what the permission is used for. " +
                             "Nothing is required to use AndroLLM — enable only what you want.",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = io.androllm.core.ui.theme.DeskInk,
+                            color = MaterialTheme.ledger.deskInk,
                             lineHeight = 17.sp
                         )
                     )
@@ -133,7 +134,7 @@ fun PermissionsAccessScreen(
                         Text(
                             text = "No permission gates are available on this device.",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = io.androllm.core.ui.theme.DeskInk
+                                color = MaterialTheme.ledger.deskInk
                             ),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier

@@ -30,18 +30,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import io.androllm.core.ui.components.CloudBugdroidLogo
-import io.androllm.core.ui.theme.DeskHairline
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskNight
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.DeskPaperDim
-import io.androllm.core.ui.theme.DeskWalnut
-import io.androllm.core.ui.theme.DeskWalnutDeep
-import io.androllm.core.ui.theme.DeskWalnutRaised
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.LedgerColors
+import io.androllm.core.ui.theme.ledger
+import androidx.compose.material3.MaterialTheme
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -93,7 +84,12 @@ private fun rememberSceneMotion(reduceMotion: Boolean): SceneMotion {
 
 // ── shared drawing helpers ───────────────────────────────────────────────────
 
-private fun DrawScope.radialGlow(center: Offset, radius: Float, color: Color) {
+private inline fun DrawScope.radialGlow(
+    ledger: LedgerColors,
+    center: Offset,
+    radius: Float,
+    color: Color
+) {
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(color.copy(alpha = 0.5f), color.copy(alpha = 0.15f), Color.Transparent)
@@ -103,30 +99,40 @@ private fun DrawScope.radialGlow(center: Offset, radius: Float, color: Color) {
     )
 }
 
-private fun DrawScope.drawCrescentMoon(center: Offset, radius: Float, color: Color) {
-    radialGlow(center, radius * 2.5f, color)
+private inline fun DrawScope.drawCrescentMoon(
+    ledger: LedgerColors,
+    center: Offset,
+    radius: Float,
+    color: Color
+) {
+    radialGlow(ledger, center, radius * 2.5f, color)
     val moonPath = Path().apply { addOval(Rect(center, radius)) }
     val cutoutPath = Path().apply {
         addOval(Rect(Offset(center.x - radius * 0.4f, center.y - radius * 0.3f), radius * 0.9f))
     }
     drawPath(
         path = Path.combine(PathOperation.Difference, moonPath, cutoutPath),
-        brush = Brush.verticalGradient(listOf(color.copy(alpha = 0.95f), LampDeep))
+        brush = Brush.verticalGradient(listOf(color.copy(alpha = 0.95f), ledger.lampDeep))
     )
 }
 
 /** The night desk surface — a warm walnut band along the bottom. */
-private fun DrawScope.drawDeskBand(width: Float, height: Float, topFraction: Float = 0.82f) {
+private inline fun DrawScope.drawDeskBand(
+    ledger: LedgerColors,
+    width: Float,
+    height: Float,
+    topFraction: Float = 0.82f
+) {
     val top = height * topFraction
     drawRect(
         brush = Brush.verticalGradient(
-            listOf(DeskWalnutRaised, DeskWalnutDeep)
+            listOf(ledger.deskWalnutRaised, ledger.deskWalnutDeep)
         ),
         topLeft = Offset(0f, top),
         size = Size(width, height - top)
     )
     drawLine(
-        color = DeskHairline,
+        color = ledger.deskHairline,
         start = Offset(0f, top),
         end = Offset(width, top),
         strokeWidth = height * 0.012f,
@@ -135,13 +141,20 @@ private fun DrawScope.drawDeskBand(width: Float, height: Float, topFraction: Flo
 }
 
 /** A standing desk lamp: arm, pole and warm amber shade. */
-private fun DrawScope.drawLamp(baseX: Float, shadeY: Float, size: Float, pulse: Float, moon: Boolean) {
+private inline fun DrawScope.drawLamp(
+    ledger: LedgerColors,
+    baseX: Float,
+    shadeY: Float,
+    size: Float,
+    pulse: Float,
+    moon: Boolean
+) {
     // moonlight coming in the window, kept warm by the lamp
     if (moon) {
-        drawCrescentMoon(Offset(baseX, shadeY * 0.45f), size * 0.28f, LampGlow)
+        drawCrescentMoon(ledger, Offset(baseX, shadeY * 0.45f), size * 0.28f, ledger.lampGlow)
     }
     // halo under the lamp
-    radialGlow(Offset(baseX, shadeY), size * 3.4f * pulse, LampAmber)
+    radialGlow(ledger, Offset(baseX, shadeY), size * 3.4f * pulse, ledger.lampAmber)
     // shade
     val shadeW = size * 0.9f
     val shade = Path().apply {
@@ -153,13 +166,13 @@ private fun DrawScope.drawLamp(baseX: Float, shadeY: Float, size: Float, pulse: 
     }
     drawPath(
         path = shade,
-        brush = Brush.verticalGradient(listOf(LampGlow, LampAmber)),
+        brush = Brush.verticalGradient(listOf(ledger.lampGlow, ledger.lampAmber)),
     )
     // bulb glow at the mouth of the shade
-    drawCircle(LampGlow.copy(alpha = 0.6f * pulse), radius = size * 0.22f, center = Offset(baseX, shadeY))
+    drawCircle(ledger.lampGlow.copy(alpha = 0.6f * pulse), radius = size * 0.22f, center = Offset(baseX, shadeY))
     // stem
     drawLine(
-        color = DeskWalnutRaised,
+        color = ledger.deskWalnutRaised,
         start = Offset(baseX, shadeY),
         end = Offset(baseX, shadeY * 1.35f),
         strokeWidth = size * 0.07f,
@@ -168,7 +181,7 @@ private fun DrawScope.drawLamp(baseX: Float, shadeY: Float, size: Float, pulse: 
     // base + pool of light on the desk
     drawOval(
         brush = Brush.radialGradient(
-            listOf(LampAmber.copy(alpha = 0.30f), Color.Transparent)
+            listOf(ledger.lampAmber.copy(alpha = 0.30f), Color.Transparent)
         ),
         topLeft = Offset(baseX - size * 0.8f, shadeY * 1.3f),
         size = Size(size * 1.6f, size * 0.42f)
@@ -180,12 +193,13 @@ private fun DrawScope.drawLamp(baseX: Float, shadeY: Float, size: Float, pulse: 
 @Composable
 fun WelcomeScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
     val m = rememberSceneMotion(reduceMotion)
+    val ledger = MaterialTheme.ledger
     Box(modifier = modifier.fillMaxWidth().height(230.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            drawDeskBand(w, h)
-            drawLamp(baseX = w * 0.24f, shadeY = h * 0.42f, size = w * 0.34f, pulse = m.pulse, moon = true)
+            drawDeskBand(ledger, w, h)
+            drawLamp(ledger, baseX = w * 0.24f, shadeY = h * 0.42f, size = w * 0.34f, pulse = m.pulse, moon = true)
         }
         CloudBugdroidLogo(
             size = 118.dp,
@@ -199,11 +213,12 @@ fun WelcomeScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
 @Composable
 fun LocalScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
     val m = rememberSceneMotion(reduceMotion)
+    val ledger = MaterialTheme.ledger
     Canvas(modifier = modifier.fillMaxWidth().height(230.dp)) {
         val w = size.width
         val h = size.height
         val deskTop = h * 0.82f
-        drawDeskBand(w, h, topFraction = deskTop / h)
+        drawDeskBand(ledger, w, h, topFraction = deskTop / h)
 
         val cx = w * 0.5f
         val cy = h * 0.52f
@@ -213,12 +228,12 @@ fun LocalScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
         // Crossed-out cloud: "no wires out" — the old cloudy way, crossed out
         val cloudX = w * 0.26f
         val cloudY = h * 0.22f
-        drawCircle(DeskInkFaint.copy(alpha = 0.6f), radius = w * 0.05f, center = Offset(cloudX - w * 0.06f, cloudY + w * 0.015f))
-        drawCircle(DeskInkFaint.copy(alpha = 0.6f), radius = w * 0.062f, center = Offset(cloudX, cloudY - w * 0.015f))
-        drawCircle(DeskInkFaint.copy(alpha = 0.6f), radius = w * 0.05f, center = Offset(cloudX + w * 0.06f, cloudY + w * 0.015f))
+        drawCircle(ledger.deskInkFaint.copy(alpha = 0.6f), radius = w * 0.05f, center = Offset(cloudX - w * 0.06f, cloudY + w * 0.015f))
+        drawCircle(ledger.deskInkFaint.copy(alpha = 0.6f), radius = w * 0.062f, center = Offset(cloudX, cloudY - w * 0.015f))
+        drawCircle(ledger.deskInkFaint.copy(alpha = 0.6f), radius = w * 0.05f, center = Offset(cloudX + w * 0.06f, cloudY + w * 0.015f))
         val slash = w * 0.10f
         drawLine(
-            color = LampGlow,
+            color = ledger.lampGlow,
             start = Offset(cloudX - slash, cloudY - slash),
             end = Offset(cloudX + slash, cloudY + slash),
             strokeWidth = w * 0.022f,
@@ -228,13 +243,13 @@ fun LocalScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
         // Device shell — a walnut-bound notebook
         val corner = devW * 0.16f
         drawRoundRect(
-            brush = Brush.linearGradient(listOf(DeskWalnutRaised, DeskWalnut)),
+            brush = Brush.linearGradient(listOf(ledger.deskWalnutRaised, ledger.deskWalnut)),
             topLeft = Offset(cx - devW / 2, cy - devH / 2),
             size = Size(devW, devH),
             cornerRadius = CornerRadius(corner)
         )
         drawRoundRect(
-            color = DeskHairline,
+            color = ledger.deskHairline,
             topLeft = Offset(cx - devW / 2, cy - devH / 2),
             size = Size(devW, devH),
             cornerRadius = CornerRadius(corner),
@@ -243,7 +258,7 @@ fun LocalScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
 
         // Screen — a ruled paper page
         drawRoundRect(
-            brush = Brush.verticalGradient(listOf(DeskNight, DeskWalnutDeep)),
+            brush = Brush.verticalGradient(listOf(ledger.deskNight, ledger.deskWalnutDeep)),
             topLeft = Offset(cx - devW * 0.4f, cy - devH * 0.38f),
             size = Size(devW * 0.8f, devH * 0.66f),
             cornerRadius = CornerRadius(devW * 0.07f)
@@ -252,16 +267,16 @@ fun LocalScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
         // Glowing on-device core — the lamp inside the notebook
         val coreX = cx
         val coreY = cy + devH * 0.02f
-        radialGlow(Offset(coreX, coreY), devW * 0.36f * m.pulse, LampGlow)
-        drawCircle(LampGlow.copy(alpha = 0.9f), radius = devW * 0.085f, center = Offset(coreX, coreY))
-        drawCircle(LampAmber.copy(alpha = 0.5f), radius = devW * 0.05f, center = Offset(coreX, coreY))
+        radialGlow(ledger, Offset(coreX, coreY), devW * 0.36f * m.pulse, ledger.lampGlow)
+        drawCircle(ledger.lampGlow.copy(alpha = 0.9f), radius = devW * 0.085f, center = Offset(coreX, coreY))
+        drawCircle(ledger.lampAmber.copy(alpha = 0.5f), radius = devW * 0.05f, center = Offset(coreX, coreY))
 
         // Orbiting particles around the core
         repeat(3) { i ->
             val angle = m.phase * 2f * PI.toFloat() + i * 2.09f
             val ox = coreX + cos(angle) * devW * 0.2f
             val oy = coreY + sin(angle) * devW * 0.2f
-            drawCircle(LampGlow.copy(alpha = 0.8f), radius = devW * 0.018f, center = Offset(ox, oy))
+            drawCircle(ledger.lampGlow.copy(alpha = 0.8f), radius = devW * 0.018f, center = Offset(ox, oy))
         }
 
         // Floating ink dots rising from the notebook
@@ -270,7 +285,7 @@ fun LocalScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
             val x = coreX + sin((i * 1.7f) + m.phase * 6f) * devW * 0.22f
             val y = cy - devH * 0.36f - t * devH * 0.5f
             drawCircle(
-                LampAmber.copy(alpha = 0.7f * (1f - t)),
+                ledger.lampAmber.copy(alpha = 0.7f * (1f - t)),
                 radius = w * 0.012f,
                 center = Offset(x, y)
             )
@@ -283,6 +298,7 @@ fun LocalScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
 @Composable
 fun LightningScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
     val m = rememberSceneMotion(reduceMotion)
+    val ledger = MaterialTheme.ledger
     Canvas(modifier = modifier.fillMaxWidth().height(230.dp)) {
         val w = size.width
         val h = size.height
@@ -297,7 +313,7 @@ fun LightningScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false)
             val angle = i * (PI.toFloat() / 3f) + 0.3f
             val outer = chipW * (0.75f + 0.22f * sin(speed * 0.5f + i))
             drawLine(
-                color = LampDeep.copy(alpha = 0.5f),
+                color = ledger.lampDeep.copy(alpha = 0.5f),
                 start = Offset(cx + cos(angle) * chipW * 0.5f, cy + sin(angle) * chipH * 0.5f),
                 end = Offset(cx + cos(angle) * outer, cy + sin(angle) * outer),
                 strokeWidth = w * 0.012f,
@@ -307,7 +323,7 @@ fun LightningScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false)
 
         // GPU chip outline + pins
         drawRoundRect(
-            color = DeskInk.copy(alpha = 0.8f),
+            color = ledger.deskInk.copy(alpha = 0.8f),
             topLeft = Offset(cx - chipW / 2, cy - chipH / 2),
             size = Size(chipW, chipH),
             cornerRadius = CornerRadius(chipW * 0.12f),
@@ -316,20 +332,20 @@ fun LightningScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false)
         val pin = w * 0.012f
         repeat(3) { i ->
             val px = cx - chipW / 2 + chipW * (0.3f + i * 0.2f)
-            drawLine(LampGlow.copy(alpha = 0.8f), Offset(px, cy - chipH / 2 - w * 0.03f), Offset(px, cy - chipH / 2), strokeWidth = pin, cap = StrokeCap.Round)
-            drawLine(LampGlow.copy(alpha = 0.8f), Offset(px, cy + chipH / 2), Offset(px, cy + chipH / 2 + w * 0.03f), strokeWidth = pin, cap = StrokeCap.Round)
+            drawLine(ledger.lampGlow.copy(alpha = 0.8f), Offset(px, cy - chipH / 2 - w * 0.03f), Offset(px, cy - chipH / 2), strokeWidth = pin, cap = StrokeCap.Round)
+            drawLine(ledger.lampGlow.copy(alpha = 0.8f), Offset(px, cy + chipH / 2), Offset(px, cy + chipH / 2 + w * 0.03f), strokeWidth = pin, cap = StrokeCap.Round)
         }
 
         // Inner die
         drawRoundRect(
-            brush = Brush.verticalGradient(listOf(DeskWalnutRaised, DeskWalnutDeep)),
+            brush = Brush.verticalGradient(listOf(ledger.deskWalnutRaised, ledger.deskWalnutDeep)),
             topLeft = Offset(cx - chipW * 0.32f, cy - chipH * 0.32f),
             size = Size(chipW * 0.64f, chipH * 0.64f),
             cornerRadius = CornerRadius(chipW * 0.07f)
         )
 
         // Lightning bolt — struck by lamp
-        radialGlow(Offset(cx, cy), chipW * 0.42f * m.pulse, LampGlow)
+        radialGlow(ledger, Offset(cx, cy), chipW * 0.42f * m.pulse, ledger.lampGlow)
         val bolt = Path().apply {
             val bW = chipW * 0.42f
             val bH = chipH * 0.5f
@@ -343,7 +359,7 @@ fun LightningScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false)
         }
         drawPath(
             path = bolt,
-            brush = Brush.verticalGradient(listOf(LampGlow, LampDeep))
+            brush = Brush.verticalGradient(listOf(ledger.lampGlow, ledger.lampDeep))
         )
 
         // Streaming token dots along a sine wave
@@ -353,13 +369,13 @@ fun LightningScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false)
             val x = -w * 0.1f + t * w * 1.2f
             val y = streamY + sin(t * 3.2f) * h * 0.05f
             drawCircle(
-                color = if (i % 3 == 0) LampGlow.copy(alpha = 0.9f) else DeskPaperDim.copy(alpha = 0.6f),
+                color = if (i % 3 == 0) ledger.lampGlow.copy(alpha = 0.9f) else ledger.deskPaperDim.copy(alpha = 0.6f),
                 radius = w * 0.014f,
                 center = Offset(x, y)
             )
         }
         drawLine(
-            color = DeskHairline.copy(alpha = 0.7f),
+            color = ledger.deskHairline.copy(alpha = 0.7f),
             start = Offset(w * 0.06f, streamY),
             end = Offset(w * 0.94f, streamY),
             strokeWidth = w * 0.006f,
@@ -373,10 +389,11 @@ fun LightningScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false)
 @Composable
 fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
     val m = rememberSceneMotion(reduceMotion)
+    val ledger = MaterialTheme.ledger
     Canvas(modifier = modifier.fillMaxWidth().height(230.dp)) {
         val w = size.width
         val h = size.height
-        drawDeskBand(w, h)
+        drawDeskBand(ledger, w, h)
         val cx = w * 0.5f
         val baseY = h * 0.60f
         val cardW = w * 0.52f
@@ -386,13 +403,13 @@ fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
         listOf(0.62f, 0.78f).forEachIndexed { i, f ->
             val yOff = (i + 1) * h * 0.05f
             drawRoundRect(
-                brush = Brush.linearGradient(listOf(DeskWalnutRaised.copy(alpha = 0.7f), DeskWalnut.copy(alpha = 0.5f))),
+                brush = Brush.linearGradient(listOf(ledger.deskWalnutRaised.copy(alpha = 0.7f), ledger.deskWalnut.copy(alpha = 0.5f))),
                 topLeft = Offset(cx - cardW * f / 2, baseY - cardH - yOff),
                 size = Size(cardW * f, cardH),
                 cornerRadius = CornerRadius(cardW * 0.06f)
             )
             drawRoundRect(
-                color = DeskHairline.copy(alpha = 0.6f),
+                color = ledger.deskHairline.copy(alpha = 0.6f),
                 topLeft = Offset(cx - cardW * f / 2, baseY - cardH - yOff),
                 size = Size(cardW * f, cardH),
                 cornerRadius = CornerRadius(cardW * 0.06f),
@@ -402,13 +419,13 @@ fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
 
         // Front slip (walnut)
         drawRoundRect(
-            brush = Brush.linearGradient(listOf(DeskWalnutRaised, DeskWalnut)),
+            brush = Brush.linearGradient(listOf(ledger.deskWalnutRaised, ledger.deskWalnut)),
             topLeft = Offset(cx - cardW / 2, baseY - cardH),
             size = Size(cardW, cardH),
             cornerRadius = CornerRadius(cardW * 0.07f)
         )
         drawRoundRect(
-            color = DeskHairline,
+            color = ledger.deskHairline,
             topLeft = Offset(cx - cardW / 2, baseY - cardH),
             size = Size(cardW, cardH),
             cornerRadius = CornerRadius(cardW * 0.07f),
@@ -416,16 +433,16 @@ fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
         )
 
         // Miniature model label — amber seal on ink lines
-        drawCircle(LampAmber.copy(alpha = 0.3f), radius = cardH * 0.22f, center = Offset(cx - cardW * 0.34f, baseY - cardH * 0.5f))
+        drawCircle(ledger.lampAmber.copy(alpha = 0.3f), radius = cardH * 0.22f, center = Offset(cx - cardW * 0.34f, baseY - cardH * 0.5f))
         drawLine(
-            color = DeskPaper.copy(alpha = 0.5f),
+            color = ledger.deskPaper.copy(alpha = 0.5f),
             start = Offset(cx - cardW * 0.22f, baseY - cardH * 0.52f),
             end = Offset(cx + cardW * 0.3f, baseY - cardH * 0.52f),
             strokeWidth = cardH * 0.06f,
             cap = StrokeCap.Round
         )
         drawLine(
-            color = DeskPaperDim.copy(alpha = 0.4f),
+            color = ledger.deskPaperDim.copy(alpha = 0.4f),
             start = Offset(cx - cardW * 0.22f, baseY - cardH * 0.32f),
             end = Offset(cx + cardW * 0.16f, baseY - cardH * 0.32f),
             strokeWidth = cardH * 0.06f,
@@ -436,7 +453,7 @@ fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
         val ringC = Offset(cx + cardW * 0.34f, baseY - cardH * 0.5f)
         val ringR = cardH * 0.36f
         drawArc(
-            color = LampDeep.copy(alpha = 0.5f),
+            color = ledger.lampDeep.copy(alpha = 0.5f),
             startAngle = -90f,
             sweepAngle = 360f,
             useCenter = false,
@@ -445,7 +462,7 @@ fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
             style = Stroke(cardH * 0.09f, cap = StrokeCap.Round)
         )
         drawArc(
-            color = LampGlow,
+            color = ledger.lampGlow,
             startAngle = -90f,
             sweepAngle = 300f * m.pulse.coerceIn(0.9f, 1f),
             useCenter = false,
@@ -458,14 +475,14 @@ fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
             lineTo(ringC.x - ringR * 0.1f, ringC.y + ringR * 0.38f)
             lineTo(ringC.x + ringR * 0.5f, ringC.y - ringR * 0.34f)
         }
-        drawPath(check, color = LampGlow, style = Stroke(cardH * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(check, color = ledger.lampGlow, style = Stroke(cardH * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round))
 
         // Download sparkles
         repeat(3) { i ->
             val t = ((m.phase + i * 0.33f) % 1f)
             val x = cx + cos((i * 2.1f)) * cardW * 0.6f
             val y = baseY - cardH - t * h * 0.16f
-            drawCircle(LampGlow.copy(alpha = 0.7f * (1f - t)), radius = w * 0.012f, center = Offset(x, y))
+            drawCircle(ledger.lampGlow.copy(alpha = 0.7f * (1f - t)), radius = w * 0.012f, center = Offset(x, y))
         }
     }
 }
@@ -475,21 +492,22 @@ fun ModelsScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
 @Composable
 fun ReadyScene(modifier: Modifier = Modifier, reduceMotion: Boolean = false) {
     val m = rememberSceneMotion(reduceMotion)
+    val ledger = MaterialTheme.ledger
     Box(modifier = modifier.fillMaxWidth().height(230.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
             val cx = w * 0.5f
             val cy = h * 0.48f
-            drawDeskBand(w, h)
-            drawCrescentMoon(Offset(cx, h * 0.18f), w * 0.09f, LampGlow)
-            radialGlow(Offset(cx, cy), w * 0.36f * m.pulse, LampGlow)
+            drawDeskBand(ledger, w, h)
+            drawCrescentMoon(ledger, Offset(cx, h * 0.18f), w * 0.09f, ledger.lampGlow)
+            radialGlow(ledger, Offset(cx, cy), w * 0.36f * m.pulse, ledger.lampGlow)
             // Orbiting sparkles
             repeat(5) { i ->
                 val angle = m.phase * 2f * PI.toFloat() + i * 1.256f
                 val r = w * 0.34f
                 drawCircle(
-                    LampGlow.copy(alpha = 0.65f),
+                    ledger.lampGlow.copy(alpha = 0.65f),
                     radius = w * 0.014f,
                     center = Offset(cx + cos(angle) * r, cy + sin(angle) * r * 0.6f)
                 )

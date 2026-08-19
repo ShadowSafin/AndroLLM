@@ -32,6 +32,7 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.voice.model.VoiceSettings
+import io.androllm.core.ui.theme.ledger
 
 /**
  * "Text Normalization" — per-stage toggles for the LLM→TTS normalization
@@ -55,7 +56,7 @@ fun TextNormalizationSection(
                 onCheckedChange = { onUpdate(settings.copy(tnEnabled = it)) }
             )
 
-            HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
             if (settings.tnEnabled) {
                 ToggleRowTn(
@@ -121,7 +122,7 @@ fun TextNormalizationSection(
                     checked = settings.tnAbbreviations,
                     onCheckedChange = { onUpdate(settings.copy(tnAbbreviations = it)) }
                 )
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
                 ToggleRowTn(
                     icon = Icons.Filled.FormatQuote,
                     title = "Debug mode",
@@ -132,7 +133,7 @@ fun TextNormalizationSection(
             } else {
                 Text(
                     text = "Enable Text Normalization to customize stages.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
@@ -156,15 +157,15 @@ private fun ToggleRowTn(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = LampGlow, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = DeskInk)
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.ledger.deskInk)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
         )
     }
 }

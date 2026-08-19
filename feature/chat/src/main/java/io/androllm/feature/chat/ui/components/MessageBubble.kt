@@ -67,6 +67,7 @@ import io.androllm.feature.chat.ui.markdown.MarkdownRenderer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import io.androllm.core.ui.theme.ledger
 
 /**
  * A letter on the desk — one turn in the correspondence.
@@ -147,7 +148,7 @@ fun MessageBubble(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 1.8.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (isUser) io.androllm.core.ui.theme.LampDeep else DeskInk
+                                color = if (isUser) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                             )
                         )
                         if (formattedTime.isNotEmpty()) {
@@ -155,7 +156,7 @@ fun MessageBubble(
                                 text = formattedTime,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     letterSpacing = 1.2.sp,
-                                    color = DeskInkFaint
+                                    color = MaterialTheme.ledger.deskInkFaint
                                 )
                             )
                         }
@@ -163,7 +164,7 @@ fun MessageBubble(
                             Icon(
                                 imageVector = Icons.Default.Bookmark,
                                 contentDescription = "Bookmarked",
-                                tint = io.androllm.core.ui.theme.LampDeep.copy(alpha = 0.9f),
+                                tint = MaterialTheme.ledger.lampDeep.copy(alpha = 0.9f),
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -175,7 +176,7 @@ fun MessageBubble(
                             Icon(
                                 imageVector = Icons.Default.Mic,
                                 contentDescription = "Voice",
-                                tint = io.androllm.core.ui.theme.LampDeep.copy(alpha = 0.9f),
+                                tint = MaterialTheme.ledger.lampDeep.copy(alpha = 0.9f),
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -192,8 +193,8 @@ fun MessageBubble(
                                         .fillMaxWidth(0.86f)
                                         .align(Alignment.End)
                                         .clip(DeskSlipShape)
-                                        .background(DeskWalnutRaised)
-                                        .border(1.dp, DeskHairline, DeskSlipShape)
+                                        .background(MaterialTheme.ledger.deskWalnutRaised)
+                                        .border(1.dp, MaterialTheme.ledger.deskHairline, DeskSlipShape)
                                         .padding(horizontal = 18.dp, vertical = 14.dp)
                                 } else {
                                     Modifier
@@ -211,7 +212,7 @@ fun MessageBubble(
                             if (markdownEnabled && !isUser) {
                                 MarkdownRenderer(
                                     markdownText = contentToRender,
-                                    textColor = DeskPaper,
+                                    textColor = MaterialTheme.ledger.deskPaper,
                                     codeWrapping = codeWrapping
                                 )
                             } else {
@@ -219,7 +220,7 @@ fun MessageBubble(
                                     text = contentToRender,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         lineHeight = 22.sp,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                             }
@@ -232,13 +233,13 @@ fun MessageBubble(
                             modifier = Modifier.padding(top = 6.dp, start = 2.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            InkIconButton(Icons.Default.ContentCopy, "Copy", tint = DeskInkFaint) {
+                            InkIconButton(Icons.Default.ContentCopy, "Copy", tint = MaterialTheme.ledger.deskInkFaint) {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("Message", message.content))
                                 Toast.makeText(context, "Copied text", Toast.LENGTH_SHORT).show()
                             }
-                            InkIconButton(Icons.Default.Refresh, "Regenerate", tint = DeskInkFaint) { onRegenerate() }
-                            InkIconButton(Icons.Default.Share, "Share", tint = DeskInkFaint) {
+                            InkIconButton(Icons.Default.Refresh, "Regenerate", tint = MaterialTheme.ledger.deskInkFaint) { onRegenerate() }
+                            InkIconButton(Icons.Default.Share, "Share", tint = MaterialTheme.ledger.deskInkFaint) {
                                 ConversationSharer.shareSingleMessage(context, message.content)
                             }
                         }
@@ -255,7 +256,7 @@ fun MessageBubble(
                         .height(1.dp)
                         .background(
                             androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                listOf(Color.Transparent, DeskHairline, Color.Transparent)
+                                listOf(Color.Transparent, MaterialTheme.ledger.deskHairline, Color.Transparent)
                             )
                         )
                 )
@@ -319,12 +320,12 @@ fun MessageBubble(
         )
 
         DropdownMenuItem(
-            text = { Text("Delete", color = io.androllm.core.ui.theme.EmberRed) },
+            text = { Text("Delete", color = MaterialTheme.ledger.emberRed) },
             onClick = {
                 showMenu = false
                 onDelete()
             },
-            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = io.androllm.core.ui.theme.EmberRed) }
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.ledger.emberRed) }
         )
     }
 }

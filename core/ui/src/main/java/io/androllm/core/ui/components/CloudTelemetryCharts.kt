@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import io.androllm.core.ui.theme.CloudGlassBorder
 import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskPaper
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Smooth animated line chart with gradient fill — used for live tokens/sec
@@ -49,6 +50,8 @@ fun CloudLineChart(
         reveal.animateTo(1f, animationSpec = tween(durationMillis = 700))
     }
 
+    val baselineColor = MaterialTheme.ledger.cloudGlassBorder
+
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -67,7 +70,7 @@ fun CloudLineChart(
 
         // Grid baseline
         drawLine(
-            color = CloudGlassBorder,
+            color = baselineColor,
             start = Offset(0f, chartHeight * 0.92f),
             end = Offset(width, chartHeight * 0.92f),
             strokeWidth = 1.dp.toPx()
@@ -133,6 +136,7 @@ fun CloudBarChart(
     }
 
     val visible = values.takeLast(maxBars)
+    val baselineColor = MaterialTheme.ledger.cloudGlassBorder
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -144,7 +148,7 @@ fun CloudBarChart(
         val barWidth = (slot * 0.6f).coerceAtLeast(2f)
 
         drawLine(
-            color = CloudGlassBorder,
+            color = baselineColor,
             start = Offset(0f, size.height),
             end = Offset(size.width, size.height),
             strokeWidth = 1.dp.toPx()
@@ -185,7 +189,7 @@ fun CloudUsageBar(
                 text = label,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 ),
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -195,7 +199,7 @@ fun CloudUsageBar(
                 text = valueText,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
         }

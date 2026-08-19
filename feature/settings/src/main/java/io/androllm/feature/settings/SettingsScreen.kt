@@ -92,6 +92,7 @@ import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.utils.StorageUtils
 import io.androllm.feature.settings.R
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Writer's Night Desk — Settings. Identity, storage, motion and privacy,
@@ -165,7 +166,7 @@ fun SettingsScreen(
                             stringResource(R.string.settings_title),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = DeskPaper
+                                color = MaterialTheme.ledger.deskPaper
                             )
                         )
                     },
@@ -440,7 +441,7 @@ fun SettingsScreen(
                             Text(
                                 text = logPreview.ifBlank { stringResource(R.string.settings_logs_empty) },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = DeskInk,
+                                color = MaterialTheme.ledger.deskInk,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
@@ -515,7 +516,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                     text = user?.displayName?.takeIf { it.isNotBlank() } ?: "AndroLLM User",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -524,7 +525,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                 Text(
                     text = user?.displayName?.takeIf { it.isNotBlank() } ?: "",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = DeskInkFaint
+                        color = MaterialTheme.ledger.deskInkFaint
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -536,7 +537,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                         "Guest • 100% on-device"
                     },
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = if (user?.isGuest == false) LampDeep else DeskInkFaint
+                        color = if (user?.isGuest == false) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInkFaint
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -557,20 +558,20 @@ private fun UserStatsRow() {
     ) {
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Downloaded", style = MaterialTheme.typography.labelSmall.copy(color = DeskInk))
-                Text("3 Models", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = DeskPaper))
+                Text("Downloaded", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
+                Text("3 Models", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper))
             }
         }
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Storage", style = MaterialTheme.typography.labelSmall.copy(color = DeskInk))
-                Text("4.2 GB", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = DeskPaper))
+                Text("Storage", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
+                Text("4.2 GB", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper))
             }
         }
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Execution", style = MaterialTheme.typography.labelSmall.copy(color = DeskInk))
-                Text("Vulkan", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = LampDeep))
+                Text("Execution", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
+                Text("Vulkan", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.lampDeep))
             }
         }
     }
@@ -596,7 +597,7 @@ private fun FirebaseAuthCard(
                         text = "Account & Sync",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
@@ -606,7 +607,7 @@ private fun FirebaseAuthCard(
                             "Syncing is optional — offline AI never requires a login"
                         },
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         ),
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -614,7 +615,7 @@ private fun FirebaseAuthCard(
                 }
                 CloudChip(
                     text = if (user?.isGuest == false) "Signed In" else "Optional",
-                    accentColor = if (user?.isGuest == false) LampDeep else DeskInk
+                    accentColor = if (user?.isGuest == false) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -646,14 +647,14 @@ internal fun SettingRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = LampDeep,
+            tint = MaterialTheme.ledger.lampDeep,
             modifier = Modifier.size(20.dp)
         )
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.Medium,
-                color = DeskPaper
+                color = MaterialTheme.ledger.deskPaper
             ),
             modifier = Modifier.weight(1f)
         )
@@ -661,7 +662,7 @@ internal fun SettingRow(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = DeskInkFaint
+                    color = MaterialTheme.ledger.deskInkFaint
                 )
             )
         }
@@ -704,7 +705,7 @@ private fun MemorySettingsCard(
                 Icon(
                     imageVector = Icons.Filled.Memory,
                     contentDescription = null,
-                    tint = if (settings.enabled) LampAmber else LampGlow,
+                    tint = if (settings.enabled) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.lampGlow,
                     modifier = Modifier.size(20.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -712,12 +713,12 @@ private fun MemorySettingsCard(
                         text = "On-device Memory",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Medium,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = "Personalized replies from your own conversations — never leaves this device",
-                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
@@ -725,12 +726,12 @@ private fun MemorySettingsCard(
                 Switch(
                     checked = settings.enabled,
                     onCheckedChange = { onToggleEnabled() },
-                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
                 )
             }
 
             if (settings.enabled) {
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
                 // Stats line
                 Row(
@@ -742,18 +743,18 @@ private fun MemorySettingsCard(
                 ) {
                     Text(
                         text = stats?.let { "${it.memoryCount} memories • ${it.embeddingCount} embeddings" } ?: "…",
-                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInkFaint),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint),
                         modifier = Modifier.weight(1f)
                     )
                     TextButton(onClick = onRefreshStats) {
-                        Text("Refresh", color = LampGlow)
+                        Text("Refresh", color = MaterialTheme.ledger.lampGlow)
                     }
                 }
 
                 if (feedback != null) {
                     Text(
                         text = feedback,
-                        style = MaterialTheme.typography.bodySmall.copy(color = LampAmber),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.lampAmber),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
@@ -762,7 +763,7 @@ private fun MemorySettingsCard(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Similarity threshold  ${(settings.similarityThreshold * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.similarityThreshold,
@@ -776,7 +777,7 @@ private fun MemorySettingsCard(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Memories retrieved per prompt: ${settings.retrievalCount}",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.retrievalCount.toFloat(),
@@ -793,7 +794,7 @@ private fun MemorySettingsCard(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Summarize every ${settings.summarizationInterval} messages",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.summarizationInterval.toFloat(),
@@ -829,7 +830,7 @@ private fun MemorySettingsCard(
                     onClick = onCloudEmbeddingClick
                 )
 
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
                 SettingRow(
                     icon = Icons.Filled.IosShare,
@@ -871,12 +872,12 @@ private fun ModelPathDialog(
     var path by remember { mutableStateOf(currentPath) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Embedding model path", fontWeight = FontWeight.Bold, color = DeskPaper) },
+        title = { Text("Embedding model path", fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper) },
         text = {
             Column {
                 Text(
                     text = "Absolute path to the EmbeddingGemma 300M .tflite model (downloaded from the Models screen Catalog). A tokenizer.model must sit next to it — the app downloads both automatically.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
@@ -891,13 +892,13 @@ private fun ModelPathDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(path.trim()) },
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = LampAmber)
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Save", color = DeskPaper)
+                Text("Save", color = MaterialTheme.ledger.deskPaper)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = DeskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
         }
     )
 }
@@ -915,12 +916,12 @@ private fun CloudEmbeddingModelDialog(
     var model by remember { mutableStateOf(currentModel) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cloud embedding model", fontWeight = FontWeight.Bold, color = DeskPaper) },
+        title = { Text("Cloud embedding model", fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper) },
         text = {
             Column {
                 Text(
                     text = "Model id for /v1/embeddings through your active cloud provider (e.g. openai/text-embedding-3-small, cohere/embed-english-v3.0, togethertext-embedding...). Leave empty to use the local LiteRT embedding model.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
@@ -935,13 +936,13 @@ private fun CloudEmbeddingModelDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(model.trim()) },
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = LampAmber)
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Save", color = DeskPaper)
+                Text("Save", color = MaterialTheme.ledger.deskPaper)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = DeskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
         }
     )
 }
@@ -991,7 +992,7 @@ private fun AttachmentSettingsCard(
                 Icon(
                     imageVector = Icons.Filled.AttachFile,
                     contentDescription = null,
-                    tint = LampAmber,
+                    tint = MaterialTheme.ledger.lampAmber,
                     modifier = Modifier.size(20.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -999,24 +1000,24 @@ private fun AttachmentSettingsCard(
                         text = "Chat Attachments",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Medium,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = "Files you attach to a cloud chat are processed only for that conversation — nothing is indexed",
-                        style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }
 
-            HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
             if (feedback != null) {
                 Text(
                     text = feedback,
-                    style = MaterialTheme.typography.bodySmall.copy(color = LampAmber),
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.lampAmber),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
@@ -1025,7 +1026,7 @@ private fun AttachmentSettingsCard(
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(
                     text = "Image processing quality: ${settings.imageQuality}",
-                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
                 Slider(
                     value = settings.imageQuality.toFloat(),
@@ -1047,7 +1048,7 @@ private fun AttachmentSettingsCard(
             ) {
                 Text(
                     text = "OCR language",
-                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk),
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk),
                     modifier = Modifier.weight(1f)
                 )
                 listOf("en", "de", "fr", "es", "it", "pt").forEach { lang ->
@@ -1055,7 +1056,7 @@ private fun AttachmentSettingsCard(
                     Box(
                         modifier = Modifier
                             .background(
-                                if (selected) LampAmber.copy(alpha = 0.2f) else DeskHairline.copy(alpha = 0.3f),
+                                if (selected) MaterialTheme.ledger.lampAmber.copy(alpha = 0.2f) else MaterialTheme.ledger.deskHairline.copy(alpha = 0.3f),
                                 CircleShape
                             )
                             .clickable { onOcrLanguageChange(lang) }
@@ -1064,7 +1065,7 @@ private fun AttachmentSettingsCard(
                         Text(
                             text = lang.uppercase(),
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (selected) LampGlow else DeskInk
+                                color = if (selected) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk
                             )
                         )
                     }
@@ -1075,7 +1076,7 @@ private fun AttachmentSettingsCard(
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(
                     text = "Maximum file size: ${settings.maxAttachmentBytes / (1024 * 1024)} MB",
-                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
                 Slider(
                     value = (settings.maxAttachmentBytes / (1024 * 1024)).toFloat(),
@@ -1090,7 +1091,7 @@ private fun AttachmentSettingsCard(
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(
                     text = "Max attachments per message: ${settings.maxAttachmentsPerMessage}",
-                    style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
                 Slider(
                     value = settings.maxAttachmentsPerMessage.toFloat(),
@@ -1114,17 +1115,17 @@ private fun AttachmentSettingsCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Auto-compress images",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskPaper)
                     )
                     Text(
                         text = "Downscale photos before sending to vision models",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
                     )
                 }
                 Switch(
                     checked = settings.autoCompressImages,
                     onCheckedChange = onAutoCompressChange,
-                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
                 )
             }
 
@@ -1139,17 +1140,17 @@ private fun AttachmentSettingsCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Preserve original filenames",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskPaper)
                     )
                     Text(
                         text = "Keep the source name for copied attachments",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
                     )
                 }
                 Switch(
                     checked = settings.preserveFilenames,
                     onCheckedChange = onPreserveFilenamesChange,
-                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
                 )
             }
 
@@ -1164,22 +1165,22 @@ private fun AttachmentSettingsCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Cache processed attachments",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskPaper)
                     )
                     Text(
                         text = "Keep parsed text for the current conversation only",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
                     )
                 }
                 Switch(
                     checked = settings.cacheProcessedAttachments,
                     onCheckedChange = onCacheProcessedChange,
-                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
                 )
             }
 
             // Cache usage + clear
-            HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1189,7 +1190,7 @@ private fun AttachmentSettingsCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Temporary cache",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskPaper)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskPaper)
                     )
                     Text(
                         text = if (cacheBytes > 0) {
@@ -1197,11 +1198,11 @@ private fun AttachmentSettingsCard(
                         } else {
                             "Nothing cached"
                         },
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
                     )
                 }
                 TextButton(onClick = onClearCache) {
-                    Text("Clear cache", color = LampGlow)
+                    Text("Clear cache", color = MaterialTheme.ledger.lampGlow)
                 }
             }
         }

@@ -31,6 +31,7 @@ import io.androllm.core.ui.theme.DeskWalnutRaised
 import io.androllm.core.ui.theme.InkOnLamp
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * In-chat card shown while a high-risk tool action (SMS, call, email…)
@@ -46,8 +47,8 @@ fun ToolConfirmationCard(
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = DeskWalnutRaised,
-        border = BorderStroke(1.dp, LampGlow.copy(alpha = 0.35f)),
+        color = MaterialTheme.ledger.deskWalnutRaised,
+        border = BorderStroke(1.dp, MaterialTheme.ledger.lampGlow.copy(alpha = 0.35f)),
         shadowElevation = 4.dp,
         modifier = modifier.fillMaxWidth()
     ) {
@@ -61,7 +62,7 @@ fun ToolConfirmationCard(
                 Icon(
                     Icons.Default.Security,
                     contentDescription = null,
-                    tint = LampAmber,
+                    tint = MaterialTheme.ledger.lampAmber,
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
@@ -69,7 +70,7 @@ fun ToolConfirmationCard(
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 1.4.sp,
                         fontWeight = FontWeight.Bold,
-                        color = LampGlow
+                        color = MaterialTheme.ledger.lampGlow
                     )
                 )
             }
@@ -77,12 +78,12 @@ fun ToolConfirmationCard(
                 text = confirmation.toolDisplayName,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
             Text(
                 text = confirmation.actionSummary,
-                style = MaterialTheme.typography.bodyMedium.copy(color = DeskInk)
+                style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.ledger.deskInk)
             )
             Text(
                 text = if (confirmation.requiredPermissions.isNotEmpty()) {
@@ -91,7 +92,7 @@ fun ToolConfirmationCard(
                 } else {
                     "This action can't be undone. Tap Approve to continue or Deny to cancel."
                 },
-                style = MaterialTheme.typography.bodySmall.copy(color = DeskInkFaint)
+                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint)
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -99,13 +100,13 @@ fun ToolConfirmationCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onDeny) {
-                    Text("Deny", color = DeskInkFaint)
+                    Text("Deny", color = MaterialTheme.ledger.deskInkFaint)
                 }
                 Button(
                     onClick = onApprove,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = LampAmber,
-                        contentColor = InkOnLamp
+                        containerColor = MaterialTheme.ledger.lampAmber,
+                        contentColor = MaterialTheme.ledger.inkOnLamp
                     )
                 ) {
                     Text("Approve", fontWeight = FontWeight.Bold)

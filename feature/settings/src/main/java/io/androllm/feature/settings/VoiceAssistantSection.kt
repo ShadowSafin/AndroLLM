@@ -60,6 +60,7 @@ import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.voice.model.VoiceSettings
 import io.androllm.feature.voice.VoicePhase
 import io.androllm.feature.voice.VoiceUiState
+import io.androllm.core.ui.theme.ledger
 
 /**
  * "Voice Assistant" — the always-available hands-free assistant: wake word,
@@ -117,7 +118,7 @@ fun VoiceAssistantSection(
                 Icon(
                     imageVector = Icons.Filled.Mic,
                     contentDescription = null,
-                    tint = if (settings.enabled) LampAmber else LampGlow,
+                    tint = if (settings.enabled) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.lampGlow,
                     modifier = Modifier.size(20.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -125,7 +126,7 @@ fun VoiceAssistantSection(
                         text = "Voice Assistant",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = FontWeight.Medium,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
@@ -135,7 +136,7 @@ fun VoiceAssistantSection(
                             else -> "Always-on wake word \u2014 say \u201CHey Andro\u201D"
                         },
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = if (liveState.active) LampDeep else DeskInk
+                            color = if (liveState.active) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                         ),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -144,7 +145,7 @@ fun VoiceAssistantSection(
                 Switch(
                     checked = settings.enabled,
                     onCheckedChange = { if (it) requestEnable() else onStop() },
-                    colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
                 )
             }
 
@@ -158,7 +159,7 @@ fun VoiceAssistantSection(
             }
 
             if (settings.enabled) {
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
                 ToggleRow(
                     icon = Icons.Filled.RecordVoiceOver,
@@ -179,7 +180,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Wake word sensitivity  ${(settings.sensitivity * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.sensitivity,
@@ -193,7 +194,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Silence timeout  ${settings.silenceTimeoutMs / 1000f}s",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.silenceTimeoutMs.toFloat(),
@@ -208,7 +209,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Speaking speed  ${settings.speakingSpeed}x",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.speakingSpeed,
@@ -222,7 +223,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Voice pitch  ${settings.pitch}x",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.pitch,
@@ -236,7 +237,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Voice volume  ${(settings.volume * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.volume,
@@ -307,7 +308,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Overlay transparency  ${((1f - settings.overlayTransparency) * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.overlayTransparency,
@@ -321,7 +322,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Overlay size  ${(settings.overlaySize * 100).toInt()}%",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.overlaySize,
@@ -335,7 +336,7 @@ fun VoiceAssistantSection(
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
                         text = "Animation speed  ${settings.animationSpeed}x",
-                        style = MaterialTheme.typography.labelSmall.copy(color = DeskInk)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                     Slider(
                         value = settings.animationSpeed,
@@ -378,7 +379,7 @@ fun VoiceAssistantSection(
                     onCheckedChange = { onUpdate(settings.copy(offlineOnly = it)) }
                 )
 
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
                 // Overlay permission
                 SettingRow(
@@ -390,7 +391,7 @@ fun VoiceAssistantSection(
 
                 // Real-Time Debug Overlay Card (Phase 8 & Phase 2 & Phase 3)
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = DeskInkFaint.copy(alpha = 0.15f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -400,29 +401,29 @@ fun VoiceAssistantSection(
                             text = "Live Debug Overlay (Real-Time Metrics)",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = LampAmber
+                                color = MaterialTheme.ledger.lampAmber
                             )
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Phase: ${liveState.phase} | Owner: ${liveState.micOwner}",
-                            style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper)
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskPaper)
                         )
                         Text(
                             text = "STT Engine: ${liveState.onnxStatus}",
-                            style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper)
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskPaper)
                         )
                         Text(
                             text = "Audio RMS: ${String.format("%.4f", liveState.micRms)} | Max Amp: ${String.format("%.4f", liveState.maxAmplitude)}",
-                            style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper)
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskPaper)
                         )
                         Text(
                             text = "KWS Confidence: ${String.format("%.2f", liveState.confidenceScore)} | Threshold: ${liveState.threshold}",
-                            style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper)
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskPaper)
                         )
                         Text(
                             text = "Frames Received: ${liveState.framesReceived}",
-                            style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                         )
                     }
                 }
@@ -493,7 +494,7 @@ private fun ToggleRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = LampDeep,
+            tint = MaterialTheme.ledger.lampDeep,
             modifier = Modifier.size(20.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -501,12 +502,12 @@ private fun ToggleRow(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Medium,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -514,7 +515,7 @@ private fun ToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
         )
     }
 }
@@ -528,12 +529,12 @@ private fun WakePhraseDialog(
     var phrases by remember { mutableStateOf(current) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Wake phrases", fontWeight = FontWeight.Bold, color = DeskPaper) },
+        title = { Text("Wake phrases", fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper) },
         text = {
             Column {
                 Text(
                     text = "Comma-separated phrases (lowercase words work best, e.g. \u201Chey andro, okay andro\u201D).",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
@@ -554,13 +555,13 @@ private fun WakePhraseDialog(
                             .filter { it.isNotBlank() }
                     )
                 },
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = LampAmber)
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Save", color = DeskPaper)
+                Text("Save", color = MaterialTheme.ledger.deskPaper)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = DeskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
         }
     )
 }

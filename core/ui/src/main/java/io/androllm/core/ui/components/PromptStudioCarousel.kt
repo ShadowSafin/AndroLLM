@@ -44,6 +44,7 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.DeskWalnutDeep
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
+import io.androllm.core.ui.theme.ledger
 
 data class PromptTemplate(
     val id: String,
@@ -126,7 +127,7 @@ fun PromptStudioCarousel(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) LampAmber else DeskWalnutDeep)
+                        .background(if (isSelected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskWalnutDeep)
                         .clickable { selectedCategory = cat }
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
@@ -134,7 +135,7 @@ fun PromptStudioCarousel(
                         text = cat,
                         fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) io.androllm.core.ui.theme.CloudWhite else DeskInk
+                        color = if (isSelected) MaterialTheme.ledger.cloudWhite else MaterialTheme.ledger.deskInk
                     )
                 }
             }
@@ -167,13 +168,13 @@ fun PromptStudioCarousel(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(CircleShape)
-                                    .background(LampAmber.copy(alpha = 0.16f)),
+                                    .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.16f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = null,
-                                    tint = LampDeep,
+                                    tint = MaterialTheme.ledger.lampDeep,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -181,14 +182,14 @@ fun PromptStudioCarousel(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(DeskWalnutDeep)
+                                    .background(MaterialTheme.ledger.deskWalnutDeep)
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = "~${item.estimatedTokens} tok",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = LampDeep
+                                    color = MaterialTheme.ledger.lampDeep
                                 )
                             }
                         }
@@ -199,14 +200,14 @@ fun PromptStudioCarousel(
                             text = item.title,
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = DeskPaper
+                                color = MaterialTheme.ledger.deskPaper
                             )
                         )
 
                         Text(
                             text = item.promptText,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = DeskInkFaint
+                                color = MaterialTheme.ledger.deskInkFaint
                             ),
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

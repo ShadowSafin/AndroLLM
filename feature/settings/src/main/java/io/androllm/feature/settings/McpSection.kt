@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import io.androllm.core.mcp.McpConnectionManager
 import io.androllm.core.mcp.McpServer
 import io.androllm.core.ui.components.CloudGlassCard
@@ -44,6 +45,7 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * "MCP Servers" — connect the assistant to Model Context Protocol servers
@@ -70,13 +72,13 @@ fun McpSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Filled.Dns, contentDescription = null, tint = LampGlow, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Dns, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("MCP Servers", style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
+                    Text("MCP Servers", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
                     Text(
                         "Import tools from external MCP servers (unlimited capabilities)",
                         style = MaterialTheme.typography.bodySmall,
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -86,12 +88,12 @@ fun McpSection(
             if (servers.isEmpty()) {
                 Text(
                     text = "No servers configured. Add your MCP server endpoint (Streamable HTTP, e.g. https://example.com/mcp) to import its tools.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             } else {
                 servers.forEachIndexed { index, server ->
-                    if (index > 0) HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+                    if (index > 0) HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
                     McpServerRow(
                         server = server,
                         state = states[server.id],
@@ -101,7 +103,7 @@ fun McpSection(
                 }
             }
 
-            HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
 
             CloudCapsuleButton(
                 text = "Add MCP Server",
@@ -143,7 +145,7 @@ private fun McpServerRow(
             Text(
                 server.name,
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = DeskPaper,
+                    color = MaterialTheme.ledger.deskPaper,
                     fontWeight = FontWeight.Medium
                 ),
                 maxLines = 1,
@@ -151,7 +153,7 @@ private fun McpServerRow(
             )
             Text(
                 server.url,
-                style = MaterialTheme.typography.bodySmall.copy(color = DeskInkFaint),
+                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -163,13 +165,13 @@ private fun McpServerRow(
         Switch(
             checked = server.enabled,
             onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
         )
         IconButton(onClick = onRemove) {
             Icon(
                 Icons.Filled.Delete,
                 contentDescription = "Remove ${server.name}",
-                tint = DeskInkFaint,
+                tint = MaterialTheme.ledger.deskInkFaint,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -183,11 +185,12 @@ private fun stateLabel(state: McpConnectionManager.State?): String = when (state
     is McpConnectionManager.State.Failed -> "Failed — ${state.message.take(40)}"
 }
 
-private fun stateColor(state: McpConnectionManager.State?): androidx.compose.ui.graphics.Color = when (state) {
-    is McpConnectionManager.State.Connected -> LampDeep
-    McpConnectionManager.State.Connecting -> LampAmber
-    is McpConnectionManager.State.Failed -> LampAmber
-    else -> DeskInkFaint
+@Composable
+private fun stateColor(state: McpConnectionManager.State?): Color = when (state) {
+    is McpConnectionManager.State.Connected -> MaterialTheme.ledger.lampDeep
+    McpConnectionManager.State.Connecting -> MaterialTheme.ledger.lampAmber
+    is McpConnectionManager.State.Failed -> MaterialTheme.ledger.lampAmber
+    else -> MaterialTheme.ledger.deskInkFaint
 }
 
 @Composable
@@ -200,12 +203,12 @@ private fun AddMcpServerDialog(
     var token by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add MCP Server", fontWeight = FontWeight.Bold, color = DeskPaper) },
+        title = { Text("Add MCP Server", fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper) },
         text = {
             Column {
                 Text(
                     text = "Point at an MCP server exposing the Streamable HTTP transport. Its tools become available to the assistant as mcp_<server>_<tool>.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk)
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
@@ -237,13 +240,13 @@ private fun AddMcpServerDialog(
             Button(
                 onClick = { onAdd(name, url, token) },
                 enabled = name.isNotBlank() && url.isNotBlank(),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = LampAmber)
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Connect", color = DeskPaper)
+                Text("Connect", color = MaterialTheme.ledger.deskPaper)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = DeskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
         }
     )
 }

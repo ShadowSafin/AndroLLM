@@ -74,6 +74,7 @@ import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.LampHalo
 import timber.log.Timber
+import io.androllm.core.ui.theme.ledger
 
 /**
  * First-launch "Let's set up AndroLLM" — appears once, right after a
@@ -152,7 +153,7 @@ fun PermissionSetupScreen(
                     text = "AndroLLM",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Spacer(modifier = Modifier.weight(1f))
@@ -160,7 +161,7 @@ fun PermissionSetupScreen(
                     Text(
                         text = "Skip",
                         style = MaterialTheme.typography.labelLarge.copy(
-                            color = DeskInk,
+                            color = MaterialTheme.ledger.deskInk,
                             fontWeight = FontWeight.SemiBold
                         )
                     )
@@ -174,14 +175,14 @@ fun PermissionSetupScreen(
                     text = "Let's set up AndroLLM",
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Give AndroLLM access to the features you want to use.",
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         lineHeight = 22.sp
                     )
                 )
@@ -195,7 +196,7 @@ fun PermissionSetupScreen(
                         text = if (grantable.isEmpty()) "Nothing to grant — you're all set" else
                             "$enabled of ${grantable.size} enabled",
                         style = MaterialTheme.typography.labelMedium.copy(
-                            color = DeskInkFaint,
+                            color = MaterialTheme.ledger.deskInkFaint,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.6.sp
                         )
@@ -204,7 +205,7 @@ fun PermissionSetupScreen(
                         Text(
                             text = "${(enabled * 100f / grantable.size).toInt()}%",
                             style = MaterialTheme.typography.labelMedium.copy(
-                                color = LampDeep,
+                                color = MaterialTheme.ledger.lampDeep,
                                 fontWeight = FontWeight.Bold
                             )
                         )
@@ -218,8 +219,8 @@ fun PermissionSetupScreen(
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(CircleShape),
-                        color = LampAmber,
-                        trackColor = LampHalo.copy(alpha = 0.35f)
+                        color = MaterialTheme.ledger.lampAmber,
+                        trackColor = MaterialTheme.ledger.lampHalo.copy(alpha = 0.35f)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -281,7 +282,7 @@ fun PermissionSetupScreen(
                         text = "Everything stays on your device. You can change these any time in " +
                             "Settings → Permissions & Access, and revoke accessibility whenever you like.",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = DeskInkFaint,
+                            color = MaterialTheme.ledger.deskInkFaint,
                             lineHeight = 17.sp
                         ),
                         textAlign = TextAlign.Center,
@@ -330,13 +331,13 @@ internal fun PermissionSetupCard(
                         text = handler.title,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Text(
                         text = handler.description,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = DeskInk,
+                            color = MaterialTheme.ledger.deskInk,
                             lineHeight = 16.sp
                         )
                     )
@@ -349,7 +350,7 @@ internal fun PermissionSetupCard(
             Text(
                 text = handler.explanation,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = DeskInkFaint,
+                    color = MaterialTheme.ledger.deskInkFaint,
                     lineHeight = 17.sp
                 )
             )
@@ -360,7 +361,7 @@ internal fun PermissionSetupCard(
                     Text(
                         text = if (handler.needsSettingsScreen) "✓ Accessibility enabled" else "✓ Granted",
                         style = MaterialTheme.typography.labelMedium.copy(
-                            color = LampDeep,
+                            color = MaterialTheme.ledger.lampDeep,
                             fontWeight = FontWeight.SemiBold
                         )
                     )
@@ -382,7 +383,7 @@ internal fun PermissionSetupCard(
                                 text = "Open Settings",
                                 onClick = onOpenSettings,
                                 gradient = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    listOf(LampGlow.copy(alpha = 0.3f), LampAmber.copy(alpha = 0.5f))
+                                    listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.3f), MaterialTheme.ledger.lampAmber.copy(alpha = 0.5f))
                                 ),
                                 modifier = Modifier.weight(1f)
                             )
@@ -391,7 +392,7 @@ internal fun PermissionSetupCard(
                         Text(
                             text = "Not enabled — some features may not work.",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = DeskInkFaint
+                                color = MaterialTheme.ledger.deskInkFaint
                             )
                         )
                     }
@@ -402,7 +403,7 @@ internal fun PermissionSetupCard(
                         Text(
                             text = "Permission blocked — open Android Settings to enable it.",
                             style = MaterialTheme.typography.labelMedium.copy(
-                                color = EmberRed,
+                                color = MaterialTheme.ledger.emberRed,
                                 fontWeight = FontWeight.SemiBold
                             )
                         )
@@ -450,13 +451,13 @@ private fun NotRequiredCard(handler: PermissionHandler) {
                     text = handler.title,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.SemiBold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Text(
                     text = handler.explanation,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = DeskInkFaint,
+                        color = MaterialTheme.ledger.deskInkFaint,
                         lineHeight = 15.sp
                     )
                 )
@@ -464,7 +465,7 @@ private fun NotRequiredCard(handler: PermissionHandler) {
             Spacer(modifier = Modifier.width(10.dp))
             CloudChip(
                 text = "Not required",
-                accentColor = DeskInkFaint
+                accentColor = MaterialTheme.ledger.deskInkFaint
             )
         }
     }
@@ -476,7 +477,7 @@ private fun SectionLabel(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall.copy(
-            color = DeskInk,
+            color = MaterialTheme.ledger.deskInk,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.4.sp
         ),
@@ -488,12 +489,12 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun StatusChip(state: PermissionState) {
     val (text, color) = when (state) {
-        PermissionState.GRANTED -> "✓ Granted" to LampDeep
-        PermissionState.DENIED -> "○ Not enabled" to LampAmber
-        PermissionState.PERMANENTLY_DENIED -> "⚠ Blocked" to EmberRed
-        PermissionState.NEEDS_SETTINGS -> "○ Needs settings" to LampAmber
-        PermissionState.NOT_REQUIRED -> "Not required" to DeskInkFaint
-        PermissionState.UNAVAILABLE -> "Unavailable" to DeskInkFaint
+        PermissionState.GRANTED -> "✓ Granted" to MaterialTheme.ledger.lampDeep
+        PermissionState.DENIED -> "○ Not enabled" to MaterialTheme.ledger.lampAmber
+        PermissionState.PERMANENTLY_DENIED -> "⚠ Blocked" to MaterialTheme.ledger.emberRed
+        PermissionState.NEEDS_SETTINGS -> "○ Needs settings" to MaterialTheme.ledger.lampAmber
+        PermissionState.NOT_REQUIRED -> "Not required" to MaterialTheme.ledger.deskInkFaint
+        PermissionState.UNAVAILABLE -> "Unavailable" to MaterialTheme.ledger.deskInkFaint
     }
     CloudChip(text = text, accentColor = color)
 }
@@ -506,13 +507,13 @@ private fun IconBox(id: String, small: Boolean = false) {
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(LampHalo.copy(alpha = 0.28f)),
+            .background(MaterialTheme.ledger.lampHalo.copy(alpha = 0.28f)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = iconFor(id),
             contentDescription = null,
-            tint = LampDeep,
+            tint = MaterialTheme.ledger.lampDeep,
             modifier = Modifier.size(if (small) 20.dp else 24.dp)
         )
     }

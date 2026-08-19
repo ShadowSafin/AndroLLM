@@ -30,6 +30,7 @@ import io.androllm.core.ui.theme.DeskInkFaint
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * "UI Automation" — the accessibility automation engine. Native APIs, MCP
@@ -58,11 +59,11 @@ fun AccessibilitySection(
                 Icon(
                     Icons.Filled.TouchApp,
                     contentDescription = null,
-                    tint = LampGlow,
+                    tint = MaterialTheme.ledger.lampGlow,
                     modifier = Modifier.size(20.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Accessibility service", style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
+                    Text("Accessibility service", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
                     Text(
                         when {
                             serviceEnabled && connected -> "Active — controlling apps when you ask"
@@ -70,18 +71,18 @@ fun AccessibilitySection(
                             else -> "Off — tap to enable in system settings"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (serviceEnabled) DeskInk else LampAmber
+                        color = if (serviceEnabled) MaterialTheme.ledger.deskInk else MaterialTheme.ledger.lampAmber
                     )
                 }
                 Icon(
                     Icons.Filled.Settings,
                     contentDescription = "Open accessibility settings",
-                    tint = DeskInkFaint,
+                    tint = MaterialTheme.ledger.deskInkFaint,
                     modifier = Modifier.size(20.dp)
                 )
             }
 
-            HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
 
             AccToggleRow(
                 icon = Icons.Filled.TouchApp,
@@ -134,13 +135,13 @@ private fun AccToggleRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = LampGlow, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = DeskInk,
+                color = MaterialTheme.ledger.deskInk,
                 maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
@@ -148,7 +149,7 @@ private fun AccToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
         )
     }
 }

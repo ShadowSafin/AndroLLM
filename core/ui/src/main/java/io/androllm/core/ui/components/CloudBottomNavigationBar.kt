@@ -51,6 +51,7 @@ import io.androllm.core.ui.theme.InkOnLamp
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
 import kotlinx.coroutines.launch
+import io.androllm.core.ui.theme.ledger
 
 enum class CloudTab(val route: String, val title: String, val icon: ImageVector) {
     HOME("home", "Home", Icons.Default.Home),
@@ -84,10 +85,10 @@ fun CloudBottomNavigationBar(
                 .fillMaxWidth()
                 .height(66.dp)
                 .clip(RoundedCornerShape(33.dp))
-                .background(DeskWalnut.copy(alpha = 0.96f))
+                .background(MaterialTheme.ledger.deskWalnut.copy(alpha = 0.96f))
                 .border(
                     width = 1.dp,
-                    color = DeskHairline,
+                    color = MaterialTheme.ledger.deskHairline,
                     shape = RoundedCornerShape(33.dp)
                 )
                 .padding(horizontal = 6.dp)
@@ -129,7 +130,7 @@ fun CloudBottomNavigationBar(
                                 Icon(
                                     imageVector = tab.icon,
                                     contentDescription = tab.title,
-                                    tint = if (selected) LampAmber else DeskInkFaint,
+                                    tint = if (selected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 if (badgeCount > 0) {
@@ -138,13 +139,13 @@ fun CloudBottomNavigationBar(
                                             .align(Alignment.TopEnd)
                                             .size(14.dp)
                                             .clip(CircleShape)
-                                            .background(LampAmber),
+                                            .background(MaterialTheme.ledger.lampAmber),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = if (badgeCount > 9) "9+" else badgeCount.toString(),
                                             fontSize = 9.sp,
-                                            color = InkOnLamp,
+                                            color = MaterialTheme.ledger.inkOnLamp,
                                             textAlign = TextAlign.Center
                                         )
                                     }
@@ -159,7 +160,7 @@ fun CloudBottomNavigationBar(
                                     fontSize = 9.sp,
                                     letterSpacing = 1.6.sp,
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                                    color = if (selected) DeskPaper else DeskInk.copy(alpha = 0.7f)
+                                    color = if (selected) MaterialTheme.ledger.deskPaper else MaterialTheme.ledger.deskInk.copy(alpha = 0.7f)
                                 )
                             )
 
@@ -169,7 +170,7 @@ fun CloudBottomNavigationBar(
                                         .padding(top = 2.dp)
                                         .size(3.dp)
                                         .clip(CircleShape)
-                                        .background(LampGlow)
+                                        .background(MaterialTheme.ledger.lampGlow)
                                 )
                             }
                         }

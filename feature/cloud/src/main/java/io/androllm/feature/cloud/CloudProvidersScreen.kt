@@ -79,6 +79,7 @@ import io.androllm.core.ui.theme.EmberRed
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Cloud Providers management screen: add/edit/delete providers, test
@@ -113,13 +114,13 @@ fun CloudProvidersScreen(
                     title = {
                         Text(
                             text = "Cloud Providers",
-                            color = DeskPaper,
+                            color = MaterialTheme.ledger.deskPaper,
                             style = MaterialTheme.typography.titleLarge
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = { navController.navigateUp() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = DeskPaper)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.ledger.deskPaper)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -128,8 +129,8 @@ fun CloudProvidersScreen(
             floatingActionButton = {
                 FloatingActionButton(
                     onClick = { formState = ProviderFormState() },
-                    containerColor = LampAmber,
-                    contentColor = DeskPaper
+                    containerColor = MaterialTheme.ledger.lampAmber,
+                    contentColor = MaterialTheme.ledger.deskPaper
                 ) {
                     Text("+", style = MaterialTheme.typography.headlineMedium)
                 }
@@ -164,7 +165,7 @@ fun CloudProvidersScreen(
                             Column {
                                 Text(
                                     text = "No providers yet",
-                                    color = DeskPaper,
+                                    color = MaterialTheme.ledger.deskPaper,
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Spacer(Modifier.height(6.dp))
@@ -172,7 +173,7 @@ fun CloudProvidersScreen(
                                     text = "Add your LiteLLM proxy URL and master key to start. " +
                                         "Model routing (OpenAI, Anthropic, Gemini, Groq, OpenRouter, Ollama, ...) " +
                                         "happens server-side — one gateway, every provider.",
-                                    color = DeskInk,
+                                    color = MaterialTheme.ledger.deskInk,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -242,7 +243,7 @@ fun CloudProvidersScreen(
                 TextButton(onClick = {
                     viewModel.deleteProvider(provider.id)
                     confirmDelete = null
-                }) { Text("Delete", color = EmberRed) }
+                }) { Text("Delete", color = MaterialTheme.ledger.emberRed) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }
@@ -265,26 +266,26 @@ private fun CloudModeCard(enabled: Boolean, onToggle: () -> Unit) {
                 modifier = Modifier
                     .size(44.dp)
                     .background(
-                        color = if (enabled) LampAmber.copy(alpha = 0.18f) else DeskHairline,
+                        color = if (enabled) MaterialTheme.ledger.lampAmber.copy(alpha = 0.18f) else MaterialTheme.ledger.deskHairline,
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (enabled) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
-                    contentDescription = null,                        tint = if (enabled) LampDeep else DeskInk
+                    contentDescription = null,                        tint = if (enabled) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                 )
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "Cloud chat mode",
-                    color = DeskPaper,
+                    color = MaterialTheme.ledger.deskPaper,
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
                     text = "Route chat through your LiteLLM proxy instead of the local GGUF engine",
-                    color = DeskInk,
+                    color = MaterialTheme.ledger.deskInk,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -321,19 +322,19 @@ private fun ProviderCard(
                 Icon(
                     imageVector = Icons.Filled.Cloud,
                     contentDescription = null,
-                    tint = if (provider.enabled) LampDeep else DeskInk,
+                    tint = if (provider.enabled) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = provider.name,
-                        color = DeskPaper,
+                        color = MaterialTheme.ledger.deskPaper,
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
                         text = provider.baseUrl,
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1
                     )
@@ -348,7 +349,7 @@ private fun ProviderCard(
                 health?.takeIf { it.latencyMs > 0 }?.let { h ->
                     Text(
                         text = "${h.latencyMs} ms",
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         style = MaterialTheme.typography.labelMedium
                     )
                     Spacer(Modifier.width(10.dp))
@@ -356,7 +357,7 @@ private fun ProviderCard(
                 provider.latencyMs.takeIf { it > 0 && health == null }?.let { latency ->
                     Text(
                         text = "$latency ms",
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         style = MaterialTheme.typography.labelMedium
                     )
                     Spacer(Modifier.width(10.dp))
@@ -364,7 +365,7 @@ private fun ProviderCard(
                 provider.quota?.remainingRequests?.let { remaining ->
                     Text(
                         text = "quota: $remaining reqs",
-                        color = if (remaining < 5) EmberRed else DeskInk,
+                        color = if (remaining < 5) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInk,
                         style = MaterialTheme.typography.labelMedium
                     )
                     Spacer(Modifier.width(10.dp))
@@ -372,7 +373,7 @@ private fun ProviderCard(
                 provider.modelIds.size.takeIf { it > 0 }?.let { count ->
                     Text(
                         text = "$count models",
-                        color = DeskInk,
+                        color = MaterialTheme.ledger.deskInk,
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -380,7 +381,7 @@ private fun ProviderCard(
                     Spacer(Modifier.width(10.dp))
                     Text(
                         text = "DEFAULT",
-                        color = LampAmber,
+                        color = MaterialTheme.ledger.lampAmber,
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -389,7 +390,7 @@ private fun ProviderCard(
             provider.lastError.takeIf { it.isNotBlank() }?.let { error ->
                 Text(
                     text = "⚠ $error",
-                    color = EmberRed,
+                    color = MaterialTheme.ledger.emberRed,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2
                 )
@@ -406,7 +407,7 @@ private fun ProviderCard(
                     icon = { if (isTesting) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            color = DeskPaper,
+                            color = MaterialTheme.ledger.deskPaper,
                             strokeWidth = 2.dp
                         )
                     } else {
@@ -420,7 +421,7 @@ private fun ProviderCard(
                     icon = { if (isRefreshing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            color = DeskPaper,
+                            color = MaterialTheme.ledger.deskPaper,
                             strokeWidth = 2.dp
                         )
                     } else {
@@ -452,7 +453,7 @@ private fun ProviderCard(
             provider.description.takeIf { it.isNotBlank() }?.let { description ->
                 Text(
                     text = description,
-                    color = DeskInk,
+                    color = MaterialTheme.ledger.deskInk,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -463,9 +464,9 @@ private fun ProviderCard(
 @Composable
 private fun StatusChip(enabled: Boolean) {
     val (bg, fg, label) = if (enabled) {
-        Triple(LampAmber.copy(alpha = 0.18f), LampGlow, "ON")
+        Triple(MaterialTheme.ledger.lampAmber.copy(alpha = 0.18f), MaterialTheme.ledger.lampGlow, "ON")
     } else {
-        Triple(DeskHairline, DeskInk, "OFF")
+        Triple(MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskInk, "OFF")
     }
     Box(
         modifier = Modifier
@@ -486,14 +487,14 @@ private fun StatusChip(enabled: Boolean) {
 @Composable
 private fun HealthChip(health: CloudHealth?, provider: CloudProvider) {
     val (bg, fg, label) = when {
-        health == null -> Triple(DeskHairline, DeskInk, "—")
+        health == null -> Triple(MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskInk, "—")
         health.supportsHealthEndpoints -> when {
-            health.alive && health.ready -> Triple(LampGlow.copy(alpha = 0.15f), LampGlow, "LIVE")
-            health.alive -> Triple(LampAmber.copy(alpha = 0.15f), LampAmber, "DEGRADED")
-            else -> Triple(EmberRed.copy(alpha = 0.15f), EmberRed, "DOWN")
+            health.alive && health.ready -> Triple(MaterialTheme.ledger.lampGlow.copy(alpha = 0.15f), MaterialTheme.ledger.lampGlow, "LIVE")
+            health.alive -> Triple(MaterialTheme.ledger.lampAmber.copy(alpha = 0.15f), MaterialTheme.ledger.lampAmber, "DEGRADED")
+            else -> Triple(MaterialTheme.ledger.emberRed.copy(alpha = 0.15f), MaterialTheme.ledger.emberRed, "DOWN")
         }
-        health.reachable -> Triple(LampGlow.copy(alpha = 0.15f), LampGlow, "REACHABLE")
-        else -> Triple(EmberRed.copy(alpha = 0.15f), EmberRed, "DOWN")
+        health.reachable -> Triple(MaterialTheme.ledger.lampGlow.copy(alpha = 0.15f), MaterialTheme.ledger.lampGlow, "REACHABLE")
+        else -> Triple(MaterialTheme.ledger.emberRed.copy(alpha = 0.15f), MaterialTheme.ledger.emberRed, "DOWN")
     }
     Box(
         modifier = Modifier
@@ -516,10 +517,10 @@ private fun ActionButton(
         onClick = onClick,
         enabled = enabled,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (destructive) EmberRed.copy(alpha = 0.16f) else DeskHairline,
-            contentColor = if (destructive) EmberRed else DeskPaper,
-            disabledContainerColor = DeskHairline.copy(alpha = 0.5f),
-            disabledContentColor = DeskInkFaint
+            containerColor = if (destructive) MaterialTheme.ledger.emberRed.copy(alpha = 0.16f) else MaterialTheme.ledger.deskHairline,
+            contentColor = if (destructive) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskPaper,
+            disabledContainerColor = MaterialTheme.ledger.deskHairline.copy(alpha = 0.5f),
+            disabledContentColor = MaterialTheme.ledger.deskInkFaint
         ),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
     ) {
@@ -631,7 +632,7 @@ private fun ProviderFormDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 error?.let {
-                    Text(text = it, color = EmberRed, style = MaterialTheme.typography.bodySmall)
+                    Text(text = it, color = MaterialTheme.ledger.emberRed, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -643,7 +644,7 @@ private fun ProviderFormDialog(
                         error = "URL must start with http:// or https://"
                     else -> onSave(name, baseUrl.trim(), apiKey, apiKeyHeader, headersText, description, tagsText)
                 }
-            }) { Text("Save", color = LampAmber) }
+            }) { Text("Save", color = MaterialTheme.ledger.lampAmber) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

@@ -11,6 +11,7 @@ import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.UiState
 import io.androllm.core.common.onError
 import io.androllm.core.common.onSuccess
+import io.androllm.core.datastore.PreferencesDataStore
 import io.androllm.core.database.repository.SettingsRepository
 import io.androllm.core.memory.MemoryManager
 import io.androllm.core.memory.model.MemoryInspectorStats
@@ -46,8 +47,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -60,6 +64,7 @@ import io.androllm.core.voice.wakeword.WakeWordEngine
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
+    private val preferencesDataStore: PreferencesDataStore,
     private val memoryManager: MemoryManager,
     private val cloudGateway: io.androllm.core.cloud.CloudGateway,
     private val attachmentSettingsStore: io.androllm.core.attachments.AttachmentSettingsStore,
@@ -351,6 +356,17 @@ class SettingsViewModel @Inject constructor(
 
     init {
         observeSettings()
+        // Also observe DataStore theme directly for immediate UI updates
+        viewModelScope.launch {
+            preferencesDataStore.theme.distinctUntilChanged().collect { theme ->
+                _uiState.update { old ->
+                    when (old) {
+                        is UiState.Success -> old.copy(data = old.data.copy(theme = theme))
+                        else -> old
+                    }
+                }
+            }
+        }
         refreshLogPreview()
         auth?.addAuthStateListener(authListener)
         observeMemorySettings()
@@ -430,13 +446,17 @@ class SettingsViewModel @Inject constructor(
      */
     fun cycleTheme() {
         viewModelScope.launch {
-            val current = (_uiState.value as? UiState.Success)?.data?.theme ?: ThemeMode.SYSTEM
+            // Read current theme directly from DataStore to avoid stale UI state
+            val current = preferencesDataStore.theme.first()
             val next = when (current) {
                 ThemeMode.SYSTEM -> ThemeMode.LIGHT
                 ThemeMode.LIGHT -> ThemeMode.DARK
                 ThemeMode.DARK -> ThemeMode.SYSTEM
+                else -> ThemeMode.SYSTEM
             }
-            settingsRepository.updateTheme(next)
+            settingsRepository.updateTheme(next).onSuccess { _ ->
+                preferencesDataStore.setTheme(next)
+            }
         }
     }
 

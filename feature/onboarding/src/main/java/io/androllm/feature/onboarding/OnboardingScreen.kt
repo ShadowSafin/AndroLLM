@@ -44,6 +44,7 @@ import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
 import kotlin.math.abs
+import io.androllm.core.ui.theme.ledger
 
 /**
  * The five-page Writer's Night Desk introduction.
@@ -91,7 +92,7 @@ fun OnboardingScreen(
                     TextButton(onClick = { viewModel.complete(onFinished) }) {
                         Text(
                             text = stringResource(R.string.onboarding_skip),
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     }
                 }
@@ -135,7 +136,7 @@ fun OnboardingScreen(
                         }
                     },
                     gradient = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                        listOf(LampAmber, LampGlow)
+                        listOf(MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampGlow)
                     ),
                     modifier = Modifier.width(150.dp)
                 )
@@ -189,7 +190,7 @@ private fun OnboardingPage(
             text = title,
             style = MaterialTheme.typography.headlineLarge.copy(
                 fontWeight = FontWeight.ExtraBold,
-                color = DeskPaper
+                color = MaterialTheme.ledger.deskPaper
             ),
             textAlign = TextAlign.Center
         )
@@ -199,7 +200,7 @@ private fun OnboardingPage(
         Text(
             text = subtitle,
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = DeskInk,
+                color = MaterialTheme.ledger.deskInk,
                 lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.25f
             ),
             textAlign = TextAlign.Center
@@ -243,7 +244,7 @@ private fun OnboardingDots(
                     .width(width)
                     .clip(CircleShape)
                     .background(
-                        if (active) LampDeep else DeskInkFaint.copy(alpha = 0.4f)
+                        if (active) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.4f)
                     )
             )
         }

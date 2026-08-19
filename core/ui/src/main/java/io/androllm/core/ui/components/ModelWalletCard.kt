@@ -50,6 +50,7 @@ import io.androllm.core.ui.theme.DeskWalnut
 import io.androllm.core.ui.theme.DeskWalnutRaised
 import io.androllm.core.ui.theme.InkOnLamp
 import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.ledger
 
 /**
  * The lettered index card — a model as an entry in the desk's own ledger.
@@ -83,12 +84,12 @@ fun ModelWalletCard(
                 elevation = if (isActive) 14.dp else 8.dp,
                 shape = DeskCardShape,
                 ambientColor = Color(0x66000000),
-                spotColor = if (isActive) LampAmber.copy(alpha = 0.18f) else Color(0x88000000)
+                spotColor = if (isActive) MaterialTheme.ledger.lampAmber.copy(alpha = 0.18f) else Color(0x88000000)
             )
-            .background(if (isActive) DeskWalnutRaised else DeskWalnut)
+            .background(if (isActive) MaterialTheme.ledger.deskWalnutRaised else MaterialTheme.ledger.deskWalnut)
             .border(
                 width = if (isActive) 1.dp else 1.dp,
-                color = if (isActive) LampAmber.copy(alpha = 0.65f) else DeskHairline,
+                color = if (isActive) MaterialTheme.ledger.lampAmber.copy(alpha = 0.65f) else MaterialTheme.ledger.deskHairline,
                 shape = DeskCardShape
             )
             .clickable {
@@ -112,7 +113,7 @@ fun ModelWalletCard(
                         Text(
                             text = model.name,
                             style = MaterialTheme.typography.titleMedium.copy(
-                                color = DeskPaper
+                                color = MaterialTheme.ledger.deskPaper
                             ),
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -121,7 +122,7 @@ fun ModelWalletCard(
                             text = "${model.parameters.ifBlank { "7B" }} · ${model.quantization.ifBlank { "Q4_K_M" }}",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 1.sp,
-                                color = if (isActive) LampAmber else DeskInk
+                                color = if (isActive) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInk
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -136,7 +137,7 @@ fun ModelWalletCard(
                         Text(
                             text = "LOADED",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = LampAmber
+                                color = MaterialTheme.ledger.lampAmber
                             )
                         )
                     }
@@ -151,7 +152,7 @@ fun ModelWalletCard(
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
                                     contentDescription = "More options",
-                                    tint = DeskInk
+                                    tint = MaterialTheme.ledger.deskInk
                                 )
                             }
                             DropdownMenu(
@@ -189,7 +190,7 @@ fun ModelWalletCard(
                     text = if (isActive) "LOADED · in memory" else if (isDownloaded) "INSTALLED · on device" else "NOT DOWNLOADED",
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 1.2.sp,
-                        color = if (isActive) LampAmber else DeskInkFaint
+                        color = if (isActive) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -222,14 +223,14 @@ private fun ModelSpecPill(label: String, value: String) {
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(ParchmentInset)
-            .border(1.dp, DeskHairline, RoundedCornerShape(10.dp))
+            .border(1.dp, MaterialTheme.ledger.deskHairline, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Text(
             text = "$label $value",
             style = MaterialTheme.typography.labelSmall.copy(
                 letterSpacing = 0.8.sp,
-                color = DeskInk
+                color = MaterialTheme.ledger.deskInk
             ),
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

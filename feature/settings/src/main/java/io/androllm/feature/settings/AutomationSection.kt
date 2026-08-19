@@ -42,6 +42,7 @@ import io.androllm.core.ui.theme.DeskInkFaint
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * "Automation" — per-tool permission management for the tool-calling
@@ -76,7 +77,7 @@ fun AutomationSection(
             )
 
             if (settings.toolCallingEnabled) {
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
 
                 // Confirmation mode
                 Row(
@@ -86,13 +87,13 @@ fun AutomationSection(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Filled.Rule, contentDescription = null, tint = LampGlow, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.Rule, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Confirmations", style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
+                        Text("Confirmations", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
                         Text(
                             "Which actions require your approval",
                             style = MaterialTheme.typography.bodySmall,
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     }
                 }
@@ -107,26 +108,26 @@ fun AutomationSection(
                     ) {
                         Text(
                             text = if (settings.confirmationMode == mode) "●" else "○",
-                            color = if (settings.confirmationMode == mode) LampAmber else DeskInkFaint,
+                            color = if (settings.confirmationMode == mode) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 mode.displayName,
                                 style = MaterialTheme.typography.bodySmall.copy(
-                                    color = if (settings.confirmationMode == mode) DeskPaper else DeskInk,
+                                    color = if (settings.confirmationMode == mode) MaterialTheme.ledger.deskPaper else MaterialTheme.ledger.deskInk,
                                     fontWeight = if (settings.confirmationMode == mode) FontWeight.Medium else FontWeight.Normal
                                 )
                             )
                             Text(
                                 mode.description,
-                                style = MaterialTheme.typography.bodySmall.copy(color = DeskInkFaint)
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint)
                             )
                         }
                     }
                 }
 
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
 
                 AutoToggleRow(
                     icon = Icons.Filled.Mic,
@@ -136,7 +137,7 @@ fun AutomationSection(
                     onCheckedChange = { onUpdate(settings.copy(voiceConfirmations = it)) }
                 )
 
-                HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
 
                 // Device permissions the tools need at the Android level
                 if (missingDevicePermissions.isNotEmpty()) {
@@ -147,13 +148,13 @@ fun AutomationSection(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Filled.Lock, contentDescription = null, tint = LampGlow, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.Lock, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Device permissions", style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
+                            Text("Device permissions", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
                             Text(
                                 "Some tools need system permissions before they can run",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = DeskInk
+                                color = MaterialTheme.ledger.deskInk
                             )
                         }
                     }
@@ -167,19 +168,19 @@ fun AutomationSection(
                         ) {
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.bodySmall.copy(color = DeskPaper),
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskPaper),
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
                                 text = "Not granted",
-                                style = MaterialTheme.typography.labelSmall.copy(color = LampAmber)
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.lampAmber)
                             )
                             TextButton(onClick = { onRequestPermissions(perms) }) {
-                                Text("Grant", color = LampGlow)
+                                Text("Grant", color = MaterialTheme.ledger.lampGlow)
                             }
                         }
                     }
-                    HorizontalDivider(color = DeskInkFaint.copy(alpha = 0.15f))
+                    HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
                 }
 
                 // Per-tool toggles grouped by category
@@ -189,7 +190,7 @@ fun AutomationSection(
                         Text(
                             text = category.displayName.uppercase(),
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = DeskInkFaint,
+                                color = MaterialTheme.ledger.deskInkFaint,
                                 fontWeight = FontWeight.Bold
                             ),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -218,7 +219,7 @@ fun AutomationSection(
             } else {
                 Text(
                     text = "Enable Tool Calling to manage per-tool permissions.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = DeskInk),
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
@@ -253,13 +254,13 @@ private fun AutoToggleRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = LampGlow, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, color = DeskPaper)
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskPaper)
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = DeskInk,
+                color = MaterialTheme.ledger.deskInk,
                 maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
@@ -267,7 +268,7 @@ private fun AutoToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = LampAmber)
+            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
         )
     }
 }

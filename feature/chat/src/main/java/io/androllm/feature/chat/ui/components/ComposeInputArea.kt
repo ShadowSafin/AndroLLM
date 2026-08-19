@@ -56,6 +56,7 @@ import io.androllm.core.ui.theme.DeskWalnutRaised
 import io.androllm.core.ui.theme.EmberRed
 import io.androllm.core.ui.theme.InkOnLamp
 import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.ledger
 
 /**
  * The writing slip — the desk's composer. A parchment panel with a ruled
@@ -112,8 +113,8 @@ fun ComposeInputArea(
             .imePadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         shape = DeskSlipShape,
-        color = DeskWalnutRaised,
-        border = BorderStroke(1.dp, if (text.isNotEmpty()) LampAmber.copy(alpha = 0.45f) else DeskHairline),
+        color = MaterialTheme.ledger.deskWalnutRaised,
+        border = BorderStroke(1.dp, if (text.isNotEmpty()) MaterialTheme.ledger.lampAmber.copy(alpha = 0.45f) else MaterialTheme.ledger.deskHairline),
         shadowElevation = 10.dp
     ) {
         Column(
@@ -137,7 +138,7 @@ fun ComposeInputArea(
                         Icon(
                             imageVector = Icons.Default.AttachFile,
                             contentDescription = "Attach file",
-                            tint = DeskInk
+                            tint = MaterialTheme.ledger.deskInk
                         )
                     }
                     DropdownMenu(
@@ -206,7 +207,7 @@ fun ComposeInputArea(
                         Text(
                             text = "Send a message…",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = DeskInkFaint
+                                color = MaterialTheme.ledger.deskInkFaint
                             )
                         )
                     },
@@ -225,7 +226,7 @@ fun ComposeInputArea(
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Clear input",
-                                    tint = DeskInk
+                                    tint = MaterialTheme.ledger.deskInk
                                 )
                             }
                         }
@@ -236,9 +237,9 @@ fun ComposeInputArea(
                         disabledBorderColor = Color.Transparent,
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
-                        focusedTextColor = DeskPaper,
-                        unfocusedTextColor = DeskPaper,
-                        cursorColor = LampAmber
+                        focusedTextColor = MaterialTheme.ledger.deskPaper,
+                        unfocusedTextColor = MaterialTheme.ledger.deskPaper,
+                        cursorColor = MaterialTheme.ledger.lampAmber
                     )
                 )
 
@@ -253,7 +254,7 @@ fun ComposeInputArea(
                         Icon(
                             imageVector = Icons.Default.Mic,
                             contentDescription = "Voice input",
-                            tint = DeskInk
+                            tint = MaterialTheme.ledger.deskInk
                         )
                     }
                 }
@@ -265,9 +266,9 @@ fun ComposeInputArea(
                         .clip(CircleShape)
                         .background(
                             when {
-                                isGenerating -> EmberRed
-                                text.isNotBlank() -> LampAmber
-                                else -> DeskInkFaint.copy(alpha = 0.5f)
+                                isGenerating -> MaterialTheme.ledger.emberRed
+                                text.isNotBlank() -> MaterialTheme.ledger.lampAmber
+                                else -> MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.5f)
                             }
                         ),
                     contentAlignment = Alignment.Center
@@ -291,14 +292,14 @@ fun ComposeInputArea(
                                 Icon(
                                     imageVector = Icons.Default.Stop,
                                     contentDescription = "Stop generating",
-                                    tint = InkOnLamp,
+                                    tint = MaterialTheme.ledger.inkOnLamp,
                                     modifier = Modifier.size(20.dp)
                                 )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Send,
                                     contentDescription = "Send message",
-                                    tint = if (text.isNotBlank()) InkOnLamp else DeskInk,
+                                    tint = if (text.isNotBlank()) MaterialTheme.ledger.inkOnLamp else MaterialTheme.ledger.deskInk,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -311,7 +312,7 @@ fun ComposeInputArea(
                 Text(
                     text = "${text.length} / $maxCharacterLimit",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (text.length >= maxCharacterLimit) EmberRed else DeskInk,
+                    color = if (text.length >= maxCharacterLimit) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInk,
                     modifier = Modifier
                         .align(Alignment.End)
                         .padding(end = 16.dp, top = 2.dp)

@@ -58,6 +58,7 @@ import io.androllm.core.ui.theme.InkOnLamp
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.LampHalo
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Backward compatible wrapper for the desk background.
@@ -78,7 +79,7 @@ fun GradientBackground(
 fun CloudGlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    borderColor: Color = DeskHairline,
+    borderColor: Color = MaterialTheme.ledger.deskHairline,
     contentPadding: PaddingValues = PaddingValues(20.dp),
     content: @Composable () -> Unit
 ) {
@@ -114,8 +115,8 @@ fun CloudGlassCard(
                 }
             },
         shape = DeskCardShape,
-        color = DeskWalnut,
-        border = BorderStroke(1.dp, if (isPressed) LampAmber.copy(alpha = 0.65f) else borderColor)
+        color = MaterialTheme.ledger.deskWalnut,
+        border = BorderStroke(1.dp, if (isPressed) MaterialTheme.ledger.lampAmber.copy(alpha = 0.65f) else borderColor)
     ) {
         Box(
             modifier = Modifier.padding(contentPadding)
@@ -154,16 +155,16 @@ fun CloudCapsuleButton(
             .clip(DeskPillShape)
             .background(
                 when {
-                    !enabled -> DeskHairlineSoft
-                    isPressed -> LampAmber.copy(alpha = 0.85f)
-                    else -> LampAmber
+                    !enabled -> MaterialTheme.ledger.deskHairlineSoft
+                    isPressed -> MaterialTheme.ledger.lampAmber.copy(alpha = 0.85f)
+                    else -> MaterialTheme.ledger.lampAmber
                 }
             )
             .shadow(
                 elevation = if (enabled) 6.dp else 0.dp,
                 shape = DeskPillShape,
                 ambientColor = Color(0x1F141413),
-                spotColor = LampAmber.copy(alpha = 0.3f)
+                spotColor = MaterialTheme.ledger.lampAmber.copy(alpha = 0.3f)
             )
             .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 24.dp, vertical = 14.dp),
@@ -177,7 +178,7 @@ fun CloudCapsuleButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (enabled) InkOnLamp else DeskInkFaint,
+                    tint = if (enabled) MaterialTheme.ledger.inkOnLamp else MaterialTheme.ledger.deskInkFaint,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -186,7 +187,7 @@ fun CloudCapsuleButton(
                 text = text,
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = if (enabled) InkOnLamp else DeskInk.copy(alpha = 0.6f)
+                    color = if (enabled) MaterialTheme.ledger.inkOnLamp else MaterialTheme.ledger.deskInk.copy(alpha = 0.6f)
                 )
             )
         }
@@ -229,7 +230,7 @@ fun SectionCard(
 fun CloudChip(
     text: String,
     modifier: Modifier = Modifier,
-    accentColor: Color = LampAmber,
+    accentColor: Color = MaterialTheme.ledger.lampAmber,
     icon: ImageVector? = null
 ) {
     Surface(
@@ -280,7 +281,7 @@ fun SectionHeader(
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -291,7 +292,7 @@ fun SectionHeader(
                     text = subtitle.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
                         letterSpacing = 1.4.sp,
-                        color = DeskInk
+                        color = MaterialTheme.ledger.deskInk
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -331,14 +332,14 @@ fun EmptyState(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(DeskWalnutDeep)
+                    .background(MaterialTheme.ledger.deskWalnutDeep)
                     .shadow(4.dp, CircleShape, ambientColor = Color(0x1F141413)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = LampAmber,
+                    tint = MaterialTheme.ledger.lampAmber,
                     modifier = Modifier.size(32.dp)
                 )
             }
@@ -346,7 +347,7 @@ fun EmptyState(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge.copy(
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 ),
                 textAlign = TextAlign.Center
             )
@@ -355,7 +356,7 @@ fun EmptyState(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = DeskInk
+                        color = MaterialTheme.ledger.deskInk
                     ),
                     textAlign = TextAlign.Center
                 )
@@ -378,8 +379,8 @@ fun LoadingIndicator(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator(
-            color = LampAmber,
-            trackColor = DeskHairline,
+            color = MaterialTheme.ledger.lampAmber,
+            trackColor = MaterialTheme.ledger.deskHairline,
             strokeWidth = 3.dp,
             modifier = Modifier.padding(24.dp).size(36.dp)
         )
@@ -400,7 +401,7 @@ fun DeskWordmark(
         style = MaterialTheme.typography.headlineMedium.copy(
             fontWeight = FontWeight.SemiBold,
             fontSize = size.value.sp,
-            color = DeskPaper
+            color = MaterialTheme.ledger.deskPaper
         )
     )
 }
@@ -427,11 +428,11 @@ fun LampDot(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(LampHalo.copy(alpha = glow * 0.55f))
+            .background(MaterialTheme.ledger.lampHalo.copy(alpha = glow * 0.55f))
             .shadow(
                 elevation = if (lit) 6.dp else 0.dp,
                 shape = CircleShape,
-                spotColor = LampAmber.copy(alpha = 0.5f)
+                spotColor = MaterialTheme.ledger.lampAmber.copy(alpha = 0.5f)
             )
             .padding(2.dp)
     ) {
@@ -439,7 +440,7 @@ fun LampDot(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
-                .background(if (lit) LampGlow else DeskInkFaint)
+                .background(if (lit) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInkFaint)
         )
     }
 }

@@ -85,6 +85,7 @@ import io.androllm.feature.chat.ui.markdown.MarkdownRenderer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import io.androllm.core.ui.theme.ledger
 
 /**
  * An adaptive message card — the living page of the conversation.
@@ -172,13 +173,13 @@ fun MessageCard(
         RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 6.dp)
     }
 
-    val selectionTint = if (selected) LampAmber.copy(alpha = 0.12f) else Color.Transparent
+    val selectionTint = if (selected) MaterialTheme.ledger.lampAmber.copy(alpha = 0.12f) else Color.Transparent
 
     val bgColor = if (isUser) {
-        DeskWalnutRaised
+        MaterialTheme.ledger.deskWalnutRaised
     } else {
         // Glass tint: the parchment shows through the card.
-        DeskWalnut.copy(alpha = 0.66f)
+        MaterialTheme.ledger.deskWalnut.copy(alpha = 0.66f)
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -212,7 +213,7 @@ fun MessageCard(
                         style = MaterialTheme.typography.labelSmall.copy(
                             letterSpacing = 1.8.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (isUser) LampDeep else DeskInk
+                            color = if (isUser) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                         )
                     )
                     if (formattedTime.isNotEmpty()) {
@@ -220,7 +221,7 @@ fun MessageCard(
                             text = formattedTime,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 letterSpacing = 1.1.sp,
-                                color = DeskInkFaint
+                                color = MaterialTheme.ledger.deskInkFaint
                             )
                         )
                     }
@@ -231,7 +232,7 @@ fun MessageCard(
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = "Bookmarked",
-                            tint = LampDeep.copy(alpha = 0.9f),
+                            tint = MaterialTheme.ledger.lampDeep.copy(alpha = 0.9f),
                             modifier = Modifier.size(12.dp)
                         )
                     }
@@ -242,7 +243,7 @@ fun MessageCard(
                     color = bgColor,
                     border = BorderStroke(
                         width = if (selected) 1.5.dp else 1.dp,
-                        color = if (selected) LampAmber else DeskHairline
+                        color = if (selected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskHairline
                     ),
                     shadowElevation = if (selected) 4.dp else 1.dp,
                     modifier = Modifier
@@ -275,7 +276,7 @@ fun MessageCard(
                                     Column(modifier = Modifier.weight(1f)) {
                                         MarkdownRenderer(
                                             markdownText = displayContent,
-                                            textColor = DeskPaper,
+                                            textColor = MaterialTheme.ledger.deskPaper,
                                             codeWrapping = codeWrapping
                                         )
                                     }
@@ -286,7 +287,7 @@ fun MessageCard(
                                     text = if (isStreaming) displayContent else message.content,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         lineHeight = 22.sp,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                             }
@@ -300,7 +301,7 @@ fun MessageCard(
                                     Text(
                                         text = if (expanded) "Show less" else "Read more",
                                         style = MaterialTheme.typography.labelMedium.copy(
-                                            color = LampDeep,
+                                            color = MaterialTheme.ledger.lampDeep,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     )
@@ -324,7 +325,7 @@ fun MessageCard(
                                     Text(
                                         text = "This conversation contains cloud-only attachments. Switch to a cloud model to use them.",
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            color = DeskInkFaint
+                                            color = MaterialTheme.ledger.deskInkFaint
                                         )
                                     )
                                 }
@@ -341,30 +342,30 @@ fun MessageCard(
                             modifier = Modifier.padding(top = 5.dp, start = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            CardIconButton(Icons.Default.Stop, "Stop", LampDeep) { onStop() }
+                            CardIconButton(Icons.Default.Stop, "Stop", MaterialTheme.ledger.lampDeep) { onStop() }
                         }
                     } else {
                         Row(
                             modifier = Modifier.padding(top = 5.dp, start = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            CardIconButton(Icons.Default.ContentCopy, "Copy", DeskInkFaint) {
+                            CardIconButton(Icons.Default.ContentCopy, "Copy", MaterialTheme.ledger.deskInkFaint) {
                                 copyToClipboard(context, message.content, "Copied text")
                             }
                             if (isUser) {
-                                CardIconButton(Icons.Default.Edit, "Edit prompt", DeskInkFaint) { onEditPrompt() }
+                                CardIconButton(Icons.Default.Edit, "Edit prompt", MaterialTheme.ledger.deskInkFaint) { onEditPrompt() }
                             } else {
-                                CardIconButton(Icons.Default.Refresh, "Regenerate", DeskInkFaint) { onRegenerate() }
+                                CardIconButton(Icons.Default.Refresh, "Regenerate", MaterialTheme.ledger.deskInkFaint) { onRegenerate() }
                                 CardIconButton(
                                     if (message.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                     if (message.isBookmarked) "Remove bookmark" else "Bookmark",
-                                    if (message.isBookmarked) LampDeep else DeskInkFaint
+                                    if (message.isBookmarked) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInkFaint
                                 ) { onBookmarkToggle() }
-                                CardIconButton(Icons.Default.Share, "Share", DeskInkFaint) {
+                                CardIconButton(Icons.Default.Share, "Share", MaterialTheme.ledger.deskInkFaint) {
                                     ConversationSharer.shareSingleMessage(context, message.content)
                                 }
                             }
-                            CardIconButton(Icons.Default.Delete, "Delete", DeskInkFaint) { onDelete() }
+                            CardIconButton(Icons.Default.Delete, "Delete", MaterialTheme.ledger.deskInkFaint) { onDelete() }
                         }
                     }
                 }
@@ -379,7 +380,7 @@ fun MessageCard(
                     .height(1.dp)
                     .background(
                         androidx.compose.ui.graphics.Brush.horizontalGradient(
-                            listOf(Color.Transparent, DeskHairlineSoft, Color.Transparent)
+                            listOf(Color.Transparent, MaterialTheme.ledger.deskHairlineSoft, Color.Transparent)
                         )
                     )
             )
@@ -392,12 +393,12 @@ fun MessageCard(
 @Composable
 private fun BackendBadge(cloudMode: Boolean) {
     val label = if (cloudMode) "CLOUD" else "LOCAL"
-    val fg = if (cloudMode) LampDeep else DeskInk
-    val bg = if (cloudMode) LampAmber.copy(alpha = 0.14f) else DeskWalnutRaised.copy(alpha = 0.8f)
+    val fg = if (cloudMode) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
+    val bg = if (cloudMode) MaterialTheme.ledger.lampAmber.copy(alpha = 0.14f) else MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.8f)
     Surface(
         shape = RoundedCornerShape(999.dp),
         color = bg,
-        border = BorderStroke(0.5.dp, if (cloudMode) LampAmber.copy(alpha = 0.5f) else DeskHairline)
+        border = BorderStroke(0.5.dp, if (cloudMode) MaterialTheme.ledger.lampAmber.copy(alpha = 0.5f) else MaterialTheme.ledger.deskHairline)
     ) {
         Text(
             text = label,
@@ -430,7 +431,7 @@ private fun BlinkingCursor(modifier: Modifier = Modifier) {
             .padding(start = 3.dp, bottom = 3.dp)
             .size(width = 3.dp, height = 16.dp)
             .graphicsLayer { this.alpha = alpha.value }
-            .background(LampDeep, RoundedCornerShape(1.5.dp))
+            .background(MaterialTheme.ledger.lampDeep, RoundedCornerShape(1.5.dp))
     )
 }
 
@@ -472,10 +473,10 @@ private fun AttachmentCards(
         attachments.forEach { attachment ->
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (enabled) DeskWalnutRaised.copy(alpha = 0.8f) else DeskWalnutRaised.copy(alpha = 0.45f),
+                color = if (enabled) MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.8f) else MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.45f),
                 border = BorderStroke(
                     0.5.dp,
-                    if (attachment.isFailed) EmberRed.copy(alpha = 0.5f) else DeskHairline
+                    if (attachment.isFailed) MaterialTheme.ledger.emberRed.copy(alpha = 0.5f) else MaterialTheme.ledger.deskHairline
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -498,7 +499,7 @@ private fun AttachmentCards(
                         Text(
                             text = attachment.name,
                             style = MaterialTheme.typography.labelMedium.copy(
-                                color = DeskPaper,
+                                color = MaterialTheme.ledger.deskPaper,
                                 fontWeight = FontWeight.SemiBold
                             ),
                             maxLines = 1,
@@ -511,7 +512,7 @@ private fun AttachmentCards(
                                 else -> attachment.label.substringAfter(" · ")
                             },
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (attachment.isFailed) EmberRed else DeskInkFaint
+                                color = if (attachment.isFailed) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInkFaint
                             )
                         )
                     }
@@ -519,7 +520,7 @@ private fun AttachmentCards(
                         Text(
                             text = attachment.type.label,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = LampDeep,
+                                color = MaterialTheme.ledger.lampDeep,
                                 fontWeight = FontWeight.Bold
                             )
                         )

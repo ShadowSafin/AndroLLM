@@ -40,6 +40,7 @@ import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.DeskSlipShape
 import io.androllm.core.ui.theme.DeskWalnutRaised
 import io.androllm.core.ui.theme.LampAmber
+import io.androllm.core.ui.theme.ledger
 
 /**
  * The blank page — the desk at the start of a letter. A serif prompt and the
@@ -70,7 +71,7 @@ fun NewChatEmptyState(
         Text(
             text = "Ready when you are.",
             style = MaterialTheme.typography.headlineSmall.copy(
-                color = DeskPaper
+                color = MaterialTheme.ledger.deskPaper
             ),
             textAlign = TextAlign.Center
         )
@@ -78,7 +79,7 @@ fun NewChatEmptyState(
         Text(
             text = "Everything stays on your device — nothing is uploaded. Write below, or take one of these lines.",
             style = MaterialTheme.typography.bodyMedium.copy(
-                color = DeskInk
+                color = MaterialTheme.ledger.deskInk
             ),
             textAlign = TextAlign.Center
         )
@@ -93,8 +94,8 @@ fun NewChatEmptyState(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(18.dp))
-                        .background(DeskWalnutRaised)
-                        .border(1.dp, DeskHairline, RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.ledger.deskWalnutRaised)
+                        .border(1.dp, MaterialTheme.ledger.deskHairline, RoundedCornerShape(18.dp))
                         .clickable { onSuggestionClick(suggestion) }
                         .padding(horizontal = 14.dp, vertical = 9.dp)
                 ) {
@@ -102,7 +103,7 @@ fun NewChatEmptyState(
                         text = suggestion.uppercase(),
                         style = MaterialTheme.typography.labelSmall.copy(
                             letterSpacing = 0.6.sp,
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
                 }
@@ -125,8 +126,8 @@ fun NoModelLoadedCard(
             .fillMaxWidth()
             .padding(16.dp)
             .clip(DeskSlipShape)
-            .background(DeskWalnutRaised)
-            .border(1.dp, io.androllm.core.ui.theme.EmberRed.copy(alpha = 0.5f), DeskSlipShape)
+            .background(MaterialTheme.ledger.deskWalnutRaised)
+            .border(1.dp, MaterialTheme.ledger.emberRed.copy(alpha = 0.5f), DeskSlipShape)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -138,13 +139,13 @@ fun NoModelLoadedCard(
                 Text(
                     text = "No Model Loaded",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Text(
                     text = "Load a model to start chatting.",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = DeskInk
+                        color = MaterialTheme.ledger.deskInk
                     )
                 )
             }

@@ -71,6 +71,7 @@ import io.androllm.feature.home.R
 import io.androllm.feature.home.ui.components.ChatActivityCard
 import java.util.Calendar
 import kotlin.math.roundToInt
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Parchment Ledger — Home. Every metric is real runtime telemetry from
@@ -107,13 +108,13 @@ fun HomeScreen(
                                     text = stringResource(R.string.home_title),
                                     style = MaterialTheme.typography.titleLarge.copy(
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = DeskPaper
+                                        color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
                                 Text(
                                     text = greetingForTimeOfDay(),
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        color = LampDeep,
+                                        color = MaterialTheme.ledger.lampDeep,
                                         fontWeight = FontWeight.SemiBold,
                                         letterSpacing = 0.8.sp
                                     )
@@ -126,7 +127,7 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Filled.Settings,
                                 contentDescription = stringResource(R.string.action_settings),
-                                tint = DeskPaperDim
+                                tint = MaterialTheme.ledger.deskPaperDim
                             )
                         }
                     },
@@ -206,7 +207,7 @@ fun HomeScreen(
                         trailing = {
                     CloudChip(
                         text = "100% Offline",
-                        accentColor = LampDeep
+                        accentColor = MaterialTheme.ledger.lampDeep
                     )
                         }
                     )
@@ -260,9 +261,9 @@ private fun ModelStatusIsland(
                             else -> "No Model Active"
                         },
                         accentColor = when {
-                            telemetry.isGenerating -> LampDeep
-                            telemetry.isModelLoaded -> LampDeep
-                            else -> DeskInk
+                            telemetry.isGenerating -> MaterialTheme.ledger.lampDeep
+                            telemetry.isModelLoaded -> MaterialTheme.ledger.lampDeep
+                            else -> MaterialTheme.ledger.deskInk
                         },
                         icon = Icons.Filled.Memory
                     )
@@ -277,7 +278,7 @@ private fun ModelStatusIsland(
                     },
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = DeskPaper
+                        color = MaterialTheme.ledger.deskPaper
                     )
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -288,14 +289,14 @@ private fun ModelStatusIsland(
                         "Tap to explore model catalog & download"
                     },
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = DeskInk
+                        color = MaterialTheme.ledger.deskInk
                     )
                 )
             }
             Icon(
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
-                tint = if (telemetry.isModelLoaded) LampGlow else DeskInkFaint,
+                tint = if (telemetry.isModelLoaded) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInkFaint,
                 modifier = Modifier.size(40.dp)
             )
         }
@@ -319,7 +320,7 @@ private fun SystemStatusRow(telemetry: HomeTelemetry) {
                     "—"
                 },
                 fraction = storage?.storageFreeFraction ?: 0f,
-                accent = LampDeep
+                accent = MaterialTheme.ledger.lampDeep
             )
         }
         CloudGlassCard(modifier = Modifier.weight(1f)) {
@@ -332,7 +333,7 @@ private fun SystemStatusRow(telemetry: HomeTelemetry) {
                     "Idle — load a model"
                 },
                 fraction = if (telemetry.isModelLoaded) 1f else 0f,
-                accent = if (telemetry.vulkanSupported) LampGlow else LampDeep
+                accent = if (telemetry.vulkanSupported) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampDeep
             )
         }
     }
@@ -359,7 +360,7 @@ private fun StatusMiniCard(
                 text = title,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    color = DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 )
             )
         }
@@ -368,7 +369,7 @@ private fun StatusMiniCard(
             text = value,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.SemiBold,
-                color = DeskPaper
+                color = MaterialTheme.ledger.deskPaper
             )
         )
         Spacer(modifier = Modifier.height(10.dp))
@@ -408,7 +409,7 @@ private fun QuickActionsRow(
             CloudCapsuleButton(
                 text = stringResource(R.string.action_browse_models),
                 onClick = onBrowseModels,
-                gradient = Brush.horizontalGradient(listOf(LampGlow.copy(alpha = 0.2f), LampAmber.copy(alpha = 0.45f))),
+                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.2f), MaterialTheme.ledger.lampAmber.copy(alpha = 0.45f))),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -420,14 +421,14 @@ private fun QuickActionsRow(
                 text = "Developer Mode",
                 onClick = onDeveloperMode,
                 icon = Icons.Filled.Speed,
-                gradient = Brush.horizontalGradient(listOf(LampGlow.copy(alpha = 0.35f), LampGlow.copy(alpha = 0.15f))),
+                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.35f), MaterialTheme.ledger.lampGlow.copy(alpha = 0.15f))),
                 modifier = Modifier.weight(1f)
             )
             CloudCapsuleButton(
                 text = "Prompt Studio",
                 onClick = onPromptStudio,
                 icon = Icons.Filled.Psychology,
-                gradient = Brush.horizontalGradient(listOf(LampGlow.copy(alpha = 0.2f), LampDeep.copy(alpha = 0.35f))),
+                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.2f), MaterialTheme.ledger.lampDeep.copy(alpha = 0.35f))),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -452,14 +453,14 @@ private fun EmptyChatsIsland(
                 text = "No Conversations Yet",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Start a new conversation with your local LiteRT AI model",
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 )
             )
             Spacer(modifier = Modifier.height(14.dp))

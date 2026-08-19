@@ -141,6 +141,7 @@ import io.androllm.core.ui.theme.DeskWalnut
 import io.androllm.core.ui.theme.DeskWalnutDeep
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Model Manager Screen featuring Installed Models, Download Manager & Queue,
@@ -185,10 +186,10 @@ fun ModelsScreen(
             },
             topBar = {
                 TopAppBar(
-                    title = { Text("Model Manager", fontWeight = FontWeight.Bold, color = io.androllm.core.ui.theme.DeskPaper) },
+                    title = { Text("Model Manager", fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper) },
                     actions = {
                         IconButton(onClick = { sortMenuExpanded = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort models", tint = io.androllm.core.ui.theme.DeskInk)
+                            Icon(Icons.Default.Sort, contentDescription = "Sort models", tint = MaterialTheme.ledger.deskInk)
                         }
 
                         DropdownMenu(
@@ -210,7 +211,7 @@ fun ModelsScreen(
                         }
 
                         IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                            Icon(Icons.Default.Folder, contentDescription = "Import LiteRT model", tint = io.androllm.core.ui.theme.DeskInk)
+                            Icon(Icons.Default.Folder, contentDescription = "Import LiteRT model", tint = MaterialTheme.ledger.deskInk)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -247,7 +248,7 @@ fun ModelsScreen(
                 selectedTabIndex = data.selectedTab.ordinal,
                 edgePadding = 20.dp,
                 containerColor = Color.Transparent,
-                contentColor = io.androllm.core.ui.theme.DeskInk,
+                contentColor = MaterialTheme.ledger.deskInk,
                 divider = {},
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -255,36 +256,36 @@ fun ModelsScreen(
                     selected = data.selectedTab == ModelsTab.INSTALLED,
                     onClick = { viewModel.selectTab(ModelsTab.INSTALLED) },
                     text = { Text("Installed (${data.installedModels.count { it.isDownloaded }})") },
-                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
-                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                    selectedContentColor = MaterialTheme.ledger.lampDeep,
+                    unselectedContentColor = MaterialTheme.ledger.deskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.DOWNLOADS,
                     onClick = { viewModel.selectTab(ModelsTab.DOWNLOADS) },
                     text = { Text("Downloads (${activeDownloads.size})") },
-                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
-                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                    selectedContentColor = MaterialTheme.ledger.lampDeep,
+                    unselectedContentColor = MaterialTheme.ledger.deskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.CATALOG,
                     onClick = { viewModel.selectTab(ModelsTab.CATALOG) },
                     text = { Text("Catalog (${data.catalogCount})") },
-                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
-                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                    selectedContentColor = MaterialTheme.ledger.lampDeep,
+                    unselectedContentColor = MaterialTheme.ledger.deskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.HUGGINGFACE,
                     onClick = { viewModel.selectTab(ModelsTab.HUGGINGFACE) },
                     text = { Text("HuggingFace 🤗") },
-                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
-                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                    selectedContentColor = MaterialTheme.ledger.lampDeep,
+                    unselectedContentColor = MaterialTheme.ledger.deskInk
                 )
                 Tab(
                     selected = data.selectedTab == ModelsTab.DIAGNOSTICS,
                     onClick = { viewModel.selectTab(ModelsTab.DIAGNOSTICS) },
                     text = { Text("Hardware") },
-                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
-                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                    selectedContentColor = MaterialTheme.ledger.lampDeep,
+                    unselectedContentColor = MaterialTheme.ledger.deskInk
                 )
             }
 
@@ -601,7 +602,7 @@ private fun DownloadCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = DeskWalnut)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnut)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -995,7 +996,7 @@ private fun CatalogModelCard(
             .wrapContentHeight(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = Color.White
+            containerColor = MaterialTheme.ledger.deskWalnut
         ),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
@@ -1071,7 +1072,7 @@ private fun CatalogCardBody(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.labelMedium,
-                color = DeskInk,
+                color = MaterialTheme.ledger.deskInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1141,7 +1142,7 @@ private fun CatalogCardBody(
                         Icons.Default.Favorite,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
-                        tint = LampAmber
+                        tint = MaterialTheme.ledger.lampAmber
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
@@ -1175,7 +1176,7 @@ private fun ModelMetaPill(
 ) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = DeskWalnutDeep
+        color = MaterialTheme.ledger.deskWalnutDeep
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1186,14 +1187,14 @@ private fun ModelMetaPill(
                     imageVector = leadingIcon,
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
-                    tint = LampDeep
+                    tint = MaterialTheme.ledger.lampDeep
                 )
                 Spacer(modifier = Modifier.width(5.dp))
             }
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
-                color = DeskInk,
+                color = MaterialTheme.ledger.deskInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1208,11 +1209,12 @@ private val RecommendationGreen = Color(0xFF4CAF50)
 private val RecommendationGreenDeep = Color(0xFF2E7D32)
 
 /** Per-badge soft tints — orange accent, green recommendation/NPU, subtle hues. */
+@Composable
 private fun badgeTint(badge: String): BadgeTint = when {
     badge.contains("Recommended") || badge.contains("NPU") ->
         BadgeTint(RecommendationGreen.copy(alpha = 0.14f), RecommendationGreenDeep)
     badge.contains("Trending") || badge.contains("Vulkan") ->
-        BadgeTint(LampAmber.copy(alpha = 0.16f), LampDeep)
+        BadgeTint(MaterialTheme.ledger.lampAmber.copy(alpha = 0.16f), MaterialTheme.ledger.lampDeep)
     badge.contains("Fast") || badge.contains("Beginner") || badge.contains("Low RAM") ->
         BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
     badge.contains("Reasoning") || badge.contains("Agentic") || badge.contains("Memory") ->
@@ -1229,7 +1231,7 @@ private fun badgeTint(badge: String): BadgeTint = when {
         BadgeTint(Color(0xFFF1E8FC), Color(0xFF7B1FA2))
     badge.contains("Multilingual") || badge.contains("Translation") ->
         BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
-    else -> BadgeTint(DeskWalnutDeep, DeskInk)
+    else -> BadgeTint(MaterialTheme.ledger.deskWalnutDeep, MaterialTheme.ledger.deskInk)
 }
 
 /** Compact pill badge with emoji + label and a per-type soft tint. */
@@ -1365,7 +1367,7 @@ private fun CatalogLoadingPlaceholder() {
         items(4) {
             ElevatedCard(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.ledger.deskWalnut),
                 elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -1396,7 +1398,7 @@ private fun SkeletonBar(fraction: Float, barHeight: Dp, alpha: Float) {
             .fillMaxWidth(fraction)
             .height(barHeight)
             .clip(RoundedCornerShape(6.dp))
-            .background(DeskWalnutDeep.copy(alpha = alpha))
+            .background(MaterialTheme.ledger.deskWalnutDeep.copy(alpha = alpha))
     )
 }
 
@@ -1436,7 +1438,7 @@ private fun HuggingFaceTab(
                 Card(
                     onClick = { onSelectModel(remote) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = DeskWalnut)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnut)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -1509,21 +1511,21 @@ private fun RemoteModelDetailsSheet(
             SecondaryTabRow(
                 selectedTabIndex = selectedSubTab,
                 containerColor = Color.Transparent,
-                contentColor = io.androllm.core.ui.theme.DeskInk
+                contentColor = MaterialTheme.ledger.deskInk
             ) {
                 Tab(
                     selected = selectedSubTab == 0,
                     onClick = { selectedSubTab = 0 },
                     text = { Text("Model Files (${details.ggufFiles.size})") },
-                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
-                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                    selectedContentColor = MaterialTheme.ledger.lampDeep,
+                    unselectedContentColor = MaterialTheme.ledger.deskInk
                 )
                 Tab(
                     selected = selectedSubTab == 1,
                     onClick = { selectedSubTab = 1 },
                     text = { Text("README.md") },
-                    selectedContentColor = io.androllm.core.ui.theme.LampDeep,
-                    unselectedContentColor = io.androllm.core.ui.theme.DeskInk
+                    selectedContentColor = MaterialTheme.ledger.lampDeep,
+                    unselectedContentColor = MaterialTheme.ledger.deskInk
                 )
             }
 
@@ -1537,7 +1539,7 @@ private fun RemoteModelDetailsSheet(
                     details.ggufFiles.forEach { file ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = DeskWalnutDeep)
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnutDeep)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -1592,7 +1594,7 @@ private fun HardwareDiagnosticsTab(hardwareInfo: DeviceHardwareInfo) {
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DeskWalnut)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnut)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -1645,12 +1647,12 @@ private fun DiagnosticRow(label: String, value: String) {
 @Composable
 private fun StatusBadge(status: DownloadStatus) {
     val (label, color) = when (status) {
-        DownloadStatus.DOWNLOADED -> "Installed" to io.androllm.core.ui.theme.LampDeep
-        DownloadStatus.DOWNLOADING -> "Downloading" to io.androllm.core.ui.theme.LampAmber
-        DownloadStatus.QUEUED -> "Queued" to io.androllm.core.ui.theme.DeskPaperDim
-        DownloadStatus.PAUSED -> "Paused" to io.androllm.core.ui.theme.LampDeep
+        DownloadStatus.DOWNLOADED -> "Installed" to MaterialTheme.ledger.lampDeep
+        DownloadStatus.DOWNLOADING -> "Downloading" to MaterialTheme.ledger.lampAmber
+        DownloadStatus.QUEUED -> "Queued" to MaterialTheme.ledger.deskPaperDim
+        DownloadStatus.PAUSED -> "Paused" to MaterialTheme.ledger.lampDeep
         DownloadStatus.ERROR -> "Failed" to MaterialTheme.colorScheme.error
-        DownloadStatus.NOT_DOWNLOADED -> "Not Installed" to io.androllm.core.ui.theme.DeskInk
+        DownloadStatus.NOT_DOWNLOADED -> "Not Installed" to MaterialTheme.ledger.deskInk
     }
 
     AssistChip(
@@ -1743,7 +1745,7 @@ private fun FirstLaunchRecommendationDialog(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = DeskWalnut)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnut)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(text = model.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -1898,7 +1900,7 @@ private fun ModelStatusDashboard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = DeskWalnut
+            containerColor = MaterialTheme.ledger.deskWalnut
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -2035,7 +2037,7 @@ private fun ModelStatusDashboard(
                 LedgerStatRow(
                     "Mode",
                     if (isNpu) "NPU only" else stats.executionMode,
-                    valueColor = if (isNpu || stats.isGpuAccelerated) successGreen else io.androllm.core.ui.theme.LampAmber
+                    valueColor = if (isNpu || stats.isGpuAccelerated) successGreen else MaterialTheme.ledger.lampAmber
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -2202,7 +2204,7 @@ LedgerStatRow("Vulkan delegate", UNAVAILABLE_ON_DEVICE)
                         style = MaterialTheme.typography.labelSmall,
                         color = when {
                             stats.gpuInferenceVerified -> successGreen
-                            stats.vulkanValidationFailed -> io.androllm.core.ui.theme.LampDeep
+                            stats.vulkanValidationFailed -> MaterialTheme.ledger.lampDeep
                             else -> MaterialTheme.colorScheme.outline
                         }
                     )
@@ -2326,7 +2328,7 @@ private fun MemoryStatRow(label: String, value: String) {
 private fun LedgerStatRow(
     label: String,
     value: String,
-    valueColor: Color = io.androllm.core.ui.theme.DeskInk
+    valueColor: Color = MaterialTheme.ledger.deskInk
 ) {
     Row(
         modifier = Modifier
@@ -2417,7 +2419,7 @@ private fun RuntimeRecoveryDiagnostics(
                     text = "Recoveries: $recoveryCount\nLast reason: ${lastRecoveryReason.ifBlank { "—" }}",
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
-                    color = io.androllm.core.ui.theme.DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 )
             }
         }
@@ -2470,7 +2472,7 @@ private fun VulkanValidationDiagnostics(detail: String) {
                     text = detail.ifBlank { "No mismatch details captured." },
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
-                    color = io.androllm.core.ui.theme.DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 )
             }
         }

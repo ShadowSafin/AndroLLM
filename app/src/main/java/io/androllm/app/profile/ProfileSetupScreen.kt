@@ -46,6 +46,7 @@ import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskPaper
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * First-run profile creation — shown once after the first successful sign-in.
@@ -93,7 +94,7 @@ fun ProfileSetupScreen(
                 text = "Make it yours",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    color = DeskPaper
+                    color = MaterialTheme.ledger.deskPaper
                 )
             )
 
@@ -102,7 +103,7 @@ fun ProfileSetupScreen(
                 Text(
                     text = email,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = DeskInk
+                        color = MaterialTheme.ledger.deskInk
                     )
                 )
             }
@@ -121,7 +122,7 @@ fun ProfileSetupScreen(
                                 .size(56.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (selected) LampGlow.copy(alpha = 0.3f) else androidx.compose.ui.graphics.Color.Transparent
+                                    if (selected) MaterialTheme.ledger.lampGlow.copy(alpha = 0.3f) else androidx.compose.ui.graphics.Color.Transparent
                                 )
                                 .clickable { avatarIndex = index }
                                 .padding(4.dp),
@@ -171,7 +172,7 @@ fun ProfileSetupScreen(
                                 .background(option.color)
                                 .border(
                                     width = if (selected) 3.dp else 1.dp,
-                                    color = if (selected) DeskPaper else option.color.copy(alpha = 0.6f),
+                                    color = if (selected) MaterialTheme.ledger.deskPaper else option.color.copy(alpha = 0.6f),
                                     shape = CircleShape
                                 )
                                 .clickable { accent = option }
@@ -194,7 +195,7 @@ fun ProfileSetupScreen(
                     )
                 },
                 enabled = displayName.isNotBlank() && !isSaving,
-                gradient = Brush.horizontalGradient(listOf(LampAmber, LampGlow)),
+                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampGlow)),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -203,7 +204,7 @@ fun ProfileSetupScreen(
             Text(
                 text = "You can change all of this anytime in Settings.",
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = DeskInk
+                    color = MaterialTheme.ledger.deskInk
                 ),
                 textAlign = TextAlign.Center
             )

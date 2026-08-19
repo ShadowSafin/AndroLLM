@@ -64,6 +64,7 @@ import io.androllm.core.ui.theme.DeskPaperDim
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Prompt Index — the lamp's book of ready phrases. Categories, search,
@@ -91,13 +92,13 @@ fun PromptLibraryScreen(
                                 text = "Prompt Studio",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = DeskPaper
+                                    color = MaterialTheme.ledger.deskPaper
                                 )
                             )
                             Text(
                                 text = "${uiState.prompts.size} prompts • ${uiState.favoriteCount} favorites",
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    color = LampDeep,
+                                    color = MaterialTheme.ledger.lampDeep,
                                     fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 0.8.sp
                                 )
@@ -117,12 +118,12 @@ fun PromptLibraryScreen(
                 OutlinedTextField(
                     value = uiState.query,
                     onValueChange = { viewModel.updateQuery(it) },
-                    placeholder = { Text("Search prompts…", color = DeskInk) },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = LampGlow) },
+                    placeholder = { Text("Search prompts…", color = MaterialTheme.ledger.deskInk) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.ledger.lampGlow) },
                     trailingIcon = {
                         if (uiState.query.isNotEmpty()) {
                             IconButton(onClick = { viewModel.updateQuery("") }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = DeskInk)
+                                Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = MaterialTheme.ledger.deskInk)
                             }
                         }
                     },
@@ -132,10 +133,10 @@ fun PromptLibraryScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LampAmber,
-                        unfocusedBorderColor = io.androllm.core.ui.theme.DeskHairline,
-                        focusedTextColor = DeskPaper,
-                        unfocusedTextColor = DeskPaper
+                        focusedBorderColor = MaterialTheme.ledger.lampAmber,
+                        unfocusedBorderColor = MaterialTheme.ledger.deskHairline,
+                        focusedTextColor = MaterialTheme.ledger.deskPaper,
+                        unfocusedTextColor = MaterialTheme.ledger.deskPaper
                     ),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { /* filtering is live */ })
@@ -177,7 +178,7 @@ fun PromptLibraryScreen(
                                 Text(
                                     text = "No prompts match your search.",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = DeskInk
+                                    color = MaterialTheme.ledger.deskInk
                                 )
                             }
                         }
@@ -222,14 +223,14 @@ private fun PromptCard(
                         text = template.title,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         )
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = template.description,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
                 }
@@ -237,7 +238,7 @@ private fun PromptCard(
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                         contentDescription = "Favorite",
-                        tint = if (isFavorite) LampGlow else DeskInkFaint
+                        tint = if (isFavorite) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInkFaint
                     )
                 }
             }
@@ -252,11 +253,11 @@ private fun PromptCard(
                 CloudChip(
                     text = template.category.label,
                     accentColor = when (template.category) {
-                        PromptCategory.PROGRAMMING, PromptCategory.ANDROID -> LampGlow
-                        PromptCategory.WRITING, PromptCategory.GENERAL -> LampAmber
-                        PromptCategory.REASONING, PromptCategory.MATH -> LampDeep
-                        PromptCategory.TRANSLATION -> LampGlow
-                        PromptCategory.ALL -> DeskInk
+                        PromptCategory.PROGRAMMING, PromptCategory.ANDROID -> MaterialTheme.ledger.lampGlow
+                        PromptCategory.WRITING, PromptCategory.GENERAL -> MaterialTheme.ledger.lampAmber
+                        PromptCategory.REASONING, PromptCategory.MATH -> MaterialTheme.ledger.lampDeep
+                        PromptCategory.TRANSLATION -> MaterialTheme.ledger.lampGlow
+                        PromptCategory.ALL -> MaterialTheme.ledger.deskInk
                     }
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -264,7 +265,7 @@ private fun PromptCard(
                         Icon(
                             imageVector = Icons.Filled.ContentCopy,
                             contentDescription = "Copy prompt",
-                            tint = DeskInk,
+                            tint = MaterialTheme.ledger.deskInk,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -275,7 +276,7 @@ private fun PromptCard(
                         Icon(
                             imageVector = Icons.Filled.Send,
                             contentDescription = "Use prompt",
-                            tint = LampGlow,
+                            tint = MaterialTheme.ledger.lampGlow,
                             modifier = Modifier.size(18.dp)
                         )
                     }

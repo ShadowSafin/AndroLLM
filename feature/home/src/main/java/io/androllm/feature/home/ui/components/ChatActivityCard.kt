@@ -42,6 +42,7 @@ import io.androllm.core.ui.theme.LampGlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Parchment Ledger — a letter entry in the Recent Letters ledger.
@@ -69,14 +70,14 @@ fun ChatActivityCard(
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(
-                        Brush.linearGradient(listOf(LampDeep.copy(alpha = 0.45f), LampAmber.copy(alpha = 0.2f)))
+                        Brush.linearGradient(listOf(MaterialTheme.ledger.lampDeep.copy(alpha = 0.45f), MaterialTheme.ledger.lampAmber.copy(alpha = 0.2f)))
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = LampDeep,
+                    tint = MaterialTheme.ledger.lampDeep,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -94,7 +95,7 @@ fun ChatActivityCard(
                         text = conversation.title.ifBlank { "New Conversation" },
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            color = DeskPaper
+                            color = MaterialTheme.ledger.deskPaper
                         ),
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -103,7 +104,7 @@ fun ChatActivityCard(
                     Text(
                         text = formattedTime,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = DeskInkFaint
+                            color = MaterialTheme.ledger.deskInkFaint
                         )
                     )
                 }
@@ -118,7 +119,7 @@ fun ChatActivityCard(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(LampAmber.copy(alpha = 0.14f))
+                            .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.14f))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
@@ -126,14 +127,14 @@ fun ChatActivityCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.4.sp,
-                            color = LampDeep
+                            color = MaterialTheme.ledger.lampDeep
                         )
                     }
 
                     Text(
                         text = if (conversation.messageCount == 1) "1 message" else "${conversation.messageCount} messages",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = DeskInk
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
                 }
@@ -145,7 +146,7 @@ fun ChatActivityCard(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "Options",
-                    tint = DeskInkFaint
+                    tint = MaterialTheme.ledger.deskInkFaint
                 )
             }
         }

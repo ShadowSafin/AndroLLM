@@ -5,6 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -27,73 +30,73 @@ import androidx.compose.ui.graphics.Color
  */
 
 /**
- * Dark color scheme for AndroLLM — the parchment at night (tokens.dark.json).
+ * Dark color scheme for AndroLLM — the parchment at night (parchment.dark tokens).
  */
 private val DarkColors = darkColorScheme(
-    primary = DarkPrimary,
-    onPrimary = DarkOnPrimary,
-    primaryContainer = DarkContainerHigh,
-    onPrimaryContainer = DarkText,
-    secondary = DarkPrimaryHover,
-    onSecondary = DarkOnPrimary,
-    secondaryContainer = DarkContainer,
-    onSecondaryContainer = DarkText,
-    tertiary = DarkPrimary,
-    onTertiary = DarkOnPrimary,
-    tertiaryContainer = DarkContainerHigh,
-    onTertiaryContainer = DarkText,
-    error = Color(0xFFDC6966),
-    onError = DarkOnPrimary,
-    errorContainer = Color(0xFF3B2322),
-    onErrorContainer = Color(0xFFF5D9D6),
-    background = DarkCanvas,
-    onBackground = DarkText,
-    surface = DarkCanvasRaised,
-    onSurface = DarkText,
-    surfaceVariant = DarkSurface,
-    onSurfaceVariant = DarkTextSecondary,
-    surfaceTint = DarkPrimary,
-    inverseSurface = DarkInverse,
-    inverseOnSurface = OnDarkInverse,
-    inversePrimary = LampDeep,
-    surfaceBright = DarkSurfaceBright,
-    surfaceDim = DarkSurfaceDim,
-    surfaceContainerLowest = DarkContainerLowest,
-    surfaceContainerLow = DarkContainerLow,
-    surfaceContainer = DarkContainer,
-    surfaceContainerHigh = DarkContainerHigh,
-    surfaceContainerHighest = DarkContainerHighest,
-    outline = DarkHairline,
-    outlineVariant = DarkHairlineSoft
+    primary = DarkLedger.lampAmber,
+    onPrimary = DarkLedger.inkOnLamp,
+    primaryContainer = DarkLedger.terracottaSoft,
+    onPrimaryContainer = DarkLedger.terracottaDeep,
+    secondary = DarkLedger.lampGlow,
+    onSecondary = DarkLedger.inkOnLamp,
+    secondaryContainer = DarkLedger.terracottaSoft,
+    onSecondaryContainer = DarkLedger.terracottaDeep,
+    tertiary = DarkLedger.lampAmber,
+    onTertiary = DarkLedger.inkOnLamp,
+    tertiaryContainer = DarkLedger.terracottaSoft,
+    onTertiaryContainer = DarkLedger.terracottaDeep,
+    error = DarkLedger.emberRed,
+    onError = DarkLedger.emberOnRed,
+    errorContainer = DarkLedger.emberRedSoft,
+    onErrorContainer = DarkLedger.emberRedHard,
+    background = DarkLedger.deskNight,
+    onBackground = DarkLedger.deskPaper,
+    surface = DarkLedger.deskWalnut,
+    onSurface = DarkLedger.deskPaper,
+    surfaceVariant = DarkLedger.deskWalnutDeep,
+    onSurfaceVariant = DarkLedger.deskInk,
+    surfaceTint = DarkLedger.lampAmber,
+    inverseSurface = Color(0xFFE8E4DC),
+    inverseOnSurface = Color(0xFF141312),
+    inversePrimary = DarkLedger.lampDeep,
+    surfaceBright = DarkLedger.deskNightRaised,
+    surfaceDim = DarkLedger.deskNight,
+    surfaceContainerLowest = Color(0xFF10100F),
+    surfaceContainerLow = DarkLedger.deskWalnutDeep,
+    surfaceContainer = DarkLedger.deskWalnut,
+    surfaceContainerHigh = DarkLedger.deskWalnutRaised,
+    surfaceContainerHighest = DarkLedger.deskNightRaised,
+    outline = DarkLedger.deskHairline,
+    outlineVariant = DarkLedger.deskHairlineSoft
 )
 
 /**
  * Light color scheme for AndroLLM — the parchment ledger in daylight (flagship).
  */
 private val LightColors = lightColorScheme(
-    primary = brandPrimary,
-    onPrimary = brandOnPrimary,
-    primaryContainer = TerracottaSoft,
-    onPrimaryContainer = TerracottaDeep,
-    secondary = LampDeep,
-    onSecondary = brandOnPrimary,
-    secondaryContainer = TerracottaSoft,
-    onSecondaryContainer = TerracottaDeep,
-    tertiary = LampAmber,
-    onTertiary = brandOnPrimary,
-    tertiaryContainer = TerracottaSoft,
-    onTertiaryContainer = TerracottaDeep,
-    error = brandError,
-    onError = brandOnError,
-    errorContainer = brandErrorContainer,
-    onErrorContainer = brandOnErrorContainer,
-    background = brandBackground,
-    onBackground = brandOnSurface,
-    surface = brandSurface,
-    onSurface = brandOnSurface,
-    surfaceVariant = brandSurfaceVariant,
-    onSurfaceVariant = brandOnSurfaceVariant,
-    surfaceTint = brandPrimary,
+    primary = LightLedger.lampAmber,
+    onPrimary = LightLedger.inkOnLamp,
+    primaryContainer = LightLedger.terracottaSoft,
+    onPrimaryContainer = LightLedger.terracottaDeep,
+    secondary = LightLedger.lampDeep,
+    onSecondary = LightLedger.inkOnLamp,
+    secondaryContainer = LightLedger.terracottaSoft,
+    onSecondaryContainer = LightLedger.terracottaDeep,
+    tertiary = LightLedger.lampAmber,
+    onTertiary = LightLedger.inkOnLamp,
+    tertiaryContainer = LightLedger.terracottaSoft,
+    onTertiaryContainer = LightLedger.terracottaDeep,
+    error = LightLedger.emberRed,
+    onError = LightLedger.emberOnRed,
+    errorContainer = LightLedger.emberRedSoft,
+    onErrorContainer = LightLedger.emberRedHard,
+    background = LightLedger.deskNight,
+    onBackground = LightLedger.deskPaper,
+    surface = LightLedger.deskWalnut,
+    onSurface = LightLedger.deskPaper,
+    surfaceVariant = LightLedger.deskWalnutDeep,
+    onSurfaceVariant = LightLedger.deskInk,
+    surfaceTint = LightLedger.lampAmber,
     inverseSurface = ParchmentInverse,
     inverseOnSurface = OnParchmentInverse,
     inversePrimary = LampGlow,
@@ -104,9 +107,18 @@ private val LightColors = lightColorScheme(
     surfaceContainer = ParchmentContainer,
     surfaceContainerHigh = ParchmentHigh,
     surfaceContainerHighest = ParchmentHighest,
-    outline = brandOutline,
-    outlineVariant = brandOutlineVariant
+    outline = LightLedger.deskHairline,
+    outlineVariant = LightLedger.deskHairlineSoft
 )
+
+/** The active [LedgerColors] for the current composition (light or dark). */
+val LocalLedgerColors = staticCompositionLocalOf { LightLedger }
+
+/** Reads the active parchment palette — components should use this, never a hardcoded token. */
+val MaterialTheme.ledger: LedgerColors
+    @ReadOnlyComposable
+    @Composable
+    get() = LocalLedgerColors.current
 
 /**
  * The AndroLLM theme. Light-first: the parchment desk is used in daylight.
@@ -139,10 +151,12 @@ fun AndroLLMTheme(
     } else {
         base
     }
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = AndroLLMTypography,
-        shapes = AndroLLMShapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalLedgerColors provides (if (darkTheme) DarkLedger else LightLedger)) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = AndroLLMTypography,
+            shapes = AndroLLMShapes,
+            content = content
+        )
+    }
 }
