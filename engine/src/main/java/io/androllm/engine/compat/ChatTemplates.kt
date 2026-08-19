@@ -165,6 +165,15 @@ object ChatTemplates {
             "{%- endfor %}" +
             "{%- if add_generation_prompt %}{{- '<|assistant|>\\n' }}{%- endif %}"
 
+    /**
+     * Minimal Qwen-style fallback for the [ModelFamily.GENERIC] mode. The
+     * engine replaces it with the container's own embedded template at load
+     * time when one exists (identity override — nothing is guessed); this
+     * value only ever drives diagnostics/display and containers without any
+     * template.
+     */
+    val generic: String = qwen
+
     fun officialTemplateFor(family: ModelFamily): String = when (family) {
         ModelFamily.GEMMA -> gemma
         ModelFamily.QWEN2 -> qwen
@@ -176,5 +185,6 @@ object ChatTemplates {
         ModelFamily.MISTRAL -> mistral
         ModelFamily.SMOL -> smol
         ModelFamily.TINYLLAMA -> tinyLlama
+        ModelFamily.GENERIC -> generic
     }
 }

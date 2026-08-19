@@ -2,14 +2,14 @@ package io.androllm.engine.compat
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Contract tests for [ModelFamilyRegistry] + [ModelCompatibilityResolver] —
- * the detection order (container model type → embedded template → stop tokens
- * → name) and the failure contract for unknown models.
+ * the detection order (container model type → embedded template → catalog
+ * family → stop tokens → name → generic fallback) and the contract that no
+ * model ever fails the load for lack of a family match.
  */
 class ModelFamilyRegistryTest {
 
@@ -77,20 +77,106 @@ class ModelFamilyRegistryTest {
     }
 
     @Test
-    fun `unknown model fails with actionable message`() {
-        val e = assertThrows(ModelCompatibilityException::class.java) {
-            ModelFamilyRegistry.resolve(null, "mystery-model.bin")
-        }
-        assertTrue(e.message!!.contains("supported families"))
-        assertTrue(e.message!!.contains("Gemma"))
+    fun `unknown model falls back to generic instead of failing`() {
+        val r = ModelFamilyRegistry.resolve(null, "mystery-model.bin")
+        assertEquals(ModelFamily.GENERIC, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.GENERIC_FALLBACK, r.source)
     }
 
     @Test
-    fun `known family with conflicting metadata fails`() {
-        val e = assertThrows(ModelCompatibilityException::class.java) {
-            ModelFamilyRegistry.resolve(container(modelTypeName = "some_new_type"), "gemma.bin")
+    fun `unknown container type auto-resolves to generic instead of failing`() {
+        // A container identifier the runtime supports but the registry does
+        // not know yet must never fail the load — it degrades to generic
+        // container-template mode.
+        val r = ModelFamilyRegistry.resolve(container(modelTypeName = "some_new_type"), "gemma.bin")
+        assertEquals(ModelFamily.GENERIC, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.GENERIC_FALLBACK, r.source)
+    }
+
+    @Test
+    fun `fast_vlm container maps to generic engine mode`() {
+        val r = ModelFamilyRegistry.resolve(container(modelTypeName = "fast_vlm"), "FastVLM.bin")
+        assertEquals(ModelFamily.GENERIC, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.CONTAINER_MODEL_TYPE, r.source)
+    }
+
+    @Test
+    fun `minicpm5 container maps to generic engine mode`() {
+        val r = ModelFamilyRegistry.resolve(container(modelTypeName = "minicpm5"), "MiniCPM5.bin")
+        assertEquals(ModelFamily.GENERIC, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.CONTAINER_MODEL_TYPE, r.source)
+    }
+
+    @Test
+    fun `lfm2 container maps to llama3`() {
+        val r = ModelFamilyRegistry.resolve(container(modelTypeName = "lfm2"), "LFM2.5.bin")
+        assertEquals(ModelFamily.LLAMA3, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.CONTAINER_MODEL_TYPE, r.source)
+    }
+
+    @Test
+    fun `generic_model container falls through to template detection`() {
+        val r = ModelFamilyRegistry.resolve(
+            container(modelTypeName = "generic_model", template = ChatTemplates.qwen),
+            "m.bin"
+        )
+        assertEquals(ModelFamily.QWEN2P5, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.EMBEDDED_TEMPLATE, r.source)
+    }
+
+    @Test
+    fun `catalog family resolves a generic container`() {
+        // The catalog says TinySwallow (registry: → QWEN2P5); the container
+        // carries no family signal — the catalog family fills the gap.
+        val r = ModelFamilyRegistry.resolve(
+            container(modelTypeName = "generic_model"),
+            "TinySwallow.bin",
+            catalogFamily = "TinySwallow"
+        )
+        assertEquals(ModelFamily.QWEN2P5, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.CATALOG_FAMILY, r.source)
+    }
+
+    @Test
+    fun `catalog family without engine mapping is skipped`() {
+        // Qwen spans several engine families — its spec has no engine key, so
+        // the catalog family alone cannot resolve it; the generic fallback
+        // applies when no other evidence exists.
+        val r = ModelFamilyRegistry.resolve(
+            container(modelTypeName = "generic_model"),
+            "m.bin",
+            catalogFamily = "Qwen"
+        )
+        assertEquals(ModelFamily.GENERIC, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.GENERIC_FALLBACK, r.source)
+    }
+
+    @Test
+    fun `catalog family never overrides container metadata`() {
+        // Container says qwen3, catalog says TinySwallow — the container wins.
+        val r = ModelFamilyRegistry.resolve(
+            container(modelTypeName = "qwen3"),
+            "TinySwallow.bin",
+            catalogFamily = "TinySwallow"
+        )
+        assertEquals(ModelFamily.QWEN3, r.family)
+        assertEquals(ModelCompatibilityResolver.DetectionSource.CONTAINER_MODEL_TYPE, r.source)
+    }
+
+    @Test
+    fun `every container identifier maps without rejection`() {
+        // All 10 LlmModelType identifiers must resolve to SOMETHING — none
+        // may fail the load.
+        val identifiers = listOf(
+            "generic_model", "qwen3", "qwen2p5", "gemma3", "gemma3n",
+            "gemma4", "function_gemma", "fast_vlm", "lfm2", "minicpm5"
+        )
+        for (identifier in identifiers) {
+            val r = ModelFamilyRegistry.resolve(container(modelTypeName = identifier), "m.bin")
+            assertTrue("identifier '$identifier' fell to generic despite a mapping",
+                r.source != ModelCompatibilityResolver.DetectionSource.GENERIC_FALLBACK ||
+                    identifier == "generic_model")
         }
-        assertTrue(e.message!!.contains("does not match any supported family"))
     }
 
     @Test

@@ -90,6 +90,75 @@ object LiteRtValidator {
     }
 
     /**
+     * Full pre-load gate for a model artifact: container header, expected
+     * format, expected byte size and optional SHA-256. Every check is cheap
+     * except the checksum (a full-file hash — pass null unless the caller
+     * explicitly opted in). A failure never throws: the returned
+     * [ArtifactValidation.errorMessage] is written for humans and can be
+     * surfaced directly.
+     *
+     * @param path the artifact to validate
+     * @param expectedFormat the container format the CALLER's engine requires
+     *   ("litertlm" for the chat engine, "tflite" for the embedding engine).
+     *   A mismatch is a hard failure: a `.tflite` speech/embedding model can
+     *   never be a chat model, and the native runtime only reveals that with
+     *   an opaque "INVALID_ARGUMENT: Unsupported file format" after minutes of
+     *   initialization.
+     * @param expectedSizeBytes the catalog size (0/negative = no check). A
+     *   mismatch means a truncated or corrupted download.
+     * @param expectedSha256 the catalog checksum (blank = no check).
+     */
+    fun validateForLoad(
+        path: String,
+        expectedFormat: String? = null,
+        expectedSizeBytes: Long? = null,
+        expectedSha256: String? = null
+    ): ArtifactValidation {
+        val header = validateHeader(path)
+        if (!header.isValid) return header
+
+        if (expectedFormat != null && header.format != expectedFormat) {
+            return ArtifactValidation(
+                false,
+                errorMessage = "Artifact is a '${header.format}' file but this engine requires " +
+                    "'$expectedFormat'. A ${header.format.ifBlank { "non-LiteRT" }} model cannot be used here — " +
+                    "install the matching model type from the catalog."
+            )
+        }
+
+        expectedSizeBytes?.takeIf { it > 0 }?.let { expected ->
+            val actual = File(path).length()
+            if (actual != expected) {
+                return ArtifactValidation(
+                    false,
+                    errorMessage = "File size mismatch: expected $expected bytes but the file is $actual bytes — " +
+                        "the download is truncated or corrupted. Delete and re-download the model."
+                )
+            }
+        }
+
+        expectedSha256?.takeIf { it.length == 64 }?.let { expected ->
+            val actual = calculateSha256(path)
+            if (actual == null || !actual.equals(expected, ignoreCase = true)) {
+                return ArtifactValidation(
+                    false,
+                    errorMessage = "SHA-256 checksum mismatch — the model file is corrupted or was modified " +
+                        "after download. Delete and re-download the model."
+                )
+            }
+        }
+
+        return header
+    }
+
+    /**
+     * True when the file at [path] is exactly [expectedBytes] long. Used to
+     * detect truncated downloads cheaply (no header read).
+     */
+    fun verifySize(path: String, expectedBytes: Long): Boolean =
+        expectedBytes > 0 && File(path).exists() && File(path).length() == expectedBytes
+
+    /**
      * SHA-256 of the file at [path], or null when unreadable. Used to verify
      * downloaded artifacts against the checksum published in the catalog.
      */

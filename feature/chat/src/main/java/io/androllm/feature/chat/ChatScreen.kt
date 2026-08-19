@@ -1038,7 +1038,10 @@ private fun ChatTopBar(
                         is EngineState.WarmingUp -> "Warming Up: ${engineState.step}"
                         is EngineState.Generating -> "Generating tokens..."
                         EngineState.Unloading -> "Unloading..."
-                        is EngineState.Failed -> "Model Error"
+                        is EngineState.Failed -> {
+                            val msg = engineState.message
+                            "Model Error: ${if (msg.length > 48) msg.take(48) + "…" else msg}"
+                        }
                         EngineState.Unloaded -> "Offline AI"
                     }
                 }

@@ -12,6 +12,13 @@ import kotlinx.serialization.Serializable
 data class MemoryStats(
     val modelSizeBytes: Long = 0L,
     val contextSizeBytes: Long = 0L,
+    /**
+     * Live tokens held in the conversation's KV cache (LiteRT-LM
+     * `Conversation.getTokenCount()`). This is the REAL KV-cache occupancy —
+     * LiteRT-LM does not expose the cache in bytes, so token count is the
+     * authoritative live value. -1 = not readable on this runtime.
+     */
+    val kvCacheTokens: Long = -1L,
     val peakMemoryBytes: Long = 0L,
     val gpuLayersOffloaded: Int = 0,
     val totalLayers: Int = 0,
@@ -28,6 +35,15 @@ data class MemoryStats(
     val gpuName: String = "",
     val gpuDriverVersion: String = "",
     val gpuApiVersion: String = "",
+    // Live Android process-memory telemetry. LiteRT-LM does not currently
+    // expose per-component allocator counters, so a zero in the legacy
+    // delegate fields below means "not exposed" rather than measured zero.
+    val nativeHeapAllocatedBytes: Long = 0L,
+    val nativeHeapSizeBytes: Long = 0L,
+    val javaHeapUsedBytes: Long = 0L,
+    val javaHeapCommittedBytes: Long = 0L,
+    /** Process proportional-set size; this is the best live total RAM view. */
+    val processPssBytes: Long = 0L,
     val backendReason: String = "",
     val gpuInferenceVerified: Boolean = false,
     // Vulkan correctness self-test diagnostics. This is a diagnostic-only
@@ -57,7 +73,21 @@ data class MemoryStats(
     val decodeAvgMs: Long = 0,
     val vulkanDeviceLostRecoveries: Int = 0
 ) {
-    val totalNativeBytes: Long get() = modelSizeBytes + contextSizeBytes
+    /** Live native allocation when Android exposes it; otherwise legacy total. */
+    val totalNativeBytes: Long get() = nativeHeapAllocatedBytes.takeIf { it > 0L }
+        ?: (modelSizeBytes + contextSizeBytes)
+
+    /** Live process RAM (PSS) when Android exposes it, otherwise native heap. */
+    val totalRuntimeBytes: Long get() = processPssBytes.takeIf { it > 0L } ?: totalNativeBytes
+
+    val hasKvCacheMetric: Boolean get() = contextSizeBytes > 0L
+    /** True when the live KV-cache token counter is readable on this runtime. */
+    val hasKvCacheTokenMetric: Boolean get() = kvCacheTokens >= 0L
+    val hasGpuAllocatedMetric: Boolean get() = gpuMemoryAllocatedBytes > 0L
+    val hasGpuUsedMetric: Boolean get() = gpuMemoryUsedBytes > 0L
+    val hasGpuFreeTotalMetric: Boolean get() = gpuMemoryFreeBytes > 0L && gpuMemoryTotalBytes > 0L
+    val hasGpuPeakMetric: Boolean get() = gpuMemoryPeakBytes > 0L
+    val hasGpuBufferMetric: Boolean get() = gpuBufferCount > 0
 
     /**
      * True when runtime inference is offloaded to a GPU. LiteRT-LM reports the
@@ -118,6 +148,7 @@ data class MemoryStats(
     fun modelSizeMb(): Float = modelSizeBytes / (1024f * 1024f)
     fun contextSizeMb(): Float = contextSizeBytes / (1024f * 1024f)
     fun totalNativeMb(): Float = totalNativeBytes / (1024f * 1024f)
+    fun totalRuntimeMb(): Float = totalRuntimeBytes / (1024f * 1024f)
     fun peakMb(): Float = peakMemoryBytes / (1024f * 1024f)
     fun gpuMemoryMb(): Float = gpuMemoryUsedMb
     fun gpuMemoryPeakMb(): Float = gpuMemoryPeakBytes / (1024f * 1024f)

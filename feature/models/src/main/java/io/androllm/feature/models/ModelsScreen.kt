@@ -7,7 +7,17 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +43,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
@@ -48,7 +57,6 @@ import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -89,6 +97,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -96,6 +105,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -110,6 +120,7 @@ import io.androllm.core.models.RemoteModelDetails
 import io.androllm.core.models.RemoteModelSummary
 import io.androllm.core.models.catalog.CatalogCategory
 import io.androllm.core.models.catalog.CatalogModel
+import io.androllm.core.models.catalog.CatalogSections
 import io.androllm.core.models.catalog.CatalogSortOption
 import io.androllm.core.models.catalog.CatalogState
 import io.androllm.core.utils.DeviceHardwareInfo
@@ -123,10 +134,11 @@ import io.androllm.engine.models.MemoryStats
 import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.ModelWalletCard
+import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskWalnut
 import io.androllm.core.ui.theme.DeskWalnutDeep
 import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.TerracottaSoft
+import io.androllm.core.ui.theme.LampDeep
 
 /**
  * Model Manager Screen featuring Installed Models, Download Manager & Queue,
@@ -218,13 +230,13 @@ fun ModelsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             )
 
             // Parchment scrollable tabs — terracotta on the active tab, ink on the rest
             androidx.compose.material3.ScrollableTabRow(
                 selectedTabIndex = data.selectedTab.ordinal,
-                edgePadding = 16.dp,
+                edgePadding = 20.dp,
                 containerColor = Color.Transparent,
                 contentColor = io.androllm.core.ui.theme.DeskInk,
                 divider = {},
@@ -400,14 +412,15 @@ private fun InstalledModelsTab(
             val engineState = data.engineState
             if (engineState !is EngineState.Unloaded) {
                 item(key = "status_dashboard") {
-                    ModelStatusDashboard(
+ModelStatusDashboard(
                         engineState = engineState,
                         memoryStats = data.memoryStats,
-                        inferenceTokensPerSecond = data.inferenceTokensPerSecond,
+                        performanceStats = data.performanceStats,
                         onUnload = {
                             val loadedModel = installedOnly.find { it.id == data.loadedModelId }
                             loadedModel?.let { viewModel.unloadModel(it) }
-                        }
+                        },
+                        onRetry = { viewModel.retryFailedLoad() }
                     )
                 }
             }
@@ -417,6 +430,12 @@ private fun InstalledModelsTab(
                     model = model,
                     isActive = model.id == data.loadedModelId,
                     isDownloaded = model.isDownloaded,
+                    activeContextLength = if (model.id == data.loadedModelId) {
+                        (engineState as? EngineState.Ready)?.model?.contextLength
+                            ?: (engineState as? EngineState.Generating)?.model?.contextLength
+                    } else {
+                        null
+                    },
                     onLoadClick = {
                         if (model.id == data.loadedModelId) {
                             viewModel.unloadModel(model)
@@ -558,7 +577,7 @@ private fun DownloadCard(
 ) {
     val percent = progress?.progressPercent ?: 0
     val bytes = progress?.bytesDownloaded ?: 0L
-    val total = progress?.totalBytes ?: model.fileSize
+    val total = progress?.totalBytes?.takeIf { it > 0 } ?: model.fileSize
     val speed = progress?.speedBytesPerSec ?: 0f
     val eta = progress?.etaSeconds ?: 0L
     val status = progress?.status ?: model.downloadStatus
@@ -589,12 +608,22 @@ private fun DownloadCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            LinearProgressIndicator(
-                progress = (percent / 100f).coerceIn(0f, 1f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-            )
+            // Unknown total size (chunked transfer, no Content-Length): show
+            // an indeterminate bar instead of a misleading 0% determinate one.
+            if (status == DownloadStatus.DOWNLOADING && total <= 0L) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = (percent / 100f).coerceIn(0f, 1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -678,11 +707,7 @@ private fun CatalogTab(
     installedModels: List<Model>
 ) {
     when (val state = data.catalogState) {
-        is CatalogState.Loading -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        }
+        is CatalogState.Loading -> CatalogLoadingPlaceholder()
         is CatalogState.Failed -> {
             Column(
                 modifier = Modifier
@@ -827,7 +852,7 @@ private fun CatalogList(
             }
         }
 
-        item(key = "category_chips") {
+        item(key = "filter_chips") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -835,21 +860,36 @@ private fun CatalogList(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
-                    selected = data.catalogFilters.categories.isEmpty(),
-                    onClick = { viewModel.updateCatalogFilters(data.catalogFilters.copy(categories = emptySet())) },
+                    selected = data.catalogFilters.sections.isEmpty() &&
+                        !data.catalogInstalledOnly && !data.catalogDownloadedOnly,
+                    onClick = {
+                        viewModel.updateCatalogFilters(data.catalogFilters.copy(sections = emptySet()))
+                        viewModel.updateCatalogInstalledOnly(false)
+                        viewModel.updateCatalogDownloadedOnly(false)
+                    },
                     label = { Text("All") }
                 )
-                CATEGORY_FILTERS.forEach { category ->
+                CatalogSections.ALL.forEach { section ->
                     FilterChip(
-                        selected = category in data.catalogFilters.categories,
+                        selected = section in data.catalogFilters.sections,
                         onClick = {
-                            val current = data.catalogFilters.categories.toMutableSet()
-                            if (!current.add(category)) current.remove(category)
-                            viewModel.updateCatalogFilters(data.catalogFilters.copy(categories = current))
+                            val current = data.catalogFilters.sections.toMutableSet()
+                            if (!current.add(section)) current.remove(section)
+                            viewModel.updateCatalogFilters(data.catalogFilters.copy(sections = current))
                         },
-                        label = { Text(category.label) }
+                        label = { Text(section) }
                     )
                 }
+                FilterChip(
+                    selected = data.catalogInstalledOnly,
+                    onClick = { viewModel.updateCatalogInstalledOnly(!data.catalogInstalledOnly) },
+                    label = { Text("Installed") }
+                )
+                FilterChip(
+                    selected = data.catalogDownloadedOnly,
+                    onClick = { viewModel.updateCatalogDownloadedOnly(!data.catalogDownloadedOnly) },
+                    label = { Text("Downloaded") }
+                )
             }
         }
 
@@ -889,6 +929,11 @@ private fun CatalogList(
     }
 }
 
+/**
+ * Catalog model card — Material 3, warm light: white surface, soft shadow,
+ * orange accent, compact emoji pills and a prominent download action.
+ * Hierarchy: name / family • author / description / badges / meta / action.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CatalogModelCard(
@@ -907,13 +952,11 @@ private fun CatalogModelCard(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = if (recommended) {
-                TerracottaSoft
-            } else {
-                DeskWalnut
-            }
-        )
+            containerColor = if (recommended) RecommendationGreen.copy(alpha = 0.07f) else Color.White
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -921,15 +964,16 @@ private fun CatalogModelCard(
                 if (wide) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Bottom
                     ) {
-                        CatalogTitleBlock(
+                        CatalogCardBody(
                             model = model,
                             recommended = recommended,
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(modifier = Modifier.width(20.dp))
                         CatalogModelAction(
+                            model = model,
                             isGated = isGated,
                             isDownloaded = isDownloaded,
                             isDownloading = isDownloading,
@@ -937,104 +981,14 @@ private fun CatalogModelCard(
                         )
                     }
                 } else {
-                    CatalogTitleBlock(model = model, recommended = recommended)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = model.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (model.tags.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    model.tags.forEach { tag ->
-                        SuggestionChip(
-                            onClick = {},
-                            label = { Text(tag) },
-                            shape = RoundedCornerShape(16.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (model.parameters.isNotBlank()) {
-                    ModelMetaPill("${model.parameters} Params", leadingIcon = Icons.Default.Memory)
-                }
-                ModelMetaPill(model.sizeBytes.formatSize(), leadingIcon = Icons.Default.Storage)
-                ModelMetaPill("${model.contextLength.coerceAtLeast(1) / 1000}K Context", leadingIcon = Icons.Default.History)
-                ModelMetaPill("RAM ${"%.0f".format(model.minRamGb)}+ GB", leadingIcon = Icons.Default.Speed)
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f, fill = false),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Outlined.Download,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = model.downloads.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Favorite,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = Color(0xFFE0A489)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = model.likes.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-
-                if (wideSize()) {
-                    CatalogModelAction(
-                        isGated = isGated,
-                        isDownloaded = isDownloaded,
-                        isDownloading = isDownloading,
-                        onDownload = { onDownload(model) }
-                    )
+                    CatalogCardBody(model = model, recommended = recommended)
                 }
             }
 
             if (!wideSize()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 CatalogModelAction(
+                    model = model,
                     isGated = isGated,
                     isDownloaded = isDownloaded,
                     isDownloading = isDownloading,
@@ -1047,12 +1001,12 @@ private fun CatalogModelCard(
 }
 
 /**
- * Model identity block: name (max 2 lines, ellipsized) with the quantization
- * and recommendation chips laid out beside/below it — never overlapping.
+ * Card body: name (large, bold), family • author, description (3 lines),
+ * compact badge pills and the Memory / Context / Quantization meta row.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CatalogTitleBlock(
+private fun CatalogCardBody(
     model: CatalogModel,
     recommended: Boolean,
     modifier: Modifier = Modifier
@@ -1066,51 +1020,112 @@ private fun CatalogTitleBlock(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(modifier = Modifier.height(6.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            if (model.quantization.isNotBlank()) {
-                AssistChip(
-                    onClick = {},
-                    label = {
-                        Text(model.quantization, style = MaterialTheme.typography.labelMedium)
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
-                    }
-                )
-            }
-            if (recommended) {
-                AssistChip(
-                    onClick = {},
-                    label = { Text("★ Recommended") },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-            }
-        }
-        if (model.family.isNotBlank()) {
-            Spacer(modifier = Modifier.height(4.dp))
+        val subtitle = buildList {
+            if (model.family.isNotBlank()) add(model.family)
+            if (model.author.isNotBlank()) add(model.author)
+            if (model.family.isBlank() && model.architecture.isNotBlank()) add(model.architecture)
+        }.joinToString(" • ")
+        if (subtitle.isNotBlank()) {
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = buildString {
-                    append(model.family)
-                    if (model.architecture.isNotBlank()) append(" • ${model.architecture}")
-                    if (model.license.isNotBlank()) append(" • ${model.license}")
-                },
+                text = subtitle,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = DeskInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = model.description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        val badgeList = buildList {
+            if (recommended) add("⭐ Recommended")
+            addAll(model.badges)
+        }
+        if (badgeList.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                badgeList.forEach { badge -> CatalogBadgePill(badge) }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ModelMetaPill("RAM ${"%.0f".format(model.minRamGb)}+ GB", leadingIcon = Icons.Default.Speed)
+            ModelMetaPill("${model.contextLength.coerceAtLeast(1) / 1000}K Context", leadingIcon = Icons.Default.History)
+            if (model.quantization.isNotBlank()) {
+                ModelMetaPill(model.quantization, leadingIcon = Icons.Default.Memory)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = model.downloads.toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = LampAmber
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = model.likes.toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+            if (model.license.isNotBlank()) {
+                Text(
+                    text = model.license,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End
+                )
+            }
         }
     }
 }
 
 /**
- * Compact metadata pill (Params / Size / Context / RAM) sized by content.
+ * Compact metadata pill (Memory / Context / Quantization) sized by content.
  */
 @Composable
 private fun ModelMetaPill(
@@ -1118,27 +1133,26 @@ private fun ModelMetaPill(
     leadingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = DeskWalnutDeep,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        shape = RoundedCornerShape(999.dp),
+        color = DeskWalnutDeep
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leadingIcon != null) {
                 Icon(
                     imageVector = leadingIcon,
                     contentDescription = null,
-                    modifier = Modifier.size(13.dp),
-                    tint = io.androllm.core.ui.theme.DeskInk
+                    modifier = Modifier.size(14.dp),
+                    tint = LampDeep
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(5.dp))
             }
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelMedium,
-                color = io.androllm.core.ui.theme.DeskInk,
+                color = DeskInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1146,56 +1160,139 @@ private fun ModelMetaPill(
     }
 }
 
+/** Tint pair for a compact badge pill: soft container + readable content color. */
+private data class BadgeTint(val container: Color, val content: Color)
+
+private val RecommendationGreen = Color(0xFF4CAF50)
+private val RecommendationGreenDeep = Color(0xFF2E7D32)
+
+/** Per-badge soft tints — orange accent, green recommendation/NPU, subtle hues. */
+private fun badgeTint(badge: String): BadgeTint = when {
+    badge.contains("Recommended") || badge.contains("NPU") ->
+        BadgeTint(RecommendationGreen.copy(alpha = 0.14f), RecommendationGreenDeep)
+    badge.contains("Trending") || badge.contains("Vulkan") ->
+        BadgeTint(LampAmber.copy(alpha = 0.16f), LampDeep)
+    badge.contains("Fast") || badge.contains("Beginner") || badge.contains("Low RAM") ->
+        BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
+    badge.contains("Reasoning") || badge.contains("Agentic") || badge.contains("Memory") ->
+        BadgeTint(Color(0xFFEFE6FF), Color(0xFF7A4FD0))
+    badge.contains("Speech") || badge.contains("Tool Calling") ->
+        BadgeTint(Color(0xFFDCF5F0), Color(0xFF0E8A72))
+    badge.contains("Vision") || badge.contains("Multimodal") || badge.contains("Code") ->
+        BadgeTint(Color(0xFFE5E9FF), Color(0xFF4056D6))
+    badge.contains("Medical") ->
+        BadgeTint(Color(0xFFFFE7E7), Color(0xFFC0392B))
+    badge.contains("Mobile Optimized") ->
+        BadgeTint(Color(0xFFDFF6FA), Color(0xFF007E93))
+    badge.contains("Embedding") ->
+        BadgeTint(Color(0xFFF1E8FC), Color(0xFF7B1FA2))
+    badge.contains("Multilingual") || badge.contains("Translation") ->
+        BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
+    else -> BadgeTint(DeskWalnutDeep, DeskInk)
+}
+
+/** Compact pill badge with emoji + label and a per-type soft tint. */
+@Composable
+private fun CatalogBadgePill(badge: String) {
+    val tint = badgeTint(badge)
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = tint.container,
+        contentColor = tint.content
+    ) {
+        Text(
+            text = badge,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
+    }
+}
+
 /**
  * The single action slot for a catalog card: Gated / Installed / Downloading /
- * Download. Always bottom-anchored on phones, side-anchored on wide screens.
+ * Download. The download button carries the quantization and file size.
  */
 @Composable
 private fun CatalogModelAction(
+    model: CatalogModel,
     isGated: Boolean,
     isDownloaded: Boolean,
     isDownloading: Boolean,
     onDownload: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    when {
-        isGated -> AssistChip(
-            onClick = {},
-            label = { Text("Gated") },
-            modifier = modifier
-        )
-        isDownloaded -> OutlinedButton(
-            onClick = {},
-            enabled = false,
-            modifier = modifier
-        ) {
-            Text("Installed")
-        }
-        isDownloading -> Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            modifier = modifier
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+    val subtitle = buildList {
+        if (model.quantization.isNotBlank()) add(model.quantization)
+        add(model.sizeBytes.formatSize())
+    }.joinToString(" • ")
+
+    val target = when {
+        isGated -> CatalogActionState.GATED
+        isDownloaded -> CatalogActionState.INSTALLED
+        isDownloading -> CatalogActionState.DOWNLOADING
+        else -> CatalogActionState.DOWNLOAD
+    }
+    AnimatedContent(
+        targetState = target,
+        transitionSpec = { fadeIn() togetherWith fadeOut() },
+        label = "catalogAction"
+    ) { state ->
+        when (state) {
+            CatalogActionState.GATED -> AssistChip(
+                onClick = {},
+                label = { Text("Gated") },
+                modifier = modifier
+            )
+            CatalogActionState.INSTALLED -> OutlinedButton(
+                onClick = {},
+                enabled = false,
+                modifier = modifier
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Downloading…", style = MaterialTheme.typography.labelLarge)
+                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Installed")
             }
-        }
-        else -> Button(
-            onClick = onDownload,
-            modifier = modifier
-        ) {
-            Icon(Icons.Default.CloudDownload, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Download")
+            CatalogActionState.DOWNLOADING -> Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = modifier
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Downloading…", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+            CatalogActionState.DOWNLOAD -> Button(
+                onClick = onDownload,
+                modifier = modifier
+            ) {
+                Icon(
+                    Icons.Default.Download,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text("Download", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
+
+private enum class CatalogActionState { GATED, INSTALLED, DOWNLOADING, DOWNLOAD }
 
 /** Reads the current window width to swap the catalog card layout at ~600dp. */
 @Composable
@@ -1204,25 +1301,71 @@ private fun wideSize(): Boolean {
     return configuration.screenWidthDp >= 600
 }
 
-private val SORT_OPTIONS = listOf(
-    CatalogSortOption.TRENDING,
-    CatalogSortOption.DOWNLOADS,
-    CatalogSortOption.LIKES,
-    CatalogSortOption.NEWEST,
-    CatalogSortOption.SIZE_DESC,
-    CatalogSortOption.LEAST_RAM
-)
+/**
+ * Skeleton cards shown while the catalog loads — soft pulsing placeholders.
+ */
+@Composable
+private fun CatalogLoadingPlaceholder() {
+    val pulse = rememberInfiniteTransition(label = "catalogSkeleton").animateFloat(
+        initialValue = 0.45f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "skeletonAlpha"
+    )
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(4) {
+            ElevatedCard(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    SkeletonBar(fraction = 0.6f, barHeight = 22.dp, alpha = pulse.value)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SkeletonBar(fraction = 0.35f, barHeight = 13.dp, alpha = pulse.value)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SkeletonBar(fraction = 1f, barHeight = 12.dp, alpha = pulse.value)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    SkeletonBar(fraction = 0.8f, barHeight = 12.dp, alpha = pulse.value)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SkeletonBar(fraction = 0.72f, barHeight = 24.dp, alpha = pulse.value)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SkeletonBar(fraction = 0.5f, barHeight = 26.dp, alpha = pulse.value)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SkeletonBar(fraction = 0.42f, barHeight = 44.dp, alpha = pulse.value)
+                }
+            }
+        }
+    }
+}
 
-private val CATEGORY_FILTERS = listOf(
-    CatalogCategory.CHAT,
-    CatalogCategory.REASONING,
-    CatalogCategory.CODE,
-    CatalogCategory.MATH,
-    CatalogCategory.VISION,
-    CatalogCategory.EMBEDDING,
-    CatalogCategory.MULTILINGUAL,
-    CatalogCategory.FUNCTION_CALLING,
-    CatalogCategory.LIGHTWEIGHT
+/** A single rounded placeholder block inside a skeleton card. */
+@Composable
+private fun SkeletonBar(fraction: Float, barHeight: Dp, alpha: Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(fraction)
+            .height(barHeight)
+            .clip(RoundedCornerShape(6.dp))
+            .background(DeskWalnutDeep.copy(alpha = alpha))
+    )
+}
+
+private val SORT_OPTIONS = listOf(
+    CatalogSortOption.DOWNLOADS,   // Popular
+    CatalogSortOption.SIZE_ASC,    // Smallest
+    CatalogSortOption.SIZE_DESC,   // Largest
+    CatalogSortOption.FASTEST,     // Fastest
+    CatalogSortOption.NEWEST,      // Newest
+    CatalogSortOption.RECOMMENDED  // Recommended
 )
 
 @Composable
@@ -1667,8 +1810,9 @@ private fun BackendSelectorCard(
 private fun ModelStatusDashboard(
     engineState: EngineState,
     memoryStats: MemoryStats?,
-    inferenceTokensPerSecond: Float = 0f,
-    onUnload: () -> Unit
+    performanceStats: io.androllm.engine.models.EngineStats?,
+    onUnload: () -> Unit,
+    onRetry: () -> Unit = {}
 ) {
     val (statusLabel, statusColor, showProgress) = when (engineState) {
         is EngineState.Loading -> Triple(
@@ -1759,6 +1903,26 @@ private fun ModelStatusDashboard(
                 color = statusColor
             )
 
+            // Failed-load diagnostics: an actionable suggestion under the error
+            // and a Retry button when the failure can succeed on a second
+            // attempt (corrupted download, transient backend init failure).
+            if (engineState is EngineState.Failed) {
+                engineState.suggestion?.let { suggestion ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = suggestion,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (engineState.retryable) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(onClick = onRetry) {
+                        Text("Retry Load", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+
             // Progress bar during loading/warm-up
             if (showProgress) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1788,12 +1952,14 @@ private fun ModelStatusDashboard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        MemoryStatRow("Model RAM", "%.0f MB".format(stats.modelSizeMb()))
-                        MemoryStatRow("Context", "%.0f MB".format(stats.contextSizeMb()))
+                        MemoryStatRow("Model artifact", formatBytesOrUnavailable(stats.modelSizeBytes))
+                        MemoryStatRow("Process RAM (PSS)", formatBytesOrUnavailable(stats.processPssBytes))
+                        MemoryStatRow("Native heap", formatBytesOrUnavailable(stats.nativeHeapAllocatedBytes))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        MemoryStatRow("Peak", "%.0f MB".format(stats.peakMb()))
-                        MemoryStatRow("Total", "%.0f MB".format(stats.totalNativeMb()))
+                        MemoryStatRow("Java heap", formatBytesOrUnavailable(stats.javaHeapUsedBytes))
+                        MemoryStatRow("Peak process RAM", formatBytesOrUnavailable(stats.peakMemoryBytes))
+                        MemoryStatRow("Total model memory", formatBytesOrUnavailable(stats.totalRuntimeBytes))
                     }
                 }
 
@@ -1814,12 +1980,12 @@ private fun ModelStatusDashboard(
                 val successGreen = Color(0xFF52C41A)
                 LedgerStatRow(
                     "NPU",
-                    if (isNpu) "✓ ${npuModel?.accelerator?.ifBlank { "NPU" } ?: "NPU"}" else "—",
+                    if (isNpu) "✓ ${npuModel?.accelerator?.ifBlank { "NPU" } ?: "NPU"}" else "Not active",
                     valueColor = if (isNpu) successGreen else MaterialTheme.colorScheme.outline
                 )
                 LedgerStatRow(
                     "GPU",
-                    if (stats.isGpuAccelerated) "${stats.gpuBackendLabel} ✓" else "—",
+                    if (stats.isGpuAccelerated) "${stats.gpuBackendLabel} ✓" else "Not active",
                     valueColor = if (stats.isGpuAccelerated) successGreen else MaterialTheme.colorScheme.outline
                 )
                 LedgerStatRow("CPU", "Host ✓", valueColor = successGreen)
@@ -1910,27 +2076,59 @@ private fun ModelStatusDashboard(
                 Spacer(modifier = Modifier.height(4.dp))
                 if (isNpu) {
                     LedgerStatRow("NPU", npuModel?.delegate?.ifBlank { "LiteRT Delegate" } ?: "LiteRT Delegate")
-                    LedgerStatRow("Accelerator", npuModel?.accelerator?.ifBlank { "—" } ?: "—")
-                    LedgerStatRow("Vendor", npuModel?.vendor?.ifBlank { "—" } ?: "—")
+                    LedgerStatRow("Accelerator", npuModel?.accelerator?.ifBlank { UNAVAILABLE_ON_DEVICE } ?: UNAVAILABLE_ON_DEVICE)
+                    LedgerStatRow("Vendor", npuModel?.vendor?.ifBlank { UNAVAILABLE_ON_DEVICE } ?: UNAVAILABLE_ON_DEVICE)
                 }
-                LedgerStatRow("GPU", stats.gpuBackendLabel.ifBlank { "—" })
-                LedgerStatRow("CPU", "ARM64 NEON")
                 LedgerStatRow(
-                    "GPU Layers",
-                    if (stats.isGpuAccelerated) stats.gpuLayersDisplay else "—"
+                    "LiteRT delegate",
+                    when {
+                        isNpu -> npuModel?.delegate?.ifBlank { "LiteRT Delegate" } ?: "LiteRT Delegate"
+                        stats.isGpuAccelerated -> "LiteRT GPU active"
+                        stats.backend == "cpu" -> "XNNPACK CPU active"
+                        else -> UNAVAILABLE_ON_DEVICE
+                    }
                 )
-                LedgerStatRow("CPU Layers", "Embedding · Sampling · Tokenizer")
-                LedgerStatRow("KV Cache", if (stats.isGpuAccelerated) "GPU" else "CPU")
-                val contextLen = (engineState as? EngineState.Ready)?.model?.contextLength ?: 0
+                // LiteRT-LM 0.16's public API has no Vulkan delegate or
+                // Vulkan allocator surface. Do not relabel its GPU delegate
+                // as Vulkan or fabricate a layer/buffer split.
+LedgerStatRow("Vulkan delegate", UNAVAILABLE_ON_DEVICE)
+                LedgerStatRow("KV cache", formatKvCacheTokensOrUnavailable(stats.kvCacheTokens))
+                LedgerStatRow("Tokenizer memory", UNAVAILABLE_ON_DEVICE)
+                val contextLen = ((engineState as? EngineState.Ready)?.model
+                    ?: (engineState as? EngineState.Generating)?.model)
+                    ?.contextLength
                 LedgerStatRow(
                     "Context",
-                    if (contextLen > 0) "${(contextLen / 1024).coerceAtLeast(1)}K" else "—"
+                    contextLen?.takeIf { it > 0 }?.let(::formatContextLength) ?: UNAVAILABLE_ON_DEVICE
                 )
-                LedgerStatRow("Memory", "%.0f MB".format(stats.totalNativeMb()))
+                LedgerStatRow("Live process RAM", formatBytesOrUnavailable(stats.totalRuntimeBytes))
                 LedgerStatRow(
-                    "Inference",
-                    if (inferenceTokensPerSecond > 0f) "%.1f tok/s".format(inferenceTokensPerSecond) else "—"
+                    "Last decode speed",
+                    formatSpeedOrUnavailable(performanceStats?.decodeTokensPerSecond ?: performanceStats?.tokensPerSecond ?: 0f)
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Inference",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                LedgerStatRow("Average tokens/sec", formatSpeedOrUnavailable(performanceStats?.averageTokensPerSecond ?: 0f))
+                LedgerStatRow("Peak tokens/sec", formatSpeedOrUnavailable(performanceStats?.peakTokensPerSecond ?: 0f))
+                LedgerStatRow("Last generation", formatSpeedOrUnavailable(performanceStats?.tokensPerSecond ?: 0f))
+                LedgerStatRow("Prompt evaluation", formatSpeedOrUnavailable(performanceStats?.promptTokensPerSecond ?: 0f))
+                LedgerStatRow("Decode speed", formatSpeedOrUnavailable(performanceStats?.decodeTokensPerSecond ?: 0f))
+                LedgerStatRow("Prompt tokens", formatTokenCountOrUnavailable(performanceStats?.promptTokens ?: 0L))
+                LedgerStatRow("Generated tokens", formatTokenCountOrUnavailable(performanceStats?.generatedTokens ?: 0L))
+                LedgerStatRow(
+                    "Total tokens",
+                    formatTokenCountOrUnavailable(
+                        (performanceStats?.promptTokens ?: 0L) + (performanceStats?.generatedTokens ?: 0L)
+                    )
+                )
+                LedgerStatRow("Inference duration", formatDurationOrUnavailable(performanceStats?.totalTimeMs ?: 0L))
 
                 // Genuine runtime CPU fallback — the ONLY case a warning is shown
                 if (stats.isCpuFallback) {
@@ -1967,13 +2165,31 @@ private fun ModelStatusDashboard(
                     )
                 }
 
-                // GPU Memory (if Vulkan)
+                // GPU allocator metrics. LiteRT-LM has no public API for
+                // these counters on Android, so every unavailable counter is
+                // explicit rather than rendered as a deceptive 0 MB.
                 if (stats.isGpuAccelerated) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    MemoryStatRow("GPU allocated (est.)", "%.0f MB".format(stats.gpuMemoryAllocatedMb()))
-                    MemoryStatRow("GPU free / total", "%.0f / %.0f MB".format(stats.gpuMemoryFreeMb(), stats.gpuMemoryTotalMb()))
-                    MemoryStatRow("GPU peak", "%.0f MB • Buffers: %d".format(stats.gpuMemoryPeakMb(), stats.gpuBufferCount))
-                    MemoryStatRow("KV cache", "%.0f MB (included in allocation)".format(stats.contextSizeMb()))
+                    Text(
+                        text = "GPU / Vulkan memory",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    MemoryStatRow("GPU allocated", if (stats.hasGpuAllocatedMetric) formatBytesOrUnavailable(stats.gpuMemoryAllocatedBytes) else UNAVAILABLE_ON_DEVICE)
+                    MemoryStatRow("GPU used", if (stats.hasGpuUsedMetric) formatBytesOrUnavailable(stats.gpuMemoryUsedBytes) else UNAVAILABLE_ON_DEVICE)
+                    MemoryStatRow(
+                        "GPU free / total",
+                        if (stats.hasGpuFreeTotalMetric) {
+                            "${formatBytesOrUnavailable(stats.gpuMemoryFreeBytes)} / ${formatBytesOrUnavailable(stats.gpuMemoryTotalBytes)}"
+                        } else {
+                            UNAVAILABLE_ON_DEVICE
+                        }
+                    )
+MemoryStatRow("GPU peak", if (stats.hasGpuPeakMetric) formatBytesOrUnavailable(stats.gpuMemoryPeakBytes) else UNAVAILABLE_ON_DEVICE)
+                    MemoryStatRow("KV cache", formatKvCacheTokensOrUnavailable(stats.kvCacheTokens))
+                    MemoryStatRow("Vulkan buffers", UNAVAILABLE_ON_DEVICE)
+                    MemoryStatRow("Allocated buffers", if (stats.hasGpuBufferMetric) stats.gpuBufferCount.toString() else UNAVAILABLE_ON_DEVICE)
                 }
 
                 // ── Runtime recovery / CPU session fallback (collapsible) ──
@@ -2015,6 +2231,31 @@ private fun ModelStatusDashboard(
         }
     }
 }
+
+private const val UNAVAILABLE_ON_DEVICE = "Unavailable on this device"
+
+private fun formatContextLength(tokens: Int): String =
+    "${(tokens / 1024).coerceAtLeast(1)}K"
+
+private fun formatBytesOrUnavailable(bytes: Long): String =
+    if (bytes > 0L) "%.0f MB".format(bytes / (1024f * 1024f)) else UNAVAILABLE_ON_DEVICE
+
+/** Live KV-cache occupancy in tokens (LiteRT-LM exposes the cache as a token count, not bytes). */
+private fun formatKvCacheTokensOrUnavailable(tokens: Long): String =
+    if (tokens >= 0L) "$tokens tokens" else UNAVAILABLE_ON_DEVICE
+
+private fun formatSpeedOrUnavailable(tokensPerSecond: Float): String =
+    if (tokensPerSecond > 0f) "%.1f tok/s".format(tokensPerSecond) else UNAVAILABLE_ON_DEVICE
+
+private fun formatTokenCountOrUnavailable(tokens: Long): String =
+    if (tokens > 0L) tokens.toString() else UNAVAILABLE_ON_DEVICE
+
+private fun formatDurationOrUnavailable(durationMs: Long): String =
+    if (durationMs > 0L) {
+        if (durationMs < 1_000L) "$durationMs ms" else "%.2f s".format(durationMs / 1_000f)
+    } else {
+        UNAVAILABLE_ON_DEVICE
+    }
 
 @Composable
 private fun MemoryStatRow(label: String, value: String) {

@@ -15,8 +15,8 @@ data class CatalogFile(
 )
 
 /**
- * A curated catalog entry for a single GGUF artifact on a remote repository.
- * All 37 fields are metadata - nothing here is code-driven.
+ * A curated catalog entry for a single model artifact on a remote repository.
+ * All 41 fields are metadata - nothing here is code-driven.
  */
 @Serializable
 data class CatalogModel(
@@ -70,6 +70,29 @@ data class CatalogModel(
     val recommended: Boolean = false,
     val hidden: Boolean = false,
 
+    // ---- artifact identity (catalog schema v2) ----
+    /**
+     * Artifact version string of the model (e.g. "1.0.0", or the upstream
+     * checkpoint revision). Required for every entry.
+     */
+    val version: String = "",
+    /**
+     * The container file format — "LITERTLM" or "TFLITE". Must equal
+     * [runtimeFormat] and match the [fileName] extension.
+     */
+    val fileFormat: String = "",
+    /** The artifact MIME type ("application/x-litertlm" / "application/x-tflite"). */
+    val mimeType: String = "",
+    /**
+     * The expected `LlmModelType` container identifier (e.g. "qwen3",
+     * "fast_vlm", "lfm2") for `.litertlm` containers. Must be a registered
+     * identifier. Empty for `.tflite` artifacts — they carry no LlmMetadata
+     * proto. The identifier embedded in the actual container remains
+     * authoritative at load time; this is the catalog's declared expectation,
+     * validated against the registry at indexing.
+     */
+    val containerType: String? = null,
+
     // ---- storage-streaming runtime fields (catalog schema v2) ----
     // These separate STORAGE requirement from RUNTIME RAM requirement — the
     // core point of the streaming architecture: a 5.2 GB file does not need
@@ -113,7 +136,32 @@ data class CatalogModel(
     // NPU initialization, so entries opt in only when an NPU build ships.
     val supportsCpu: Boolean = true,
     val supportsGpu: Boolean = true,
-    val supportsNpu: Boolean = false
+    val supportsNpu: Boolean = false,
+
+    // ---- catalog sections & model facts (additive, LiteRT catalog) ----
+    // Sections organize the catalog into the filter chips shown on the Models
+    // screen: Featured / Google / Gemma / Qwen / DeepSeek / Phi / Tiny /
+    // Gemma Variants / Vision / Speech / Embedding. A model may belong to
+    // several sections (e.g. Gemma 4 E4B -> Featured, Google, Gemma).
+    val sections: List<String> = emptyList(),
+    /** Last time the model artifact was updated upstream (epoch millis). */
+    val lastUpdated: Long = 0,
+    /** Human-readable device recommendations, e.g. "8GB RAM phones". */
+    val recommendedDevices: List<String> = emptyList(),
+    /** Android NNAPI delegate support (accelerates via NPU/DSP/GPU). */
+    val supportsNnapi: Boolean = false,
+    /** LiteRT's GPU delegate on Android runs on Vulkan, so this mirrors GPU. */
+    val supportsVulkan: Boolean = false,
+    /** Accepts image input (vision/multimodal models). */
+    val supportsImageInput: Boolean = false,
+    /** Accepts audio input (speech/ASR models). */
+    val supportsAudioInput: Boolean = false,
+    /** Native function/tool calling support in the chat template. */
+    val supportsToolCalling: Boolean = false,
+    /** Reasoning traces / chain-of-thought behavior. */
+    val supportsReasoning: Boolean = false,
+    /** Produces embedding vectors (memory search / RAG). */
+    val supportsEmbeddings: Boolean = false
 ) {
     /** Quantization tier, auto-classified from [quantization]. */
     val quantLevel: QuantLevel get() = QuantClassifier.classify(quantization)
@@ -227,6 +275,31 @@ enum class ModelStreamType(val label: String) {
                 it.name.equals(value, ignoreCase = true) || it.label.equals(value, ignoreCase = true)
             } ?: STREAMING_DENSE
     }
+}
+
+/**
+ * Canonical catalog section names. A model's [CatalogModel.sections] may
+ * contain several of these; the Models screen renders one filter chip per
+ * section (plus All / Installed / Downloaded).
+ */
+object CatalogSections {
+    const val FEATURED = "Featured"
+    const val GOOGLE = "Google"
+    const val GEMMA = "Gemma"
+    const val QWEN = "Qwen"
+    const val DEEPSEEK = "DeepSeek"
+    const val PHI = "Phi"
+    const val TINY = "Tiny"
+    const val GEMMA_VARIANTS = "Gemma Variants"
+    const val VISION = "Vision"
+    const val EMBEDDING = "Embedding"
+    const val SPEECH = "Speech"
+
+    /** All section chips in display order. */
+    val ALL: List<String> = listOf(
+        FEATURED, GOOGLE, GEMMA, QWEN, DEEPSEEK, PHI, TINY,
+        GEMMA_VARIANTS, VISION, EMBEDDING, SPEECH
+    )
 }
 
 /** Display categories used to organize catalog models. */

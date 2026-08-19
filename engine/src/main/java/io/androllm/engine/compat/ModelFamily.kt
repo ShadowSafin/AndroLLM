@@ -1,5 +1,7 @@
 package io.androllm.engine.compat
 
+import io.androllm.core.models.catalog.ModelMetadataRegistry
+
 /**
  * The model families supported by the LiteRT-LM compatibility layer.
  *
@@ -77,21 +79,32 @@ enum class ModelFamily(
     DEEPSEEK("DeepSeek", listOf("deepseek"), TokenizerKind.BPE),
     MISTRAL("Mistral", listOf("mistral"), TokenizerKind.BPE),
     SMOL("SmolLM", listOf("smollm", "smol"), TokenizerKind.BPE),
-    TINYLLAMA("TinyLlama", listOf("tinyllama", "tinylama"), TokenizerKind.BPE);
+    TINYLLAMA("TinyLlama", listOf("tinyllama", "tinylama"), TokenizerKind.BPE),
+    /**
+     * The permissive fallback for containers whose identifier is supported by
+     * the runtime but has no bespoke family configuration (e.g. `fast_vlm`,
+     * `minicpm5`) and for models with no identifying metadata at all. The
+     * container's own embedded template drives chat (identity override), its
+     * own stop tokens terminate generation — nothing is guessed.
+     */
+    GENERIC("Generic", emptyList(), TokenizerKind.BPE);
 
     companion object {
         /**
-         * The `LlmModelType` oneof member names LiteRT-LM writes into the
-         * container metadata (`llm_model_type`, field 6 of `LlmMetadata`).
-         * Unknown members must NOT be mapped here — they fall through to the
-         * template/stop-token signature detection.
+         * Maps a `LlmModelType` container identifier (the oneof member names
+         * LiteRT-LM writes into `llm_model_type`, field 6 of `LlmMetadata`)
+         * to its engine family via the shared [ModelMetadataRegistry]. Every
+         * identifier the runtime supports is registered — none is ever
+         * "rejected": identifiers without a bespoke engine family map to
+         * [GENERIC], and `generic_model` returns null so detection continues
+         * to the template/stop-token signatures.
          */
-        fun fromLlmModelType(modelTypeName: String?): ModelFamily? = when (modelTypeName) {
-            "qwen3" -> QWEN3
-            "qwen2p5", "qwen2_5", "qwen2.5" -> QWEN2P5
-            "gemma3", "gemma3n", "gemma4", "function_gemma" -> GEMMA
-            else -> null
-        }
+        fun fromLlmModelType(modelTypeName: String?): ModelFamily? =
+            fromEngineKey(ModelMetadataRegistry.engineFamilyKeyForContainer(modelTypeName))
+
+        /** Lookup by the registry's engine-family key (e.g. "QWEN3"). */
+        fun fromEngineKey(engineKey: String?): ModelFamily? =
+            entries.firstOrNull { it.name == engineKey }
 
         /** Case-insensitive alias lookup — LAST resort, never used when metadata exists. */
         fun fromName(name: String?): ModelFamily? {

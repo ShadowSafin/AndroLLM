@@ -222,15 +222,18 @@ class DefaultEngineRepository @Inject constructor(
         engine.engineState
             .onEach { state ->
                 _engineState.value = state
-                if (state is EngineState.Ready) {
-                    _memoryStats.value = state.memoryStats
-                }
             }
             .catch { _engineState.value = EngineState.Failed(it.message ?: "Engine error") }
             .launchIn(scope)
 
         engine.stats
             .onEach { _performanceStats.value = it }
+            .launchIn(scope)
+
+        // The engine owns the polling cadence because only it knows whether a
+        // native model is resident. Forward every live snapshot to feature UIs.
+        engine.memoryStats
+            .onEach { _memoryStats.value = it }
             .launchIn(scope)
     }
 

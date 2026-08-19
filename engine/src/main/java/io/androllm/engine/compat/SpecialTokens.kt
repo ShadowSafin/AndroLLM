@@ -178,6 +178,13 @@ object SpecialTokensCatalog {
         extra = listOf("<|system|>", "<|user|>", "<|assistant|>")
     )
 
+    /**
+     * Generic mode: no family-specific vocabulary. Generation is terminated by
+     * the container's OWN stop tokens (merged at load) plus the most common
+     * Qwen-style end marker; nothing else is stripped from output.
+     */
+    val generic: SpecialTokens = tokensOf(eos = "<|im_end|>")
+
     val byFamily: Map<ModelFamily, SpecialTokens> = mapOf(
         ModelFamily.GEMMA to gemma,
         ModelFamily.QWEN2 to qwen,
@@ -188,6 +195,7 @@ object SpecialTokensCatalog {
         ModelFamily.DEEPSEEK to deepseek,
         ModelFamily.MISTRAL to mistral,
         ModelFamily.SMOL to smol,
-        ModelFamily.TINYLLAMA to tinyLlama
+        ModelFamily.TINYLLAMA to tinyLlama,
+        ModelFamily.GENERIC to generic
     )
 }

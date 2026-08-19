@@ -13,9 +13,14 @@ import io.androllm.core.database.AppDatabase
 import io.androllm.core.models.DownloadStatus
 import io.androllm.engine.utils.LiteRtValidator
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.MalformedURLException
+import java.net.URI
 import java.net.URL
+import kotlinx.coroutines.CancellationException
 import timber.log.Timber
 
 /**
@@ -34,6 +39,7 @@ class ModelDownloadWorker(
         const val KEY_DOWNLOAD_URL = "download_url"
         const val KEY_TARGET_PATH = "target_path"
         const val KEY_EXPECTED_SHA256 = "expected_sha256"
+        const val KEY_EXPECTED_SIZE = "expected_size"
         const val KEY_COMPANION_URL = "companion_url"
 
         const val KEY_PROGRESS_PERCENT = "progress_percent"
@@ -63,24 +69,86 @@ class ModelDownloadWorker(
         createNotificationChannel()
 
         val targetFile = File(targetPath)
-        targetFile.parentFile?.mkdirs()
+
+        // ---- Pre-flight validation -------------------------------------------------
+        // Reject malformed URLs (wrong scheme, garbage) before any network I/O.
+        if (!isValidDownloadUrl(downloadUrl)) {
+            val msg = "Invalid download URL: ${downloadUrl.ifBlank { "(empty)" }}"
+            Timber.e("$msg for model $modelName")
+            return failPermanent(modelId, modelName, msg)
+        }
+
+        // Make sure the target directory exists and is writable before downloading.
+        val parentDir = targetFile.parentFile
+        if (parentDir != null && !parentDir.exists() && !parentDir.mkdirs()) {
+            val msg = "Cannot create download directory: ${parentDir.absolutePath}"
+            return failPermanent(modelId, modelName, msg)
+        }
+        if (parentDir != null && !parentDir.canWrite()) {
+            val msg = "Download directory is not writable: ${parentDir.absolutePath}"
+            return failPermanent(modelId, modelName, msg)
+        }
 
         var downloadedBytes = if (targetFile.exists()) targetFile.length() else 0L
+        val expectedSize = inputData.getLong(KEY_EXPECTED_SIZE, 0L)
+
+        // Reject the download up-front when the device clearly lacks space for it.
+        if (expectedSize > 0 && parentDir != null) {
+            val needed = (expectedSize - downloadedBytes).coerceAtLeast(0L)
+            val usable = parentDir.usableSpace
+            if (usable > 0 && usable < needed) {
+                val msg = "Insufficient storage space (need ${needed.formatSize()}, have ${usable.formatSize()})"
+                return failPermanent(modelId, modelName, msg)
+            }
+        }
+
+        Timber.i(
+            "Download start: model=%s url=%s target=%s expectedSize=%d sha256=%s",
+            modelName, downloadUrl, targetPath, expectedSize, expectedSha256 ?: "none"
+        )
 
         return try {
             val connection = openConnectionWithRedirects(downloadUrl, downloadedBytes)
 
             val responseCode = connection.responseCode
-            if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_PARTIAL) {
-                markDatabaseFailed(modelId)
-                showFailureNotification(modelName, "HTTP Error $responseCode")
-                return Result.failure(workDataOf(KEY_ERROR_MESSAGE to "HTTP Error $responseCode"))
+            val contentLength = connection.contentLengthLong
+            val isPartial = responseCode == HttpURLConnection.HTTP_PARTIAL
+            Timber.i(
+                "Response %d from %s (content-length=%d, resume-offset=%d)",
+                responseCode, connection.url, contentLength, downloadedBytes
+            )
+
+            when (responseCode) {
+                HttpURLConnection.HTTP_OK -> {
+                    // Server ignored our Range request: the file was truncated
+                    // above, so restart the byte counter from scratch.
+                    if (downloadedBytes > 0) {
+                        Timber.w("Server ignored Range request; restarting download from 0")
+                        downloadedBytes = 0
+                    }
+                }
+                HttpURLConnection.HTTP_PARTIAL -> {
+                    // Content-Length is the *remaining* bytes; total = offset + remaining.
+                }
+                else -> {
+                    val msg = "HTTP Error $responseCode"
+                    if (isHttpFailurePermanent(responseCode)) {
+                        return failPermanent(modelId, modelName, msg)
+                    }
+                    return failTransient(modelId, modelName, msg)
+                }
             }
 
-            val contentLength = connection.contentLengthLong
-            val totalBytes = if (responseCode == HttpURLConnection.HTTP_PARTIAL) contentLength + downloadedBytes else contentLength
+            // Total size: Content-Length when present, else the catalog size,
+            // else unknown (chunked transfer) → -1 (indeterminate progress).
+            val totalBytes = resolveTotalBytes(contentLength, isPartial, downloadedBytes, expectedSize)
+            Timber.i("Total download size: %d bytes", totalBytes)
 
-            val appendMode = responseCode == HttpURLConnection.HTTP_PARTIAL
+            // Publish the first progress frame immediately so the UI never
+            // shows "0 B / 0 B" while the connection is being established.
+            publishProgress(modelName, downloadedBytes, totalBytes, 0f, 0L, 0)
+
+            val appendMode = isPartial
             val outputStream = FileOutputStream(targetFile, appendMode)
 
             val inputStream = connection.inputStream
@@ -119,23 +187,14 @@ class ModelDownloadWorker(
                     }
 
                     val remainingBytes = totalBytes - downloadedBytes
-                    val etaSeconds = if (smoothedSpeedBytesPerSec > 0f) {
+                    val etaSeconds = if (smoothedSpeedBytesPerSec > 0f && remainingBytes > 0L) {
                         (remainingBytes / smoothedSpeedBytesPerSec).toLong()
                     } else {
                         0L
                     }
                     val progressPercent = if (totalBytes > 0) ((downloadedBytes * 100) / totalBytes).toInt() else 0
 
-                    val progressData = workDataOf(
-                        KEY_PROGRESS_PERCENT to progressPercent,
-                        KEY_BYTES_DOWNLOADED to downloadedBytes,
-                        KEY_TOTAL_BYTES to totalBytes,
-                        KEY_SPEED_BYTES_PER_SEC to smoothedSpeedBytesPerSec,
-                        KEY_ETA_SECONDS to etaSeconds
-                    )
-                    setProgress(progressData)
-
-                    updateNotification(modelName, progressPercent, downloadedBytes, totalBytes, smoothedSpeedBytesPerSec, etaSeconds)
+                    publishProgress(modelName, downloadedBytes, totalBytes, smoothedSpeedBytesPerSec, etaSeconds, progressPercent)
                     lastProgressTime = currentTime
                     lastReportedBytes = downloadedBytes
                 }
@@ -145,25 +204,41 @@ class ModelDownloadWorker(
             outputStream.close()
             inputStream.close()
 
+            Timber.i("Download complete for %s: %d bytes in %d ms", modelName, downloadedBytes, System.currentTimeMillis() - startTime)
+
+            // Size verification: a truncated transfer (server closed the body
+            // before Content-Length) or a size that contradicts the catalog is
+            // a corrupted artifact — fail before any checksum/header pass.
+            if (totalBytes > 0 && downloadedBytes != totalBytes) {
+                val msg = "Download truncated (${downloadedBytes.formatSize()} of ${totalBytes.formatSize()})"
+                return failPermanent(modelId, modelName, msg, deleteFile = true)
+            }
+            if (expectedSize > 0) {
+                val actualSize = targetFile.length()
+                if (actualSize != expectedSize) {
+                    return failPermanent(
+                        modelId, modelName,
+                        "File size mismatch (expected $expectedSize bytes, got $actualSize)",
+                        deleteFile = true
+                    )
+                }
+            }
+
             // Optional SHA256 Verification if length == 64
             if (!expectedSha256.isNullOrBlank() && expectedSha256.length == 64) {
                 val actualSha256 = LiteRtValidator.calculateSha256(targetFile.absolutePath)
                 if (actualSha256 != null && !actualSha256.equals(expectedSha256, ignoreCase = true)) {
-                    targetFile.delete()
-                    markDatabaseFailed(modelId)
-                    showFailureNotification(modelName, "SHA256 checksum mismatch")
-                    return Result.failure(workDataOf(KEY_ERROR_MESSAGE to "SHA256 checksum mismatch"))
+                    return failPermanent(modelId, modelName, "SHA256 checksum mismatch", deleteFile = true)
                 }
             }
 
             // LiteRT Artifact Header Validation (.litertlm container or .tflite)
             val validation = LiteRtValidator.validateHeader(targetFile.absolutePath)
             if (!validation.isValid) {
-                targetFile.delete()
-                markDatabaseFailed(modelId)
-                showFailureNotification(modelName, validation.errorMessage)
-                return Result.failure(workDataOf(KEY_ERROR_MESSAGE to validation.errorMessage))
+                return failPermanent(modelId, modelName, validation.errorMessage, deleteFile = true)
             }
+
+            Timber.i("Download verified for %s: size=%d bytes", modelName, targetFile.length())
 
             // Auto-import into Database
             AppDatabase.getInstance(applicationContext).modelDao().updateDownloadState(
@@ -195,11 +270,23 @@ class ModelDownloadWorker(
                     KEY_PROGRESS_PERCENT to 100
                 )
             )
+        } catch (e: CancellationException) {
+            // WorkManager cancelled us (pause/cancel/replace): never swallow
+            // this into a failure path, or cancelled work gets retried.
+            throw e
+        } catch (e: MalformedURLException) {
+            failPermanent(modelId, modelName, "Invalid download URL: ${e.message}")
+        } catch (e: FileNotFoundException) {
+            Timber.e(e, "Cannot write model file for $modelName")
+            failPermanent(modelId, modelName, "Cannot write download file: ${e.message ?: "permission or path error"}")
+        } catch (e: IOException) {
+            // Transient network-level failures (timeout, reset, DNS, TLS): let
+            // WorkManager retry with backoff instead of failing permanently.
+            Timber.e(e, "Network failure downloading model $modelName from $downloadUrl")
+            failTransient(modelId, modelName, e.message ?: "Network failure")
         } catch (e: Exception) {
             Timber.e(e, "Error downloading model $modelName from $downloadUrl")
-            markDatabaseFailed(modelId)
-            showFailureNotification(modelName, e.message ?: "Network failure")
-            Result.retry()
+            failPermanent(modelId, modelName, e.message ?: "Unexpected download error")
         }
     }
 
@@ -292,7 +379,9 @@ class ModelDownloadWorker(
                 if (newUrl.isNullOrBlank()) {
                     throw IllegalStateException("Redirected with empty Location header")
                 }
-                currentUrl = newUrl
+                // Resolve relative Location headers (Location may be a path).
+                currentUrl = URL(url, newUrl).toString()
+                Timber.i("Redirect %d for %s → %s", redirectCount + 1, initialUrl, currentUrl)
                 redirectCount++
             } else {
                 return connection
@@ -356,6 +445,65 @@ class ModelDownloadWorker(
         }
     }
 
+    /**
+     * Publishes a progress frame to WorkManager and mirrors it in the
+     * notification. Called with the very first frame (0 bytes) as soon as the
+     * headers are known so the UI never shows "0 B / 0 B".
+     */
+    private suspend fun publishProgress(
+        modelName: String,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        speedBytesPerSec: Float,
+        etaSeconds: Long,
+        progressPercent: Int
+    ) {
+        setProgress(
+            workDataOf(
+                KEY_PROGRESS_PERCENT to progressPercent,
+                KEY_BYTES_DOWNLOADED to downloadedBytes,
+                KEY_TOTAL_BYTES to totalBytes,
+                KEY_SPEED_BYTES_PER_SEC to speedBytesPerSec,
+                KEY_ETA_SECONDS to etaSeconds
+            )
+        )
+        updateNotification(modelName, progressPercent, downloadedBytes, totalBytes, speedBytesPerSec, etaSeconds)
+    }
+
+    /**
+     * Permanent failure: the download can never succeed as-is (bad URL, HTTP
+     * 4xx, corrupt artifact, no space). The error reason is published both in
+     * the progress data and in the result output so the UI can display it.
+     */
+    private suspend fun failPermanent(
+        modelId: String,
+        modelName: String,
+        message: String,
+        deleteFile: Boolean = false
+    ): Result {
+        Timber.e("Permanent download failure for $modelName: $message")
+        if (deleteFile) {
+            inputData.getString(KEY_TARGET_PATH)?.let { File(it).delete() }
+        }
+        markDatabaseFailed(modelId)
+        showFailureNotification(modelName, message)
+        setProgress(workDataOf(KEY_ERROR_MESSAGE to message))
+        return Result.failure(workDataOf(KEY_ERROR_MESSAGE to message))
+    }
+
+    /**
+     * Transient failure (timeout, connection reset, TLS hiccup, HTTP 5xx):
+     * surface the reason, keep any partial file for Range resume, and let
+     * WorkManager retry with backoff.
+     */
+    private suspend fun failTransient(modelId: String, modelName: String, message: String): Result {
+        Timber.w("Transient download failure for $modelName: $message — will retry")
+        markDatabaseFailed(modelId)
+        showFailureNotification(modelName, message)
+        setProgress(workDataOf(KEY_ERROR_MESSAGE to message))
+        return Result.retry()
+    }
+
     private fun Long.formatSize(): String {
         return when {
             this < 1024 -> "$this B"
@@ -382,4 +530,47 @@ class ModelDownloadWorker(
             else -> String.format(java.util.Locale.getDefault(), "%.2f GB/s", this / (1024f * 1024f * 1024f))
         }
     }
+}
+
+/**
+ * True when an HTTP status code is a permanent client error (4xx) that retry
+ * cannot fix. 408 (Request Timeout) and 429 (Too Many Requests) are treated as
+ * transient, as is any 5xx (including [HttpURLConnection.HTTP_INTERNAL_ERROR]).
+ */
+internal fun isHttpFailurePermanent(responseCode: Int): Boolean =
+    responseCode in 400..499 && responseCode != 408 && responseCode != 429
+
+/**
+ * Resolves the total download size from the response and catalog metadata.
+ *
+ * @param contentLength  the response's Content-Length (-1 when unknown/chunked)
+ * @param isPartial      true when the server answered 206 (Range honored); the
+ *                       Content-Length is then only the *remaining* bytes
+ * @param downloadedBytes the resume offset for a partial response
+ * @param expectedSize   the catalog file size (0 when unknown)
+ * @return the total size in bytes, or -1 when nothing is known (indeterminate)
+ */
+internal fun resolveTotalBytes(
+    contentLength: Long,
+    isPartial: Boolean,
+    downloadedBytes: Long,
+    expectedSize: Long
+): Long = when {
+    contentLength > 0 && isPartial -> contentLength + downloadedBytes
+    contentLength > 0 -> contentLength
+    expectedSize > 0 -> expectedSize
+    else -> -1L
+}
+
+/**
+ * True when the URL is usable for a download: non-blank, parseable, and with
+ * an http/https scheme (any other scheme cannot be opened via HttpURLConnection).
+ */
+internal fun isValidDownloadUrl(url: String): Boolean {
+    val uri = try {
+        URI.create(url)
+    } catch (e: Exception) {
+        null
+    }
+    return uri != null && (uri.scheme == "http" || uri.scheme == "https")
 }

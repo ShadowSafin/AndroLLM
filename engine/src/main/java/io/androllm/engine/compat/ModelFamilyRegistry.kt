@@ -16,6 +16,7 @@ object ModelFamilyRegistry {
     private val deepseekDefaults = GenerationDefaults(topK = null, topP = 0.95f, temperature = 0.7f)
     private val smolDefaults = GenerationDefaults(topK = null, topP = 0.95f, temperature = 0.7f)
     private val tinyLlamaDefaults = GenerationDefaults(topK = null, topP = 0.95f, temperature = 0.7f)
+    private val genericDefaults = GenerationDefaults(topK = null, topP = 0.95f, temperature = 0.7f)
 
     private val allConfigs: Map<ModelFamily, ModelFamilyConfig> = mapOf(
         ModelFamily.GEMMA to ModelFamilyConfig(
@@ -51,6 +52,15 @@ object ModelFamilyRegistry {
         ),
         ModelFamily.TINYLLAMA to ModelFamilyConfig(
             ModelFamily.TINYLLAMA, ChatTemplates.tinyLlama, SpecialTokensCatalog.tinyLlama, tinyLlamaDefaults
+        ),
+        /**
+         * Generic mode: the chat template is replaced at load time with the
+         * container's OWN embedded template (identity override — nothing is
+         * guessed), and the container's own stop tokens terminate generation.
+         * The catalog entry's model-specific stopSequences still merge in.
+         */
+        ModelFamily.GENERIC to ModelFamilyConfig(
+            ModelFamily.GENERIC, ChatTemplates.generic, SpecialTokensCatalog.generic, genericDefaults
         )
     )
 
@@ -62,19 +72,23 @@ object ModelFamilyRegistry {
     fun configFor(family: ModelFamily): ModelFamilyConfig = allConfigs.getValue(family)
 
     /**
-     * Resolves the family for a model, using container metadata first and the
-     * model name as a last resort. See [ModelCompatibilityResolver] for the
-     * detection order and confidence scoring. Returns the full [Resolution]
-     * (family + source) so callers can log/display HOW the family was detected.
+     * Resolves the family for a model, using container metadata first, the
+     * catalog family (registry-validated) and the model name as later sources.
+     * See [ModelCompatibilityResolver] for the detection order and confidence
+     * scoring. Returns the full [Resolution] (family + source) so callers can
+     * log/display HOW the family was detected.
      */
     fun resolve(
         container: ContainerMetadata?,
-        modelName: String?
-    ): ModelCompatibilityResolver.Resolution = ModelCompatibilityResolver.resolve(container, modelName)
+        modelName: String?,
+        catalogFamily: String? = null
+    ): ModelCompatibilityResolver.Resolution =
+        ModelCompatibilityResolver.resolve(container, modelName, catalogFamily)
 
     /** Convenience: same as [resolve] but returns only the config. */
     fun resolveConfig(
         container: ContainerMetadata?,
-        modelName: String?
-    ): ModelFamilyConfig = resolve(container, modelName).config
+        modelName: String?,
+        catalogFamily: String? = null
+    ): ModelFamilyConfig = resolve(container, modelName, catalogFamily).config
 }

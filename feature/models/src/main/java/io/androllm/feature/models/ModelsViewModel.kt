@@ -53,6 +53,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -96,6 +97,7 @@ class ModelsViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     private val _sortOption = MutableStateFlow(ModelSortOption.NAME)
     private val _loadingModelId = MutableStateFlow<String?>(null)
+    private val _lastLoadFailedModelId = MutableStateFlow<String?>(null)
     private val _importing = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
     private val _benchmarkReport = MutableStateFlow<BenchmarkReport?>(null)
@@ -110,8 +112,10 @@ class ModelsViewModel @Inject constructor(
 
     // Metadata-driven Catalog State
     private val _catalogFilters = MutableStateFlow(CatalogFilters())
-    private val _catalogSort = MutableStateFlow(CatalogSortOption.TRENDING)
+    private val _catalogSort = MutableStateFlow(CatalogSortOption.DOWNLOADS)
     private val _catalogRefreshError = MutableStateFlow<String?>(null)
+    private val _catalogInstalledOnly = MutableStateFlow(false)
+    private val _catalogDownloadedOnly = MutableStateFlow(false)
 
     // Storage stats — computed OFF the main thread (walking the models
     // directories can take hundreds of ms when many GGUF files are present).
@@ -149,9 +153,10 @@ class ModelsViewModel @Inject constructor(
             _sortOption,
             _loadingModelId,
             _importing,
-            _errorMessage
-        ) { sort, loadingId, importing, error ->
-            listOf(sort, loadingId, importing, error)
+            _errorMessage,
+            engineRepository.memoryStats
+        ) { sort, loadingId, importing, error, memoryStats ->
+            listOf(sort, loadingId, importing, error, memoryStats)
         },
         combine(
             _benchmarkReport,
@@ -166,18 +171,31 @@ class ModelsViewModel @Inject constructor(
             _selectedRemoteDetails,
             _readmeText,
             _isLoadingDetails,
-            _storageStats
-        ) { remoteDetails, readme, isLoadingDetails, storageStats ->
-            listOf(remoteDetails, readme, isLoadingDetails, storageStats)
+            _storageStats,
+            _lastLoadFailedModelId
+        ) { remoteDetails, readme, isLoadingDetails, storageStats, failedId ->
+            listOf(remoteDetails, readme, isLoadingDetails, storageStats, failedId)
         },
         combine(
-            catalogRepository.state,
-            catalogRepository.refreshing,
-            _catalogFilters,
-            _catalogSort,
-            _catalogRefreshError
-        ) { catalogState, isRefreshing, filters, sort, refreshError ->
-            listOf(catalogState, isRefreshing, filters, sort, refreshError)
+            listOf(
+                catalogRepository.state,
+                catalogRepository.refreshing,
+                _catalogFilters,
+                _catalogSort,
+                _catalogRefreshError,
+                _catalogInstalledOnly,
+                _catalogDownloadedOnly
+            )
+        ) { values ->
+            listOf(
+                values[0] as CatalogState,
+                values[1] as Boolean,
+                values[2] as CatalogFilters,
+                values[3] as CatalogSortOption,
+                values[4] as String?,
+                values[5] as Boolean,
+                values[6] as Boolean
+            )
         }
     ) { group1, group2, group3, group4, group5 ->
         @Suppress("UNCHECKED_CAST")
@@ -192,6 +210,8 @@ class ModelsViewModel @Inject constructor(
         val loadingId = group2[1] as String?
         val importing = group2[2] as Boolean
         val error = group2[3] as String?
+        @Suppress("UNCHECKED_CAST")
+        val memStats = group2[4] as MemoryStats?
 
         val benchReport = group3[0] as BenchmarkReport?
         val isBenchmarking = group3[1] as Boolean
@@ -204,6 +224,7 @@ class ModelsViewModel @Inject constructor(
         val readme = group4[1] as String?
         val isLoadingDetails = group4[2] as Boolean
         val storageStats = group4[3] as StorageStats?
+        val lastLoadFailedId = group4[4] as String?
 
         @Suppress("UNCHECKED_CAST")
         val catalogState = group5[0] as CatalogState
@@ -211,22 +232,32 @@ class ModelsViewModel @Inject constructor(
         val catalogFilters = group5[2] as CatalogFilters
         val catalogSort = group5[3] as CatalogSortOption
         val catalogRefreshError = group5[4] as String?
+        val catalogInstalledOnly = group5[5] as Boolean
+        val catalogDownloadedOnly = group5[6] as Boolean
 
         val loadedId = when (engineState) {
             is EngineState.Ready -> engineState.model.id
             is EngineState.Generating -> engineState.model.id
             else -> null
         }
-        val memStats = (engineState as? EngineState.Ready)?.memoryStats
         val filteredInstalled = sortAndFilter(installedModels, query, sort)
 
         val allCatalogModels = (catalogState as? CatalogState.Ready)?.catalog?.models.orEmpty()
-        val filteredCatalog = ModelSearchEngine.search(
+        var filteredCatalog = ModelSearchEngine.search(
             models = allCatalogModels,
             query = query,
             filters = catalogFilters,
             sort = catalogSort
         )
+        // "Installed" / "Downloaded" chips filter on the device's own state,
+        // which the catalog metadata does not know about.
+        val installedIds = installedModels.map { it.id }.toSet()
+        if (catalogInstalledOnly) {
+            filteredCatalog = filteredCatalog.filter { it.id in installedIds }
+        } else if (catalogDownloadedOnly) {
+            val downloadedIds = installedModels.filter { it.isDownloaded }.map { it.id }.toSet()
+            filteredCatalog = filteredCatalog.filter { it.id in downloadedIds }
+        }
         val recommended = RecommendationEngine.recommend(allCatalogModels, hardwareInfo.totalRamGb, topN = 6)
 
         UiState.Success(
@@ -238,6 +269,8 @@ class ModelsViewModel @Inject constructor(
                 recommendedCatalogModels = recommended.map { it.model },
                 catalogFilters = catalogFilters,
                 catalogSort = catalogSort,
+                catalogInstalledOnly = catalogInstalledOnly,
+                catalogDownloadedOnly = catalogDownloadedOnly,
                 isCatalogRefreshing = isCatalogRefreshing,
                 catalogRefreshError = catalogRefreshError,
                 selectedTab = tab,
@@ -245,6 +278,7 @@ class ModelsViewModel @Inject constructor(
                 sortOption = sort,
                 loadedModelId = loadedId,
                 loadingModelId = loadingId,
+                lastLoadFailedModelId = lastLoadFailedId,
                 importing = importing,
                 errorMessage = error,
                 storageStats = storageStats,
@@ -260,7 +294,7 @@ class ModelsViewModel @Inject constructor(
                 showFirstLaunchDialog = installedModels.none { it.isDownloaded },
                 engineState = engineState,
                 memoryStats = memStats,
-                inferenceTokensPerSecond = performanceStats?.tokensPerSecond ?: 0f,
+                performanceStats = performanceStats,
                 backendCapabilities = caps
             )
         )
@@ -290,7 +324,10 @@ class ModelsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val stats = runCatching { StorageUtils.getStorageStats(context) }.getOrNull()
             if (stats != null) {
-                _storageStats.value = stats
+                // The value write can throw when the StateFlow's collector
+                // (the UI pipeline) was torn down mid-flight — e.g. a test
+                // finished and reset the Main dispatcher. Best-effort only.
+                runCatching { _storageStats.value = stats }
             }
         }
     }
@@ -384,11 +421,13 @@ class ModelsViewModel @Inject constructor(
     fun loadModel(model: Model) {
         if (_loadingModelId.value != null) return
         _loadingModelId.value = model.id
+        _lastLoadFailedModelId.value = null
         _errorMessage.value = null
 
         viewModelScope.launch {
             val filePath = model.filePath
             if (filePath.isNullOrBlank() || !File(filePath).exists()) {
+                _lastLoadFailedModelId.value = model.id
                 _errorMessage.value = if (!model.isDownloaded) {
                     "Model is still downloading. Please wait for download to finish."
                 } else {
@@ -412,6 +451,7 @@ class ModelsViewModel @Inject constructor(
                 // coherence probe verifies real output.
                 val validation = LiteRtValidator.validateHeader(filePath)
                 if (!validation.isValid) {
+                    _lastLoadFailedModelId.value = model.id
                     _errorMessage.value = "Validation Error: ${validation.errorMessage}"
                     _loadingModelId.value = null
                     modelRepository.updateLoadState(model.id, false, ModelStatus.ERROR)
@@ -434,15 +474,31 @@ class ModelsViewModel @Inject constructor(
 
             when (result) {
                 is Result.Success -> {
+                    _lastLoadFailedModelId.value = null
                     modelRepository.updateLoadState(model.id, true, ModelStatus.LOADED)
                     modelRepository.updateLastUsed(model.id)
                 }
                 is Result.Error -> {
+                    _lastLoadFailedModelId.value = model.id
                     _errorMessage.value = result.exception.message
                     modelRepository.updateLoadState(model.id, false, ModelStatus.ERROR)
                 }
                 null -> Unit // early-return paths above already surfaced their error
             }
+        }
+    }
+
+    /**
+     * Retries the last failed model load. The dashboard shows a Retry button
+     * for [EngineState.Failed] loads flagged retryable; the same path is used
+     * for errors surfaced through [_errorMessage].
+     */
+    fun retryFailedLoad() {
+        val modelId = _lastLoadFailedModelId.value ?: return
+        if (_loadingModelId.value != null) return
+        viewModelScope.launch {
+            val model = modelRepository.getById(modelId).first().getOrNull() ?: return@launch
+            loadModel(model)
         }
     }
 
@@ -501,6 +557,18 @@ class ModelsViewModel @Inject constructor(
 
     fun updateCatalogSort(sort: CatalogSortOption) {
         _catalogSort.value = sort
+    }
+
+    /** "Installed" chip: show only models present on this device (any state). */
+    fun updateCatalogInstalledOnly(enabled: Boolean) {
+        _catalogInstalledOnly.value = enabled
+        if (enabled) _catalogDownloadedOnly.value = false
+    }
+
+    /** "Downloaded" chip: show only models fully downloaded on this device. */
+    fun updateCatalogDownloadedOnly(enabled: Boolean) {
+        _catalogDownloadedOnly.value = enabled
+        if (enabled) _catalogInstalledOnly.value = false
     }
 
     fun refreshCatalog() {
@@ -648,7 +716,9 @@ data class ModelsData(
     val catalogCount: Int = 0,
     val recommendedCatalogModels: List<CatalogModel> = emptyList(),
     val catalogFilters: CatalogFilters = CatalogFilters(),
-    val catalogSort: CatalogSortOption = CatalogSortOption.TRENDING,
+    val catalogSort: CatalogSortOption = CatalogSortOption.DOWNLOADS,
+    val catalogInstalledOnly: Boolean = false,
+    val catalogDownloadedOnly: Boolean = false,
     val isCatalogRefreshing: Boolean = false,
     val catalogRefreshError: String? = null,
     val selectedTab: ModelsTab = ModelsTab.INSTALLED,
@@ -656,6 +726,7 @@ data class ModelsData(
     val sortOption: ModelSortOption = ModelSortOption.NAME,
     val loadedModelId: String? = null,
     val loadingModelId: String? = null,
+    val lastLoadFailedModelId: String? = null,
     val importing: Boolean = false,
     val errorMessage: String? = null,
     val storageStats: StorageStats? = null,
@@ -671,6 +742,6 @@ data class ModelsData(
     val showFirstLaunchDialog: Boolean = false,
     val engineState: EngineState = EngineState.Unloaded,
     val memoryStats: MemoryStats? = null,
-    val inferenceTokensPerSecond: Float = 0f,
+    val performanceStats: EngineStats? = null,
     val backendCapabilities: BackendCapabilities = BackendCapabilities.UNKNOWN
 )

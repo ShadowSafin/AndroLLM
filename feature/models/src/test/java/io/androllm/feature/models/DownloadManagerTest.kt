@@ -50,4 +50,49 @@ class DownloadManagerTest {
         coVerify { workManager.cancelUniqueWork("download_model-1") }
         coVerify { modelRepository.deleteById("model-1") }
     }
+
+    @Test
+    fun `startDownload with invalid url marks ERROR and never enqueues`() = runTest {
+        val model = Model(
+            id = "model-bad-url",
+            name = "Broken Model",
+            downloadUrl = "file:///sdcard/model.litertlm"
+        )
+
+        downloadManager.startDownload(model)
+
+        coVerify {
+            modelRepository.updateDownloadState("model-bad-url", false, DownloadStatus.ERROR, null)
+        }
+        coVerify(exactly = 0) {
+            workManager.enqueueUniqueWork(
+                any<String>(),
+                any<androidx.work.ExistingWorkPolicy>(),
+                any<androidx.work.OneTimeWorkRequest>()
+            )
+        }
+    }
+
+    @Test
+    fun `startDownload with valid url enqueues unique work`() = runTest {
+        val model = Model(
+            id = "model-ok",
+            name = "Good Model",
+            downloadUrl = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/qwen3_0_6b_mixed_int4.litertlm",
+            fileSize = 497664000L
+        )
+
+        downloadManager.startDownload(model)
+
+        coVerify(timeout = 3000) {
+            workManager.enqueueUniqueWork(
+                "download_model-ok",
+                any<androidx.work.ExistingWorkPolicy>(),
+                any<androidx.work.OneTimeWorkRequest>()
+            )
+        }
+        coVerify(exactly = 0) {
+            modelRepository.updateDownloadState("model-ok", false, DownloadStatus.ERROR, null)
+        }
+    }
 }

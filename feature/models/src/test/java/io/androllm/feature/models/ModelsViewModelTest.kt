@@ -53,7 +53,7 @@ class ModelsViewModelTest {
     private val catalogState = MutableStateFlow<CatalogState>(sampleReadyState())
 
     private fun sampleReadyState(): CatalogState {
-        val json = """{"schemaVersion":1,"models":[{"id":"litertlm-qwen3-0.6b","name":"Qwen3 0.6B LiteRT",""" +
+        val json = """{"schemaVersion":2,"models":[{"id":"litertlm-qwen3-0.6b","name":"Qwen3 0.6B LiteRT",""" +
             """"family":"Qwen","architecture":"qwen3","categories":["CHAT"],"tags":["fast"],""" +
             """"license":"Apache-2.0","author":"Alibaba","repoId":"litert-community/Qwen3-0.6B",""" +
             """"fileName":"Qwen3-0.6B.litertlm",""" +
@@ -70,6 +70,7 @@ class ModelsViewModelTest {
         coEvery { engineRepository.initialize() } returns Result.Success(Unit)
         every { engineRepository.engineState } returns engineState
         every { engineRepository.performanceStats } returns MutableStateFlow(null)
+        every { engineRepository.memoryStats } returns MutableStateFlow(null)
         every { engineRepository.backendCapabilities } returns MutableStateFlow(BackendCapabilities.UNKNOWN)
         every { modelRepository.observeAllModels() } returns flowOf(emptyList())
         every { repositoryRegistry.getActiveProvider() } returns repositoryProvider

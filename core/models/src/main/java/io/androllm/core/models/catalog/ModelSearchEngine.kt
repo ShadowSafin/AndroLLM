@@ -1,7 +1,7 @@
 package io.androllm.core.models.catalog
 
 /**
- * 16 filter dimensions. A null/empty dimension means "no constraint".
+ * 17 filter dimensions. A null/empty dimension means "no constraint".
  */
 data class CatalogFilters(
     val families: Set<String> = emptySet(),
@@ -19,7 +19,8 @@ data class CatalogFilters(
     val onlyWithChatTemplate: Boolean = false,
     val onlyUngated: Boolean = false,
     val modalities: Set<Modality> = emptySet(),
-    val statuses: Set<CatalogStatus> = emptySet()
+    val statuses: Set<CatalogStatus> = emptySet(),
+    val sections: Set<String> = emptySet()
 ) {
     companion object {
         val EMPTY = CatalogFilters()
@@ -37,15 +38,18 @@ enum class CatalogSortOption(val label: String) {
     SMALLEST_PARAMS("Fewest parameters"),
     LARGEST_PARAMS("Most parameters"),
     LONGEST_CONTEXT("Longest context"),
-    LEAST_RAM("Least RAM required")
+    LEAST_RAM("Least RAM required"),
+    FASTEST("Fastest"),
+    RECOMMENDED("Recommended")
 }
 
 /**
  * Search / filter / sort over catalog metadata. Pure functions, no dependencies.
  *
- * Search covers 12 keys: name, description, family, architecture, categories,
- * tags, license, author, quantization, sizeBytes, contextLength, parameters.
- * [CatalogFilters] covers 16 filter dimensions. [CatalogSortOption] covers 11 orders.
+ * Search covers 13 keys: name, description, family, architecture, categories,
+ * tags, license, author, quantization, sizeBytes, contextLength, parameters,
+ * sections (plus repoId/fileName in [search]). [CatalogFilters] covers 17
+ * filter dimensions. [CatalogSortOption] covers 13 orders.
  */
 object ModelSearchEngine {
 
@@ -62,7 +66,8 @@ object ModelSearchEngine {
         append(model.sizeBytes).append(' ')
         append(model.contextLength).append(' ')
         append(model.parameters).append(' ')
-        append(model.modelType ?: "")
+        append(model.modelType ?: "").append(' ')
+        append(model.sections.joinToString(" ")).append(' ')
     }.lowercase()
 
     /**
@@ -108,8 +113,21 @@ object ModelSearchEngine {
                 (!filters.onlyWithChatTemplate || !model.chatTemplate.isNullOrBlank()) &&
                 (!filters.onlyUngated || !model.isGated) &&
                 (filters.modalities.isEmpty() || model.modalityValue in filters.modalities) &&
-                (filters.statuses.isEmpty() || model.statusValue in filters.statuses)
+                (filters.statuses.isEmpty() || model.statusValue in filters.statuses) &&
+                (filters.sections.isEmpty() || model.sections.any { it in filters.sections })
         }
+    }
+
+    /**
+     * Midpoint of an "expected tokens/sec" hint like "30-50 tok/s" /
+     * ">50 tok/s". Null when the catalog does not state a speed.
+     */
+    fun expectedTokSecMidpoint(expectedTokSec: String?): Double? {
+        val text = expectedTokSec?.trim() ?: return null
+        val numbers = Regex("""\d+(?:\.\d+)?""").findAll(text).map { it.value.toDoubleOrNull() }
+            .filterNotNull().toList()
+        if (numbers.isEmpty()) return null
+        return (numbers.first() + numbers.last()) / 2.0
     }
 
     fun sort(models: List<CatalogModel>, option: CatalogSortOption): List<CatalogModel> {
@@ -127,6 +145,12 @@ object ModelSearchEngine {
                 models.sortedByDescending { it.parameterCountB ?: Double.MIN_VALUE }
             CatalogSortOption.LONGEST_CONTEXT -> models.sortedByDescending { it.contextLength }
             CatalogSortOption.LEAST_RAM -> models.sortedBy { it.minRamGb }
+            CatalogSortOption.FASTEST -> models.sortedByDescending { expectedTokSecMidpoint(it.expectedTokSec) ?: Double.MIN_VALUE }
+            CatalogSortOption.RECOMMENDED -> models.sortedWith(
+                compareByDescending<CatalogModel> { it.recommended }
+                    .thenByDescending { it.trendingScore }
+                    .thenByDescending { it.downloads }
+            )
         }
     }
 }

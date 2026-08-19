@@ -10,7 +10,7 @@ import kotlinx.serialization.json.Json
  */
 object CatalogParser {
 
-    private const val CURRENT_SCHEMA_VERSION = 1
+    private const val CURRENT_SCHEMA_VERSION = 2
 
     private val json = Json {
         ignoreUnknownKeys = true

@@ -10,9 +10,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Fetches the latest model catalog JSON. The URL points at the catalog file in the
- * project's GitHub repository; when the file has not been pushed yet (or the device
- * is offline) the fetch fails and [CatalogRepository] simply keeps the bundled catalog.
+ * Fetches the latest model catalog JSON from a remote endpoint, trying the
+ * primary catalog host first and falling back to the project's GitHub copy.
+ *
+ * Future-proofing: the catalog is plain metadata, so new official LiteRT-LM
+ * models can be added server-side without an app update. When every endpoint
+ * is unreachable (offline, or the file has not been published yet),
+ * [CatalogRepository] simply keeps the bundled catalog asset.
  */
 @Singleton
 class HfCatalogRemoteSource @Inject constructor(
@@ -20,15 +24,31 @@ class HfCatalogRemoteSource @Inject constructor(
 ) : CatalogRemoteSource {
 
     override suspend fun fetchCatalogJson(): Result<String> = io.androllm.core.common.runCatching {
-        val response = client.get(CATALOG_URL)
-        if (!response.status.isSuccess()) {
-            throw IllegalStateException("Catalog fetch failed: HTTP ${response.status.value}")
+        var lastError: Throwable? = null
+        for (url in CATALOG_URLS) {
+            try {
+                val response = client.get(url)
+                if (!response.status.isSuccess()) {
+                    throw IllegalStateException("Catalog fetch failed: HTTP ${response.status.value}")
+                }
+                val body = response.body<String>()
+                if (body.isNotBlank()) return@runCatching body
+            } catch (t: Throwable) {
+                lastError = t
+            }
         }
-        response.body<String>()
+        throw lastError ?: IllegalStateException("No catalog endpoint available")
     }
 
     companion object {
-        const val CATALOG_URL =
+        /**
+         * Endpoints tried in order. The primary host can publish new LiteRT
+         * models at any time; the GitHub copy mirrors this repo's bundled
+         * catalog so a working copy always exists after a release.
+         */
+        val CATALOG_URLS: List<String> = listOf(
+            "https://models.androllm.com/catalog.json",
             "https://raw.githubusercontent.com/ShadowSafin/AndroLLM/main/core/models/src/main/assets/catalog_v1.json"
+        )
     }
 }

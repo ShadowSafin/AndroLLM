@@ -1,9 +1,13 @@
 package io.androllm.core.models.catalog
 
 /**
- * GGUF architectures supported by the vendored llama.cpp build.
- * Mirrors the LLM_ARCH_NAMES map in src/llama-arch.cpp (137 loadable archs).
- * The catalog validator rejects entries whose architecture is not in this set.
+ * Architectures accepted by the catalog validator.
+ *
+ * The base set mirrors the LLM_ARCH_NAMES map in src/llama-arch.cpp (137
+ * loadable archs) — a guard from the GGUF era. The LiteRT catalog additionally
+ * carries native LiteRT-LM containers (speech, vision, embedding) whose
+ * architecture ids are not llama.cpp archs; they are listed below so the
+ * validator keeps accepting official litert-community artifacts.
  */
 object SupportedArchitectures {
     val ALL: Set<String> = setOf(
@@ -28,7 +32,11 @@ object SupportedArchitectures {
         "llada", "llada-moe", "seed_oss", "grovemoe", "apertus", "minimax-m2",
         "minimax-m3", "cogvlm", "rnd1", "pangu-embedded", "mistral3", "eagle3",
         "dflash", "mistral4", "paddleocr", "mimo2", "step35", "llama-embed",
-        "maincoder", "kimi-linear", "talkie", "mellum", "nanbeige"
+        "maincoder", "kimi-linear", "talkie", "mellum", "nanbeige",
+        // ---- LiteRT-native architectures (official litert-community builds) ----
+        "phi4", "gemma-1.5", "translategemma", "functiongemma", "smolvlm2",
+        "fastvlm", "mage-vl", "whisper", "moonshine", "parakeet", "qwen3-asr",
+        "qwen3-omni", "codegemma", "qwen2.5-coder"
     )
 
     fun isSupported(architecture: String): Boolean =

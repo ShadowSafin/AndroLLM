@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * Production-quality Download Manager managing model downloads via WorkManager.
@@ -35,10 +36,23 @@ class DownloadManager @Inject constructor(
     private val scope = CoroutineScope(Dispatchers.IO)
 
     /**
-     * Enqueues a model for download.
+     * Enqueues a model for download. Rejects models whose catalog metadata is
+     * unusable (missing/malformed download URL) before WorkManager ever runs.
      */
     fun startDownload(model: Model) {
         scope.launch {
+            val downloadUrl = model.downloadUrl ?: ""
+            if (!isValidDownloadUrl(downloadUrl)) {
+                Timber.e("Blocking download of ${model.name}: invalid URL '$downloadUrl'")
+                modelRepository.updateDownloadState(
+                    id = model.id,
+                    isDownloaded = false,
+                    downloadStatus = DownloadStatus.ERROR,
+                    filePath = null
+                )
+                return@launch
+            }
+
             val targetPath = model.filePath ?: getTargetFilePath(model)
 
             val updatedModel = model.copy(
@@ -54,9 +68,10 @@ class DownloadManager @Inject constructor(
                     workDataOf(
                         ModelDownloadWorker.KEY_MODEL_ID to model.id,
                         ModelDownloadWorker.KEY_MODEL_NAME to model.name,
-                        ModelDownloadWorker.KEY_DOWNLOAD_URL to (model.downloadUrl ?: ""),
+                        ModelDownloadWorker.KEY_DOWNLOAD_URL to downloadUrl,
                         ModelDownloadWorker.KEY_TARGET_PATH to targetPath,
                         ModelDownloadWorker.KEY_EXPECTED_SHA256 to (model.sha256 ?: ""),
+                        ModelDownloadWorker.KEY_EXPECTED_SIZE to model.fileSize,
                         ModelDownloadWorker.KEY_COMPANION_URL to (model.companionUrl ?: "")
                     )
                 )
@@ -134,6 +149,10 @@ class DownloadManager @Inject constructor(
 
     /**
      * Observes real-time WorkManager progress flows for a model.
+     *
+     * The worker publishes its error reason in BOTH the progress data and the
+     * result output data; prefer progress, fall back to output on FAILED so
+     * the UI always shows the real reason instead of a generic message.
      */
     fun observeProgress(modelId: String): Flow<DownloadProgress?> {
         return workManager.getWorkInfosForUniqueWorkFlow("download_$modelId")
@@ -150,6 +169,13 @@ class DownloadManager @Inject constructor(
                     else -> DownloadStatus.NOT_DOWNLOADED
                 }
 
+                val errorMessage = progressData.getString(ModelDownloadWorker.KEY_ERROR_MESSAGE)
+                    ?: if (workInfo.state == WorkInfo.State.FAILED) {
+                        workInfo.outputData.getString(ModelDownloadWorker.KEY_ERROR_MESSAGE)
+                    } else {
+                        null
+                    }
+
                 DownloadProgress(
                     modelId = modelId,
                     bytesDownloaded = progressData.getLong(ModelDownloadWorker.KEY_BYTES_DOWNLOADED, 0L),
@@ -158,7 +184,7 @@ class DownloadManager @Inject constructor(
                     etaSeconds = progressData.getLong(ModelDownloadWorker.KEY_ETA_SECONDS, 0L),
                     progressPercent = progressData.getInt(ModelDownloadWorker.KEY_PROGRESS_PERCENT, 0),
                     status = status,
-                    errorMessage = progressData.getString(ModelDownloadWorker.KEY_ERROR_MESSAGE)
+                    errorMessage = errorMessage
                 )
             }
     }

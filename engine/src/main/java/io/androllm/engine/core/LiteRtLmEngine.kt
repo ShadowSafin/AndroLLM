@@ -1,7 +1,9 @@
 package io.androllm.engine.core
 
+import android.app.ActivityManager
 import android.content.Context
 import android.os.Debug
+import android.os.Process
 import com.google.ai.edge.litertlm.Channel as LiteRtChannel
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -25,6 +27,7 @@ import io.androllm.engine.backend.InferenceBackend
 import io.androllm.engine.compat.ChatTemplateRenderer
 import io.androllm.engine.compat.ContainerMetadataReader
 import io.androllm.engine.compat.ModelCompatibilityException
+import io.androllm.engine.compat.ModelFamily
 import io.androllm.engine.compat.ModelFamilyConfig
 import io.androllm.engine.compat.ModelFamilyRegistry
 import io.androllm.engine.compat.OutputDecoder
@@ -44,6 +47,8 @@ import io.androllm.engine.models.GenerationConfig
 import io.androllm.engine.models.MemoryStats
 import io.androllm.engine.models.ModelLoadConfig
 import io.androllm.engine.models.StreamChunk
+import io.androllm.engine.utils.EngineErrorMapper
+import io.androllm.engine.utils.LiteRtValidator
 import io.androllm.engine.utils.ThreadManager
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -52,6 +57,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
@@ -63,6 +69,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
+import kotlin.math.roundToLong
 
 /**
  * LiteRT-LM-backed implementation of [InferenceEngine] — the production local
@@ -105,6 +113,9 @@ class LiteRtLmEngine @Inject constructor(
 
     private val _stats = MutableStateFlow<EngineStats?>(null)
     override val stats: StateFlow<EngineStats?> = _stats.asStateFlow()
+
+    private val _memoryStats = MutableStateFlow<MemoryStats?>(null)
+    override val memoryStats: StateFlow<MemoryStats?> = _memoryStats.asStateFlow()
 
     private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
     override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
@@ -181,6 +192,13 @@ class LiteRtLmEngine @Inject constructor(
      */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** Polls Android's real process counters while LiteRT owns a model. */
+    private var runtimeMetricsRefreshJob: Job? = null
+
+    private var peakProcessPssBytes: Long = 0L
+    private val decodeSpeedHistory = ArrayDeque<Float>()
+    private var peakDecodeTokensPerSecond = 0f
+
     /**
      * True while a generation is actually in flight on the conversation.
      * Used to serialize generations (one at a time) and to gate reset.
@@ -217,13 +235,47 @@ class LiteRtLmEngine @Inject constructor(
 
     override suspend fun loadModel(model: Model, config: ModelLoadConfig): Result<EngineModelInfo> =
         io.androllm.core.common.runCatching {
-            val path = model.filePath
-            check(!path.isNullOrBlank()) { "Model file path is empty" }
-            val file = File(path)
-            check(file.exists()) { "Model file not found: $path" }
-            check(file.length() > 0) { "Model file is empty: $path" }
+            try {
+                val path = model.filePath
+                check(!path.isNullOrBlank()) { "Model file path is empty" }
+                val file = File(path)
+                check(file.exists()) { "Model file not found: $path" }
+                check(file.length() > 0) { "Model file is empty: $path" }
 
-            _engineState.value = EngineState.Loading("Initializing LiteRT-LM…")
+                // --- Pre-load artifact validation (cheap, before any native work) ---
+                // The LiteRT runtime rejects a wrong file only after minutes of
+                // initialization ("INVALID_ARGUMENT: Unsupported file format"), and a
+                // `.tflite` speech/embedding model can never be a chat model. The
+                // container header, the chat-required format and the catalog size are
+                // checked up front so the failure is instant and readable. The
+                // checksum (full-file hash) is opt-in via [ModelLoadConfig.verifySha256]
+                // — the download worker already verified it.
+                val sizeValidation = LiteRtValidator.validateForLoad(
+                    path = path,
+                    expectedFormat = "litertlm",
+                    expectedSizeBytes = model.fileSize.takeIf { it > 0 }
+                )
+                check(sizeValidation.isValid) { sizeValidation.errorMessage }
+
+                if (config.verifySha256 && !model.sha256.isNullOrBlank()) {
+                    val actualSha = LiteRtValidator.calculateSha256(path)
+                    check(actualSha != null && actualSha.equals(model.sha256, ignoreCase = true)) {
+                        "SHA-256 checksum mismatch — the model file is corrupted or was modified after download. " +
+                            "Delete and re-download the model."
+                    }
+                }
+
+                _engineState.value = EngineState.Loading("Initializing LiteRT-LM…")
+
+            // Read LiteRT-LM's own container metadata before the Engine is
+            // built. max_num_tokens is the model's authoritative context
+            // contract; catalog/default settings must never overwrite it.
+            val container = runCatching { ContainerMetadataReader.read(file) }
+                .onFailure { e ->
+                    logger.w("LiteRT-LM container metadata unreadable (${e.message}) — relying on runtime probing")
+                }
+                .getOrNull()
+            val metadataMaxContext = container?.metadata?.maxNumTokens?.takeIf { it > 0 }
 
             // Backend selection: an explicit request wins; otherwise AUTO
             // (NPU → GPU → CPU) or the legacy `gpuLayers == 0` CPU-forcing
@@ -246,23 +298,29 @@ class LiteRtLmEngine @Inject constructor(
 
             val (selectedBackend, initMs) = withContext(Dispatchers.Default) {
                 ThreadManager.withBackgroundInferencePriority {
-                    createEngineWithFallback(path, cacheDir, candidates, config.threads, npuLibDir)
+                    createEngineWithFallback(
+                        path = path,
+                        cacheDir = cacheDir,
+                        candidates = candidates,
+                        threads = config.threads,
+                        npuLibDir = npuLibDir,
+                        maxNumTokens = metadataMaxContext
+                    )
                 }
             }
 
             // --- Model-family resolution (the compatibility contract) ---
             // The family drives the chat template, the special tokens, the
             // stop sequences and the decode rules for EVERYTHING this engine
-            // produces. Resolution uses the container's LlmMetadata first and
-            // falls back to template/stop-token signatures and finally the
-            // model name; an unresolvable model fails the load with the exact
-            // reason instead of guessing.
-            val container = runCatching { ContainerMetadataReader.read(file) }
-                .onFailure { e ->
-                    logger.w("LiteRT-LM container metadata unreadable (${e.message}) — relying on name/type heuristics")
-                }
-                .getOrNull()
-            val family = ModelFamilyRegistry.resolve(container?.metadata, model.name)
+            // produces. Resolution uses the container's LlmMetadata first
+            // (mapped through the shared ModelMetadataRegistry), then the
+            // catalog family (registry-validated at indexing), then
+            // template/stop-token signatures and finally the model name.
+            // Containers whose identifier is supported by the runtime but has
+            // no bespoke family configuration resolve to GENERIC, which uses
+            // the container's own embedded template — a model can never fail
+            // the load for lack of a family match.
+            val family = ModelFamilyRegistry.resolve(container?.metadata, model.name, model.family)
             val sidecars = TokenizerFiles.loadFrom(file)
             // Sidecar tokenizer files complement the tokenizer the container
             // embeds (which the native runtime reads). They are REQUIRED only
@@ -281,7 +339,16 @@ class LiteRtLmEngine @Inject constructor(
                         "format) for the ${family.family.displayName} family and try again."
                 )
             }
-            familyConfig = family.config
+            // GENERIC mode uses the container's OWN embedded template as the
+            // chat template (identity override — nothing is guessed); the
+            // generic fallback in ChatTemplates only serves containers that
+            // embed no template at all.
+            familyConfig = if (family.family == ModelFamily.GENERIC) {
+                val embedded = container?.metadata?.jinjaPromptTemplate
+                if (embedded.isNullOrBlank()) family.config else family.config.copy(chatTemplate = embedded)
+            } else {
+                family.config
+            }
             // Stop-sequence metadata merge: the family's official stop tokens,
             // the container's declared stop tokens (LlmMetadata.stop_tokens)
             // and the catalog entry's model-specific `stopSequences`. The
@@ -311,33 +378,29 @@ class LiteRtLmEngine @Inject constructor(
             loadedFilePath = path
             modelLoadedAtMs = System.currentTimeMillis()
             promptCount = 0
+            peakProcessPssBytes = 0L
+            decodeSpeedHistory.clear()
+            peakDecodeTokensPerSecond = 0f
             // A fresh model may support KV-cache reuse even if the previous
             // one didn't (template round-trip drift is per-container).
             reuseBroken.set(false)
             conversation?.let { runCatching { it.close() } }
             conversation = null
 
-            // The container's REAL max context is baked into the compiled
-            // TFLite (prefill subgraph); LiteRT-LM does not expose it through
-            // the public API. Probing it once at load (one failing send whose
-            // error carries the exact limit) prevents every later prompt from
-            // overflowing: the app trims to the reported context, and a wrong
-            // 8192/4096 default made even "hi" fail with "token ids are too
-            // long" because the tool-advertisement system prompt alone
-            // exceeded the container's true 2048.
-            val detectedMaxContext = withContext(Dispatchers.Default) {
-                detectMaxContext(eng())
-            }
-            if (detectedMaxContext > 0) {
-                logger.i("LiteRT-LM max context detected: $detectedMaxContext tokens (container limit)")
-            }
-            val requestedContext = config.contextLength.takeIf { it > 0 } ?: DEFAULT_MAX_CONTEXT
-            val contextLength = if (detectedMaxContext > 0) {
-                // Never report more than the container can hold.
-                requestedContext.coerceAtMost(detectedMaxContext)
+            // The container metadata is first-party LiteRT-LM data and wins
+            // over every catalog or user-provided value. Only older/malformed
+            // containers fall back to the runtime limit probe and finally the
+            // requested compatibility value.
+            val detectedMaxContext = if (metadataMaxContext == null) {
+                withContext(Dispatchers.Default) { detectMaxContext(eng()) }
             } else {
-                requestedContext
+                0
             }
+            val contextLength = metadataMaxContext
+                ?: detectedMaxContext.takeIf { it > 0 }
+                ?: config.contextLength.takeIf { it > 0 }
+                ?: DEFAULT_MAX_CONTEXT
+            logger.i("LiteRT-LM max context: $contextLength tokens (${if (metadataMaxContext != null) "container metadata" else "runtime fallback"})")
 
             loadedModel = EngineModelInfo(
                 id = model.id,
@@ -352,20 +415,23 @@ class LiteRtLmEngine @Inject constructor(
                 quantization = model.quantization,
                 architecture = model.architecture.ifBlank { family.family.displayName },
                 generalName = model.name,
-                chatTemplate = family.config.chatTemplate,
+                chatTemplate = familyConfig?.chatTemplate ?: family.config.chatTemplate,
                 family = family.family.displayName,
                 nativeToolMarkers = family.family.nativeToolMarkers,
                 toolAdvertisementCapChars = family.family.toolAdvertisementCapChars,
-                templateSource = if (container?.metadata?.hasEmbeddedTemplate == true) {
-                    "container + official override"
-                } else {
-                    "official (family registry)"
+                templateSource = when {
+                    family.family == ModelFamily.GENERIC -> "container (generic mode)"
+                    container?.metadata?.hasEmbeddedTemplate == true -> "container + official override"
+                    else -> "official (family registry)"
                 },
                 templateReady = true,
                 nThreads = config.threads
             )
+            _capabilities = _capabilities.copy(maxContextLength = contextLength)
 
             val memStats = fetchMemoryStats()
+            _memoryStats.value = memStats
+            startRuntimeMetricsRefresh()
             _engineState.value = EngineState.Ready(
                 model = loadedModel!!,
                 memoryStats = memStats,
@@ -377,10 +443,54 @@ class LiteRtLmEngine @Inject constructor(
                     "delegate=${selectedBackend.delegate} init=${initMs}ms"
             )
             loadedModel!!
+            } catch (e: Exception) {
+                // A load failure must NEVER leave the engine in Loading or leak
+                // a half-built native engine: transition to a structured Failed
+                // state (stage, suggestion, retryable) and free native state.
+                failModelLoad(model, e)
+                throw e
+            }
         }
+
+    /**
+     * Runs on ANY [loadModel] failure: frees whatever native state the failed
+     * load left behind (engine, conversation, metrics job) and publishes a
+     * structured [EngineState.Failed] carrying the stage, an actionable
+     * suggestion and whether a retry can succeed — so the UI never hangs on
+     * "Initializing…" and never shows an opaque native error. Never throws:
+     * failure handling must not mask the original load error.
+     */
+    private fun failModelLoad(model: Model, e: Exception) {
+        try {
+            val failure = EngineErrorMapper.map(e, model.name)
+            conversation?.let { runCatching { it.close() } }
+            conversation = null
+            engine?.let { runCatching { it.close() } }
+            engine = null
+            loadedModel = null
+            loadedFilePath = null
+            familyConfig = null
+            outputDecoder = null
+            generationActive.set(false)
+            stopRuntimeMetricsRefresh()
+            _memoryStats.value = null
+            _engineState.value = EngineState.Failed(
+                message = failure.message,
+                stage = failure.stage,
+                suggestion = failure.suggestion,
+                retryable = failure.retryable
+            )
+            logger.w(
+                "LiteRT-LM load failed (stage=${failure.stage}, retryable=${failure.retryable}): ${failure.message}"
+            )
+        } catch (t: Throwable) {
+            logger.w("Load-failure handling failed: ${t.message}")
+        }
+    }
 
     override suspend fun unloadModel(): Result<Unit> = io.androllm.core.common.runCatching {
         _engineState.value = EngineState.Unloading
+        stopRuntimeMetricsRefresh()
         conversation?.let { runCatching { it.close() } }
         conversation = null
         engine?.let { runCatching { it.close() } }
@@ -388,6 +498,7 @@ class LiteRtLmEngine @Inject constructor(
         loadedModel = null
         loadedFilePath = null
         generationActive.set(false)
+        _memoryStats.value = null
         _engineState.value = EngineState.Unloaded
     }
 
@@ -472,14 +583,13 @@ class LiteRtLmEngine @Inject constructor(
                 val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
                 val firstMs = if (firstTokenSeenAt.get() > 0) firstTokenSeenAt.get() - startedAt else elapsedMs
                 logger.i("generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, text='${stripControlTokens(emittedBuilder.toString()).take(120)}'")
-                _stats.value = applyBackendFields(EngineStats(
-                    promptTokens = 0,
-                    generatedTokens = tokenCount,
+                _stats.value = buildGenerationStats(
+                    conversation = conv,
                     totalTimeMs = elapsedMs,
-                    tokensPerSecond = tokenCount * 1000f / elapsedMs,
-                    firstTokenMs = firstMs,
+                    fallbackFirstTokenMs = firstMs,
+                    fallbackGeneratedTokens = tokenCount,
                     stopReason = stopReason
-                ))
+                )
                 trySend(Result.Success(StreamChunk("", true, tokenCount, tokenCount)))
                 close()
             }
@@ -619,11 +729,13 @@ class LiteRtLmEngine @Inject constructor(
                     val rawResult = sendMessageWithRetry(conv, prompt, config)
                     val result = decoderFor(config)?.clean(rawResult) ?: rawResult
                     val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
-                    _stats.value = applyBackendFields(EngineStats(
-                        generatedTokens = 0,
+                    _stats.value = buildGenerationStats(
+                        conversation = checkNotNull(conv),
                         totalTimeMs = elapsedMs,
+                        fallbackFirstTokenMs = elapsedMs,
+                        fallbackGeneratedTokens = 0L,
                         stopReason = "eos"
-                    ))
+                    )
                     result
                 }
             } finally {
@@ -659,11 +771,13 @@ class LiteRtLmEngine @Inject constructor(
                 val stripped = NativeToolCallScanner.strip(rawResult)
                 val cleanResult = decoderFor(config)?.clean(stripped) ?: stripped
                 val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
-                _stats.value = applyBackendFields(EngineStats(
-                    generatedTokens = 0,
+                _stats.value = buildGenerationStats(
+                    conversation = conv,
                     totalTimeMs = elapsedMs,
+                    fallbackFirstTokenMs = elapsedMs,
+                    fallbackGeneratedTokens = 0L,
                     stopReason = "eos"
-                ))
+                )
                 updateConsumedTranscript(messages, cleanResult)
                 cleanResult
             }
@@ -802,13 +916,13 @@ class LiteRtLmEngine @Inject constructor(
             }
             lastNativeToolCalls = NativeToolCallScanner.scan(scanRaw)
             logger.i("chat generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, text='${stripControlTokens(fullClean).take(120)}' nativeCalls=${lastNativeToolCalls.size}")
-            _stats.value = applyBackendFields(EngineStats(
-                generatedTokens = tokenCount,
+            _stats.value = buildGenerationStats(
+                conversation = conv,
                 totalTimeMs = elapsedMs,
-                tokensPerSecond = tokenCount * 1000f / elapsedMs,
-                firstTokenMs = firstMs,
+                fallbackFirstTokenMs = firstMs,
+                fallbackGeneratedTokens = tokenCount,
                 stopReason = stopReason
-            ))
+            )
             trySend(Result.Success(StreamChunk("", true, tokenCount, tokenCount)))
             // The persisted transcript must be the FILTERED text (what the
             // next turn seeds its conversation with) — never raw markers.
@@ -1261,7 +1375,8 @@ class LiteRtLmEngine @Inject constructor(
         cacheDir: String?,
         candidates: List<InferenceBackend>,
         threads: Int,
-        npuLibDir: String?
+        npuLibDir: String?,
+        maxNumTokens: Int?
     ): Pair<InferenceBackend, Long> {
         var lastError: Throwable? = null
         var attempted = 0
@@ -1274,7 +1389,11 @@ class LiteRtLmEngine @Inject constructor(
                     LitertEngineConfig(
                         modelPath = path,
                         backend = candidate.toLiteRtBackend(threads, npuLibDir),
-                        cacheDir = cacheDir
+                        cacheDir = cacheDir,
+                        // Configure LiteRT with its own declared maximum.
+                        // Passing null lets the runtime use the container for
+                        // legacy artifacts whose metadata cannot be read.
+                        maxNumTokens = maxNumTokens
                     )
                 )
                 newEngine.initialize()
@@ -1296,6 +1415,76 @@ class LiteRtLmEngine @Inject constructor(
         }
         throw lastError ?: EngineException("No backend could be initialized")
     }
+
+/**
+     * Builds the post-generation record from LiteRT's own benchmark counters.
+     * Callback fragments are not reliable token counts, so they are used only
+     * when a cancelled/legacy delegate does not provide BenchmarkInfo.
+     */
+    @OptIn(ExperimentalApi::class)
+    @Synchronized
+    private fun buildGenerationStats(
+        conversation: Conversation,
+        totalTimeMs: Long,
+        fallbackFirstTokenMs: Long,
+        fallbackGeneratedTokens: Long,
+        stopReason: String
+    ): EngineStats {
+        // The module compiles with -Xskip-metadata-version-check (the AAR
+        // ships Kotlin 2.3.0 metadata), so BenchmarkInfo is read as a Kotlin
+        // class: access its properties directly, not Java-style getters.
+        val benchmark = runCatching { conversation.getBenchmarkInfo() }.getOrNull()
+        val promptTokens = benchmark?.lastPrefillTokenCount?.toLong()?.takeIf { it > 0L } ?: 0L
+        val generatedTokens = benchmark?.lastDecodeTokenCount?.toLong()?.takeIf { it > 0L }
+            ?: fallbackGeneratedTokens
+        val promptTokensPerSecond = benchmark?.lastPrefillTokensPerSecond
+            ?.toFloat()
+            ?.takeIf { it.isFinite() && it > 0f }
+            ?: 0f
+        val decodeTokensPerSecond = benchmark?.lastDecodeTokensPerSecond
+            ?.toFloat()
+            ?.takeIf { it.isFinite() && it > 0f }
+            ?: if (generatedTokens > 0L) generatedTokens * 1000f / totalTimeMs.coerceAtLeast(1L) else 0f
+        val promptTimeMs = durationFromRate(promptTokens, promptTokensPerSecond)
+        val generationTimeMs = durationFromRate(generatedTokens, decodeTokensPerSecond)
+        val firstTokenMs = benchmark?.timeToFirstTokenInSecond
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+            ?.times(1000.0)
+            ?.roundToLong()
+            ?: fallbackFirstTokenMs
+
+        if (decodeTokensPerSecond > 0f) {
+            decodeSpeedHistory.addLast(decodeTokensPerSecond)
+            if (decodeSpeedHistory.size > MAX_GENERATION_SPEED_SAMPLES) decodeSpeedHistory.removeFirst()
+            peakDecodeTokensPerSecond = maxOf(peakDecodeTokensPerSecond, decodeTokensPerSecond)
+        }
+        val averageTokensPerSecond = if (decodeSpeedHistory.isEmpty()) 0f
+        else decodeSpeedHistory.average().toFloat()
+
+        return applyBackendFields(
+            EngineStats(
+                promptTokens = promptTokens,
+                generatedTokens = generatedTokens,
+                promptTimeMs = promptTimeMs,
+                generationTimeMs = generationTimeMs,
+                totalTimeMs = totalTimeMs,
+                tokensPerSecond = decodeTokensPerSecond,
+                decodeTokensPerSecond = decodeTokensPerSecond,
+                promptTokensPerSecond = promptTokensPerSecond,
+                averageTokensPerSecond = averageTokensPerSecond,
+                firstTokenMs = firstTokenMs,
+                stopReason = stopReason
+            ),
+            peakTps = peakDecodeTokensPerSecond
+        )
+    }
+
+    private fun durationFromRate(tokens: Long, tokensPerSecond: Float): Long =
+        if (tokens > 0L && tokensPerSecond > 0f) {
+            (tokens * 1000.0 / tokensPerSecond).roundToLong().coerceAtLeast(1L)
+        } else {
+            0L
+        }
 
     /**
      * Merges the ACTIVE backend identity + runtime metrics into a fresh stats
@@ -1563,6 +1752,7 @@ class LiteRtLmEngine @Inject constructor(
     }
 
     override fun release() {
+        stopRuntimeMetricsRefresh()
         runCatching { conversation?.close() }
         conversation = null
         runCatching { engine?.close() }
@@ -1574,27 +1764,85 @@ class LiteRtLmEngine @Inject constructor(
         generationActive.set(false)
         _engineState.value = EngineState.Unloaded
         _stats.value = null
+        _memoryStats.value = null
     }
 
+    /**
+     * Takes one live memory snapshot. LiteRT-LM 0.16 exposes delegate identity
+     * and generation benchmarks, but has no public allocator/Vulkan API. We
+     * therefore report Android's actual process/heap counters and deliberately
+     * leave unsupported delegate counters unset (their UI reads "Unavailable").
+     */
+    @OptIn(ExperimentalApi::class)
     private fun fetchMemoryStats(): MemoryStats? {
         val model = loadedModel ?: return null
         val backend = activeBackendInfo
         val fileSize = runCatching { File(model.filePath).length() }.getOrDefault(0L)
         val type = backend?.type ?: BackendType.CPU
+        val runtime = Runtime.getRuntime()
+        val nativeAllocated = runCatching { Debug.getNativeHeapAllocatedSize() }.getOrDefault(0L)
+        val nativeHeapSize = runCatching { Debug.getNativeHeapSize() }.getOrDefault(0L)
+        val javaCommitted = runtime.totalMemory().coerceAtLeast(0L)
+        val javaUsed = (javaCommitted - runtime.freeMemory()).coerceAtLeast(0L)
+        val processPss = runCatching {
+            context.getSystemService(ActivityManager::class.java)
+                ?.getProcessMemoryInfo(intArrayOf(Process.myPid()))
+                ?.firstOrNull()
+                ?.totalPss
+                ?.toLong()
+                ?.times(1024L)
+        }.getOrNull()?.coerceAtLeast(0L) ?: 0L
+peakProcessPssBytes = maxOf(peakProcessPssBytes, processPss)
+        val gpuName = _backendCapabilities.value.gpuName ?: backend?.accelerator ?: "LiteRT GPU"
+
+        // Live KV-cache occupancy from the active conversation. LiteRT-LM does
+        // not expose the cache in bytes, so its token counter is the real
+        // metric: 0 when no conversation exists yet (cache genuinely empty),
+        // -1 only when the runtime cannot answer (never a fake 0).
+        val kvCacheTokens = runCatching {
+            conversation?.getTokenCount()?.toLong() ?: 0L
+        }.getOrDefault(-1L)
+
         return MemoryStats(
-            modelSizeBytes = fileSize,
-            contextSizeBytes = 0,
-            peakMemoryBytes = fileSize,
+            // This is the exact model artifact size. LiteRT may memory-map it,
+            // so it must not be presented as heap allocation.
+modelSizeBytes = fileSize,
+            // LiteRT-LM does not expose its KV-cache allocation in bytes; the
+            // live token counter is carried separately (kvCacheTokens).
+            contextSizeBytes = 0L,
+            // Peak PSS is a real resident-memory peak, not an estimate.
+            peakMemoryBytes = peakProcessPssBytes,
             backend = type.name.lowercase(),
             backendReason = when (type) {
                 BackendType.NPU -> "LiteRT NPU delegate active"
                 BackendType.GPU -> "LiteRT GPU delegate active"
                 else -> "CPU (XNNPACK)"
             },
-            gpuName = if (type == BackendType.GPU) "LiteRT GPU" else "",
+            gpuName = if (type == BackendType.GPU) gpuName else "",
             gpuInferenceVerified = type == BackendType.GPU,
+            nativeHeapAllocatedBytes = nativeAllocated,
+            nativeHeapSizeBytes = nativeHeapSize,
+javaHeapUsedBytes = javaUsed,
+            javaHeapCommittedBytes = javaCommitted,
+            processPssBytes = processPss,
+            kvCacheTokens = kvCacheTokens,
             loadedSinceMs = modelLoadedAtMs
         )
+    }
+
+    private fun startRuntimeMetricsRefresh() {
+        stopRuntimeMetricsRefresh()
+        runtimeMetricsRefreshJob = scope.launch {
+            while (isActive && isLoaded()) {
+                _memoryStats.value = fetchMemoryStats()
+                delay(RUNTIME_METRICS_REFRESH_MS)
+            }
+        }
+    }
+
+    private fun stopRuntimeMetricsRefresh() {
+        runtimeMetricsRefreshJob?.cancel()
+        runtimeMetricsRefreshJob = null
     }
 
     private fun publishReadyAfterGeneration() {
@@ -1602,7 +1850,7 @@ class LiteRtLmEngine @Inject constructor(
         promptCount++
         _engineState.value = EngineState.Ready(
             model = model,
-            memoryStats = fetchMemoryStats(),
+            memoryStats = _memoryStats.value,
             promptCount = promptCount,
             loadedSinceMs = modelLoadedAtMs
         )
@@ -1631,6 +1879,10 @@ class LiteRtLmEngine @Inject constructor(
         const val LITERTLM_VERSION = "0.16.0"
 
         const val DEFAULT_MAX_CONTEXT = 8192
+
+        /** Refresh live process counters once per second while a model is resident. */
+        private const val RUNTIME_METRICS_REFRESH_MS = 1_000L
+        private const val MAX_GENERATION_SPEED_SAMPLES = 64
 
         private const val RESET_CHAT_WAIT_NS = 5_000_000_000L
         private const val RESET_CHAT_POLL_MS = 25L

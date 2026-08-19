@@ -251,7 +251,7 @@ def generate(curated_path: str, out_path: str, offline: bool):
             time.sleep(0.15)
 
     catalog = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "source": "https://huggingface.co",
         "generatedAt": int(time.time() * 1000),
         "models": models,

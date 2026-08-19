@@ -29,26 +29,33 @@ class ModelSearchEngineTest {
         chatTemplate: String? = "chatml",
         modality: String = "TEXT",
         status: String = "STABLE",
-        minRamGb: Float = 2.0f
+        minRamGb: Float = 2.0f,
+        sections: List<String> = emptyList(),
+        expectedTokSec: String? = null,
+        recommended: Boolean = false
     ) = CatalogModel(
         id = id, name = name, description = "A test model from $family", family = family,
         architecture = architecture, categories = categories, tags = tags, license = license,
         author = author, repoId = repoId, fileName = fileName, downloadUrl = "https://huggingface.co/$repoId/resolve/main/$fileName",
         sizeBytes = sizeBytes, parameters = parameters, quantization = quantization,
         contextLength = contextLength, chatTemplate = chatTemplate, minRamGb = minRamGb,
-        downloads = downloads, likes = likes, trendingScore = trendingScore, modality = modality, status = status
+        downloads = downloads, likes = likes, trendingScore = trendingScore, modality = modality, status = status,
+        sections = sections, expectedTokSec = expectedTokSec, recommended = recommended
     )
 
     private val models = listOf(
-        model("tiny", "Tiny Chat", parameters = "0.5B", downloads = 9000),
-        model("mid", "Mid Assistant", parameters = "1.5B", sizeBytes = 2_000_000_000),
+        model("tiny", "Tiny Chat", parameters = "0.5B", downloads = 9000,
+            sections = listOf(CatalogSections.TINY), expectedTokSec = "25-35"),
+        model("mid", "Mid Assistant", parameters = "1.5B", sizeBytes = 2_000_000_000,
+            sections = listOf(CatalogSections.FEATURED), expectedTokSec = "12-18", recommended = true),
         model("codey", "Code Wizard", family = "DeepSeek", architecture = "deepseek",
             categories = listOf("CODE", "CHAT"), tags = listOf("code"), author = "DeepSeek",
             parameters = "7B", quantization = "Q5_K_M", contextLength = 16384, downloads = 50_000,
-            likes = 500, trendingScore = 300),
+            likes = 500, trendingScore = 300, sections = listOf(CatalogSections.FEATURED), expectedTokSec = "8-12"),
         model("encoder", "Tiny Embedder", family = "BERT", architecture = "bert",
             categories = listOf("EMBEDDING"), chatTemplate = null, modality = "EMBEDDING",
-            license = "MIT", parameters = "110M", quantization = "F16", sizeBytes = 500_000_000)
+            license = "MIT", parameters = "110M", quantization = "F16", sizeBytes = 500_000_000,
+            sections = listOf(CatalogSections.EMBEDDING), expectedTokSec = null)
     )
 
     @Test
@@ -94,6 +101,8 @@ class ModelSearchEngineTest {
         assertEquals(4, ModelSearchEngine.filter(models, CatalogFilters(statuses = setOf(CatalogStatus.STABLE))).size)
         assertEquals(4, ModelSearchEngine.filter(models, CatalogFilters(onlyUngated = true)).size)
         assertEquals(listOf("codey"), ModelSearchEngine.filter(models, CatalogFilters(tags = setOf("code"))).map { it.id })
+        assertEquals(listOf("tiny"), ModelSearchEngine.filter(models, CatalogFilters(sections = setOf(CatalogSections.TINY))).map { it.id })
+        assertEquals(listOf("mid", "codey"), ModelSearchEngine.filter(models, CatalogFilters(sections = setOf(CatalogSections.FEATURED))).map { it.id })
     }
 
     @Test
@@ -132,5 +141,19 @@ class ModelSearchEngineTest {
             ModelSearchEngine.sort(models, CatalogSortOption.LONGEST_CONTEXT).map { it.id })
         assertEquals(listOf("tiny", "mid", "codey", "encoder"),
             ModelSearchEngine.sort(models, CatalogSortOption.LEAST_RAM).map { it.id })
+    }
+
+    @Test
+    fun fastestSortUsesTokSecMidpoint() {
+        // tiny(30) > mid(15) > codey(10) > encoder(unknown -> last)
+        assertEquals(listOf("tiny", "mid", "codey", "encoder"),
+            ModelSearchEngine.sort(models, CatalogSortOption.FASTEST).map { it.id })
+    }
+
+    @Test
+    fun recommendedSortPutsRecommendedFirstThenTrending() {
+        // mid is recommended; the rest fall back to trendingScore then downloads.
+        assertEquals(listOf("mid", "codey", "tiny", "encoder"),
+            ModelSearchEngine.sort(models, CatalogSortOption.RECOMMENDED).map { it.id })
     }
 }

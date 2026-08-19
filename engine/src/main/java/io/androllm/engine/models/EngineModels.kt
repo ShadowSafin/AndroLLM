@@ -93,7 +93,15 @@ data class ModelLoadConfig(
      * repetition). A failing model is unloaded and reported instead of
      * producing gibberish in chat. Cheap (~12 tokens); ON by default.
      */
-    val runSelfTest: Boolean = true
+    val runSelfTest: Boolean = true,
+    /**
+     * Opt-in full-file SHA-256 verification at load time (the download worker
+     * already verifies it, so this is defense-in-depth for files that were
+     * modified on disk after download). Hashing a multi-GB artifact takes
+     * seconds, so it defaults to OFF; the size check (cheap, always on)
+     * catches truncated downloads.
+     */
+    val verifySha256: Boolean = false
 )
 
 /**
@@ -305,6 +313,12 @@ data class EngineStats(
     val generationTimeMs: Long = 0,
     val totalTimeMs: Long = 0,
     val tokensPerSecond: Float = 0f,
+    /** Decode throughput reported by LiteRT for the most recent generation. */
+    val decodeTokensPerSecond: Float = 0f,
+    /** Prefill / prompt-evaluation throughput reported by LiteRT. */
+    val promptTokensPerSecond: Float = 0f,
+    /** Mean decode throughput across completed generations in this load. */
+    val averageTokensPerSecond: Float = 0f,
     val memoryPeakBytes: Long = 0,
     val firstTokenMs: Long = 0,
     val stopReason: String = "",

@@ -24,7 +24,7 @@ class CatalogParserTest {
 
     @Test
     fun parsesValidCatalog() {
-        val text = """{"schemaVersion":1,"models":[${sampleModel()}]}"""
+        val text = """{"schemaVersion":2,"models":[${sampleModel()}]}"""
         val result = CatalogParser.parse(text)
         assertEquals(1, result.catalog.models.size)
         assertTrue(result.warnings.isEmpty())
@@ -57,7 +57,7 @@ class CatalogParserTest {
 
     @Test
     fun warnsOnUnknownEnumValuesWithoutFailing() {
-        val text = """{"schemaVersion":1,"models":[${sampleModel(mapOf())}]}"""
+        val text = """{"schemaVersion":2,"models":[${sampleModel(mapOf())}]}"""
         val withUnknown = text.replace("\"categories\":[\"CHAT\"]", "\"categories\":[\"CHAT\",\"MADE_UP\"]")
         val result = CatalogParser.parse(withUnknown)
         assertEquals(1, result.catalog.models.size)
@@ -67,7 +67,7 @@ class CatalogParserTest {
 
     @Test
     fun defaultsAreAppliedForMissingOptionalFields() {
-        val text = """{"schemaVersion":1,"models":[{"id":"m1","name":"M1"}]}"""
+        val text = """{"schemaVersion":2,"models":[{"id":"m1","name":"M1"}]}"""
         val result = CatalogParser.parse(text)
         val model = result.catalog.models.first()
         assertEquals("", model.architecture)
@@ -77,7 +77,7 @@ class CatalogParserTest {
 
     @Test
     fun serializesAndRoundTrips() {
-        val text = """{"schemaVersion":1,"models":[${sampleModel()}]}"""
+        val text = """{"schemaVersion":2,"models":[${sampleModel()}]}"""
         val catalog = CatalogParser.parse(text).catalog
         val reEncoded = json.encodeToString(CatalogFile.serializer(), catalog)
         val reparsed = CatalogParser.parse(reEncoded).catalog

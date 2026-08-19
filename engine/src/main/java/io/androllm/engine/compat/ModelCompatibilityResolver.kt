@@ -1,29 +1,42 @@
 package io.androllm.engine.compat
 
+import io.androllm.core.models.catalog.ModelMetadataRegistry
+
 /**
  * Resolves the [ModelFamily] of a model from the strongest available evidence.
  *
  * Detection order (first match wins, strictly):
- *  1. `llm_model_type` embedded in the `.litertlm` container (authoritative).
+ *  1. `llm_model_type` embedded in the `.litertlm` container, mapped through
+ *     the shared [ModelMetadataRegistry] (authoritative). Every identifier the
+ *     runtime supports is registered — none is ever rejected; identifiers
+ *     without a bespoke engine family map to [ModelFamily.GENERIC] and
+ *     `generic_model` falls through to the next evidence.
  *  2. The chat template embedded in the container — matched against the
  *     official templates byte-for-byte (strong signal, also detects models
  *     whose container has generic model type).
- *  3. The container's declared stop tokens (family-unique marker strings).
- *  4. The model's own name / path (weakest; never used when any metadata
+ *  3. The catalog family (curated, registry-validated at indexing) — used only
+ *     for families with a single engine mapping (e.g. TinySwallow → QWEN2P5).
+ *  4. The container's declared stop tokens (family-unique marker strings).
+ *  5. The model's own name / path (weakest; never used when any metadata
  *     exists).
- *
- * Unknown families fail loudly with an actionable [ModelCompatibilityException]
- * instead of guessing.
+ *  6. GENERIC fallback — a container identifier supported by the runtime but
+ *     missing from the registry (or a model with no identifying metadata)
+ *     resolves to [ModelFamily.GENERIC], which uses the container's own
+ *     embedded template and stop tokens. Resolution NEVER throws: an
+ *     unresolvable model degrades to container-template mode instead of
+ *     failing the load.
  */
 object ModelCompatibilityResolver {
 
     /** How confident we are, in descending order. */
     enum class DetectionSource(val confidence: Int) {
         CONTAINER_MODEL_TYPE(100),
+        CATALOG_FAMILY(90),
         EMBEDDED_TEMPLATE(80),
         CONTAINER_STOP_TOKENS(60),
         TOKENIZER_ADDED_TOKENS(50),
-        NAME_FALLBACK(20)
+        NAME_FALLBACK(20),
+        GENERIC_FALLBACK(10)
     }
 
     data class Resolution(
@@ -34,7 +47,11 @@ object ModelCompatibilityResolver {
         val config: ModelFamilyConfig get() = ModelFamilyRegistry.configFor(family)
     }
 
-    fun resolve(container: ContainerMetadata?, modelName: String?): Resolution {
+    fun resolve(
+        container: ContainerMetadata?,
+        modelName: String?,
+        catalogFamily: String? = null
+    ): Resolution {
         val normalizedName = modelName?.substringAfterLast('/')?.substringAfterLast('\\')
 
         // 1. Authoritative: the model type the converter wrote into the container.
@@ -55,7 +72,22 @@ object ModelCompatibilityResolver {
             }
         }
 
-        // 3. Moderate: the container's stop tokens are family-unique markers.
+        // 3. Moderate: the catalog family (registry-validated at indexing).
+        //    Only families with a single engine mapping resolve here — families
+        //    spanning several engine families (Qwen) are disambiguated by the
+        //    container type, so their spec carries no engine key and is skipped.
+        if (catalogFamily != null && container != null) {
+            val spec = ModelMetadataRegistry.familyFor(catalogFamily)
+            val engineKey = spec?.engineFamilyKey
+            if (engineKey != null) {
+                val family = ModelFamily.fromEngineKey(engineKey)
+                if (family != null) {
+                    return Resolution(family, DetectionSource.CATALOG_FAMILY, "catalog family '$catalogFamily'")
+                }
+            }
+        }
+
+        // 4. Moderate: the container's stop tokens are family-unique markers.
         val stopTokens = container?.stopTokens.orEmpty()
         if (stopTokens.isNotEmpty()) {
             val family = matchStopTokens(stopTokens)
@@ -64,26 +96,28 @@ object ModelCompatibilityResolver {
             }
         }
 
-        // 4. Weakest: the file name. Only used when there is no metadata at all.
+        // 5. Weakest: the file name. Only used when there is no metadata at all.
         val nameFamily = ModelFamily.fromName(normalizedName)
         if (nameFamily != null && container == null) {
             return Resolution(nameFamily, DetectionSource.NAME_FALLBACK, "model name '$normalizedName'")
         }
 
-        throw ModelCompatibilityException(
+        // 6. Generic fallback — NEVER fails the load. The engine uses the
+        //    container's own embedded template and stop tokens in this mode.
+        return Resolution(
+            ModelFamily.GENERIC,
+            DetectionSource.GENERIC_FALLBACK,
             if (container == null) {
-                "Cannot determine the model family of '$modelName' (no container metadata and no known name). " +
-                    "The supported families are: " + ModelFamily.entries.joinToString { it.displayName } + "."
+                "no container metadata and no known name — generic container-template mode"
             } else {
-                "The model's container metadata ($typeName) does not match any supported family. " +
-                    "Supported families: " + ModelFamily.entries.joinToString { it.displayName } + "."
+                "container metadata ('${typeName ?: "none"}') does not map to a registered engine family — generic container-template mode"
             }
         )
     }
 
     private fun matchTemplate(template: String): ModelFamily? {
         // Most specific first: Qwen3's template is a superset of Qwen2.5's.
-        if (template.contains("<think>")) return ModelFamily.QWEN3
+        if (template.contains(" thinking")) return ModelFamily.QWEN3
         val normalized = template.replace("\\s+".toRegex(), "").trim()
         if (normalized == normalize(ChatTemplates.qwen3)) return ModelFamily.QWEN3
         if (normalized == normalize(ChatTemplates.qwen)) return ModelFamily.QWEN2P5

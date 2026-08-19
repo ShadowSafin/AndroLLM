@@ -63,6 +63,8 @@ fun ModelWalletCard(
     model: Model,
     isActive: Boolean,
     isDownloaded: Boolean,
+    /** Effective context read from the active LiteRT model metadata. */
+    activeContextLength: Int? = null,
     onLoadClick: () -> Unit,
     onDownloadClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -171,7 +173,8 @@ fun ModelWalletCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ModelSpecPill(label = "RAM", value = "${model.recommendedRamGb} GB")
-                ModelSpecPill(label = "CONTEXT", value = "${model.contextLength / 1024}k")
+                val contextLength = if (isActive) activeContextLength ?: model.contextLength else model.contextLength
+                ModelSpecPill(label = "CONTEXT", value = "${(contextLength / 1024).coerceAtLeast(1)}K")
                 ModelSpecPill(label = "FAMILY", value = model.family)
             }
 

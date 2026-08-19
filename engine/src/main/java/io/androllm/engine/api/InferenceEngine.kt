@@ -14,9 +14,11 @@ import io.androllm.engine.models.EngineModelInfo
 import io.androllm.engine.models.EngineException
 import io.androllm.engine.models.EngineStats
 import io.androllm.engine.models.GenerationConfig
+import io.androllm.engine.models.MemoryStats
 import io.androllm.engine.models.ModelLoadConfig
 import io.androllm.engine.models.StreamChunk
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emitAll
 
@@ -50,6 +52,13 @@ interface InferenceEngine {
      * Performance stats of the last generation.
      */
     val stats: Flow<EngineStats?>
+
+    /**
+     * Live runtime memory statistics. Production engines refresh this while a
+     * model is loaded; the default keeps test/fallback engines source-compatible.
+     */
+    val memoryStats: StateFlow<MemoryStats?>
+        get() = EMPTY_MEMORY_STATS
 
     /**
      * Initializes the runtime (loads native libraries, resolves backends).
@@ -176,4 +185,8 @@ interface InferenceEngine {
      * without a new [initialize].
      */
     fun release()
+
+    private companion object {
+        val EMPTY_MEMORY_STATS = MutableStateFlow<MemoryStats?>(null)
+    }
 }
