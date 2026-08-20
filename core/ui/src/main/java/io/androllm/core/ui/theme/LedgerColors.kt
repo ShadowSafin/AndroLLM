@@ -122,3 +122,44 @@ val DarkLedger = LedgerColors(
     revolutNeonEmerald = Color(0xFF5FCF3D),
     sunsetGlowAmber = Color(0xFFEAA48C)
 )
+
+/**
+ * The AMOLED desk — the night desk pushed to pure black so every OLED pixel
+ * rests. Same warm ink and terracotta accent, identical role names, zero
+ * luminance on the ground.
+ */
+val AmoledLedger = LedgerColors(
+    deskNight = Color(0xFF000000),
+    deskNightRaised = Color(0xFF0A0A0A),
+    deskWalnut = Color(0xFF111111),
+    deskWalnutRaised = Color(0xFF1A1A1A),
+    deskWalnutDeep = Color(0xFF070707),
+    deskPaper = Color(0xFFEDEAE2),
+    deskPaperDim = Color(0xFFC4BFB4),
+    deskInk = Color(0xFFA6A094),
+    deskInkFaint = Color(0xFF75706A),
+    deskHairline = Color(0xFF1E1E1E),
+    deskHairlineSoft = Color(0xFF161616),
+    lampAmber = Color(0xFFE08A6A),
+    lampGlow = Color(0xFFEAA48C),
+    lampDeep = Color(0xFFC77052),
+    lampHalo = Color(0x66E08A6A),
+    inkOnLamp = Color(0xFF1F1E1B),
+    emberRed = Color(0xFFE0604A),
+    emberRedSoft = Color(0xFF2A1512),
+    emberRedHard = Color(0xFFFFB4A0),
+    emberOnRed = Color(0xFF1F1E1B),
+    terracottaSoft = Color(0xFF2A1512),
+    terracottaDeep = Color(0xFFFFB4A0),
+    cloudWhite = Color(0xFFF3EFE7),
+    cloudGlassSurface = Color(0xCC111111),
+    cloudGlassSurfaceVariant = Color(0xE61A1A1A),
+    cloudGlassBorder = Color(0x401E1E1E),
+    cloudGlassBorderHighlight = Color(0x99E69D81),
+    cloudMoonGlow = Color(0x40E69D81),
+    cloudParticleTint = Color(0x59D97757),
+    revolutCyberCyan = Color(0xFFE69D81),
+    revolutGoldTier = Color(0xFFD9A94F),
+    revolutNeonEmerald = Color(0xFF5FCF3D),
+    sunsetGlowAmber = Color(0xFFEAA48C)
+)

@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -51,6 +52,11 @@ class PreferencesDataStore @Inject constructor(
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
         val FORCE_CPU_BACKEND = booleanPreferencesKey("force_cpu_backend")
         val BACKEND_PREFERENCE = stringPreferencesKey("backend_preference")
+        val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val BLUR_INTENSITY = floatPreferencesKey("blur_intensity")
+        val UI_DENSITY = stringPreferencesKey("ui_density")
+        val CHAT_WALLPAPER = stringPreferencesKey("chat_wallpaper")
+        val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
     }
 
     private val dataStore: DataStore<Preferences> = context.preferencesDataStore
@@ -121,7 +127,13 @@ class PreferencesDataStore @Inject constructor(
             displayName = preferences[Keys.DISPLAY_NAME] ?: "",
             username = preferences[Keys.USERNAME] ?: "",
             avatarIndex = preferences[Keys.AVATAR_INDEX] ?: 0,
-            accentColor = preferences[Keys.ACCENT_COLOR] ?: ""
+            accentColor = preferences[Keys.ACCENT_COLOR] ?: "",
+            dynamicColor = preferences[Keys.DYNAMIC_COLOR] ?: true,
+            blurIntensity = preferences[Keys.BLUR_INTENSITY] ?: 0.5f,
+            uiDensity = runCatching { io.androllm.core.models.UiDensity.valueOf(preferences[Keys.UI_DENSITY] ?: "DEFAULT") }
+                .getOrDefault(io.androllm.core.models.UiDensity.DEFAULT),
+            chatWallpaper = preferences[Keys.CHAT_WALLPAPER] ?: "",
+            reduceMotion = preferences[Keys.REDUCE_MOTION] ?: false
         )
     }
 
@@ -314,6 +326,78 @@ class PreferencesDataStore @Inject constructor(
      */
     suspend fun setAccentColor(argbHex: String) {
         dataStore.edit { preferences -> preferences[Keys.ACCENT_COLOR] = argbHex }
+    }
+
+    /**
+     * Whether Material You dynamic color (Android 12+) is enabled.
+     */
+    val dynamicColor: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.DYNAMIC_COLOR] ?: true
+    }
+
+    suspend fun setDynamicColor(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.DYNAMIC_COLOR] = enabled }
+    }
+
+    /**
+     * Glass blur intensity from 0f (off) to 1f (full). Applied to the frosted
+     * surfaces (navigation dock, sheets, cards).
+     */
+    val blurIntensity: Flow<Float> = dataStore.data.map { preferences ->
+        preferences[Keys.BLUR_INTENSITY] ?: 0.5f
+    }
+
+    suspend fun setBlurIntensity(intensity: Float) {
+        dataStore.edit { preferences -> preferences[Keys.BLUR_INTENSITY] = intensity.coerceIn(0f, 1f) }
+    }
+
+    /**
+     * UI density preset — affects spacing throughout the app shell.
+     */
+    val uiDensity: Flow<io.androllm.core.models.UiDensity> = dataStore.data.map { preferences ->
+        runCatching {
+            io.androllm.core.models.UiDensity.valueOf(
+                preferences[Keys.UI_DENSITY] ?: io.androllm.core.models.UiDensity.DEFAULT.name
+            )
+        }.getOrDefault(io.androllm.core.models.UiDensity.DEFAULT)
+    }
+
+    suspend fun setUiDensity(density: io.androllm.core.models.UiDensity) {
+        dataStore.edit { preferences -> preferences[Keys.UI_DENSITY] = density.name }
+    }
+
+    /**
+     * Custom chat wallpaper as a hex color (e.g. "FF141312") or empty for the
+     * default atmospheric background.
+     */
+    val chatWallpaper: Flow<String> = dataStore.data.map { preferences ->
+        preferences[Keys.CHAT_WALLPAPER] ?: ""
+    }
+
+    suspend fun setChatWallpaper(hex: String) {
+        dataStore.edit { preferences -> preferences[Keys.CHAT_WALLPAPER] = hex }
+    }
+
+    /**
+     * Global "reduce motion" flag — disables decorative ambient animation.
+     */
+    val reduceMotion: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.REDUCE_MOTION] ?: false
+    }
+
+    suspend fun setReduceMotion(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.REDUCE_MOTION] = enabled }
+    }
+
+    /**
+     * Chat text-size preset — scales body/rendered markdown type globally.
+     */
+    val fontSize: Flow<io.androllm.core.models.ChatFontSize> = dataStore.data.map { preferences ->
+        runCatching {
+            io.androllm.core.models.ChatFontSize.valueOf(
+                preferences[Keys.FONT_SIZE] ?: io.androllm.core.models.ChatFontSize.MEDIUM.name
+            )
+        }.getOrDefault(io.androllm.core.models.ChatFontSize.MEDIUM)
     }
 
     /**

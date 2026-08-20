@@ -2,6 +2,7 @@ package io.androllm.feature.settings
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,7 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
@@ -37,8 +40,11 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,7 +81,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import io.androllm.core.common.UiState
+import io.androllm.core.models.ChatFontSize
 import io.androllm.core.models.ThemeMode
+import io.androllm.core.models.UiDensity
+import io.androllm.core.ui.components.CloudAccentOptions
 import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudBugdroidLogo
@@ -93,6 +102,7 @@ import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.utils.StorageUtils
 import io.androllm.feature.settings.R
 import io.androllm.core.ui.theme.ledger
+import kotlin.math.roundToInt
 
 /**
  * Writer's Night Desk — Settings. Identity, storage, motion and privacy,
@@ -129,7 +139,6 @@ fun SettingsScreen(
     val overlayGranted = viewModel.overlayGranted
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
-    var reduceMotion by remember { mutableStateOf(false) }
     var showModelPathDialog by remember { mutableStateOf(false) }
     var showCloudEmbeddingDialog by remember { mutableStateOf(false) }
 
@@ -151,7 +160,7 @@ fun SettingsScreen(
         }
     }
 
-    CloudAtmosphericBackground(reduceMotion = reduceMotion) {
+    CloudAtmosphericBackground(reduceMotion = settings.reduceMotion) {
         CloudAdaptiveNavigation(
             currentRoute = io.androllm.core.navigation.Routes.SETTINGS,
             onTabSelected = { tab ->
@@ -211,10 +220,75 @@ fun SettingsScreen(
                                 onClick = { viewModel.cycleTheme() }
                             )
                             SettingRow(
+                                icon = Icons.Filled.Palette,
+                                title = "Dynamic Color",
+                                value = if (settings.dynamicColor) "On" else "Off",
+                                onClick = { viewModel.setDynamicColor(!settings.dynamicColor) }
+                            )
+                            AccentSwatches(
+                                selectedHex = settings.accentHex,
+                                onSelect = { viewModel.setAccentColor(it) }
+                            )
+                            HorizontalDivider(color = MaterialTheme.ledger.deskHairline.copy(alpha = 0.5f))
+                            SettingRow(
+                                icon = Icons.Filled.TextFields,
+                                title = "Text Size",
+                                value = settings.fontSize.displayName(),
+                                onClick = { viewModel.cycleFontSize() }
+                            )
+                            SettingRow(
+                                icon = Icons.Filled.SpaceBar,
+                                title = "Interface Density",
+                                value = settings.uiDensity.displayName(),
+                                onClick = { viewModel.cycleUiDensity() }
+                            )
+                            HorizontalDivider(color = MaterialTheme.ledger.deskHairline.copy(alpha = 0.5f))
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Filled.BlurOn,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.ledger.lampDeep,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                    Text(
+                                        text = "Background Blur",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.ledger.deskPaper
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "${(settings.blurIntensity * 100).roundToInt()}%",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = MaterialTheme.ledger.deskInkFaint
+                                        )
+                                    )
+                                }
+                                Slider(
+                                    value = settings.blurIntensity,
+                                    onValueChange = { viewModel.setBlurIntensity(it) },
+                                    valueRange = 0f..1f,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                            SettingRow(
                                 icon = Icons.Filled.MotionPhotosOn,
                                 title = "Reduce Background Motion",
-                                value = if (reduceMotion) "Enabled" else "Disabled",
-                                onClick = { reduceMotion = !reduceMotion }
+                                value = if (settings.reduceMotion) "Enabled" else "Disabled",
+                                onClick = { viewModel.setReduceMotion(!settings.reduceMotion) }
+                            )
+                            SettingRow(
+                                icon = Icons.Filled.Wallpaper,
+                                title = "Chat Wallpaper",
+                                value = if (settings.chatWallpaper.isBlank()) "Default" else "Custom",
+                                onClick = { viewModel.setChatWallpaper(if (settings.chatWallpaper.isBlank()) "FF2A2A2A" else "") }
                             )
                         }
                     }
@@ -951,6 +1025,64 @@ private fun ThemeMode.displayName(): String = when (this) {
     ThemeMode.SYSTEM -> "System"
     ThemeMode.LIGHT -> "Light"
     ThemeMode.DARK -> "Dark"
+    ThemeMode.AMOLED -> "AMOLED"
+}
+
+private fun UiDensity.displayName(): String = when (this) {
+    UiDensity.COMPACT -> "Compact"
+    UiDensity.DEFAULT -> "Default"
+    UiDensity.COMFORTABLE -> "Comfortable"
+}
+
+private fun ChatFontSize.displayName(): String = when (this) {
+    ChatFontSize.SMALL -> "Small"
+    ChatFontSize.MEDIUM -> "Medium"
+    ChatFontSize.LARGE -> "Large"
+}
+
+/**
+ * Six terracotta-family accents, one per row, with the active one ringed in
+ * lamp glow. Tapping writes the hex straight to preferences; the theme
+ * recomposes app-wide from MainActivity.
+ */
+@Composable
+private fun AccentSwatches(
+    selectedHex: String,
+    onSelect: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        CloudAccentOptions.forEach { accent ->
+            val isSelected = selectedHex.equals(accent.argbHex, ignoreCase = true) ||
+                (selectedHex.isBlank() && accent.argbHex == "FFD97757")
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(accent.color)
+                    .border(
+                        width = if (isSelected) 3.dp else 1.dp,
+                        color = if (isSelected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskHairline,
+                        shape = CircleShape
+                    )
+                    .clickable { onSelect(accent.argbHex) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
 }
 
 private fun Boolean.displayYesNo(): String = if (this) "Yes" else "No"

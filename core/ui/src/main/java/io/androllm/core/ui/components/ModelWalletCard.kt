@@ -222,7 +222,7 @@ private fun ModelSpecPill(label: String, value: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(ParchmentInset)
+            .background(MaterialTheme.ledger.deskWalnutDeep)
             .border(1.dp, MaterialTheme.ledger.deskHairline, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
@@ -237,5 +237,3 @@ private fun ModelSpecPill(label: String, value: String) {
         )
     }
 }
-
-private val ParchmentInset = Color(0xFFEFEEE6)

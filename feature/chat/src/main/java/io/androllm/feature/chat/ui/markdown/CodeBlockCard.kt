@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.androllm.core.ui.theme.ledger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -72,21 +74,27 @@ fun CodeBlockCard(
         highlightSyntax(code, displayLanguage)
     }
 
+    // Code keeps its night-editor identity in both themes; on AMOLED it sinks
+    // to true black so the pixels rest.
+    val isDarkCanvas = MaterialTheme.ledger.deskNight.luminance() < 0.5f
+    val containerColor = if (isDarkCanvas) Color(0xFF0B0B0B) else Color(0xFF262624)
+    val headerColor = if (isDarkCanvas) Color(0xFF121212) else Color(0xFF1E1E1B)
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF262624), // Warm dark code editor background
+            containerColor = containerColor,
             contentColor = Color(0xFFEDEAE1)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column {
             // Header Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF1E1E1B),
-                shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+                color = headerColor,
+                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
             ) {
                 Row(
                     modifier = Modifier

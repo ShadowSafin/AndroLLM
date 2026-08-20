@@ -49,26 +49,36 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun updateTheme(theme: ThemeMode): Result<Unit> = io.androllm.core.common.runCatching {
-        settingsDao.updateTheme(theme.name)
+        // The row may not exist yet (fresh install): a bare UPDATE would then
+        // affect zero rows while the observer keeps emitting defaults — the
+        // settings label would never leave "System". Upsert the full current
+        // settings so the change is always visible to observeSettings().
+        val current = settingsDao.getSettings()?.toDomain() ?: AppSettings()
+        settingsDao.upsert(current.copy(theme = theme).toEntity())
     }
 
     suspend fun updateLanguage(language: String): Result<Unit> = io.androllm.core.common.runCatching {
-        settingsDao.updateLanguage(language)
+        val current = settingsDao.getSettings()?.toDomain() ?: AppSettings()
+        settingsDao.upsert(current.copy(language = language).toEntity())
     }
 
     suspend fun updateStoragePath(storagePath: String): Result<Unit> = io.androllm.core.common.runCatching {
-        settingsDao.updateStoragePath(storagePath)
+        val current = settingsDao.getSettings()?.toDomain() ?: AppSettings()
+        settingsDao.upsert(current.copy(storagePath = storagePath).toEntity())
     }
 
     suspend fun updateDeveloperMode(enabled: Boolean): Result<Unit> = io.androllm.core.common.runCatching {
-        settingsDao.updateDeveloperMode(enabled)
+        val current = settingsDao.getSettings()?.toDomain() ?: AppSettings()
+        settingsDao.upsert(current.copy(developerMode = enabled).toEntity())
     }
 
     suspend fun updateFirstLaunch(firstLaunch: Boolean): Result<Unit> = io.androllm.core.common.runCatching {
-        settingsDao.updateFirstLaunch(firstLaunch)
+        val current = settingsDao.getSettings()?.toDomain() ?: AppSettings()
+        settingsDao.upsert(current.copy(firstLaunch = firstLaunch).toEntity())
     }
 
     suspend fun updateModelPath(modelPath: String?): Result<Unit> = io.androllm.core.common.runCatching {
-        settingsDao.updateModelPath(modelPath)
+        val current = settingsDao.getSettings()?.toDomain() ?: AppSettings()
+        settingsDao.upsert(current.copy(modelPath = modelPath).toEntity())
     }
 }

@@ -92,7 +92,27 @@ enum class ThemeMode {
     LIGHT,
 
     @SerialName("dark")
-    DARK
+    DARK,
+
+    /** True-black AMOLED mode — pure #000000 backgrounds for OLED displays. */
+    @SerialName("amoled")
+    AMOLED
+}
+
+/**
+ * UI density preset for the app shell and chat. Controls spacing between
+ * cards, rows and messages (8dp grid multiplied by the preset factor).
+ */
+@Serializable
+enum class UiDensity {
+    @SerialName("comfortable")
+    COMFORTABLE,
+
+    @SerialName("default")
+    DEFAULT,
+
+    @SerialName("compact")
+    COMPACT
 }
 
 /**

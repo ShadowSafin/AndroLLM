@@ -6,13 +6,13 @@ import androidx.compose.ui.unit.dp
 
 /**
  * The Parchment Ledger — shapes.
- * Editorial geometry: gentle 8px paper slips, quiet cards, and the terracotta
+ * Editorial geometry: generous 24dp cards, soft 12dp wells, and the terracotta
  * capsule reserved for the single primary action. Nothing sharp, nothing loud.
  */
-val DeskCardShape = RoundedCornerShape(16.dp)
-val DeskSlipShape = RoundedCornerShape(10.dp)
+val DeskCardShape = RoundedCornerShape(24.dp)
+val DeskSlipShape = RoundedCornerShape(12.dp)
 val DeskPillShape = RoundedCornerShape(32.dp)
-val DeskSmallShape = RoundedCornerShape(8.dp)
+val DeskSmallShape = RoundedCornerShape(10.dp)
 
 // Legacy aliases
 val CloudIslandShape = DeskCardShape
@@ -21,9 +21,9 @@ val CloudMediumShape = DeskSlipShape
 val CloudSmallShape = DeskSmallShape
 
 val AndroLLMShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
+    extraSmall = RoundedCornerShape(8.dp),
     small = DeskSmallShape,
     medium = DeskSlipShape,
-    large = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp),
     extraLarge = DeskCardShape
 )

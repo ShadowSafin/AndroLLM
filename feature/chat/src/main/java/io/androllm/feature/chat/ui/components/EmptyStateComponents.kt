@@ -66,8 +66,17 @@ fun NewChatEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        LampDot(size = 12.dp, lit = true)
-        Spacer(modifier = Modifier.height(20.dp))
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.ledger.deskWalnutRaised)
+                .border(1.dp, MaterialTheme.ledger.deskHairline, RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            LampDot(size = 12.dp, lit = true)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = "Ready when you are.",
             style = MaterialTheme.typography.headlineSmall.copy(

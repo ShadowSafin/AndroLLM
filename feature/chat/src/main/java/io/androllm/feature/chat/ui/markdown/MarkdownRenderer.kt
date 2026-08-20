@@ -109,7 +109,13 @@ private fun HeaderItem(header: MarkdownNode.Header, textColor: Color) {
         else -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = textColor)
     }
     Text(
-        text = parseFormattedText(header.content, textColor),
+        text = parseFormattedText(
+            header.content,
+            textColor,
+            MaterialTheme.colorScheme.surfaceContainerHighest,
+            MaterialTheme.colorScheme.onSurface,
+            MaterialTheme.colorScheme.primary
+        ),
         style = style,
         modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
     )
@@ -118,7 +124,12 @@ private fun HeaderItem(header: MarkdownNode.Header, textColor: Color) {
 @Composable
 private fun ParagraphItem(text: String, textColor: Color) {
     val context = LocalContext.current
-    val annotatedString = remember(text, textColor) { parseFormattedText(text, textColor) }
+    val codeChipBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val codeChipFg = MaterialTheme.colorScheme.onSurface
+    val linkColor = MaterialTheme.colorScheme.primary
+    val annotatedString = remember(text, textColor, codeChipBg, codeChipFg, linkColor) {
+        parseFormattedText(text, textColor, codeChipBg, codeChipFg, linkColor)
+    }
 
     ClickableText(
         text = annotatedString,
@@ -156,7 +167,13 @@ private fun BlockquoteItem(text: String, textColor: Color) {
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(
-                text = parseFormattedText(text, textColor),
+                text = parseFormattedText(
+                    text,
+                    textColor,
+                    MaterialTheme.colorScheme.surfaceContainerHighest,
+                    MaterialTheme.colorScheme.onSurface,
+                    MaterialTheme.colorScheme.primary
+                ),
                 style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                 modifier = Modifier.padding(12.dp)
             )
@@ -177,7 +194,13 @@ private fun BulletListItem(items: List<String>, textColor: Color) {
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 )
                 Text(
-                    text = parseFormattedText(item, textColor),
+                    text = parseFormattedText(
+                        item,
+                        textColor,
+                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.colorScheme.onSurface,
+                        MaterialTheme.colorScheme.primary
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
@@ -199,7 +222,13 @@ private fun NumberedListItem(items: List<String>, textColor: Color) {
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 )
                 Text(
-                    text = parseFormattedText(item, textColor),
+                    text = parseFormattedText(
+                        item,
+                        textColor,
+                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.colorScheme.onSurface,
+                        MaterialTheme.colorScheme.primary
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
@@ -554,7 +583,13 @@ private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color) {
             if (callout.text.isNotBlank()) {
                 Spacer(modifier = Modifier.height(5.dp))
                 Text(
-                    text = parseFormattedText(callout.text, textColor),
+                    text = parseFormattedText(
+                        callout.text,
+                        textColor,
+                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.colorScheme.onSurface,
+                        MaterialTheme.colorScheme.primary
+                    ),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         lineHeight = 21.sp,
                         color = textColor.copy(alpha = 0.92f)
@@ -565,7 +600,13 @@ private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color) {
     }
 }
 
-private fun parseFormattedText(text: String, defaultColor: Color): AnnotatedString {
+private fun parseFormattedText(
+    text: String,
+    defaultColor: Color,
+    inlineCodeBackground: Color = Color(0xFFEFEEE6),
+    inlineCodeForeground: Color = Color(0xFF4A4945),
+    linkColor: Color = Color(0xFFB3573E)
+): AnnotatedString {
     return buildAnnotatedString {
         var currentIndex = 0
 
@@ -574,13 +615,13 @@ private fun parseFormattedText(text: String, defaultColor: Color): AnnotatedStri
         val matches = linkRegex.findAll(text).toList()
 
         if (matches.isEmpty()) {
-            appendFormattedInline(text, defaultColor)
+            appendFormattedInline(text, defaultColor, inlineCodeBackground, inlineCodeForeground)
         } else {
             for (match in matches) {
                 val start = match.range.first
                 val end = match.range.last + 1
                 if (start > currentIndex) {
-                    appendFormattedInline(text.substring(currentIndex, start), defaultColor)
+                    appendFormattedInline(text.substring(currentIndex, start), defaultColor, inlineCodeBackground, inlineCodeForeground)
                 }
 
                 val linkText = match.groupValues[1]
@@ -590,7 +631,7 @@ private fun parseFormattedText(text: String, defaultColor: Color): AnnotatedStri
                 append(linkText)
                 addStyle(
                     SpanStyle(
-                        color = Color(0xFFB3573E),
+                        color = linkColor,
                         textDecoration = TextDecoration.Underline,
                         fontWeight = FontWeight.Medium
                     ),
@@ -601,13 +642,18 @@ private fun parseFormattedText(text: String, defaultColor: Color): AnnotatedStri
                 currentIndex = end
             }
             if (currentIndex < text.length) {
-                appendFormattedInline(text.substring(currentIndex), defaultColor)
+                appendFormattedInline(text.substring(currentIndex), defaultColor, inlineCodeBackground, inlineCodeForeground)
             }
         }
     }
 }
 
-private fun AnnotatedString.Builder.appendFormattedInline(text: String, defaultColor: Color) {
+private fun AnnotatedString.Builder.appendFormattedInline(
+    text: String,
+    defaultColor: Color,
+    inlineCodeBackground: Color,
+    inlineCodeForeground: Color
+) {
     var index = 0
     val inlineCodeRegex = Regex("`([^`]+)`")
     val boldRegex = Regex("\\*\\*([^*]+)\\*\\*")
@@ -623,8 +669,8 @@ private fun AnnotatedString.Builder.appendFormattedInline(text: String, defaultC
                 addStyle(
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
-                        background = Color(0xFFEFEEE6),
-                        color = Color(0xFF4A4945),
+                        background = inlineCodeBackground,
+                        color = inlineCodeForeground,
                         fontSize = 13.sp
                     ),
                     start,

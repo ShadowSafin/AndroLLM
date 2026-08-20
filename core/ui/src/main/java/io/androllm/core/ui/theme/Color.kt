@@ -76,6 +76,29 @@ val DarkSurfaceDim = Color(0xFF141414)
 val DarkInverse = Color(0xFFDCDCDC)
 val OnDarkInverse = Color(0xFF141414)
 
+// ── True AMOLED (OLED) palette — pure black, minimal glow ─────────────────────
+// The night desk pushed to its floor: #000000 pages so pixels turn off.
+val AmoledNight = Color(0xFF000000)          // canvas — pure black
+val AmoledNightRaised = Color(0xFF0A0A0A)    // raised ground / layout wash
+val AmoledWalnut = Color(0xFF111111)         // card surface
+val AmoledWalnutRaised = Color(0xFF1A1A1A)   // elevated card / hover surface
+val AmoledWalnutDeep = Color(0xFF070707)     // inset well / pressed surface
+val AmoledPaper = Color(0xFFEDEAE2)          // ink — primary text
+val AmoledPaperDim = Color(0xFFC4BFB4)       // strong secondary ink
+val AmoledInk = Color(0xFFA6A094)            // muted ink — secondary text
+val AmoledInkFaint = Color(0xFF75706A)       // faint ink — tertiary
+val AmoledHairline = Color(0xFF1E1E1E)       // rule
+val AmoledHairlineSoft = Color(0xFF161616)   // softer rule
+
+// ── AMOLED surface-container roles ───────────────────────────────────────────
+val AmoledContainerLowest = Color(0xFF000000)
+val AmoledContainerLow = Color(0xFF0F0F0F)
+val AmoledContainer = Color(0xFF121212)
+val AmoledContainerHigh = Color(0xFF1A1A1A)
+val AmoledContainerHighest = Color(0xFF222222)
+val AmoledSurfaceBright = Color(0xFF262626)
+val AmoledSurfaceDim = Color(0xFF000000)
+
 // ── Legacy aliases mapped into the parchment palette ────────────────────────────
 // Kept so untouched call-sites land inside the same world while screens are
 // hand-rebuilt onto the tokens above.

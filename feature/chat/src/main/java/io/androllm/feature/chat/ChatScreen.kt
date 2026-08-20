@@ -6,9 +6,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +63,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -84,6 +88,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -105,6 +110,7 @@ import io.androllm.engine.models.GenerationConfig
 import io.androllm.feature.chat.export.ConversationExporter
 import io.androllm.feature.chat.export.ConversationSharer
 import io.androllm.feature.chat.export.ExportFormat
+import io.androllm.feature.chat.ui.components.ChatSkeletonLoading
 import io.androllm.feature.chat.ui.components.ComposeInputArea
 import io.androllm.feature.chat.ui.components.GenerationStatsPanel
 import io.androllm.feature.chat.ui.components.MessageCard
@@ -183,43 +189,46 @@ fun ChatScreen(
     val ramUsedGb = (hardwareInfo.totalRamBytes - hardwareInfo.availableRamBytes) / (1024.0 * 1024.0 * 1024.0)
     val storageUsedGb = storageStats.usedBytes / (1024.0 * 1024.0 * 1024.0)
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ConversationDrawerContent(
-                activeConversations = successState?.activeConversations ?: emptyList(),
-                pinnedConversations = successState?.pinnedConversations ?: emptyList(),
-                selectedConversationId = successState?.conversationId ?: "",
-                currentModelName = (successState?.engineState as? EngineState.Ready)?.model?.id,
-                ramUsageText = String.format("%.1f GB", ramUsedGb),
-                storageUsageText = String.format("%.1f GB", storageUsedGb),
-                onSelectConversation = { id ->
-                    viewModel.selectConversation(id)
-                    scope.launch { drawerState.close() }
-                },
-                onNewChat = {
-                    viewModel.createNewConversation()
-                    scope.launch { drawerState.close() }
-                },
-                onPinToggle = { conv -> viewModel.togglePinConversation(conv) },
-                onRenameChat = { conv ->
-                    renameDialogOpen = conv
-                    renameInputText = conv.title
-                },
-                onDuplicateChat = { conv -> viewModel.duplicateConversation(conv.id) },
-                onDeleteChat = { conv -> viewModel.deleteConversation(conv.id) },
-                onOpenSearch = {
-                    viewModel.toggleSearch(true)
-                    scope.launch { drawerState.close() }
-                },
-                onOpenSettings = {
-                    navController.navigate("settings")
-                    scope.launch { drawerState.close() }
-                }
-            )
-        }
-    ) {
-        CloudAtmosphericBackground {
+    // Tablet (Expanded width): the conversation list docks permanently to the
+    // left as a second pane; phones keep the modal drawer behind the hamburger.
+    val isWide = LocalConfiguration.current.screenWidthDp >= 840
+
+    val drawerContent: @Composable () -> Unit = {
+        ConversationDrawerContent(
+            activeConversations = successState?.activeConversations ?: emptyList(),
+            pinnedConversations = successState?.pinnedConversations ?: emptyList(),
+            selectedConversationId = successState?.conversationId ?: "",
+            currentModelName = (successState?.engineState as? EngineState.Ready)?.model?.id,
+            ramUsageText = String.format("%.1f GB", ramUsedGb),
+            storageUsageText = String.format("%.1f GB", storageUsedGb),
+            onSelectConversation = { id ->
+                viewModel.selectConversation(id)
+                scope.launch { drawerState.close() }
+            },
+            onNewChat = {
+                viewModel.createNewConversation()
+                scope.launch { drawerState.close() }
+            },
+            onPinToggle = { conv -> viewModel.togglePinConversation(conv) },
+            onRenameChat = { conv ->
+                renameDialogOpen = conv
+                renameInputText = conv.title
+            },
+            onDuplicateChat = { conv -> viewModel.duplicateConversation(conv.id) },
+            onDeleteChat = { conv -> viewModel.deleteConversation(conv.id) },
+            onOpenSearch = {
+                viewModel.toggleSearch(true)
+                scope.launch { drawerState.close() }
+            },
+            onOpenSettings = {
+                navController.navigate("settings")
+                scope.launch { drawerState.close() }
+            }
+        )
+    }
+
+    val chatBody: @Composable () -> Unit = {
+        CloudAtmosphericBackground(reduceMotion = successState?.userPreferences?.reduceMotion == true) {
             Scaffold(
                 containerColor = Color.Transparent,
                 topBar = {
@@ -252,7 +261,8 @@ fun ChatScreen(
                         },
                         cloudMode = successState?.cloudMode == true,
                         cloudDefaultModel = successState?.cloudDefaultModel.orEmpty(),
-                        onToggleCloudMode = { viewModel.toggleCloudMode() }
+                        onToggleCloudMode = { viewModel.toggleCloudMode() },
+                        showDrawerButton = !isWide
                     )
                 }
             ) { innerPadding ->
@@ -261,6 +271,21 @@ fun ChatScreen(
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
+                    // Custom chat wallpaper — a flat wash of the user's chosen
+                    // color over the atmospheric ground. Empty = default.
+                    val wallpaperHex = successState?.userPreferences?.chatWallpaper.orEmpty()
+                    if (wallpaperHex.isNotBlank()) {
+                        val wallpaperColor = runCatching { androidx.compose.ui.graphics.Color(wallpaperHex.toLong(16)) }
+                            .getOrNull()
+                        if (wallpaperColor != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(wallpaperColor.copy(alpha = 0.35f))
+                            )
+                        }
+                    }
+
                     val listState = rememberLazyListState()
                     val messages = successState?.messages ?: emptyList()
                     val streamingText = successState?.streamingText
@@ -288,10 +313,13 @@ fun ChatScreen(
                         }
                     }
 
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        if (successState?.engineState is EngineState.Unloaded && successState?.cloudMode != true) {
-                            NoModelLoadedCard(onNavigateToModels = { navController.navigate("models") })
-                        }
+                    if (uiState is ChatUiState.Loading) {
+                        ChatSkeletonLoading(modifier = Modifier.fillMaxSize())
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            if (successState?.engineState is EngineState.Unloaded && successState?.cloudMode != true) {
+                                NoModelLoadedCard(onNavigateToModels = { navController.navigate("models") })
+                            }
 
                         if (messages.isEmpty() && streamingText.isNullOrEmpty() && !isGenerating) {
                             NewChatEmptyState(
@@ -508,6 +536,7 @@ fun ChatScreen(
                             showAttachButton = successState?.attachmentsSupported == true
                         )
                     }
+                    }
 
                     if (multiSelectIds.isNotEmpty()) {
                         SelectionActionBar(
@@ -535,8 +564,8 @@ fun ChatScreen(
 
                     AnimatedVisibility(
                         visible = !isAtBottom && (messages.isNotEmpty() || isGenerating),
-                        enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }),
-                        exit = fadeOut() + slideOutVertically(targetOffsetY = { 40 }),
+                        enter = fadeIn() + slideInVertically(initialOffsetY = { 40 }) + scaleIn(initialScale = 0.8f),
+                        exit = fadeOut() + slideOutVertically(targetOffsetY = { 40 }) + scaleOut(targetScale = 0.8f),
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(bottom = 90.dp, end = 20.dp)
@@ -550,14 +579,27 @@ fun ChatScreen(
                             },
                             containerColor = MaterialTheme.ledger.lampAmber,
                             contentColor = MaterialTheme.ledger.inkOnLamp,
-                            elevation = FloatingActionButtonDefaults.elevation(8.dp),
-                            modifier = Modifier.size(44.dp)
+                            elevation = FloatingActionButtonDefaults.elevation(2.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.size(46.dp)
                         ) {
                             Icon(Icons.Default.ArrowDownward, contentDescription = "Scroll to bottom")
                         }
                     }
                 }
             }
+        }
+    }
+
+    // Wide (Expanded window class): permanent side pane + chat. Narrow:
+    // classic modal drawer over the same chat body.
+    if (isWide) {
+        PermanentNavigationDrawer(drawerContent = drawerContent) {
+            chatBody()
+        }
+    } else {
+        ModalNavigationDrawer(drawerState = drawerState, drawerContent = drawerContent) {
+            chatBody()
         }
     }
 
@@ -1014,7 +1056,8 @@ private fun ChatTopBar(
     onDelete: () -> Unit,
     cloudMode: Boolean = false,
     cloudDefaultModel: String = "",
-    onToggleCloudMode: () -> Unit = {}
+    onToggleCloudMode: () -> Unit = {},
+    showDrawerButton: Boolean = true
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -1057,8 +1100,10 @@ private fun ChatTopBar(
             }
         },
         navigationIcon = {
-            IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Default.Menu, contentDescription = "Open Drawer", tint = MaterialTheme.ledger.deskPaper)
+            if (showDrawerButton) {
+                IconButton(onClick = onOpenDrawer) {
+                    Icon(Icons.Default.Menu, contentDescription = "Open Drawer", tint = MaterialTheme.ledger.deskPaper)
+                }
             }
         },
         actions = {

@@ -5,7 +5,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
@@ -47,23 +46,27 @@ class MainActivity : ComponentActivity() {
             pendingRouteSetter = { routeState.value = it }
             val themeMode by preferencesDataStore.theme.collectAsState(initial = ThemeMode.SYSTEM)
             val accentHex by preferencesDataStore.accentColor.collectAsState(initial = null)
-            val darkTheme = when (themeMode) {
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            }
-            val accentColor = accentHex?.let { hex ->
+            val dynamicColor by preferencesDataStore.dynamicColor.collectAsState(initial = true)
+            val uiDensity by preferencesDataStore.uiDensity.collectAsState(initial = io.androllm.core.models.UiDensity.DEFAULT)
+            val fontSize by preferencesDataStore.fontSize.collectAsState(initial = io.androllm.core.models.ChatFontSize.MEDIUM)
+            val accentColor = accentHex?.takeIf { it.isNotBlank() }?.let { hex ->
                 runCatching { Color(hex.toLong(16)) }.getOrNull()
             }
             AndroLLMTheme(
-                darkTheme = darkTheme,
+                themeMode = themeMode,
+                dynamicColor = dynamicColor,
                 accentColor = accentColor
             ) {
-                AppNavHost(
-                    preferencesDataStore = preferencesDataStore,
-                    pendingRoute = routeState.value,
-                    onPendingRouteConsumed = { pendingRouteSetter?.invoke(null) }
-                )
+                io.androllm.core.ui.theme.ProvideUiScale(
+                    density = uiDensity,
+                    fontSize = fontSize
+                ) {
+                    AppNavHost(
+                        preferencesDataStore = preferencesDataStore,
+                        pendingRoute = routeState.value,
+                        onPendingRouteConsumed = { pendingRouteSetter?.invoke(null) }
+                    )
+                }
             }
         }
     }

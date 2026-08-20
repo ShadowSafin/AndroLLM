@@ -1,6 +1,7 @@
 package io.androllm.core.datastore
 
 import io.androllm.core.models.ThemeMode
+import io.androllm.core.models.UiDensity
 
 /**
  * Snapshot of all user preferences stored in DataStore.
@@ -22,5 +23,10 @@ data class UserPreferences(
     val displayName: String = "",
     val username: String = "",
     val avatarIndex: Int = 0,
-    val accentColor: String = ""
+    val accentColor: String = "",
+    val dynamicColor: Boolean = true,
+    val blurIntensity: Float = 0.5f,
+    val uiDensity: UiDensity = UiDensity.DEFAULT,
+    val chatWallpaper: String = "",
+    val reduceMotion: Boolean = false
 )

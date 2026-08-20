@@ -16,7 +16,9 @@ import io.androllm.core.database.repository.SettingsRepository
 import io.androllm.core.memory.MemoryManager
 import io.androllm.core.memory.model.MemoryInspectorStats
 import io.androllm.core.memory.model.MemorySettings
+import io.androllm.core.models.ChatFontSize
 import io.androllm.core.models.ThemeMode
+import io.androllm.core.models.UiDensity
 import io.androllm.core.utils.LogUtils
 import io.androllm.core.utils.ShareUtils
 import io.androllm.core.utils.StorageUtils
@@ -47,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
@@ -423,26 +426,32 @@ class SettingsViewModel @Inject constructor(
 
     private fun observeSettings() {
         settingsRepository.observeSettings()
-            .onEach { settings ->
-                _uiState.value = UiState.Success(
-                    SettingsData(
-                        theme = settings.theme,
-                        language = settings.language,
-                        storagePath = settings.storagePath,
-                        developerMode = settings.developerMode,
-                        versionName = context.getVersionNameSafe(),
-                        markdownEnabled = settings.markdownEnabled,
-                        codeWrapping = settings.codeWrapping,
-                        autoScroll = settings.autoScroll,
-                        typingIndicator = settings.typingIndicator
-                    )
+            .combine(preferencesDataStore.userPreferences) { settings, prefs ->
+                SettingsData(
+                    theme = settings.theme,
+                    language = settings.language,
+                    storagePath = settings.storagePath,
+                    developerMode = settings.developerMode,
+                    versionName = context.getVersionNameSafe(),
+                    markdownEnabled = settings.markdownEnabled,
+                    codeWrapping = settings.codeWrapping,
+                    autoScroll = settings.autoScroll,
+                    typingIndicator = settings.typingIndicator,
+                    dynamicColor = prefs.dynamicColor,
+                    blurIntensity = prefs.blurIntensity,
+                    uiDensity = prefs.uiDensity,
+                    fontSize = prefs.fontSize,
+                    chatWallpaper = prefs.chatWallpaper,
+                    reduceMotion = prefs.reduceMotion,
+                    accentHex = prefs.accentColor
                 )
             }
+            .onEach { _uiState.value = UiState.Success(it) }
             .launchIn(viewModelScope)
     }
 
     /**
-     * Cycles the theme between system, light and dark.
+     * Cycles the theme between system, light, dark and AMOLED.
      */
     fun cycleTheme() {
         viewModelScope.launch {
@@ -451,8 +460,8 @@ class SettingsViewModel @Inject constructor(
             val next = when (current) {
                 ThemeMode.SYSTEM -> ThemeMode.LIGHT
                 ThemeMode.LIGHT -> ThemeMode.DARK
-                ThemeMode.DARK -> ThemeMode.SYSTEM
-                else -> ThemeMode.SYSTEM
+                ThemeMode.DARK -> ThemeMode.AMOLED
+                ThemeMode.AMOLED -> ThemeMode.SYSTEM
             }
             settingsRepository.updateTheme(next).onSuccess { _ ->
                 preferencesDataStore.setTheme(next)
@@ -678,6 +687,50 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch { preferencesDataStore.setDynamicColor(enabled) }
+    }
+
+    fun setBlurIntensity(intensity: Float) {
+        viewModelScope.launch { preferencesDataStore.setBlurIntensity(intensity) }
+    }
+
+    fun cycleUiDensity() {
+        viewModelScope.launch {
+            val current = (_uiState.value as? UiState.Success)?.data?.uiDensity ?: UiDensity.DEFAULT
+            val next = when (current) {
+                UiDensity.COMPACT -> UiDensity.DEFAULT
+                UiDensity.DEFAULT -> UiDensity.COMFORTABLE
+                UiDensity.COMFORTABLE -> UiDensity.COMPACT
+            }
+            preferencesDataStore.setUiDensity(next)
+        }
+    }
+
+    fun cycleFontSize() {
+        viewModelScope.launch {
+            val current = (_uiState.value as? UiState.Success)?.data?.fontSize ?: ChatFontSize.MEDIUM
+            val next = when (current) {
+                ChatFontSize.SMALL -> ChatFontSize.MEDIUM
+                ChatFontSize.MEDIUM -> ChatFontSize.LARGE
+                ChatFontSize.LARGE -> ChatFontSize.SMALL
+            }
+            preferencesDataStore.setFontSize(next)
+        }
+    }
+
+    fun setChatWallpaper(hex: String) {
+        viewModelScope.launch { preferencesDataStore.setChatWallpaper(hex) }
+    }
+
+    fun setReduceMotion(enabled: Boolean) {
+        viewModelScope.launch { preferencesDataStore.setReduceMotion(enabled) }
+    }
+
+    fun setAccentColor(argbHex: String) {
+        viewModelScope.launch { preferencesDataStore.setAccentColor(argbHex) }
+    }
+
     fun testWakeEngine() {
         viewModelScope.launch {
             Timber.i("TEST WAKE ENGINE: Initializing Wake Word Model...")
@@ -715,7 +768,14 @@ data class SettingsData(
     val markdownEnabled: Boolean = true,
     val codeWrapping: Boolean = false,
     val autoScroll: Boolean = true,
-    val typingIndicator: Boolean = true
+    val typingIndicator: Boolean = true,
+    val dynamicColor: Boolean = true,
+    val blurIntensity: Float = 0.5f,
+    val uiDensity: UiDensity = UiDensity.DEFAULT,
+    val fontSize: ChatFontSize = ChatFontSize.MEDIUM,
+    val chatWallpaper: String = "",
+    val reduceMotion: Boolean = false,
+    val accentHex: String = ""
 )
 
 /**

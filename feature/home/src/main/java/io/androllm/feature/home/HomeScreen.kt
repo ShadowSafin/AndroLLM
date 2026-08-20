@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import io.androllm.core.common.UiState
 import io.androllm.core.navigation.Routes
+import io.androllm.core.ui.components.CardSkeletonRow
 import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudBugdroidLogo
@@ -87,6 +88,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val telemetry by viewModel.telemetry.collectAsStateWithLifecycle()
     val data = (uiState as? UiState.Success)?.data ?: HomeData()
+    val isLoading = uiState is UiState.Loading
 
     CloudAtmosphericBackground {
         CloudAdaptiveNavigation(
@@ -135,6 +137,24 @@ fun HomeScreen(
                 )
             },
         ) { padding ->
+            if (isLoading) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(6) {
+                        CardSkeletonRow(height = when (it) {
+                            0 -> 132.dp
+                            1 -> 150.dp
+                            2 -> 180.dp
+                            else -> 96.dp
+                        })
+                    }
+                }
+            } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -233,6 +253,7 @@ fun HomeScreen(
                 item {
                     Spacer(modifier = Modifier.height(32.dp))
                 }
+            }
             }
         }
     }

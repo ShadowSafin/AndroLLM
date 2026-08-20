@@ -72,6 +72,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,6 +81,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.SuggestionChip
@@ -101,6 +103,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -240,7 +243,20 @@ fun ModelsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.ledger.lampDeep,
+                    unfocusedBorderColor = MaterialTheme.ledger.deskHairline,
+                    focusedContainerColor = MaterialTheme.ledger.deskWalnutRaised,
+                    unfocusedContainerColor = MaterialTheme.ledger.deskWalnutRaised,
+                    cursorColor = MaterialTheme.ledger.lampDeep,
+                    focusedLeadingIconColor = MaterialTheme.ledger.deskInk,
+                    unfocusedLeadingIconColor = MaterialTheme.ledger.deskInkFaint,
+                    focusedTrailingIconColor = MaterialTheme.ledger.deskInk,
+                    unfocusedTrailingIconColor = MaterialTheme.ledger.deskInkFaint,
+                    focusedTextColor = MaterialTheme.ledger.deskPaper,
+                    unfocusedTextColor = MaterialTheme.ledger.deskPaper
+                )
             )
 
             // Parchment scrollable tabs — terracotta on the active tab, ink on the rest
@@ -1210,28 +1226,42 @@ private val RecommendationGreenDeep = Color(0xFF2E7D32)
 
 /** Per-badge soft tints — orange accent, green recommendation/NPU, subtle hues. */
 @Composable
-private fun badgeTint(badge: String): BadgeTint = when {
-    badge.contains("Recommended") || badge.contains("NPU") ->
-        BadgeTint(RecommendationGreen.copy(alpha = 0.14f), RecommendationGreenDeep)
-    badge.contains("Trending") || badge.contains("Vulkan") ->
-        BadgeTint(MaterialTheme.ledger.lampAmber.copy(alpha = 0.16f), MaterialTheme.ledger.lampDeep)
-    badge.contains("Fast") || badge.contains("Beginner") || badge.contains("Low RAM") ->
-        BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
-    badge.contains("Reasoning") || badge.contains("Agentic") || badge.contains("Memory") ->
-        BadgeTint(Color(0xFFEFE6FF), Color(0xFF7A4FD0))
-    badge.contains("Speech") || badge.contains("Tool Calling") ->
-        BadgeTint(Color(0xFFDCF5F0), Color(0xFF0E8A72))
-    badge.contains("Vision") || badge.contains("Multimodal") || badge.contains("Code") ->
-        BadgeTint(Color(0xFFE5E9FF), Color(0xFF4056D6))
-    badge.contains("Medical") ->
-        BadgeTint(Color(0xFFFFE7E7), Color(0xFFC0392B))
-    badge.contains("Mobile Optimized") ->
-        BadgeTint(Color(0xFFDFF6FA), Color(0xFF007E93))
-    badge.contains("Embedding") ->
-        BadgeTint(Color(0xFFF1E8FC), Color(0xFF7B1FA2))
-    badge.contains("Multilingual") || badge.contains("Translation") ->
-        BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
-    else -> BadgeTint(MaterialTheme.ledger.deskWalnutDeep, MaterialTheme.ledger.deskInk)
+private fun badgeTint(badge: String): BadgeTint {
+    // Pastel chips glow too bright on the night desk; the same hue is dipped
+    // to a translucent wash over the dark ground, with a lighter ink on top.
+    val isDark = MaterialTheme.ledger.deskNight.luminance() < 0.5f
+    return when {
+        badge.contains("Recommended") || badge.contains("NPU") ->
+            if (isDark) BadgeTint(Color(0x331B5E20), Color(0xFF81C784))
+            else BadgeTint(RecommendationGreen.copy(alpha = 0.14f), RecommendationGreenDeep)
+        badge.contains("Trending") || badge.contains("Vulkan") ->
+            BadgeTint(MaterialTheme.ledger.lampAmber.copy(alpha = if (isDark) 0.22f else 0.16f), MaterialTheme.ledger.lampDeep)
+        badge.contains("Fast") || badge.contains("Beginner") || badge.contains("Low RAM") ->
+            if (isDark) BadgeTint(Color(0x2E2F6FDB), Color(0xFF8AB4F8))
+            else BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
+        badge.contains("Reasoning") || badge.contains("Agentic") || badge.contains("Memory") ->
+            if (isDark) BadgeTint(Color(0x2E7A4FD0), Color(0xFFCE93D8))
+            else BadgeTint(Color(0xFFEFE6FF), Color(0xFF7A4FD0))
+        badge.contains("Speech") || badge.contains("Tool Calling") ->
+            if (isDark) BadgeTint(Color(0x2E0E8A72), Color(0xFF80CBC4))
+            else BadgeTint(Color(0xFFDCF5F0), Color(0xFF0E8A72))
+        badge.contains("Vision") || badge.contains("Multimodal") || badge.contains("Code") ->
+            if (isDark) BadgeTint(Color(0x2E4056D6), Color(0xFF9FA8DA))
+            else BadgeTint(Color(0xFFE5E9FF), Color(0xFF4056D6))
+        badge.contains("Medical") ->
+            if (isDark) BadgeTint(Color(0x2EC0392B), Color(0xFFEF9A9A))
+            else BadgeTint(Color(0xFFFFE7E7), Color(0xFFC0392B))
+        badge.contains("Mobile Optimized") ->
+            if (isDark) BadgeTint(Color(0x2E007E93), Color(0xFF80DEEA))
+            else BadgeTint(Color(0xFFDFF6FA), Color(0xFF007E93))
+        badge.contains("Embedding") ->
+            if (isDark) BadgeTint(Color(0x2E7B1FA2), Color(0xFFB39DDB))
+            else BadgeTint(Color(0xFFF1E8FC), Color(0xFF7B1FA2))
+        badge.contains("Multilingual") || badge.contains("Translation") ->
+            if (isDark) BadgeTint(Color(0x2E2F6FDB), Color(0xFF8AB4F8))
+            else BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
+        else -> BadgeTint(MaterialTheme.ledger.deskWalnutDeep, MaterialTheme.ledger.deskInk)
+    }
 }
 
 /** Compact pill badge with emoji + label and a per-type soft tint. */
@@ -1799,7 +1829,8 @@ private fun BackendSelectorCard(
             Text(
                 text = "Execution Backend",
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.ledger.deskPaper
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -1839,7 +1870,22 @@ private fun BackendSelectorCard(
                         selected = preference == type,
                         onClick = { onSelect(type) },
                         label = { Text(label) },
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = preference == type,
+                            borderColor = MaterialTheme.ledger.deskHairline,
+                            selectedBorderColor = MaterialTheme.ledger.lampDeep
+                        ),
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.ledger.deskWalnutDeep,
+                            labelColor = MaterialTheme.ledger.deskInk,
+                            iconColor = MaterialTheme.ledger.deskInk,
+                            selectedContainerColor = MaterialTheme.ledger.lampDeep,
+                            selectedLabelColor = MaterialTheme.ledger.inkOnLamp,
+                            selectedLeadingIconColor = MaterialTheme.ledger.inkOnLamp,
+                            selectedTrailingIconColor = MaterialTheme.ledger.inkOnLamp
+                        )
                     )
                 }
             }

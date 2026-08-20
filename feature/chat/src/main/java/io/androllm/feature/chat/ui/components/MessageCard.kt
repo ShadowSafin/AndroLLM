@@ -168,15 +168,18 @@ fun MessageCard(
 
     // ── Selection / favourite tap handling ─────────────────────────────────────
     val cardShape = if (isUser) {
-        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp)
+        RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 24.dp, bottomEnd = 8.dp)
     } else {
-        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 6.dp)
+        RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 8.dp)
     }
 
     val selectionTint = if (selected) MaterialTheme.ledger.lampAmber.copy(alpha = 0.12f) else Color.Transparent
 
     val bgColor = if (isUser) {
-        MaterialTheme.ledger.deskWalnutRaised
+        // Your words sit on the terracotta wash — the lamp's own tint at a
+        // quiet alpha, always in the ledger family so the page never splits
+        // into a second (dynamic-color) theme.
+        MaterialTheme.ledger.lampAmber.copy(alpha = 0.14f)
     } else {
         // Glass tint: the parchment shows through the card.
         MaterialTheme.ledger.deskWalnut.copy(alpha = 0.66f)

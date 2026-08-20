@@ -1,8 +1,10 @@
 package io.androllm.core.ui.components
 
 import android.app.Activity
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -32,6 +36,7 @@ import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSiz
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -119,13 +124,16 @@ fun CloudAdaptiveNavigation(
 
 /**
  * Floating parchment navigation rail for medium & expanded window widths.
- * Mirrors the bottom dock's styling vertically.
+ * Mirrors the bottom dock's styling vertically with the same sliding pill.
  */
 @Composable
 private fun CloudNavigationRail(
     currentRoute: String,
     onTabSelected: (CloudTab) -> Unit
 ) {
+    val selectedIndex = CloudTab.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+    val tabCount = CloudTab.entries.size
+
     Box(
         modifier = Modifier
             .width(96.dp)
@@ -135,7 +143,7 @@ private fun CloudNavigationRail(
             .padding(horizontal = 12.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .width(72.dp)
                 .fillMaxHeight()
@@ -143,8 +151,8 @@ private fun CloudNavigationRail(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xE6FBFAF4),
-                            Color(0xE6ECEBE3)
+                            MaterialTheme.ledger.cloudGlassSurface,
+                            MaterialTheme.ledger.cloudGlassSurfaceVariant
                         )
                     )
                 )
@@ -159,50 +167,82 @@ private fun CloudNavigationRail(
                     ),
                     shape = RoundedCornerShape(32.dp)
                 )
-                .padding(vertical = 12.dp),
-            verticalArrangement = Arrangement.SpaceAround,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(vertical = 12.dp)
         ) {
-            CloudTab.entries.forEach { tab ->
-                val selected = currentRoute == tab.route
-                val scaleAnim = remember { Animatable(1f) }
-                val scope = rememberCoroutineScope()
+            val tabHeight = maxHeight / tabCount
+            val itemWidth = maxWidth - 8.dp
+            val itemHeight = tabHeight - 4.dp
+            val indicatorOffset by animateDpAsState(
+                targetValue = tabHeight * selectedIndex,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                label = "railPillOffset"
+            )
 
-                Column(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            if (selected) MaterialTheme.ledger.lampDeep.copy(alpha = 0.14f) else Color.Transparent
-                        )
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            scope.launch {
-                                scaleAnim.animateTo(0.85f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                                scaleAnim.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+            // Sliding active-pill background.
+            Box(
+                modifier = Modifier
+                    .offset(x = 4.dp, y = indicatorOffset)
+                    .size(width = itemWidth, height = itemHeight)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            )
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceAround,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CloudTab.entries.forEachIndexed { index, tab ->
+                    val selected = index == selectedIndex
+                    val scaleAnim = remember(tab) { Animatable(1f) }
+                    val scope = rememberCoroutineScope()
+                    val iconTint by animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.ledger.deskInkFaint,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "railIconTint"
+                    )
+                    val labelColor by animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.ledger.deskInk.copy(alpha = 0.7f),
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "railLabelTint"
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .size(width = itemWidth, height = itemHeight)
+                            .clip(RoundedCornerShape(24.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (!selected) {
+                                    scope.launch {
+                                        scaleAnim.animateTo(0.85f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                        scaleAnim.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                    }
+                                }
+                                onTabSelected(tab)
                             }
-                            onTabSelected(tab)
-                        }
-                        .scale(scaleAnim.value)
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.title,
-                        tint = if (selected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = tab.title,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) MaterialTheme.ledger.deskPaper else MaterialTheme.ledger.deskInk.copy(alpha = 0.7f)
+                            .scale(scaleAnim.value),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = tab.title,
+                            tint = iconTint,
+                            modifier = Modifier.size(24.dp)
                         )
-                    )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = tab.title,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = labelColor
+                            )
+                        )
+                    }
                 }
             }
         }

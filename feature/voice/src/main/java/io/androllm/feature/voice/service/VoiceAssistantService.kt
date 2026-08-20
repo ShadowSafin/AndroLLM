@@ -1244,6 +1244,7 @@ class VoiceAssistantService : Service() {
                 ThemeMode.LIGHT -> ThemeMode.DARK
                 ThemeMode.DARK -> ThemeMode.SYSTEM
                 ThemeMode.SYSTEM -> ThemeMode.LIGHT
+                ThemeMode.AMOLED -> ThemeMode.LIGHT
             }
             settingsRepository.updateTheme(next)
             "Theme switched to ${next.name.lowercase()}."
