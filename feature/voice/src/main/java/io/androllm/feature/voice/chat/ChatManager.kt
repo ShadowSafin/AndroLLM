@@ -25,6 +25,7 @@ import io.androllm.core.models.MessageRole
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.api.EngineState
 import io.androllm.engine.api.InferenceEngine
+import io.androllm.engine.core.OutputSanitizer
 import io.androllm.engine.models.ChatPromptMessage
 import io.androllm.engine.models.GenerationConfig
 import java.util.UUID
@@ -176,6 +177,11 @@ class ChatManager @Inject constructor(
         }
 
         val answerBuffer = StringBuilder()
+        // Remembered for the one-shot plain-text regeneration (the turn's
+        // history plus a plain-text-only system instruction).
+        var lastTurnMessages = promptMessages
+        // One plain-text regeneration per turn (bounded).
+        var plainTextRetryUsed = false
 
         // Provider Routing:
         // Check if cloud mode is enabled and cloud provider target exists.
@@ -236,6 +242,19 @@ class ChatManager @Inject constructor(
                         }
                     }
                     if (calls.isNotEmpty()) {
+                        if (tools.isEmpty()) {
+                            // NO tool executor exists: discard the calls and
+                            // keep the conversation going in natural language.
+                            Timber.w(
+                                "ChatManager: model emitted %d tool call(s) with no executor — discarding and continuing in plain text",
+                                calls.size
+                            )
+                            history += CloudChatMessage(
+                                role = "system",
+                                content = OutputSanitizer.NO_TOOL_EXECUTOR_INSTRUCTION
+                            )
+                            continue@round
+                        }
                         val cloudCalls = calls.values.map {
                             CloudToolCall(
                                 index = 0,
@@ -249,7 +268,7 @@ class ChatManager @Inject constructor(
                         // "search the weather, then message mom" often has the
                         // model narrate alongside its calls). Keep it for the
                         // user and feed it back in history for the next round.
-                        val interimText = roundBuffer.toString()
+                        val interimText = OutputSanitizer.sanitize(roundBuffer.toString())
                         if (interimText.isNotBlank()) {
                             answerBuffer.append(interimText)
                             send(interimText)
@@ -262,7 +281,7 @@ class ChatManager @Inject constructor(
                         toolsRan = true
                         continue@round
                     }
-                    val text = roundBuffer.toString()
+                    val text = OutputSanitizer.sanitize(roundBuffer.toString())
                     if (text.isNotBlank()) {
                         answerBuffer.append(text)
                         send(text)
@@ -274,6 +293,7 @@ class ChatManager @Inject constructor(
                 // planning first when automation is enabled.
                 val (finalMessages, localToolsRan) = planAndExecuteTools(promptMessages, onToolStatus)
                 if (localToolsRan) toolsRan = true
+                lastTurnMessages = finalMessages
                 inferenceEngine.generateChatStream(
                     messages = finalMessages,
                     addAssistant = true,
@@ -281,8 +301,11 @@ class ChatManager @Inject constructor(
                 ).collect { result ->
                     when (result) {
                         is Result.Success -> {
-                            answerBuffer.append(result.data.delta)
-                            send(result.data.delta)
+                            val delta = OutputSanitizer.sanitize(result.data.delta)
+                            if (delta.isNotBlank()) {
+                                answerBuffer.append(delta)
+                                send(delta)
+                            }
                         }
                         is Result.Error -> {
                             Timber.e(result.exception, "ChatManager: local generation error")
@@ -304,7 +327,45 @@ class ChatManager @Inject constructor(
             }
         }
 
-        var finalAnswer = answerBuffer.toString()
+        var finalAnswer = OutputSanitizer.sanitize(answerBuffer.toString())
+        if (finalAnswer.isBlank() && !toolsRan && !plainTextRetryUsed && lastTurnMessages.isNotEmpty()) {
+            // Sanitization emptied the answer (a control-token-only turn):
+            // regenerate ONCE with a plain-text-only instruction.
+            plainTextRetryUsed = true
+            Timber.i("ChatManager: sanitized output empty — regenerating once with a plain-text-only instruction")
+            val retryMessages = lastTurnMessages +
+                ChatPromptMessage(role = "system", content = OutputSanitizer.PLAIN_TEXT_RETRY_INSTRUCTION)
+            val retryBuffer = StringBuilder()
+            if (isCloud) {
+                cloudGateway.streamChat(
+                    messages = retryMessages.map { CloudChatMessage(role = it.role, content = it.content) },
+                    config = CloudGenerationConfig(
+                        temperature = 0.7,
+                        topP = 0.95,
+                        maxTokens = null,
+                        tools = emptyList()
+                    )
+                ).collect { event ->
+                    if (event is CloudStreamEvent.Delta) retryBuffer.append(event.text)
+                }
+            } else if (isLocalLoaded) {
+                inferenceEngine.generateChatStream(
+                    messages = retryMessages,
+                    addAssistant = true,
+                    config = GenerationConfig()
+                ).collect { result ->
+                    if (result is Result.Success) retryBuffer.append(result.data.delta)
+                }
+            }
+            if (retryBuffer.isNotBlank()) {
+                val retryText = OutputSanitizer.sanitize(retryBuffer.toString())
+                if (retryText.isNotBlank()) {
+                    answerBuffer.append(retryText)
+                    send(retryText)
+                }
+            }
+            finalAnswer = OutputSanitizer.sanitize(answerBuffer.toString())
+        }
         if (finalAnswer.isBlank() && toolsRan) {
             // Never-blank after tool execution: speak the real tool result
             // instead of silence.

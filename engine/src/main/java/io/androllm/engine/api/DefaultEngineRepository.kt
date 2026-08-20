@@ -20,6 +20,7 @@ import io.androllm.engine.models.ModelLoadConfig
 import io.androllm.engine.models.StreamChunk
 import io.androllm.engine.models.BackendType
 import io.androllm.engine.models.ChatPromptMessage
+import io.androllm.engine.core.OutputSanitizer
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CompletableDeferred
@@ -447,7 +448,7 @@ class DefaultEngineRepository @Inject constructor(
                                                 lastEmitTime = now
                                                 _generationState.value = GenerationState.Generating(
                                                     prompt = prompt,
-                                                    streamingText = displayBuilder.toString(),
+                                                    streamingText = OutputSanitizer.streamingReady(displayBuilder.toString()),
                                                     generatedTokens = tokenCount
                                                 )
                                             }
@@ -468,7 +469,7 @@ class DefaultEngineRepository @Inject constructor(
                 _generationState.value = GenerationState.Failed(
                     message = "No tokens were generated within ${firstTokenTimeoutMs / 1000}s — inference stalled. " +
                         "Try a smaller model or switch the backend.",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("Generation stalled: no first token")
             }
@@ -486,7 +487,7 @@ class DefaultEngineRepository @Inject constructor(
                 android.util.Log.e(TAG, "Generation corrupted: stopReason=${stats?.stopReason}")
                 _generationState.value = GenerationState.Failed(
                     message = "Decode error — try again",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("Decode error")
             }
@@ -501,7 +502,7 @@ class DefaultEngineRepository @Inject constructor(
                 _generationState.value = GenerationState.Failed(
                     message = "No-progress generation loop detected: the engine decoded repeatedly but produced no output. " +
                         "Try a smaller model, disable the GPU, or re-download the model.",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("No-progress generation loop detected")
             }
@@ -527,7 +528,7 @@ class DefaultEngineRepository @Inject constructor(
                 _generationState.value = GenerationState.Failed(
                     message = "The model produced no tokens (stop reason: ${stats?.stopReason?.ifBlank { "unknown" } ?: "unknown"}). " +
                         "Inference failed on this backend — try a smaller model, disable the GPU, or re-download the model.",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("No tokens generated")
             }
@@ -535,7 +536,7 @@ class DefaultEngineRepository @Inject constructor(
                 TAG,
                 "Generation finished: tokens=$tokenCount stopReason=${stats?.stopReason ?: "?"} tps=${stats?.tokensPerSecond ?: 0f} timeMs=${stats?.totalTimeMs ?: 0}"
             )
-            _generationState.value = GenerationState.Completed(text = fullTextBuilder.toString(), stats = stats)
+            _generationState.value = GenerationState.Completed(text = OutputSanitizer.sanitize(fullTextBuilder.toString()), stats = stats)
             Result.Success(Unit)
         } catch (e: TimeoutCancellationException) {
             android.util.Log.e(
@@ -544,16 +545,16 @@ class DefaultEngineRepository @Inject constructor(
             )
             _generationState.value = GenerationState.Failed(
                 message = "Generation exceeded the ${hardTimeoutMs / 1000}s time limit and was stopped.",
-                partialText = fullTextBuilder.toString()
+                partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
             )
             Result.error("Generation timed out")
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Generation failed: ${e.message}", e)
+android.util.Log.e(TAG, "Generation failed: ${e.message}", e)
             _generationState.value = GenerationState.Failed(
                 message = e.message ?: "Generation failed",
-                partialText = fullTextBuilder.toString()
+                partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
             )
             Result.Error(e)
         }
@@ -626,7 +627,7 @@ class DefaultEngineRepository @Inject constructor(
                                                 lastEmitTime = now
                                                 _generationState.value = GenerationState.Generating(
                                                     prompt = lastUser,
-                                                    streamingText = displayBuilder.toString(),
+                                                    streamingText = OutputSanitizer.streamingReady(displayBuilder.toString()),
                                                     generatedTokens = tokenCount
                                                 )
                                             }
@@ -647,7 +648,7 @@ class DefaultEngineRepository @Inject constructor(
                 _generationState.value = GenerationState.Failed(
                     message = "No tokens were generated within ${firstTokenTimeoutMs / 1000}s — inference stalled. " +
                         "Try a smaller model or switch the backend.",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("Generation stalled: no first token")
             }
@@ -669,7 +670,7 @@ class DefaultEngineRepository @Inject constructor(
                 android.util.Log.e(TAG, "Chat generation corrupted: stopReason=${stats?.stopReason}")
                 _generationState.value = GenerationState.Failed(
                     message = "Decode error — try again",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("Decode error")
             }
@@ -682,7 +683,7 @@ class DefaultEngineRepository @Inject constructor(
                 _generationState.value = GenerationState.Failed(
                     message = "No-progress generation loop detected: the engine decoded repeatedly but produced no output. " +
                         "Try a smaller model, disable the GPU, or re-download the model.",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("No-progress generation loop detected")
             }
@@ -706,7 +707,7 @@ class DefaultEngineRepository @Inject constructor(
                 _generationState.value = GenerationState.Failed(
                     message = "The model produced no tokens (stop reason: ${stats?.stopReason?.ifBlank { "unknown" } ?: "unknown"}). " +
                         "Inference failed on this backend — try a smaller model, disable the GPU, or re-download the model.",
-                    partialText = fullTextBuilder.toString()
+                    partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
                 )
                 return Result.error("No tokens generated")
             }
@@ -714,7 +715,7 @@ class DefaultEngineRepository @Inject constructor(
                 TAG,
                 "Chat generation finished: tokens=$tokenCount stopReason=${stats?.stopReason ?: "?"} tps=${stats?.tokensPerSecond ?: 0f} timeMs=${stats?.totalTimeMs ?: 0}"
             )
-            _generationState.value = GenerationState.Completed(text = fullTextBuilder.toString(), stats = stats)
+            _generationState.value = GenerationState.Completed(text = OutputSanitizer.sanitize(fullTextBuilder.toString()), stats = stats)
             Result.Success(Unit)
         } catch (e: TimeoutCancellationException) {
             android.util.Log.e(
@@ -723,7 +724,7 @@ class DefaultEngineRepository @Inject constructor(
             )
             _generationState.value = GenerationState.Failed(
                 message = "Generation exceeded the ${hardTimeoutMs / 1000}s time limit and was stopped.",
-                partialText = fullTextBuilder.toString()
+                partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
             )
             Result.error("Generation timed out")
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -732,7 +733,7 @@ class DefaultEngineRepository @Inject constructor(
             android.util.Log.e(TAG, "Chat generation failed: ${e.message}", e)
             _generationState.value = GenerationState.Failed(
                 message = e.message ?: "Generation failed",
-                partialText = fullTextBuilder.toString()
+                partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
             )
             Result.Error(e)
         }

@@ -48,6 +48,7 @@ import java.io.File
 import java.util.Base64
 import io.androllm.engine.api.GenerationState
 import io.androllm.engine.core.NativeToolCall
+import io.androllm.engine.core.OutputSanitizer
 import io.androllm.engine.models.ChatPromptMessage
 import io.androllm.engine.models.EngineDebugInfo
 import io.androllm.engine.models.EngineStats
@@ -194,6 +195,21 @@ class ChatViewModel @Inject constructor(
      * Reset at the start of every turn in [generateFromHistory].
      */
     private var localTurnCommitted = false
+
+    /**
+     * The exact prompt-message list of the current local turn (set in
+     * [generateFromHistory] right before generation). Used by the one-shot
+     * plain-text regeneration: when the sanitized answer is empty, the same
+     * history plus a plain-text-only system instruction is re-run.
+     */
+    private var lastLocalMessages: List<ChatPromptMessage> = emptyList()
+
+    /**
+     * True once the plain-text regeneration was used for the current turn.
+     * The regeneration is exactly ONE retry per turn — a model that produces
+     * only control tokens twice is not worth a third attempt.
+     */
+    private var plainTextRetryUsed = false
 
     /**
      * Message ids appended to [_messages] locally while their Room upsert is
@@ -351,13 +367,22 @@ class ChatViewModel @Inject constructor(
                         if (nativeToolLoopActive) return@collect
                         if (localTurnCommitted) return@collect
                         localTurnCommitted = true
-                        var text = genState.text
+                        // The sanitizer is the LAST line of defense for the
+                        // final assistant message: no control token,
+                        // tool-call marker, reasoning artifact or malformed
+                        // tag may reach the committed/persisted message.
+                        var text = OutputSanitizer.sanitize(genState.text)
                         if (text.isBlank() && toolsExecutedThisTurn) {
                             // STEP 8/12 — never-blank: tools ran but the model
                             // produced no text; ground the reply in the real
                             // tool result instead of staying silent.
                             text = traceStore.lastTurnSummary()
                             android.util.Log.w("ChatViewModel", "Local turn empty after tool calls — injected tool-summary reply")
+                        } else if (text.isBlank()) {
+                            // Sanitization stripped everything (a
+                            // control-token-only turn): regenerate ONCE with a
+                            // plain-text-only instruction.
+                            text = regeneratePlainText()
                         }
                         toolsExecutedThisTurn = false
                         appendAssistantMessage(text)
@@ -629,6 +654,8 @@ class ChatViewModel @Inject constructor(
         _toolEvents.value = emptyList()
         // Fresh commit guard for this turn (see [localTurnCommitted]).
         localTurnCommitted = false
+        // Fresh plain-text retry budget for this turn (see [regeneratePlainText]).
+        plainTextRetryUsed = false
         try {
             // Memory retrieval happens before the prompt is built: relevant
             // memories + conversation summaries are injected as a system
@@ -774,6 +801,9 @@ class ChatViewModel @Inject constructor(
             // fallback. BOUNDED: the loop caps at maxToolRounds and each
             // round is a bounded generation; this outer budget guarantees the
             // turn always finishes.
+            // The prompt list is remembered for the one-shot plain-text
+            // regeneration when the sanitized answer comes back empty.
+            lastLocalMessages = messages
             val planBudgetMs = planBudgetMs(messages)
             android.util.Log.i(TAG, "TOOL LOOP START (budget=${planBudgetMs}ms)")
             if (toolCoordinator.isToolUseEnabled()) {
@@ -1211,25 +1241,11 @@ class ChatViewModel @Inject constructor(
                 // (injected by the Prompt Builder in generateFromHistory) —
                 // adding it again here would double the token cost.
             }
-            // Per-turn loop protection (spec: max 5 calls, max 2 consecutive
-            // same tool, identical calls never re-run, failing tools disabled).
-            val loopGuard = io.androllm.core.tools.coordinator.ToolLoopGuard()
-            val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
             // Tool rounds and continuation rounds share one loop but have
             // separate budgets: the loop runs maxRounds + continuation cap so
             // a long truncated answer never eats a tool round (the guard caps
             // actual tool calls at 5 regardless).
-            val maxLoopRounds = maxRounds + MAX_CLOUD_CONTINUATIONS
             val answerBuffer = StringBuilder()
-            // Throttle UI emissions to ~60fps. Publishing on EVERY delta forces
-            // a full recomposition + markdown re-parse of the streaming bubble
-            // per token, and buffer.toString() copies the ENTIRE accumulated
-            // response each time (O(n²) garbage that spikes GC right after the
-            // generation ends). Local streaming already throttles this way.
-            var lastEmitTime = 0L
-            var callsExecuted = false
-            var lastFinishReason: String? = null
-            var continuationCount = 0
             val streamStartedAt = System.currentTimeMillis()
             // Provider-aware max output tokens (resolved ONCE — the provider
             // cannot change mid-turn): when the user left maxTokens at the
@@ -1238,114 +1254,14 @@ class ChatViewModel @Inject constructor(
             // provider uses its default — never an artificial 8k ceiling that
             // truncates long answers mid-tool-result.
             val providerMax = runCatching { cloudGateway.maxOutputTokensFor() }.getOrNull()
+            var callsExecuted = false
             try {
-                round@ for (round in 0 until maxLoopRounds) {
-                    val roundBuffer = StringBuilder()
-                    val calls = LinkedHashMap<Int, AccumulatedToolCall>()
-                    cloudGateway.streamChat(
-                        messages = history,
-                        config = cloudGenerationConfig(tools = tools, providerMaxTokens = providerMax)
-                    ).collect { event ->
-                        when (event) {
-                            is CloudStreamEvent.Delta -> {
-                                roundBuffer.append(event.text)
-                                val now = System.currentTimeMillis()
-                                if (now - lastEmitTime >= 16L) {
-                                    lastEmitTime = now
-                                    _cloudStreamingText.value = roundBuffer.toString()
-                                }
-                            }
-                            // The model wants tools: accumulate the streaming
-                            // fragments, execute them after the round, and
-                            // feed the results back for the next round.
-                            is CloudStreamEvent.ToolCallDelta -> {
-                                val acc = calls.getOrPut(event.index) {
-                                    AccumulatedToolCall(event.id, event.name.orEmpty())
-                                }
-                                event.id?.let { acc.id = it }
-                                event.name?.let { acc.name = it }
-                                acc.arguments.append(event.arguments)
-                            }
-                            is CloudStreamEvent.Reasoning -> Unit
-                            is CloudStreamEvent.Usage -> Unit
-                            // The provider's terminal signal. `length` means
-                            // the output hit the token ceiling mid-answer — we
-                            // MUST continue instead of accepting a truncated
-                            // reply. `stop`/`end_turn`/`tool_calls` end the
-                            // round normally.
-                            is CloudStreamEvent.Finish -> lastFinishReason = event.reason
-                            CloudStreamEvent.Done -> Unit
-                        }
-                    }
-                    if (calls.isNotEmpty()) {
-                        val cloudCalls = calls.values.map {
-                            CloudToolCall(
-                                index = 0,
-                                id = it.id,
-                                type = "function",
-                                function = CloudToolCallFunction(it.name, it.arguments.toString())
-                            )
-                        }
-                        // Text the model streamed in the SAME message as the
-                        // tool calls is part of the assistant's reply — it must
-                        // not be thrown away or the final answer ends up
-                        // partial (e.g. a chained "search weather, then message
-                        // mom" where the model narrates alongside the calls).
-                        // Keep it for the user AND feed it back to the model
-                        // in history so the next round knows what was said.
-                        val interimText = roundBuffer.toString()
-                        if (interimText.isNotBlank()) answerBuffer.append(interimText)
-                        _toolActivity.value = "Running ${cloudCalls.size} tool call${if (cloudCalls.size == 1) "" else "s"}…"
-                        val toolMessages = toolCoordinator.executeCloudToolCalls(
-                            cloudCalls,
-                            assistantContent = interimText.takeIf { it.isNotBlank() },
-                            onEvent = ::onToolEvent,
-                            guard = loopGuard
-                        )
-                        _toolActivity.value = null
-                        if (toolMessages.isEmpty() && loopGuard.blockedThisTurn) {
-                            // Every call this round was blocked by the loop
-                            // guard (identical re-call, consecutive cap, total
-                            // cap, or a disabled tool): abort tool execution and
-                            // tell the model to answer WITHOUT further calls.
-                            android.util.Log.w(TAG, "CLOUD LOOP: all calls blocked by guard — stopping tool rounds")
-                            history += CloudChatMessage(
-                                role = "system",
-                                content = loopGuard.stopReason()
-                                    ?: "The requested tools have already been used and produced no additional useful information. Continue reasoning without further tool calls."
-                            )
-                            break@round
-                        }
-                        history += toolMessages
-                        callsExecuted = true
-                        continue@round
-                    }
-                    // No tool calls: this is the final answer round. Append it
-                    // and keep streaming if the provider cut the output short.
-                    val finalText = roundBuffer.toString()
-                    answerBuffer.append(finalText)
-                    val truncated = lastFinishReason == "length" || lastFinishReason == "max_tokens"
-                    if (truncated && finalText.isNotBlank() && continuationCount < MAX_CLOUD_CONTINUATIONS) {
-                        continuationCount++
-                        android.util.Log.i(
-                            TAG,
-                            "CLOUD LOOP: finish=$lastFinishReason — requesting continuation $continuationCount/$MAX_CLOUD_CONTINUATIONS"
-                        )
-                        // Feed the partial answer back so the model continues
-                        // from where it stopped; the merged text stays one
-                        // continuous response in answerBuffer.
-                        history += CloudChatMessage(role = "assistant", content = finalText)
-                        history += CloudChatMessage(role = "user", content = "Continue.")
-                        continue@round
-                    }
-                    if (truncated) {
-                        android.util.Log.w(
-                            TAG,
-                            "CLOUD LOOP: finish=$lastFinishReason with ${answerBuffer.length} chars buffered and no continuation budget"
-                        )
-                    }
-                    break@round
-                }
+                callsExecuted = runCloudRounds(
+                    history = history,
+                    tools = tools,
+                    providerMaxTokens = providerMax,
+                    answerBuffer = answerBuffer
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1360,12 +1276,27 @@ class ChatViewModel @Inject constructor(
             }
             android.util.Log.i(
                 TAG,
-                "CLOUD LOOP done: finish=$lastFinishReason continuations=$continuationCount " +
-                    "chars=${answerBuffer.length} streamingMs=${System.currentTimeMillis() - streamStartedAt}"
+                "CLOUD LOOP done: chars=${answerBuffer.length} streamingMs=${System.currentTimeMillis() - streamStartedAt}"
             )
             _cloudGenerating.value = false
             _cloudStreamingText.value = null
-            var text = answerBuffer.toString()
+            var text = OutputSanitizer.sanitize(answerBuffer.toString())
+            if (text.isBlank() && !plainTextRetryUsed) {
+                // Sanitization emptied the answer (a control-token-only turn):
+                // regenerate ONCE with a plain-text-only instruction and no
+                // tools advertised.
+                plainTextRetryUsed = true
+                android.util.Log.w(TAG, "Cloud output sanitized to empty — regenerating once with a plain-text-only instruction")
+                history += CloudChatMessage(role = "system", content = OutputSanitizer.PLAIN_TEXT_RETRY_INSTRUCTION)
+                answerBuffer.clear()
+                runCloudRounds(
+                    history = history,
+                    tools = emptyList(),
+                    providerMaxTokens = providerMax,
+                    answerBuffer = answerBuffer
+                )
+                text = OutputSanitizer.sanitize(answerBuffer.toString())
+            }
             if (text.isBlank() && callsExecuted) {
                 // Never-blank after tool execution (STEP 8/12).
                 text = traceStore.lastTurnSummary()
@@ -1376,6 +1307,163 @@ class ChatViewModel @Inject constructor(
                 runMemoryPipeline(text)
             }
         }
+    }
+
+    /**
+     * One cloud tool round-trip loop: streams chat rounds through
+     * [CloudGateway.streamChat], executes tool calls through the gated
+     * executor, and feeds results back — until the model answers without
+     * tools. Streamed text is sanitized before it is surfaced
+     * ([OutputSanitizer.streamingReady] holds back partial control tags so
+     * an unfinished `<tool_call` can never appear in the UI). When the model
+     * emits tool calls but [tools] is empty (NO tool executor exists), the
+     * calls are DISCARDED and the model is told to answer in plain text.
+     * Returns true when at least one tool call was executed.
+     */
+    private suspend fun runCloudRounds(
+        history: MutableList<CloudChatMessage>,
+        tools: List<CloudTool>,
+        providerMaxTokens: Long?,
+        answerBuffer: StringBuilder
+    ): Boolean {
+        // Per-turn loop protection (spec: max 5 calls, max 2 consecutive
+        // same tool, identical calls never re-run, failing tools disabled).
+        val loopGuard = io.androllm.core.tools.coordinator.ToolLoopGuard()
+        val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
+        // Tool rounds and continuation rounds share one loop but have
+        // separate budgets: the loop runs maxRounds + continuation cap so
+        // a long truncated answer never eats a tool round (the guard caps
+        // actual tool calls at 5 regardless).
+        val maxLoopRounds = maxRounds + MAX_CLOUD_CONTINUATIONS
+        // Throttle UI emissions to ~60fps (see the throttle rationale in
+        // [runCloudGeneration]).
+        var lastEmitTime = 0L
+        var callsExecuted = false
+        var lastFinishReason: String? = null
+        var continuationCount = 0
+        round@ for (round in 0 until maxLoopRounds) {
+            val roundBuffer = StringBuilder()
+            val calls = LinkedHashMap<Int, AccumulatedToolCall>()
+            cloudGateway.streamChat(
+                messages = history,
+                config = cloudGenerationConfig(tools = tools, providerMaxTokens = providerMaxTokens)
+            ).collect { event ->
+                when (event) {
+                    is CloudStreamEvent.Delta -> {
+                        roundBuffer.append(event.text)
+                        val now = System.currentTimeMillis()
+                        if (now - lastEmitTime >= 16L) {
+                            lastEmitTime = now
+                            _cloudStreamingText.value = OutputSanitizer.streamingReady(roundBuffer.toString())
+                        }
+                    }
+                    // The model wants tools: accumulate the streaming
+                    // fragments, execute them after the round, and
+                    // feed the results back for the next round.
+                    is CloudStreamEvent.ToolCallDelta -> {
+                        val acc = calls.getOrPut(event.index) {
+                            AccumulatedToolCall(event.id, event.name.orEmpty())
+                        }
+                        event.id?.let { acc.id = it }
+                        event.name?.let { acc.name = it }
+                        acc.arguments.append(event.arguments)
+                    }
+                    is CloudStreamEvent.Reasoning -> Unit
+                    is CloudStreamEvent.Usage -> Unit
+                    // The provider's terminal signal. `length` means
+                    // the output hit the token ceiling mid-answer — we
+                    // MUST continue instead of accepting a truncated
+                    // reply. `stop`/`end_turn`/`tool_calls` end the
+                    // round normally.
+                    is CloudStreamEvent.Finish -> lastFinishReason = event.reason
+                    CloudStreamEvent.Done -> Unit
+                }
+            }
+            if (calls.isNotEmpty()) {
+                if (tools.isEmpty()) {
+                    // The model attempted a tool call but NO tool executor
+                    // exists (tools were never advertised): discard the call
+                    // entirely and continue the conversation in plain text —
+                    // the model is told to answer without tools.
+                    android.util.Log.w(
+                        TAG,
+                        "CLOUD: model emitted ${calls.size} tool call(s) with no executor — discarding and continuing in plain text"
+                    )
+                    history += CloudChatMessage(
+                        role = "system",
+                        content = OutputSanitizer.NO_TOOL_EXECUTOR_INSTRUCTION
+                    )
+                    continue@round
+                }
+                val cloudCalls = calls.values.map {
+                    CloudToolCall(
+                        index = 0,
+                        id = it.id,
+                        type = "function",
+                        function = CloudToolCallFunction(it.name, it.arguments.toString())
+                    )
+                }
+                // Text the model streamed in the SAME message as the
+                // tool calls is part of the assistant's reply — it must
+                // not be thrown away or the final answer ends up
+                // partial (e.g. a chained "search weather, then message
+                // mom" where the model narrates alongside the calls).
+                // Keep it for the user AND feed it back to the model
+                // in history so the next round knows what was said.
+                val interimText = roundBuffer.toString()
+                if (interimText.isNotBlank()) answerBuffer.append(interimText)
+                _toolActivity.value = "Running ${cloudCalls.size} tool call${if (cloudCalls.size == 1) "" else "s"}…"
+                val toolMessages = toolCoordinator.executeCloudToolCalls(
+                    cloudCalls,
+                    assistantContent = interimText.takeIf { it.isNotBlank() },
+                    onEvent = ::onToolEvent,
+                    guard = loopGuard
+                )
+                _toolActivity.value = null
+                if (toolMessages.isEmpty() && loopGuard.blockedThisTurn) {
+                    // Every call this round was blocked by the loop
+                    // guard (identical re-call, consecutive cap, total
+                    // cap, or a disabled tool): abort tool execution and
+                    // tell the model to answer WITHOUT further calls.
+                    android.util.Log.w(TAG, "CLOUD LOOP: all calls blocked by guard — stopping tool rounds")
+                    history += CloudChatMessage(
+                        role = "system",
+                        content = loopGuard.stopReason()
+                            ?: "The requested tools have already been used and produced no additional useful information. Continue reasoning without further tool calls."
+                    )
+                    break@round
+                }
+                history += toolMessages
+                callsExecuted = true
+                continue@round
+            }
+            // No tool calls: this is the final answer round. Append it
+            // and keep streaming if the provider cut the output short.
+            val finalText = roundBuffer.toString()
+            answerBuffer.append(finalText)
+            val truncated = lastFinishReason == "length" || lastFinishReason == "max_tokens"
+            if (truncated && finalText.isNotBlank() && continuationCount < MAX_CLOUD_CONTINUATIONS) {
+                continuationCount++
+                android.util.Log.i(
+                    TAG,
+                    "CLOUD LOOP: finish=$lastFinishReason — requesting continuation $continuationCount/$MAX_CLOUD_CONTINUATIONS"
+                )
+                // Feed the partial answer back so the model continues
+                // from where it stopped; the merged text stays one
+                // continuous response in answerBuffer.
+                history += CloudChatMessage(role = "assistant", content = finalText)
+                history += CloudChatMessage(role = "user", content = "Continue.")
+                continue@round
+            }
+            if (truncated) {
+                android.util.Log.w(
+                    TAG,
+                    "CLOUD LOOP: finish=$lastFinishReason with ${answerBuffer.length} chars buffered and no continuation budget"
+                )
+            }
+            break@round
+        }
+        return callsExecuted
     }
 
     /**
@@ -1526,23 +1614,52 @@ class ChatViewModel @Inject constructor(
 
     /**
      * Commits the final local answer exactly like the generationState
-     * collector would (never-blank guard + memory pipeline), used by the
-     * native tool loop for the terminal round.
+     * collector would (sanitization + never-blank guard + memory pipeline),
+     * used by the native tool loop for the terminal round.
      */
-    private fun commitLocalAnswer(text: String) {
+    private suspend fun commitLocalAnswer(text: String) {
         // The generationState collector may resume on the same Completed
         // emission after the loop finished; both paths share this guard so
         // the answer is never appended twice.
         if (localTurnCommitted) return
         localTurnCommitted = true
-        var answer = text
+        var answer = OutputSanitizer.sanitize(text)
         if (answer.isBlank() && toolsExecutedThisTurn) {
             answer = traceStore.lastTurnSummary()
             android.util.Log.w(TAG, "Local turn empty after tool calls — injected tool-summary reply")
+        } else if (answer.isBlank()) {
+            // Control-token-only round: one plain-text regeneration.
+            answer = regeneratePlainText()
         }
         toolsExecutedThisTurn = false
         appendAssistantMessage(answer)
         runMemoryPipeline(answer)
+    }
+
+    /**
+     * One-shot plain-text regeneration: re-runs the current local turn's
+     * history with a system instruction demanding plain text only, exactly
+     * once per turn. Called when sanitization emptied the answer (the model
+     * emitted only control tokens / tags / tool-call markers). Returns the
+     * sanitized retry text ("" when the retry also produced nothing usable).
+     */
+    private suspend fun regeneratePlainText(): String {
+        if (plainTextRetryUsed || lastLocalMessages.isEmpty()) return ""
+        plainTextRetryUsed = true
+        android.util.Log.w(TAG, "Sanitized output was empty — regenerating once with a plain-text-only instruction")
+        val retryMessages = lastLocalMessages +
+            ChatPromptMessage(role = "system", content = OutputSanitizer.PLAIN_TEXT_RETRY_INSTRUCTION)
+        engineRepository.generateChat(
+            messages = retryMessages,
+            addAssistant = true,
+            config = _genConfig.value
+        )
+        val retryState = engineRepository.generationState.value
+        return if (retryState is GenerationState.Completed) {
+            OutputSanitizer.sanitize(retryState.text)
+        } else {
+            ""
+        }
     }
 
     /** Converts engine-native markers into executor-ready [ToolCall]s. */
@@ -1789,7 +1906,11 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun appendAssistantMessage(text: String) {
-        val trimmed = text.trim()
+        // Sanitization funnel: every final assistant message (local AND cloud,
+        // committed by the collector, the tool loop or the cloud rounds) must
+        // pass the sanitizer before it is rendered or persisted — no control
+        // token, tool-call marker or reasoning artifact can ever reach the UI.
+        val trimmed = OutputSanitizer.sanitize(text).trim()
         if (trimmed.isEmpty()) return
         // Attach the final assistant text to this turn's tool traces.
         traceStore.endTurn(trimmed)
