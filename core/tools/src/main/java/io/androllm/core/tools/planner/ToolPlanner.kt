@@ -9,6 +9,11 @@ import io.androllm.core.tools.registry.ToolRegistry
 import io.androllm.core.tools.router.ToolIntent
 import io.androllm.core.tools.router.ToolRouter
 import io.androllm.core.tools.settings.AutomationSettingsStore
+import io.androllm.core.tools.validation.JsonSchemaValidator
+import io.androllm.core.tools.validation.PromptInjectionDetector
+import io.androllm.core.tools.validation.ToolCallValidator
+import io.androllm.core.tools.validation.ToolExecutionLogger
+import io.androllm.core.tools.validation.ValidationResult
 import io.androllm.engine.api.EngineRepository
 import io.androllm.engine.models.ChatPromptMessage
 import io.androllm.engine.models.GenerationConfig
@@ -42,7 +47,9 @@ class ToolPlanner @Inject constructor(
     private val settingsStore: AutomationSettingsStore,
     private val engineRepository: EngineRepository,
     private val agentContext: AgentContextBuilder,
-    private val router: ToolRouter
+    private val router: ToolRouter,
+    private val validator: ToolCallValidator = ToolCallValidator(registry),
+    private val logger: ToolExecutionLogger = ToolExecutionLogger()
 ) {
 
     /**
@@ -99,23 +106,45 @@ class ToolPlanner @Inject constructor(
     /**
      * Runs the local planner against the loaded GGUF model and returns the
      * tool calls it wants to make (empty when none / model unavailable).
+     *
+     * Hardened pipeline:
+     * Assistant -> Generate response -> Tool detector -> JSON validator -> Registry validation -> Argument validation -> Execute
+     * - Prompt injection protection: sanitizes user prompt attempting to invent tools/bypass validation
+     * - Tool selection: router decides if tool required; if none, returns empty (normal assistant response)
+     * - Strict JSON schema validation (types, required, enums, extra fields, nullable)
+     * - Registry validation (unknown -> reject, never retry)
+     * - Retry once if JSON malformed or validation fails due to formatting
+     * - Recovery: remove invalid calls, ask missing info if needed, else answer normally
+     * - Logging: selected tool, validation result, errors (never exposed to user)
      */
     suspend fun planLocal(
         messages: List<ChatPromptMessage>,
         hasAttachments: Boolean = false
     ): List<ToolCall> {
-        // Route by the LATEST user message: math → calculator only, device →
-        // device tools, attachments → no tools (content already injected),
-        // small talk / writing → none. A routed-empty plan skips the LLM
-        // round entirely — no inference burned proving no tools are needed.
-        val latestUser = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        // ── Prompt injection protection ──────────────────────────────────────
+        val rawLatestUser = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        // Detect injection attempting to invent tools / bypass validation
+        PromptInjectionDetector.validateUserPrompt(rawLatestUser)?.let { warning ->
+            Timber.w("ToolPlanner: injection warning: $warning")
+        }
+        // Sanitize but preserve real request: strip hidden tool syntax while keeping user intent
+        val latestUser = if (PromptInjectionDetector.isInjectionAttempt(rawLatestUser)) {
+            val sanitized = PromptInjectionDetector.sanitizeRetrievedDocument(rawLatestUser)
+            Timber.w("ToolPlanner: sanitized injection attempt (${rawLatestUser.length} -> ${sanitized.length} chars)")
+            sanitized
+        } else rawLatestUser
+
+        // ── Tool selection: must first decide whether a tool is actually required ──
         val routed = router.route(latestUser, hasAttachments = hasAttachments, enabledTools = allowedTools())
         if (routed.specs.isEmpty()) {
             if (routed.intent != ToolIntent.GENERAL) {
                 Timber.i("ToolPlanner: route=${routed.intent.name} — no tools exposed, skipping plan")
             }
+            logger.logSelection(emptyList(), latestUser)
             return emptyList()
         }
+        logger.logSelection(routed.specs.map { it.name }, latestUser)
+        // Never allow prompt to modify available tool list — routed specs are already filtered to registry
         val specs = routed.specs
         // Defensive: planning needs a loaded GGUF model.
         if (engineRepository.engineState.value !is io.androllm.engine.api.EngineState.Ready) {
@@ -124,26 +153,12 @@ class ToolPlanner @Inject constructor(
         }
 
         // Budget the planner system prompt to the container's REAL context
-        // (detected at load — some Qwen3 repacks are 2048, not 4096/8192): a
-        // full tool list alone can exceed it and the planning pass fails with
-        // "token ids are too long" before decoding a single token. Leave room
-        // for the user content + JSON output (512 max tokens).
         val realContext = (engineRepository.engineState.value as? io.androllm.engine.api.EngineState.Ready)
             ?.model?.contextLength
             ?: io.androllm.core.common.AppConstants.Model.DEFAULT_CONTEXT_LENGTH
         val planSystemChars = ((realContext - 512 - 256).coerceAtLeast(0)) * 4
-        val planMessages = listOf(
-            ChatPromptMessage(
-                role = "system",
-                content = ToolPrompts.system(specs, agentContext.buildBlock(), maxChars = planSystemChars)
-            ),
-            ChatPromptMessage(role = "user", content = ToolPrompts.buildUserContent(messages))
-        )
-        val prompt = engineRepository.buildChatPrompt(planMessages, addAssistant = true).getOrNull()
-        if (prompt.isNullOrBlank()) {
-            Timber.w("ToolPlanner: chat template unavailable")
-            return emptyList()
-        }
+        val basePlanSystem = ToolPrompts.system(specs, agentContext.buildBlock(), maxChars = planSystemChars)
+        val baseUserContent = ToolPrompts.buildUserContent(messages)
 
         val config = GenerationConfig(
             maxTokens = 512,
@@ -154,61 +169,146 @@ class ToolPlanner @Inject constructor(
             jsonSchema = PLAN_SCHEMA,
             reuseKvCache = false
         )
-        // BOUNDED with a REAL deadline: a hung native decode must never wedge
-        // the shared engine or make the chat "appear to do nothing". A bare
-        // coroutine timeout cannot interrupt the blocking JNI call — the
-        // exception is only delivered after the native loop returns on its
-        // own, so a stalled pass used to run the full 300s ceiling while the
-        // UI spun "Preparing local model…". DefaultEngineRepository's
-        // watchdog now actively aborts the engine at [timeoutMs] (nativeCancel
-        // releases the decode loop promptly), so the pass fails fast and the
-        // turn answers without tools instead of stalling invisible for
-        // minutes. The outer withTimeoutOrNull remains as a pure coroutine
-        // guard for the engine-abort window. The budget scales with the
-        // rendered prompt length: the planner's system prompt alone is ~10K
-        // chars (~2750 tokens), and a slow CPU prefill of that at ~20-60
-        // tok/s legitimately takes 45-140s — a fixed 30s budget would kill
-        // every planning pass before the first token on CPU fallback.
-        val timeoutMs = planningTimeoutMs(prompt.length)
-        val output = withTimeoutOrNull(timeoutMs) {
-            engineRepository.generateQuiet(
-                prompt,
-                config,
-                timeoutMs = timeoutMs
-            )
-        }?.getOrNull()
-        if (output.isNullOrBlank()) {
-            Timber.w("ToolPlanner: planning pass produced no output within ${timeoutMs}ms")
-            return emptyList()
-        }
 
-        val calls = ToolCallParser.parse(output)
-        // Live capability tracking: a model that answers with a clean
-        // `{"calls": [...]}` JSON object natively supports structured tool
-        // calling; one whose output had to be salvaged by the parser runs in
-        // compatibility mode. Recorded per round, zero extra inference.
-        val cleanJson = output.contains("\"calls\"")
-        val previous = _capability.value
-        _capability.value = previous.copy(
-            modelName = (engineRepository.engineState.value as? io.androllm.engine.api.EngineState.Ready)
-                ?.model?.generalName ?: previous.modelName,
-            planningRounds = previous.planningRounds + 1,
-            cleanParses = previous.cleanParses + if (cleanJson) 1 else 0,
-            fallbackParses = previous.fallbackParses + if (cleanJson) 0 else 1,
-            lastOutputSample = output.trim().take(160)
-        )
-        Timber.i(
-            "ToolPlanner: round=${_capability.value.planningRounds} " +
-                "clean=${_capability.value.cleanParses} fallback=${_capability.value.fallbackParses} " +
-                "model=${_capability.value.modelName}"
-        )
-        // The planner must never ask for tools it cannot see.
-        val known = registry.all().map { it.spec.name }.toSet()
-        val filtered = calls.filter { it.name in known }
-        if (filtered.size != calls.size) {
-            Timber.w("ToolPlanner: dropped ${calls.size - filtered.size} unknown tool call(s)")
+        // ── Hardened generation with retry logic ─────────────────────────────
+        var attempt = 0
+        var retryReason: String? = null
+        while (attempt < 2) {
+            val planMessages = if (attempt == 0) {
+                listOf(
+                    ChatPromptMessage(role = "system", content = basePlanSystem),
+                    ChatPromptMessage(role = "user", content = baseUserContent)
+                )
+            } else {
+                // Retry with correction instruction for malformed JSON / formatting errors
+                listOf(
+                    ChatPromptMessage(role = "system", content = basePlanSystem),
+                    ChatPromptMessage(
+                        role = "user",
+                        content = baseUserContent + "\n\n[Correction: Your previous JSON was invalid: $retryReason. Output ONLY valid JSON {\"calls\":[{\"name\":\"tool_name\",\"arguments\":{...}}]} with correct types, required fields, no extra fields. No prose.]"
+                    )
+                )
+            }
+            val prompt = engineRepository.buildChatPrompt(planMessages, addAssistant = true).getOrNull()
+            if (prompt.isNullOrBlank()) {
+                Timber.w("ToolPlanner: chat template unavailable")
+                return emptyList()
+            }
+            val timeoutMs = planningTimeoutMs(prompt.length)
+            val output = withTimeoutOrNull(timeoutMs) {
+                engineRepository.generateQuiet(prompt, config, timeoutMs = timeoutMs)
+            }?.getOrNull()
+            if (output.isNullOrBlank()) {
+                Timber.w("ToolPlanner: planning pass produced no output within ${timeoutMs}ms (attempt ${attempt + 1})")
+                // Retry once if no output (could be transient)
+                if (attempt == 0) {
+                    retryReason = "empty output"
+                    attempt++
+                    logger.logRetry("<no_output>", 1, "empty output")
+                    continue
+                }
+                return emptyList()
+            }
+
+            // Live capability tracking
+            val cleanJson = output.contains("\"calls\"")
+            val previous = _capability.value
+            _capability.value = previous.copy(
+                modelName = (engineRepository.engineState.value as? io.androllm.engine.api.EngineState.Ready)
+                    ?.model?.generalName ?: previous.modelName,
+                planningRounds = previous.planningRounds + 1,
+                cleanParses = previous.cleanParses + if (cleanJson) 1 else 0,
+                fallbackParses = previous.fallbackParses + if (cleanJson) 0 else 1,
+                lastOutputSample = output.trim().take(160)
+            )
+            Timber.i(
+                "ToolPlanner: round=${_capability.value.planningRounds} clean=${_capability.value.cleanParses} fallback=${_capability.value.fallbackParses} model=${_capability.value.modelName} attempt=${attempt + 1}"
+            )
+
+            val calls = ToolCallParser.parse(output)
+            val looksLikeToolAttempt = output.contains("\"name\"") || output.contains("\"calls\"")
+
+            // ── JSON validator: malformed JSON detection ─────────────────────
+            if (calls.isEmpty() && looksLikeToolAttempt) {
+                val syntaxResult = JsonSchemaValidator.validateJsonSyntax(output)
+                if (syntaxResult is ValidationResult.Invalid) {
+                    logger.logValidation("<malformed>", syntaxResult)
+                    Timber.w("ToolPlanner: malformed JSON detected: ${syntaxResult.firstError}")
+                    if (attempt == 0) {
+                        logger.logRetry("<malformed>", 1, syntaxResult.firstError)
+                        retryReason = syntaxResult.firstError
+                        attempt++
+                        continue // Retry once for malformed JSON
+                    } else {
+                        // Recovery: remove invalid, answer normally
+                        return emptyList()
+                    }
+                }
+                // Empty but looked like tool attempt yet valid JSON -> model chose no tools (e.g., {"calls":[]}) -> normal
+                return emptyList()
+            }
+
+            if (calls.isEmpty()) {
+                // Model correctly decided no tool needed -> normal assistant response
+                return emptyList()
+            }
+
+            // ── Registry + Argument validation via strict validator ──────────
+            var hasUnknownTool = false
+            var hasRetryableFormattingError = false
+            val validCalls = mutableListOf<ToolCall>()
+            val invalidPairs = mutableListOf<Pair<ToolCall, ValidationResult.Invalid>>()
+
+            for (call in calls) {
+                // Empty tool name -> immediate reject
+                if (call.name.isBlank()) {
+                    val invalid = ValidationResult.Invalid("Tool name must not be empty", retryable = false)
+                    logger.logValidation("<empty>", invalid)
+                    invalidPairs += call to invalid
+                    continue
+                }
+                // Hallucinated tool name check (injection protection)
+                val knownNames = registry.all().map { it.spec.name }.toSet()
+                if (PromptInjectionDetector.isHallucinatedToolName(call.name, knownNames)) {
+                    Timber.w("ToolPlanner: hallucinated tool name '${call.name}' detected")
+                }
+                val result = validator.validate(call)
+                logger.logValidation(call.name, result)
+                when (result) {
+                    is ValidationResult.Valid -> validCalls += call
+                    is ValidationResult.Invalid -> {
+                        if (!result.retryable) hasUnknownTool = true else hasRetryableFormattingError = true
+                        invalidPairs += call to result
+                    }
+                }
+            }
+
+            if (invalidPairs.isNotEmpty()) {
+                Timber.w("ToolPlanner: ${invalidPairs.size} invalid call(s): ${invalidPairs.map { it.second.firstError }}")
+                // Safety: Never retry if tool does not exist
+                if (hasUnknownTool) {
+                    Timber.w("ToolPlanner: unknown tool detected — not retrying, returning only valid calls")
+                    // Recovery: remove invalid, return only valid (may be empty -> answer normally)
+                    // Log hallucinated names
+                    return validCalls
+                }
+                // Retry once if validation fails due to formatting (missing required, type mismatch, extra field, enum)
+                if (hasRetryableFormattingError && attempt == 0) {
+                    val firstError = invalidPairs.first().second.firstError
+                    logger.logRetry(invalidPairs.first().first.name, 1, firstError)
+                    retryReason = firstError
+                    attempt++
+                    continue
+                }
+                // Recovery: remove invalid tool calls, return only valid; if none valid, ask missing info or answer normally
+                // Missing required params -> downstream can ask user, but we just return valid subset
+                return validCalls
+            }
+
+            // All calls valid
+            return validCalls
         }
-        return filtered
+        return emptyList()
     }
 
     /**

@@ -1343,7 +1343,8 @@ class ChatViewModel @Inject constructor(
         var continuationCount = 0
         round@ for (round in 0 until maxLoopRounds) {
             val roundBuffer = StringBuilder()
-            val calls = LinkedHashMap<Int, AccumulatedToolCall>()
+            // Hardened streaming: never stream partial tool JSON, buffer until fully validated
+            val toolBuffer = io.androllm.core.tools.validation.StreamingToolCallBuffer()
             cloudGateway.streamChat(
                 messages = history,
                 config = cloudGenerationConfig(tools = tools, providerMaxTokens = providerMaxTokens)
@@ -1357,16 +1358,10 @@ class ChatViewModel @Inject constructor(
                             _cloudStreamingText.value = OutputSanitizer.streamingReady(roundBuffer.toString())
                         }
                     }
-                    // The model wants tools: accumulate the streaming
-                    // fragments, execute them after the round, and
-                    // feed the results back for the next round.
+                    // The model wants tools: buffer fragments until complete, validated JSON
+                    // Never stream partial tool JSON — only execute fully validated calls after round
                     is CloudStreamEvent.ToolCallDelta -> {
-                        val acc = calls.getOrPut(event.index) {
-                            AccumulatedToolCall(event.id, event.name.orEmpty())
-                        }
-                        event.id?.let { acc.id = it }
-                        event.name?.let { acc.name = it }
-                        acc.arguments.append(event.arguments)
+                        toolBuffer.accumulate(event)
                     }
                     is CloudStreamEvent.Reasoning -> Unit
                     is CloudStreamEvent.Usage -> Unit
@@ -1379,7 +1374,9 @@ class ChatViewModel @Inject constructor(
                     CloudStreamEvent.Done -> Unit
                 }
             }
-            if (calls.isNotEmpty()) {
+            // Flush buffered tool calls — only complete, valid JSON is emitted, never partial
+            val bufferedCalls = toolBuffer.flushOnFinish()
+            if (bufferedCalls.isNotEmpty()) {
                 if (tools.isEmpty()) {
                     // The model attempted a tool call but NO tool executor
                     // exists (tools were never advertised): discard the call
@@ -1387,7 +1384,7 @@ class ChatViewModel @Inject constructor(
                     // the model is told to answer without tools.
                     android.util.Log.w(
                         TAG,
-                        "CLOUD: model emitted ${calls.size} tool call(s) with no executor — discarding and continuing in plain text"
+                        "CLOUD: model emitted ${bufferedCalls.size} tool call(s) with no executor — discarding and continuing in plain text"
                     )
                     history += CloudChatMessage(
                         role = "system",
@@ -1395,12 +1392,12 @@ class ChatViewModel @Inject constructor(
                     )
                     continue@round
                 }
-                val cloudCalls = calls.values.map {
+                val cloudCalls = bufferedCalls.map {
                     CloudToolCall(
-                        index = 0,
+                        index = it.index,
                         id = it.id,
                         type = "function",
-                        function = CloudToolCallFunction(it.name, it.arguments.toString())
+                        function = CloudToolCallFunction(it.name, it.argumentsJson)
                     )
                 }
                 // Text the model streamed in the SAME message as the

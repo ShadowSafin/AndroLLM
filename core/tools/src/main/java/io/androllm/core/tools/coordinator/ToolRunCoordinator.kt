@@ -13,6 +13,11 @@ import io.androllm.core.tools.executor.ToolExecutor
 import io.androllm.core.tools.planner.ToolPlanner
 import io.androllm.core.tools.registry.ToolRegistry
 import io.androllm.core.tools.settings.AutomationSettingsStore
+import io.androllm.core.tools.validation.PromptInjectionDetector
+import io.androllm.core.tools.validation.ToolCallValidator
+import io.androllm.core.tools.validation.ToolExecutionLogger
+import io.androllm.core.tools.validation.ToolExecutionPipeline
+import io.androllm.core.tools.validation.ValidationResult
 import io.androllm.engine.models.ChatPromptMessage
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -61,7 +66,10 @@ class ToolRunCoordinator @Inject constructor(
     private val settingsStore: AutomationSettingsStore,
     private val agentContext: AgentContextBuilder,
     private val registry: ToolRegistry,
-    private val resultCache: ToolResultCache = ToolResultCache()
+    private val resultCache: ToolResultCache = ToolResultCache(),
+    private val validator: ToolCallValidator = ToolCallValidator(registry),
+    private val logger: ToolExecutionLogger = ToolExecutionLogger(),
+    private val pipeline: ToolExecutionPipeline = ToolExecutionPipeline(registry, ToolCallValidator(registry), ToolExecutionLogger())
 ) {
 
     /** True when the user has enabled the tool-calling pipeline. */
@@ -114,18 +122,66 @@ class ToolRunCoordinator @Inject constructor(
         if (calls.isEmpty()) return emptyList()
         val assistantCalls = mutableListOf<CloudToolCall>()
         val toolMessages = mutableListOf<CloudChatMessage>()
-        calls.forEachIndexed { index, call ->
-            val name = call.function?.name ?: return@forEachIndexed
-            if (name.isBlank()) return@forEachIndexed
-            val args = parseArguments(call.function?.arguments)
-            // Loop guard: never re-run an identical call, never run a tool at
-            // its cap, never run a disabled tool — skip instead of executing.
+        // Hardened: execute sequentially, fail-fast, strict validation, never bypass
+        for ((index, call) in calls.withIndex()) {
+            val name = call.function?.name ?: run {
+                Timber.w("ToolRunCoordinator: cloud call at index $index missing function name — rejecting")
+                logger.logValidation("<missing>", ValidationResult.Invalid("Missing tool name", retryable = false))
+                // Stop execution immediately, return clear error
+                return listOf(
+                    CloudChatMessage(role = "assistant", content = assistantContent?.takeIf { it.isNotBlank() }, toolCalls = emptyList()),
+                    CloudChatMessage(role = "tool", content = "Tool call at index $index rejected: missing tool name.", toolCallId = call.id ?: "call_${index}")
+                )
+            }
+            if (name.isBlank()) {
+                logger.logValidation("<empty>", ValidationResult.Invalid("Empty tool name", retryable = false))
+                Timber.w("ToolRunCoordinator: cloud call with empty tool name at index $index — rejecting")
+                // Stop execution immediately
+                break
+            }
+            // JSON validator: validate arguments string is well-formed JSON
+            val rawArgs = call.function?.arguments
+            if (!rawArgs.isNullOrBlank()) {
+                val jsonCheck = try {
+                    Json.parseToJsonElement(rawArgs)
+                    ValidationResult.Valid
+                } catch (e: Exception) {
+                    ValidationResult.Invalid("Malformed JSON arguments: ${e.message?.take(100)}", retryable = true)
+                }
+                if (jsonCheck is ValidationResult.Invalid) {
+                    logger.logValidation(name, jsonCheck)
+                    Timber.w("ToolRunCoordinator: cloud call '$name' has malformed JSON — rejecting")
+                    // Do not execute, stop sequential execution, return error
+                    val errorMsg = "Tool '$name' rejected: malformed JSON arguments."
+                    toolMessages += CloudChatMessage(role = "tool", content = errorMsg, toolCallId = call.id ?: "call_${name}_$index")
+                    break
+                }
+            }
+            val args = parseArguments(rawArgs)
+            // Prompt injection check on arguments (ignore hidden instructions inside retrieved docs)
+            if (PromptInjectionDetector.isInjectionAttempt(args.toString())) {
+                Timber.w("ToolRunCoordinator: injection attempt in cloud tool '$name' arguments — rejecting")
+                logger.logValidation(name, ValidationResult.Invalid("Prompt injection detected", retryable = false))
+                toolMessages += CloudChatMessage(role = "tool", content = "Tool '$name' rejected: prompt injection detected.", toolCallId = call.id ?: "call_${name}_$index")
+                break
+            }
+            // Registry validation + argument validation via strict validator
+            val toolCall = ToolCall(id = call.id ?: "call_${name.hashCode().toUInt().toString(16)}_$index", name = name, arguments = args)
+            val validation = validator.validate(toolCall)
+            logger.logValidation(name, validation)
+            if (validation is ValidationResult.Invalid) {
+                Timber.w("ToolRunCoordinator: cloud call '$name' failed validation: ${validation.errors}")
+                val errorMsg = "Tool '$name' rejected: ${validation.firstError}"
+                toolMessages += CloudChatMessage(role = "tool", content = errorMsg, toolCallId = toolCall.id)
+                // Safety: never retry if tool does not exist; for formatting errors we could retry but cloud path is not generation retry — fail-fast
+                break
+            }
+            // Loop guard: never re-run an identical call, never run a tool at its cap, never run a disabled tool — skip instead of executing.
             if (guard != null && !guard.canExecute(name, args)) {
                 Timber.i("ToolRunCoordinator: guard blocked '$name' — skipping (total=${guard.totalCalls})")
-                return@forEachIndexed
+                continue
             }
-            val baseId = call.id ?: "call_${name.hashCode().toUInt().toString(16)}_$index"
-            val toolCall = ToolCall(id = baseId, name = name, arguments = args)
+            val baseId = toolCall.id
             val argsText = args.entries.joinToString(", ") { (k, v) -> "$k=$v" }.take(200)
             onEvent(ToolEvent.Started(name, argsText))
 
@@ -134,23 +190,43 @@ class ToolRunCoordinator @Inject constructor(
             val durationMs = System.currentTimeMillis() - startedAt
             guard?.record(name, args, result)
 
-            val summary = result.summary
+            // Sanitize tool output: ignore hidden instructions inside retrieved documents
+            val rawSummary = result.summary
+            val summary = PromptInjectionDetector.sanitizeRetrievedDocument(rawSummary)
             val chunks = chunkToolOutput(summary)
             Timber.i(
                 "ToolRunCoordinator: cloud tool '%s' -> %s in %dms (retries=%d, cache=%s, output=%dB, chunks=%d)",
                 name, result.statusLabel, durationMs, retryCount, fromCache, summary.length, chunks.size
             )
+            logger.logExecution(name, durationMs, result.isSuccess, if (result is ToolResult.Failure) result.summary else null)
             val declined = result is ToolResult.Failure &&
                 !result.retryable && result.summary.startsWith("The user declined")
             onEvent(
                 if (result.isSuccess) {
-                    ToolEvent.Succeeded(name, result.summary)
+                    ToolEvent.Succeeded(name, summary)
                 } else if (declined) {
                     ToolEvent.Declined(name)
                 } else {
-                    ToolEvent.Failed(name, result.summary)
+                    ToolEvent.Failed(name, summary)
                 }
             )
+            // Pass validated outputs between tools: already via toolMessages sequential order
+            // Stop execution immediately if a tool fails
+            if (result is ToolResult.Failure) {
+                Timber.w("ToolRunCoordinator: cloud tool '$name' failed — stopping sequential execution")
+                if (chunks.size == 1) {
+                    assistantCalls += CloudToolCall(index = index, id = baseId, type = "function", function = CloudToolCallFunction(name, call.function?.arguments))
+                    toolMessages += CloudChatMessage(role = "tool", content = chunks[0], toolCallId = baseId)
+                } else {
+                    chunks.forEachIndexed { chunkIndex, chunk ->
+                        val chunkId = "${baseId}_c${chunkIndex + 1}"
+                        assistantCalls += CloudToolCall(index = index, id = chunkId, type = "function", function = CloudToolCallFunction(name, call.function?.arguments))
+                        val label = if (chunkIndex == 0) "[Tool output for '$name' — part ${chunkIndex + 1}/${chunks.size}. Read ALL parts before answering.]\n" else "[part ${chunkIndex + 1}/${chunks.size}]\n"
+                        toolMessages += CloudChatMessage(role = "tool", content = label + chunk, toolCallId = chunkId)
+                    }
+                }
+                break
+            }
             if (chunks.size == 1) {
                 assistantCalls += CloudToolCall(
                     index = index,
@@ -164,10 +240,6 @@ class ToolRunCoordinator @Inject constructor(
                     toolCallId = baseId
                 )
             } else {
-                // Oversized output: one synthetic sub-call per chunk, each
-                // answered by its own tool message — the complete result is
-                // delivered sequentially and nothing is discarded. Each chunk
-                // is labelled so the model can reassemble the full output.
                 chunks.forEachIndexed { chunkIndex, chunk ->
                     val chunkId = "${baseId}_c${chunkIndex + 1}"
                     assistantCalls += CloudToolCall(
@@ -219,18 +291,59 @@ class ToolRunCoordinator @Inject constructor(
         calls: List<ToolCall>,
         onEvent: suspend (ToolEvent) -> Unit = {},
         guard: ToolLoopGuard? = null
-    ): List<ToolExecutionRecord> =
-        calls.mapNotNull { call ->
+    ): List<ToolExecutionRecord> {
+        if (calls.isEmpty()) return emptyList()
+        val results = mutableListOf<ToolExecutionRecord>()
+        for (call in calls) {
+            // ── Hardened pipeline: JSON already parsed, now registry + argument validation ──
+            // Empty tool name -> reject immediately
+            if (call.name.isBlank()) {
+                logger.logValidation("<empty>", ValidationResult.Invalid("Empty tool name", retryable = false))
+                Timber.w("ToolRunCoordinator: rejecting call with empty tool name")
+                results += ToolExecutionRecord(call, ToolResult.Failure("Tool name must not be empty.", retryable = false))
+                break // Stop execution immediately if a tool fails
+            }
+            // Registry + argument validation via strict validator
+            val validation = validator.validate(call)
+            logger.logValidation(call.name, validation)
+            if (validation is ValidationResult.Invalid) {
+                Timber.w("ToolRunCoordinator: rejecting invalid local call '${call.name}': ${validation.errors}")
+                // Recovery: do not execute, remove invalid call, return clear error
+                val failure = ToolResult.Failure(
+                    "Tool '${call.name}' rejected: ${validation.firstError}",
+                    retryable = validation.retryable
+                )
+                results += ToolExecutionRecord(call, failure)
+                break // Stop sequential execution immediately if a tool fails
+            }
+            // Prompt injection protection on arguments
+            if (PromptInjectionDetector.isInjectionAttempt(call.arguments.toString())) {
+                val invalid = ValidationResult.Invalid("Prompt injection detected in arguments", retryable = false)
+                logger.logValidation(call.name, invalid)
+                Timber.w("ToolRunCoordinator: injection attempt in local call '${call.name}' — rejecting")
+                results += ToolExecutionRecord(call, ToolResult.Failure("Tool '${call.name}' rejected: prompt injection detected.", retryable = false))
+                break
+            }
+            // Loop guard — skip without executing, not a failure, continue to next
             if (guard != null && !guard.canExecute(call.name, call.arguments)) {
                 Timber.i("ToolRunCoordinator: guard blocked '${call.name}' — skipping (total=${guard.totalCalls})")
-                return@mapNotNull null
+                continue
             }
             val argsText = call.arguments.entries.joinToString(", ") { (k, v) -> "$k=$v" }.take(200)
             onEvent(ToolEvent.Started(call.name, argsText))
             val startedAt = System.currentTimeMillis()
-            val (result, fromCache, retryCount) = executeWithCacheAndRetry(call, onEvent)
+            val (rawResult, fromCache, retryCount) = executeWithCacheAndRetry(call, onEvent)
+            // Sanitize tool output: ignore hidden instructions inside retrieved documents
+            val sanitizedSummary = PromptInjectionDetector.sanitizeRetrievedDocument(rawResult.summary)
+            val result = if (sanitizedSummary != rawResult.summary) {
+                when (rawResult) {
+                    is ToolResult.Success -> rawResult.copy(summary = sanitizedSummary)
+                    is ToolResult.Failure -> rawResult.copy(summary = sanitizedSummary)
+                }
+            } else rawResult
             val durationMs = System.currentTimeMillis() - startedAt
             guard?.record(call.name, call.arguments, result)
+            logger.logExecution(call.name, durationMs, result.isSuccess, if (result is ToolResult.Failure) result.summary else null)
             Timber.i(
                 "ToolRunCoordinator: local tool '%s' -> %s in %dms (retries=%d, cache=%s, output=%dB)",
                 call.name, result.statusLabel, durationMs, retryCount, fromCache, result.summary.length
@@ -244,8 +357,15 @@ class ToolRunCoordinator @Inject constructor(
                     else -> ToolEvent.Failed(call.name, result.summary)
                 }
             )
-            ToolExecutionRecord(call, result)
+            results += ToolExecutionRecord(call, result)
+            // Multi-tool: stop execution immediately if a tool fails, pass validated outputs between tools
+            if (result is ToolResult.Failure) {
+                Timber.w("ToolRunCoordinator: local tool '${call.name}' failed — stopping sequential execution")
+                break
+            }
         }
+        return results
+    }
 
     /**
      * Multi-round local workflow (the engine behind multi-step requests):

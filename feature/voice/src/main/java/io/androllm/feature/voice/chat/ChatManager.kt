@@ -216,7 +216,8 @@ class ChatManager @Inject constructor(
                 }
                 round@ for (round in 0 until maxRounds) {
                     val roundBuffer = StringBuilder()
-                    val calls = LinkedHashMap<Int, AccumulatedCloudCall>()
+                    // Hardened streaming: buffer tool deltas until complete, validated JSON
+                    val toolBuffer = io.androllm.core.tools.validation.StreamingToolCallBuffer()
                     cloudGateway.streamChat(
                         messages = history,
                         config = CloudGenerationConfig(
@@ -231,23 +232,20 @@ class ChatManager @Inject constructor(
                         when (event) {
                             is CloudStreamEvent.Delta -> roundBuffer.append(event.text)
                             is CloudStreamEvent.ToolCallDelta -> {
-                                val acc = calls.getOrPut(event.index) {
-                                    AccumulatedCloudCall(event.id, event.name.orEmpty())
-                                }
-                                event.id?.let { acc.id = it }
-                                event.name?.let { acc.name = it }
-                                acc.arguments.append(event.arguments)
+                                // Never stream partial tool JSON — buffer until validated
+                                toolBuffer.accumulate(event)
                             }
                             else -> Unit
                         }
                     }
-                    if (calls.isNotEmpty()) {
+                    val bufferedCalls = toolBuffer.flushOnFinish()
+                    if (bufferedCalls.isNotEmpty()) {
                         if (tools.isEmpty()) {
                             // NO tool executor exists: discard the calls and
                             // keep the conversation going in natural language.
                             Timber.w(
                                 "ChatManager: model emitted %d tool call(s) with no executor — discarding and continuing in plain text",
-                                calls.size
+                                bufferedCalls.size
                             )
                             history += CloudChatMessage(
                                 role = "system",
@@ -255,12 +253,12 @@ class ChatManager @Inject constructor(
                             )
                             continue@round
                         }
-                        val cloudCalls = calls.values.map {
+                        val cloudCalls = bufferedCalls.map {
                             CloudToolCall(
-                                index = 0,
+                                index = it.index,
                                 id = it.id,
                                 type = "function",
-                                function = CloudToolCallFunction(it.name, it.arguments.toString())
+                                function = CloudToolCallFunction(it.name, it.argumentsJson)
                             )
                         }
                         // Text streamed in the same message as the tool calls is
