@@ -344,7 +344,7 @@ flowchart TB
 |---|---|---|
 | Android Studio | Hedgehog (2023.1.1) | Latest stable |
 | JDK | 17 | 17 (auto-managed by Gradle) |
-| Android SDK | API 35 | API 35 |
+| Android SDK | API 36 | API 36 |
 | LiteRT-LM | AARs from Maven Central (no NDK/CMake needed) | Latest |
 
 ### Build & Install

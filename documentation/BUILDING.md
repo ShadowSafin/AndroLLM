@@ -34,8 +34,8 @@ module (whisper.cpp STT), whose NDK toolchain is bundled with the Android SDK.
 Download from [android.studio.google.com](https://developer.android.com/studio).
 
 During installation, ensure these components are selected:
-- Android SDK Platform 35
-- Android SDK Build-Tools 35.x
+- Android SDK Platform 36
+- Android SDK Build-Tools 36.x
 - Android SDK Command-line Tools
 - Android NDK (Side by side) — only needed for the `:whisper` module
 
