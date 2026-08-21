@@ -50,14 +50,11 @@ interface MemoryDao {
     fun observeAllWithPinnedFirst(): Flow<List<MemoryEntity>>
 
     @Query("DELETE FROM $MEMORY_ENTITY_TABLE WHERE id = :id")
-    suspend fun deleteById(id: String)
-
+    suspend fun deleteById(id: String): Int
     @Query("DELETE FROM $MEMORY_ENTITY_TABLE WHERE id IN (:ids)")
-    suspend fun deleteByIds(ids: List<String>)
-
+    suspend fun deleteByIds(ids: List<String>): Int
     @Query("DELETE FROM $MEMORY_ENTITY_TABLE")
-    suspend fun deleteAll()
-
+    suspend fun deleteAll(): Int
     @Query("SELECT COUNT(*) FROM $MEMORY_ENTITY_TABLE")
     suspend fun count(): Int
 
@@ -65,19 +62,16 @@ interface MemoryDao {
     suspend fun countByCategory(category: String): Int
 
     @Query("UPDATE $MEMORY_ENTITY_TABLE SET is_pinned = :pinned WHERE id = :id")
-    suspend fun updatePinned(id: String, pinned: Boolean)
-
+    suspend fun updatePinned(id: String, pinned: Boolean): Int
     @Query("UPDATE $MEMORY_ENTITY_TABLE SET is_archived = :archived WHERE id = :id")
-    suspend fun updateArchived(id: String, archived: Boolean)
-
+    suspend fun updateArchived(id: String, archived: Boolean): Int
     @Query(
         "UPDATE $MEMORY_ENTITY_TABLE SET access_count = access_count + 1, last_accessed_at = :now WHERE id = :id"
     )
     suspend fun bumpAccess(id: String, now: Long)
 
     @Query("UPDATE $MEMORY_ENTITY_TABLE SET importance = :importance, updated_at = :now WHERE id = :id")
-    suspend fun updateImportance(id: String, importance: Int, now: Long)
-
+    suspend fun updateImportance(id: String, importance: Int, now: Long): Int
     /**
      * Returns the ids of memories matching the given filters. `tag` filters by
      * a single tag name; call once per tag and union the results for multi-tag
@@ -193,16 +187,13 @@ interface EmbeddingDao {
     suspend fun count(): Int
 
     @Query("DELETE FROM $EMBEDDING_TABLE WHERE memory_id = :memoryId")
-    suspend fun deleteByMemoryId(memoryId: String)
-
+    suspend fun deleteByMemoryId(memoryId: String): Int
     @Query("DELETE FROM $EMBEDDING_TABLE WHERE memory_id IN (:ids)")
-    suspend fun deleteByIds(ids: List<String>)
-
+    suspend fun deleteByIds(ids: List<String>): Int
     @Query("DELETE FROM $EMBEDDING_TABLE WHERE model_path != :modelPath")
-    suspend fun deleteByModelPathNot(modelPath: String)
-
+    suspend fun deleteByModelPathNot(modelPath: String): Int
     @Query("DELETE FROM $EMBEDDING_TABLE")
-    suspend fun deleteAll()
+    suspend fun deleteAll(): Int
 }
 
 @Dao
@@ -224,10 +215,9 @@ interface SummaryDao {
     suspend fun count(): Int
 
     @Query("DELETE FROM $SUMMARY_TABLE")
-    suspend fun deleteAll()
-
+    suspend fun deleteAll(): Int
     @Query("DELETE FROM $SUMMARY_TABLE WHERE conversation_id = :conversationId")
-    suspend fun deleteForConversation(conversationId: String)
+    suspend fun deleteForConversation(conversationId: String): Int
 }
 
 @Dao
@@ -252,7 +242,7 @@ interface ProjectDao {
     suspend fun count(): Int
 
     @Query("DELETE FROM $PROJECT_TABLE")
-    suspend fun deleteAll()
+    suspend fun deleteAll(): Int
 }
 
 @Dao
@@ -274,8 +264,7 @@ interface TagDao {
     suspend fun count(): Int
 
     @Query("DELETE FROM $TAG_TABLE")
-    suspend fun deleteAll()
-
+    suspend fun deleteAll(): Int
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCrossRef(crossRef: MemoryTagCrossRef)
 
@@ -283,8 +272,7 @@ interface TagDao {
     suspend fun insertCrossRefs(crossRefs: List<MemoryTagCrossRef>)
 
     @Query("DELETE FROM $MEMORY_TAG_CROSS_REF_TABLE WHERE memory_id = :memoryId")
-    suspend fun deleteCrossRefsForMemory(memoryId: String)
-
+    suspend fun deleteCrossRefsForMemory(memoryId: String): Int
     @Query("SELECT t.name FROM $MEMORY_TAG_CROSS_REF_TABLE c JOIN $TAG_TABLE t ON t.id = c.tag_id WHERE c.memory_id = :memoryId ORDER BY t.name")
     suspend fun getTagNamesForMemory(memoryId: String): List<String>
 
@@ -311,5 +299,5 @@ interface RelationshipDao {
     suspend fun count(): Int
 
     @Query("DELETE FROM $RELATIONSHIP_TABLE")
-    suspend fun deleteAll()
+    suspend fun deleteAll(): Int
 }

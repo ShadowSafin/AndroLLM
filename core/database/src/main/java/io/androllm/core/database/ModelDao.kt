@@ -27,11 +27,9 @@ interface ModelDao {
     suspend fun delete(model: ModelEntity)
 
     @Query("DELETE FROM models WHERE id = :id")
-    suspend fun deleteById(id: String)
-
+    suspend fun deleteById(id: String): Int
     @Query("DELETE FROM models")
-    suspend fun deleteAll()
-
+    suspend fun deleteAll(): Int
     @Query("SELECT * FROM models WHERE id = :id")
     fun observeById(id: String): Flow<ModelEntity?>
 
@@ -57,8 +55,7 @@ interface ModelDao {
     suspend fun count(): Int
 
     @Query("UPDATE models SET is_loaded = :isLoaded, status = :status, updated_at = :updatedAt WHERE id = :id")
-    suspend fun updateLoadState(id: String, isLoaded: Boolean, status: String, updatedAt: Long)
-
+    suspend fun updateLoadState(id: String, isLoaded: Boolean, status: String, updatedAt: Long): Int
     @Query("UPDATE models SET is_downloaded = :isDownloaded, download_status = :downloadStatus, file_path = :filePath, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateDownloadState(
         id: String,
@@ -66,8 +63,7 @@ interface ModelDao {
         downloadStatus: String,
         filePath: String?,
         updatedAt: Long
-    )
-
+    ): Int
     @Query("UPDATE models SET architecture = :architecture, quantization = :quantization, context_length = :contextLength, license = :license, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateDownloadMetadata(
         id: String,
@@ -76,23 +72,17 @@ interface ModelDao {
         contextLength: Int,
         license: String,
         updatedAt: Long
-    )
-
+    ): Int
     @Query("UPDATE models SET is_favorite = :isFavorite WHERE id = :id")
-    suspend fun updateFavorite(id: String, isFavorite: Boolean)
-
+    suspend fun updateFavorite(id: String, isFavorite: Boolean): Int
     @Query("UPDATE models SET is_default = 0")
-    suspend fun clearDefaults()
-
+    suspend fun clearDefaults(): Int
     @Query("UPDATE models SET is_default = 1 WHERE id = :id")
-    suspend fun setDefault(id: String)
-
+    suspend fun setDefault(id: String): Int
     @Query("UPDATE models SET name = :name, updated_at = :updatedAt WHERE id = :id")
-    suspend fun updateName(id: String, name: String, updatedAt: Long)
-
+    suspend fun updateName(id: String, name: String, updatedAt: Long): Int
     @Query("UPDATE models SET last_used_date = :timestamp WHERE id = :id")
-    suspend fun updateLastUsed(id: String, timestamp: Long)
-
+    suspend fun updateLastUsed(id: String, timestamp: Long): Int
     @Query("SELECT * FROM models WHERE is_default = 1 LIMIT 1")
     suspend fun getDefaultModel(): ModelEntity?
 

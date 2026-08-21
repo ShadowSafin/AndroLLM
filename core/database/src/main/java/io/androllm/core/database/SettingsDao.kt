@@ -22,20 +22,15 @@ interface SettingsDao {
     suspend fun getSettings(): SettingsEntity?
 
     @Query("UPDATE settings SET theme = :theme WHERE id = 'app'")
-    suspend fun updateTheme(theme: String)
-
+    suspend fun updateTheme(theme: String): Int
     @Query("UPDATE settings SET language = :language WHERE id = 'app'")
-    suspend fun updateLanguage(language: String)
-
+    suspend fun updateLanguage(language: String): Int
     @Query("UPDATE settings SET storage_path = :storagePath WHERE id = 'app'")
-    suspend fun updateStoragePath(storagePath: String)
-
+    suspend fun updateStoragePath(storagePath: String): Int
     @Query("UPDATE settings SET developer_mode = :enabled WHERE id = 'app'")
-    suspend fun updateDeveloperMode(enabled: Boolean)
-
+    suspend fun updateDeveloperMode(enabled: Boolean): Int
     @Query("UPDATE settings SET first_launch = :firstLaunch WHERE id = 'app'")
-    suspend fun updateFirstLaunch(firstLaunch: Boolean)
-
+    suspend fun updateFirstLaunch(firstLaunch: Boolean): Int
     @Query("UPDATE settings SET model_path = :modelPath WHERE id = 'app'")
-    suspend fun updateModelPath(modelPath: String?)
+    suspend fun updateModelPath(modelPath: String?): Int
 }

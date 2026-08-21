@@ -11,14 +11,14 @@ plugins {
     id("com.android.library") version "9.3.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.10" apply false
     id("com.google.dagger.hilt.android") version "2.57.1" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.20" apply false
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
     id("com.google.devtools.ksp") version "2.3.2" apply false
     id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
 tasks.register("clean", Delete::class) {
-    delete(rootProject.buildDir)
+    delete(rootProject.layout.buildDirectory)
 }
 
 subprojects {
@@ -27,15 +27,15 @@ subprojects {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
             freeCompilerArgs.addAll(
                 listOf(
-                    "-Xopt-in=kotlin.RequiresOptIn",
-                    "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
-                    "-Xopt-in=androidx.compose.ui.ExperimentalComposeUiApi",
-                    "-Xopt-in=androidx.compose.material3.ExperimentalMaterial3Api",
-                    "-Xopt-in=androidx.compose.foundation.ExperimentalFoundationApi",
-                    "-Xopt-in=androidx.compose.animation.ExperimentalAnimationApi",
-                    "-Xopt-in=androidx.lifecycle.ExperimentalLifecycleApi",
-                    "-Xopt-in=kotlinx.serialization.ExperimentalSerializationApi",
-                    "-Xopt-in=kotlin.ContractsDsl"
+                    "-opt-in=kotlin.RequiresOptIn",
+                    "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
+                    "-opt-in=androidx.compose.ui.ExperimentalComposeUiApi",
+                    "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+                    "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+                    "-opt-in=androidx.compose.animation.ExperimentalAnimationApi",
+                    "-opt-in=androidx.lifecycle.ExperimentalLifecycleApi",
+                    "-opt-in=kotlinx.serialization.ExperimentalSerializationApi",
+                    "-opt-in=kotlin.ContractsDsl"
                 )
             )
         }

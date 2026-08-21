@@ -62,12 +62,9 @@ dependencies {
     implementation(project(":core:cloud"))
     implementation(project(":engine"))
 
-    // Room 2.6.1 matches core/database — the version proven with this project's
-    // Kotlin 2.1.20 + KSP1 toolchain. Room 2.8.x pulls a kotlinx-serialization
-    // that clashes with the project's pinned 1.6.3 on the KSP classpath.
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    ksp("androidx.room:room-compiler:2.8.4")
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -89,7 +86,7 @@ dependencies {
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation("androidx.room:room-testing:2.6.1")
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
     androidTestImplementation(libs.coroutines.test)
     androidTestImplementation(libs.androidx.test.core)
 }

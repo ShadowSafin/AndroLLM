@@ -27,14 +27,11 @@ interface MessageDao {
     suspend fun delete(message: MessageEntity)
 
     @Query("DELETE FROM messages WHERE id = :id")
-    suspend fun deleteById(id: String)
-
+    suspend fun deleteById(id: String): Int
     @Query("DELETE FROM messages WHERE conversation_id = :conversationId")
-    suspend fun deleteByConversationId(conversationId: String)
-
+    suspend fun deleteByConversationId(conversationId: String): Int
     @Query("DELETE FROM messages")
-    suspend fun deleteAll()
-
+    suspend fun deleteAll(): Int
     @Query("SELECT * FROM messages WHERE id = :id")
     fun observeById(id: String): Flow<MessageEntity?>
 
@@ -57,8 +54,7 @@ interface MessageDao {
     suspend fun getLastMessageContent(conversationId: String): String?
 
     @Query("UPDATE messages SET is_bookmarked = :isBookmarked WHERE id = :id")
-    suspend fun updateBookmarked(id: String, isBookmarked: Boolean)
-
+    suspend fun updateBookmarked(id: String, isBookmarked: Boolean): Int
     @Query("SELECT * FROM messages WHERE content LIKE '%' || :query || '%' ORDER BY timestamp DESC")
     fun searchContent(query: String): Flow<List<MessageEntity>>
 
@@ -66,5 +62,5 @@ interface MessageDao {
     fun observeBookmarked(): Flow<List<MessageEntity>>
 
     @Query("DELETE FROM messages WHERE conversation_id = :conversationId AND timestamp > :timestamp")
-    suspend fun deleteMessagesAfterTimestamp(conversationId: String, timestamp: Long)
+    suspend fun deleteMessagesAfterTimestamp(conversationId: String, timestamp: Long): Int
 }

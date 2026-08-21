@@ -1,0 +1,1402 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.5.0/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Configuration on demand is an incubating feature.
+
+> Configure project :app
+WARNING: The option setting 'android.usesSdkInManifest.disallowed=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.sdk.defaultTargetSdkToCompileSdkIfUnset=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.enableAppCompileTimeRClass=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.builtInKotlin=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.r8.optimizedResourceShrinking=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.defaults.buildfeatures.resvalues=true' is deprecated.
+The current default is 'false'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: API 'applicationVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling applicationVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: API 'testVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling testVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: API 'unitTestVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling unitTestVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :documentation
+WARNING: API 'libraryVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling libraryVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :engine
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :whisper
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:accessibility
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:attachments
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:cloud
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:common
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:database
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:datastore
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:mcp
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:memory
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:models
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:navigation
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:network
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:permissions
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:runtime
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:telemetry
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:tools
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:ui
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:utils
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :core:voice
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:chat
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:cloud
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:developer
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:home
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:models
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:onboarding
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:profile
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:prompts
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:settings
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:setup
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:splash
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Configure project :feature:voice
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+WARNING: The property android.dependency.excludeLibraryComponentsFromConstraints improves project import performance for very large projects. It should be enabled to improve performance.
+To suppress this warning, add android.generateSyncIssueWhenLibraryConstraintsAreEnabled=false to gradle.properties
+Add android.sync.suppressAgpWarnings=LIBRARY_CONSTRAINTS_SHOULD_BE_DISABLED to the gradle.properties file to suppress this warning.
+
+> Task :whisper:preBuild UP-TO-DATE
+> Task :core:mcp:preBuild UP-TO-DATE
+> Task :core:datastore:preBuild UP-TO-DATE
+> Task :core:attachments:preBuild UP-TO-DATE
+> Task :engine:preBuild UP-TO-DATE
+> Task :core:accessibility:preBuild UP-TO-DATE
+> Task :app:downloadVoiceModels SKIPPED
+> Task :core:database:preBuild UP-TO-DATE
+> Task :documentation:preBuild UP-TO-DATE
+> Task :core:cloud:preBuild UP-TO-DATE
+> Task :core:common:preBuild UP-TO-DATE
+> Task :core:memory:preBuild UP-TO-DATE
+> Task :app:preBuild UP-TO-DATE
+> Task :core:database:preDebugBuild UP-TO-DATE
+> Task :core:datastore:preDebugBuild UP-TO-DATE
+> Task :core:attachments:preDebugBuild UP-TO-DATE
+> Task :documentation:preDebugBuild UP-TO-DATE
+> Task :core:accessibility:preDebugBuild UP-TO-DATE
+> Task :core:common:preDebugBuild UP-TO-DATE
+> Task :core:cloud:preDebugBuild UP-TO-DATE
+> Task :core:memory:preDebugBuild UP-TO-DATE
+> Task :core:mcp:preDebugBuild UP-TO-DATE
+> Task :whisper:preDebugBuild UP-TO-DATE
+> Task :engine:preDebugBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :core:accessibility:writeDebugAarMetadata UP-TO-DATE
+> Task :core:attachments:writeDebugAarMetadata UP-TO-DATE
+> Task :core:mcp:writeDebugAarMetadata UP-TO-DATE
+> Task :whisper:writeDebugAarMetadata UP-TO-DATE
+> Task :core:datastore:writeDebugAarMetadata UP-TO-DATE
+> Task :core:cloud:writeDebugAarMetadata UP-TO-DATE
+> Task :core:memory:writeDebugAarMetadata UP-TO-DATE
+> Task :engine:writeDebugAarMetadata UP-TO-DATE
+> Task :core:database:writeDebugAarMetadata UP-TO-DATE
+> Task :documentation:writeDebugAarMetadata UP-TO-DATE
+> Task :core:common:writeDebugAarMetadata UP-TO-DATE
+> Task :core:navigation:preBuild UP-TO-DATE
+> Task :core:runtime:preBuild UP-TO-DATE
+> Task :core:models:preBuild UP-TO-DATE
+> Task :core:telemetry:preBuild UP-TO-DATE
+> Task :core:permissions:preBuild UP-TO-DATE
+> Task :core:permissions:preDebugBuild UP-TO-DATE
+> Task :core:models:preDebugBuild UP-TO-DATE
+> Task :core:telemetry:preDebugBuild UP-TO-DATE
+> Task :core:voice:preBuild UP-TO-DATE
+> Task :core:network:preBuild UP-TO-DATE
+> Task :core:utils:preBuild UP-TO-DATE
+> Task :core:network:preDebugBuild UP-TO-DATE
+> Task :core:runtime:preDebugBuild UP-TO-DATE
+> Task :core:ui:preBuild UP-TO-DATE
+> Task :core:tools:preBuild UP-TO-DATE
+> Task :core:navigation:preDebugBuild UP-TO-DATE
+> Task :core:tools:preDebugBuild UP-TO-DATE
+> Task :core:utils:preDebugBuild UP-TO-DATE
+> Task :feature:chat:preBuild UP-TO-DATE
+> Task :core:permissions:writeDebugAarMetadata UP-TO-DATE
+> Task :core:voice:preDebugBuild UP-TO-DATE
+> Task :core:ui:preDebugBuild UP-TO-DATE
+> Task :core:models:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:cloud:preBuild UP-TO-DATE
+> Task :core:telemetry:writeDebugAarMetadata UP-TO-DATE
+> Task :core:runtime:writeDebugAarMetadata UP-TO-DATE
+> Task :core:navigation:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:developer:preBuild UP-TO-DATE
+> Task :feature:home:preBuild UP-TO-DATE
+> Task :feature:models:preBuild UP-TO-DATE
+> Task :feature:cloud:preDebugBuild UP-TO-DATE
+> Task :core:ui:writeDebugAarMetadata UP-TO-DATE
+> Task :core:utils:writeDebugAarMetadata UP-TO-DATE
+> Task :core:tools:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:chat:preDebugBuild UP-TO-DATE
+> Task :feature:models:preDebugBuild UP-TO-DATE
+> Task :feature:developer:preDebugBuild UP-TO-DATE
+> Task :core:voice:writeDebugAarMetadata UP-TO-DATE
+> Task :core:network:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:profile:preBuild UP-TO-DATE
+> Task :feature:cloud:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:profile:preDebugBuild UP-TO-DATE
+> Task :feature:onboarding:preBuild UP-TO-DATE
+> Task :feature:settings:preBuild UP-TO-DATE
+> Task :feature:home:preDebugBuild UP-TO-DATE
+> Task :feature:prompts:preBuild UP-TO-DATE
+> Task :feature:onboarding:preDebugBuild UP-TO-DATE
+> Task :feature:voice:preBuild UP-TO-DATE
+> Task :feature:splash:preBuild UP-TO-DATE
+> Task :feature:setup:preBuild UP-TO-DATE
+> Task :feature:prompts:preDebugBuild UP-TO-DATE
+> Task :feature:voice:preDebugBuild UP-TO-DATE
+> Task :feature:chat:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:models:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:setup:preDebugBuild UP-TO-DATE
+> Task :feature:settings:preDebugBuild UP-TO-DATE
+> Task :feature:profile:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:splash:preDebugBuild UP-TO-DATE
+> Task :feature:developer:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:voice:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:home:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:prompts:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:setup:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:onboarding:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:settings:writeDebugAarMetadata UP-TO-DATE
+> Task :feature:splash:writeDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :core:accessibility:processDebugNavigationResources UP-TO-DATE
+> Task :core:datastore:processDebugNavigationResources UP-TO-DATE
+> Task :documentation:processDebugNavigationResources UP-TO-DATE
+> Task :core:common:processDebugNavigationResources UP-TO-DATE
+> Task :core:database:processDebugNavigationResources UP-TO-DATE
+> Task :core:cloud:processDebugNavigationResources UP-TO-DATE
+> Task :whisper:processDebugNavigationResources UP-TO-DATE
+> Task :core:mcp:processDebugNavigationResources UP-TO-DATE
+> Task :core:attachments:processDebugNavigationResources UP-TO-DATE
+> Task :engine:processDebugNavigationResources UP-TO-DATE
+> Task :core:memory:processDebugNavigationResources UP-TO-DATE
+> Task :core:models:processDebugNavigationResources UP-TO-DATE
+> Task :core:navigation:processDebugNavigationResources UP-TO-DATE
+> Task :core:telemetry:processDebugNavigationResources UP-TO-DATE
+> Task :core:voice:processDebugNavigationResources UP-TO-DATE
+> Task :core:permissions:processDebugNavigationResources UP-TO-DATE
+> Task :core:runtime:processDebugNavigationResources UP-TO-DATE
+> Task :core:network:processDebugNavigationResources UP-TO-DATE
+> Task :core:ui:processDebugNavigationResources UP-TO-DATE
+> Task :core:utils:processDebugNavigationResources UP-TO-DATE
+> Task :feature:cloud:processDebugNavigationResources UP-TO-DATE
+> Task :feature:chat:processDebugNavigationResources UP-TO-DATE
+> Task :core:tools:processDebugNavigationResources UP-TO-DATE
+> Task :feature:home:processDebugNavigationResources UP-TO-DATE
+> Task :feature:developer:processDebugNavigationResources UP-TO-DATE
+> Task :feature:prompts:processDebugNavigationResources UP-TO-DATE
+> Task :feature:profile:processDebugNavigationResources UP-TO-DATE
+> Task :feature:models:processDebugNavigationResources UP-TO-DATE
+> Task :feature:setup:processDebugNavigationResources UP-TO-DATE
+> Task :feature:settings:processDebugNavigationResources UP-TO-DATE
+> Task :whisper:generateDebugResValues UP-TO-DATE
+> Task :feature:onboarding:processDebugNavigationResources UP-TO-DATE
+> Task :feature:voice:processDebugNavigationResources UP-TO-DATE
+> Task :documentation:generateDebugResValues UP-TO-DATE
+> Task :engine:generateDebugResValues UP-TO-DATE
+> Task :feature:splash:processDebugNavigationResources UP-TO-DATE
+> Task :core:accessibility:generateDebugResValues UP-TO-DATE
+> Task :core:database:generateDebugResValues UP-TO-DATE
+> Task :core:attachments:generateDebugResValues UP-TO-DATE
+> Task :core:common:generateDebugResValues UP-TO-DATE
+> Task :core:cloud:generateDebugResValues UP-TO-DATE
+> Task :whisper:generateDebugResources UP-TO-DATE
+> Task :core:datastore:generateDebugResValues UP-TO-DATE
+> Task :core:database:generateDebugResources UP-TO-DATE
+> Task :core:cloud:generateDebugResources UP-TO-DATE
+> Task :core:accessibility:generateDebugResources UP-TO-DATE
+> Task :engine:generateDebugResources UP-TO-DATE
+> Task :core:mcp:generateDebugResValues UP-TO-DATE
+> Task :documentation:generateDebugResources UP-TO-DATE
+> Task :core:common:generateDebugResources UP-TO-DATE
+> Task :core:attachments:generateDebugResources UP-TO-DATE
+> Task :core:memory:generateDebugResValues UP-TO-DATE
+> Task :core:datastore:generateDebugResources UP-TO-DATE
+> Task :core:mcp:generateDebugResources UP-TO-DATE
+> Task :core:memory:generateDebugResources UP-TO-DATE
+> Task :core:models:generateDebugResValues UP-TO-DATE
+> Task :core:navigation:generateDebugResValues UP-TO-DATE
+> Task :core:network:generateDebugResValues UP-TO-DATE
+> Task :core:models:generateDebugResources UP-TO-DATE
+> Task :core:navigation:generateDebugResources UP-TO-DATE
+> Task :core:network:generateDebugResources UP-TO-DATE
+> Task :core:permissions:generateDebugResValues UP-TO-DATE
+> Task :core:runtime:generateDebugResValues UP-TO-DATE
+> Task :core:telemetry:generateDebugResValues UP-TO-DATE
+> Task :core:permissions:generateDebugResources UP-TO-DATE
+> Task :core:telemetry:generateDebugResources UP-TO-DATE
+> Task :core:runtime:generateDebugResources UP-TO-DATE
+> Task :core:tools:generateDebugResValues UP-TO-DATE
+> Task :core:ui:generateDebugResValues UP-TO-DATE
+> Task :core:utils:generateDebugResValues UP-TO-DATE
+> Task :core:tools:generateDebugResources UP-TO-DATE
+> Task :core:ui:generateDebugResources UP-TO-DATE
+> Task :core:utils:generateDebugResources UP-TO-DATE
+> Task :engine:packageDebugResources UP-TO-DATE
+> Task :core:cloud:packageDebugResources UP-TO-DATE
+> Task :core:database:packageDebugResources UP-TO-DATE
+> Task :whisper:packageDebugResources UP-TO-DATE
+> Task :documentation:packageDebugResources UP-TO-DATE
+> Task :core:attachments:packageDebugResources UP-TO-DATE
+> Task :core:common:packageDebugResources UP-TO-DATE
+> Task :core:accessibility:packageDebugResources UP-TO-DATE
+> Task :feature:cloud:generateDebugResValues UP-TO-DATE
+> Task :core:voice:generateDebugResValues UP-TO-DATE
+> Task :feature:chat:generateDebugResValues UP-TO-DATE
+> Task :feature:chat:generateDebugResources UP-TO-DATE
+> Task :feature:cloud:generateDebugResources UP-TO-DATE
+> Task :core:voice:generateDebugResources UP-TO-DATE
+> Task :feature:developer:generateDebugResValues UP-TO-DATE
+> Task :core:memory:packageDebugResources UP-TO-DATE
+> Task :feature:home:generateDebugResValues UP-TO-DATE
+> Task :feature:models:generateDebugResValues UP-TO-DATE
+> Task :core:mcp:packageDebugResources UP-TO-DATE
+> Task :core:datastore:packageDebugResources UP-TO-DATE
+> Task :core:navigation:packageDebugResources UP-TO-DATE
+> Task :core:models:packageDebugResources UP-TO-DATE
+> Task :core:network:packageDebugResources UP-TO-DATE
+> Task :core:runtime:packageDebugResources UP-TO-DATE
+> Task :core:permissions:packageDebugResources UP-TO-DATE
+> Task :feature:developer:generateDebugResources UP-TO-DATE
+> Task :feature:models:generateDebugResources UP-TO-DATE
+> Task :feature:home:generateDebugResources UP-TO-DATE
+> Task :feature:onboarding:generateDebugResValues UP-TO-DATE
+> Task :feature:profile:generateDebugResValues UP-TO-DATE
+> Task :feature:prompts:generateDebugResValues UP-TO-DATE
+> Task :feature:onboarding:generateDebugResources UP-TO-DATE
+> Task :core:utils:packageDebugResources UP-TO-DATE
+> Task :core:telemetry:packageDebugResources UP-TO-DATE
+> Task :feature:profile:generateDebugResources UP-TO-DATE
+> Task :feature:prompts:generateDebugResources UP-TO-DATE
+> Task :core:voice:packageDebugResources UP-TO-DATE
+> Task :core:tools:packageDebugResources UP-TO-DATE
+> Task :feature:cloud:packageDebugResources UP-TO-DATE
+> Task :core:ui:packageDebugResources UP-TO-DATE
+> Task :feature:settings:generateDebugResValues UP-TO-DATE
+> Task :feature:developer:packageDebugResources UP-TO-DATE
+> Task :feature:chat:packageDebugResources UP-TO-DATE
+> Task :feature:setup:generateDebugResValues UP-TO-DATE
+> Task :feature:splash:generateDebugResValues UP-TO-DATE
+> Task :feature:settings:generateDebugResources UP-TO-DATE
+> Task :engine:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:voice:generateDebugResValues UP-TO-DATE
+> Task :documentation:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:splash:generateDebugResources UP-TO-DATE
+> Task :feature:setup:generateDebugResources UP-TO-DATE
+> Task :feature:voice:generateDebugResources UP-TO-DATE
+> Task :feature:home:packageDebugResources UP-TO-DATE
+> Task :feature:onboarding:packageDebugResources UP-TO-DATE
+> Task :feature:prompts:packageDebugResources UP-TO-DATE
+> Task :feature:models:packageDebugResources UP-TO-DATE
+> Task :feature:profile:packageDebugResources UP-TO-DATE
+> Task :whisper:extractDeepLinksDebug UP-TO-DATE
+> Task :core:attachments:extractDeepLinksDebug UP-TO-DATE
+> Task :core:accessibility:extractDeepLinksDebug UP-TO-DATE
+> Task :core:cloud:extractDeepLinksDebug UP-TO-DATE
+> Task :core:common:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:setup:packageDebugResources UP-TO-DATE
+> Task :feature:splash:packageDebugResources UP-TO-DATE
+> Task :documentation:processDebugManifest UP-TO-DATE
+> Task :engine:processDebugManifest UP-TO-DATE
+> Task :core:datastore:extractDeepLinksDebug UP-TO-DATE
+> Task :core:database:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:voice:packageDebugResources UP-TO-DATE
+> Task :feature:settings:packageDebugResources UP-TO-DATE
+> Task :core:accessibility:processDebugManifest UP-TO-DATE
+> Task :whisper:processDebugManifest UP-TO-DATE
+> Task :core:attachments:processDebugManifest UP-TO-DATE
+> Task :core:mcp:extractDeepLinksDebug UP-TO-DATE
+> Task :core:memory:extractDeepLinksDebug UP-TO-DATE
+> Task :core:cloud:processDebugManifest UP-TO-DATE
+> Task :core:common:processDebugManifest UP-TO-DATE
+> Task :core:models:extractDeepLinksDebug UP-TO-DATE
+> Task :core:permissions:extractDeepLinksDebug UP-TO-DATE
+> Task :core:runtime:extractDeepLinksDebug UP-TO-DATE
+> Task :core:network:extractDeepLinksDebug UP-TO-DATE
+> Task :core:navigation:extractDeepLinksDebug UP-TO-DATE
+> Task :core:telemetry:extractDeepLinksDebug UP-TO-DATE
+> Task :core:datastore:processDebugManifest UP-TO-DATE
+> Task :core:database:processDebugManifest UP-TO-DATE
+> Task :core:tools:extractDeepLinksDebug UP-TO-DATE
+> Task :core:mcp:processDebugManifest UP-TO-DATE
+> Task :core:ui:extractDeepLinksDebug UP-TO-DATE
+> Task :core:memory:processDebugManifest UP-TO-DATE
+> Task :core:utils:extractDeepLinksDebug UP-TO-DATE
+> Task :core:voice:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:chat:extractDeepLinksDebug UP-TO-DATE
+> Task :core:navigation:processDebugManifest UP-TO-DATE
+> Task :core:permissions:processDebugManifest UP-TO-DATE
+> Task :core:models:processDebugManifest UP-TO-DATE
+> Task :core:tools:processDebugManifest UP-TO-DATE
+> Task :core:network:processDebugManifest UP-TO-DATE
+> Task :core:telemetry:processDebugManifest UP-TO-DATE
+> Task :core:runtime:processDebugManifest UP-TO-DATE
+> Task :core:ui:processDebugManifest UP-TO-DATE
+> Task :core:voice:processDebugManifest UP-TO-DATE
+> Task :core:utils:processDebugManifest UP-TO-DATE
+> Task :feature:cloud:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:developer:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:settings:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:prompts:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:onboarding:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:home:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:models:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:profile:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:setup:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:chat:processDebugManifest UP-TO-DATE
+> Task :feature:splash:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:voice:extractDeepLinksDebug UP-TO-DATE
+> Task :feature:settings:processDebugManifest UP-TO-DATE
+> Task :feature:developer:processDebugManifest UP-TO-DATE
+> Task :feature:cloud:processDebugManifest UP-TO-DATE
+> Task :feature:onboarding:processDebugManifest UP-TO-DATE
+> Task :feature:home:processDebugManifest UP-TO-DATE
+> Task :feature:prompts:processDebugManifest UP-TO-DATE
+> Task :documentation:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:splash:processDebugManifest UP-TO-DATE
+> Task :feature:models:processDebugManifest UP-TO-DATE
+> Task :feature:profile:processDebugManifest UP-TO-DATE
+> Task :core:attachments:mapDebugSourceSetPaths UP-TO-DATE
+> Task :whisper:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:setup:processDebugManifest UP-TO-DATE
+> Task :engine:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:accessibility:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:voice:processDebugManifest UP-TO-DATE
+> Task :core:cloud:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:common:mapDebugSourceSetPaths UP-TO-DATE
+> Task :documentation:compileDebugLibraryResources UP-TO-DATE
+> Task :core:database:mapDebugSourceSetPaths UP-TO-DATE
+> Task :whisper:compileDebugLibraryResources UP-TO-DATE
+> Task :engine:compileDebugLibraryResources UP-TO-DATE
+> Task :core:attachments:compileDebugLibraryResources UP-TO-DATE
+> Task :core:datastore:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:mcp:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:accessibility:compileDebugLibraryResources UP-TO-DATE
+> Task :core:memory:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:database:compileDebugLibraryResources UP-TO-DATE
+> Task :core:cloud:compileDebugLibraryResources UP-TO-DATE
+> Task :core:common:compileDebugLibraryResources UP-TO-DATE
+> Task :core:mcp:compileDebugLibraryResources UP-TO-DATE
+> Task :core:datastore:compileDebugLibraryResources UP-TO-DATE
+> Task :core:memory:compileDebugLibraryResources UP-TO-DATE
+> Task :core:datastore:parseDebugLocalResources UP-TO-DATE
+> Task :whisper:parseDebugLocalResources UP-TO-DATE
+> Task :core:attachments:parseDebugLocalResources UP-TO-DATE
+> Task :core:accessibility:parseDebugLocalResources UP-TO-DATE
+> Task :core:cloud:parseDebugLocalResources UP-TO-DATE
+> Task :whisper:generateDebugRFile UP-TO-DATE
+> Task :core:datastore:generateDebugRFile UP-TO-DATE
+> Task :core:database:parseDebugLocalResources UP-TO-DATE
+> Task :core:common:parseDebugLocalResources UP-TO-DATE
+> Task :core:mcp:parseDebugLocalResources UP-TO-DATE
+> Task :core:models:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:navigation:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:attachments:generateDebugRFile UP-TO-DATE
+> Task :core:memory:parseDebugLocalResources UP-TO-DATE
+> Task :core:accessibility:generateDebugRFile UP-TO-DATE
+> Task :core:models:compileDebugLibraryResources UP-TO-DATE
+> Task :engine:parseDebugLocalResources UP-TO-DATE
+> Task :core:cloud:generateDebugRFile UP-TO-DATE
+> Task :core:navigation:compileDebugLibraryResources UP-TO-DATE
+> Task :core:database:generateDebugRFile UP-TO-DATE
+> Task :core:common:generateDebugRFile UP-TO-DATE
+> Task :documentation:parseDebugLocalResources UP-TO-DATE
+> Task :core:network:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:navigation:parseDebugLocalResources UP-TO-DATE
+> Task :core:runtime:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:permissions:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:models:parseDebugLocalResources UP-TO-DATE
+> Task :core:telemetry:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:mcp:generateDebugRFile UP-TO-DATE
+> Task :core:network:compileDebugLibraryResources UP-TO-DATE
+> Task :engine:generateDebugRFile UP-TO-DATE
+> Task :core:memory:generateDebugRFile UP-TO-DATE
+> Task :core:tools:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:runtime:compileDebugLibraryResources UP-TO-DATE
+> Task :core:telemetry:compileDebugLibraryResources UP-TO-DATE
+> Task :core:permissions:compileDebugLibraryResources UP-TO-DATE
+> Task :core:voice:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:ui:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:utils:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:tools:compileDebugLibraryResources UP-TO-DATE
+> Task :documentation:generateDebugRFile UP-TO-DATE
+> Task :core:network:parseDebugLocalResources UP-TO-DATE
+> Task :core:navigation:generateDebugRFile UP-TO-DATE
+> Task :core:models:generateDebugRFile UP-TO-DATE
+> Task :core:voice:compileDebugLibraryResources UP-TO-DATE
+> Task :core:utils:compileDebugLibraryResources UP-TO-DATE
+> Task :core:ui:compileDebugLibraryResources UP-TO-DATE
+> Task :core:permissions:parseDebugLocalResources UP-TO-DATE
+> Task :core:telemetry:parseDebugLocalResources UP-TO-DATE
+> Task :core:tools:parseDebugLocalResources UP-TO-DATE
+> Task :core:runtime:parseDebugLocalResources UP-TO-DATE
+> Task :feature:chat:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:cloud:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:developer:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:network:generateDebugRFile UP-TO-DATE
+> Task :core:voice:parseDebugLocalResources UP-TO-DATE
+> Task :core:utils:parseDebugLocalResources UP-TO-DATE
+> Task :feature:chat:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:cloud:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:developer:compileDebugLibraryResources UP-TO-DATE
+> Task :core:permissions:generateDebugRFile UP-TO-DATE
+> Task :core:ui:parseDebugLocalResources UP-TO-DATE
+> Task :core:telemetry:generateDebugRFile UP-TO-DATE
+> Task :core:tools:generateDebugRFile UP-TO-DATE
+> Task :core:runtime:generateDebugRFile UP-TO-DATE
+> Task :feature:home:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:models:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:chat:parseDebugLocalResources UP-TO-DATE
+> Task :feature:profile:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:prompts:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:onboarding:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:cloud:parseDebugLocalResources UP-TO-DATE
+> Task :feature:developer:parseDebugLocalResources UP-TO-DATE
+> Task :feature:home:compileDebugLibraryResources UP-TO-DATE
+> Task :core:utils:generateDebugRFile UP-TO-DATE
+> Task :core:voice:generateDebugRFile UP-TO-DATE
+> Task :feature:prompts:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:models:compileDebugLibraryResources UP-TO-DATE
+> Task :core:ui:generateDebugRFile UP-TO-DATE
+> Task :feature:profile:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:onboarding:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:settings:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:chat:generateDebugRFile UP-TO-DATE
+> Task :feature:models:parseDebugLocalResources UP-TO-DATE
+> Task :feature:prompts:parseDebugLocalResources UP-TO-DATE
+> Task :feature:home:parseDebugLocalResources UP-TO-DATE
+> Task :feature:setup:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:profile:parseDebugLocalResources UP-TO-DATE
+> Task :feature:splash:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:voice:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:settings:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:cloud:generateDebugRFile UP-TO-DATE
+> Task :documentation:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:common:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:onboarding:parseDebugLocalResources UP-TO-DATE
+> Task :feature:setup:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:splash:compileDebugLibraryResources UP-TO-DATE
+> Task :feature:prompts:generateDebugRFile UP-TO-DATE
+> Task :feature:models:generateDebugRFile UP-TO-DATE
+> Task :feature:settings:parseDebugLocalResources UP-TO-DATE
+> Task :feature:home:generateDebugRFile UP-TO-DATE
+> Task :feature:voice:compileDebugLibraryResources UP-TO-DATE
+> Task :engine:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:models:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:profile:generateDebugRFile UP-TO-DATE
+> Task :core:runtime:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :engine:generateDebugBuildConfig UP-TO-DATE
+> Task :documentation:javaPreCompileDebug UP-TO-DATE
+> Task :feature:splash:parseDebugLocalResources UP-TO-DATE
+> Task :core:accessibility:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:cloud:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:voice:parseDebugLocalResources UP-TO-DATE
+> Task :feature:developer:generateDebugRFile UP-TO-DATE
+> Task :feature:onboarding:generateDebugRFile UP-TO-DATE
+> Task :feature:settings:generateDebugRFile UP-TO-DATE
+> Task :feature:setup:parseDebugLocalResources UP-TO-DATE
+> Task :core:network:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:tools:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:utils:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:splash:generateDebugRFile UP-TO-DATE
+> Task :feature:voice:generateDebugRFile UP-TO-DATE
+> Task :core:database:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:setup:generateDebugRFile UP-TO-DATE
+> Task :core:datastore:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :engine:javaPreCompileDebug UP-TO-DATE
+> Task :core:network:javaPreCompileDebug UP-TO-DATE
+> Task :core:accessibility:javaPreCompileDebug UP-TO-DATE
+> Task :core:utils:javaPreCompileDebug UP-TO-DATE
+> Task :core:models:javaPreCompileDebug UP-TO-DATE
+> Task :core:tools:javaPreCompileDebug UP-TO-DATE
+> Task :core:datastore:javaPreCompileDebug UP-TO-DATE
+> Task :core:cloud:javaPreCompileDebug UP-TO-DATE
+> Task :core:memory:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:ui:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:navigation:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:mcp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:voice:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :whisper:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:permissions:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:attachments:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:mcp:javaPreCompileDebug UP-TO-DATE
+> Task :feature:chat:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:ui:javaPreCompileDebug UP-TO-DATE
+> Task :feature:cloud:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:voice:javaPreCompileDebug UP-TO-DATE
+> Task :core:attachments:javaPreCompileDebug UP-TO-DATE
+> Task :core:telemetry:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:developer:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:navigation:javaPreCompileDebug UP-TO-DATE
+> Task :feature:cloud:javaPreCompileDebug UP-TO-DATE
+> Task :feature:home:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:models:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:telemetry:javaPreCompileDebug UP-TO-DATE
+> Task :feature:onboarding:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:developer:javaPreCompileDebug UP-TO-DATE
+> Task :feature:profile:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:home:javaPreCompileDebug UP-TO-DATE
+> Task :feature:prompts:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:chat:javaPreCompileDebug UP-TO-DATE
+> Task :core:database:javaPreCompileDebug UP-TO-DATE
+> Task :core:memory:javaPreCompileDebug UP-TO-DATE
+> Task :core:permissions:javaPreCompileDebug UP-TO-DATE
+> Task :feature:settings:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:voice:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:setup:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:splash:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :feature:onboarding:javaPreCompileDebug UP-TO-DATE
+> Task :feature:profile:javaPreCompileDebug UP-TO-DATE
+> Task :feature:settings:javaPreCompileDebug UP-TO-DATE
+> Task :feature:prompts:javaPreCompileDebug UP-TO-DATE
+> Task :feature:models:javaPreCompileDebug UP-TO-DATE
+> Task :engine:generateDebugAssets UP-TO-DATE
+> Task :feature:setup:javaPreCompileDebug UP-TO-DATE
+> Task :core:accessibility:generateDebugAssets UP-TO-DATE
+> Task :core:attachments:generateDebugAssets UP-TO-DATE
+> Task :core:cloud:generateDebugAssets UP-TO-DATE
+> Task :feature:voice:javaPreCompileDebug UP-TO-DATE
+> Task :documentation:generateDebugAssets UP-TO-DATE
+> Task :core:database:generateDebugAssets UP-TO-DATE
+> Task :feature:splash:javaPreCompileDebug UP-TO-DATE
+> Task :core:datastore:generateDebugAssets UP-TO-DATE
+> Task :core:attachments:mergeDebugAssets UP-TO-DATE
+> Task :engine:mergeDebugAssets UP-TO-DATE
+> Task :core:database:mergeDebugAssets UP-TO-DATE
+> Task :documentation:mergeDebugAssets UP-TO-DATE
+> Task :core:cloud:mergeDebugAssets UP-TO-DATE
+> Task :core:memory:generateDebugAssets UP-TO-DATE
+> Task :core:navigation:generateDebugAssets UP-TO-DATE
+> Task :core:models:generateDebugAssets UP-TO-DATE
+> Task :core:network:generateDebugAssets UP-TO-DATE
+> Task :core:permissions:generateDebugAssets UP-TO-DATE
+> Task :core:mcp:generateDebugAssets UP-TO-DATE
+> Task :core:datastore:mergeDebugAssets UP-TO-DATE
+> Task :core:telemetry:generateDebugAssets UP-TO-DATE
+> Task :core:permissions:mergeDebugAssets UP-TO-DATE
+> Task :core:navigation:mergeDebugAssets UP-TO-DATE
+> Task :core:mcp:mergeDebugAssets UP-TO-DATE
+> Task :core:memory:mergeDebugAssets UP-TO-DATE
+> Task :core:network:mergeDebugAssets UP-TO-DATE
+> Task :core:ui:generateDebugAssets UP-TO-DATE
+> Task :core:utils:generateDebugAssets UP-TO-DATE
+> Task :core:tools:generateDebugAssets UP-TO-DATE
+> Task :core:models:mergeDebugAssets UP-TO-DATE
+> Task :feature:chat:generateDebugAssets UP-TO-DATE
+> Task :core:voice:generateDebugAssets UP-TO-DATE
+> Task :core:telemetry:mergeDebugAssets UP-TO-DATE
+> Task :core:accessibility:mergeDebugAssets UP-TO-DATE
+> Task :feature:developer:generateDebugAssets UP-TO-DATE
+> Task :feature:home:generateDebugAssets UP-TO-DATE
+> Task :feature:cloud:generateDebugAssets UP-TO-DATE
+> Task :core:ui:mergeDebugAssets UP-TO-DATE
+> Task :core:tools:mergeDebugAssets UP-TO-DATE
+> Task :feature:models:generateDebugAssets UP-TO-DATE
+> Task :feature:onboarding:generateDebugAssets UP-TO-DATE
+> Task :feature:chat:mergeDebugAssets UP-TO-DATE
+> Task :core:utils:mergeDebugAssets UP-TO-DATE
+> Task :feature:home:mergeDebugAssets UP-TO-DATE
+> Task :feature:profile:generateDebugAssets UP-TO-DATE
+> Task :feature:prompts:generateDebugAssets UP-TO-DATE
+> Task :feature:cloud:mergeDebugAssets UP-TO-DATE
+> Task :feature:onboarding:mergeDebugAssets UP-TO-DATE
+> Task :feature:settings:generateDebugAssets UP-TO-DATE
+> Task :feature:models:mergeDebugAssets UP-TO-DATE
+> Task :feature:setup:generateDebugAssets UP-TO-DATE
+> Task :core:voice:mergeDebugAssets UP-TO-DATE
+> Task :feature:splash:generateDebugAssets UP-TO-DATE
+> Task :feature:voice:generateDebugAssets UP-TO-DATE
+> Task :feature:profile:mergeDebugAssets UP-TO-DATE
+> Task :feature:developer:mergeDebugAssets UP-TO-DATE
+> Task :feature:settings:mergeDebugAssets UP-TO-DATE
+> Task :feature:prompts:mergeDebugAssets UP-TO-DATE
+> Task :feature:setup:mergeDebugAssets UP-TO-DATE
+> Task :documentation:mergeDebugJniLibFolders UP-TO-DATE
+> Task :engine:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:accessibility:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:splash:mergeDebugAssets UP-TO-DATE
+> Task :core:cloud:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:attachments:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:voice:mergeDebugAssets UP-TO-DATE
+> Task :documentation:mergeDebugNativeLibs NO-SOURCE
+> Task :engine:mergeDebugNativeLibs NO-SOURCE
+> Task :core:accessibility:mergeDebugNativeLibs NO-SOURCE
+> Task :core:cloud:mergeDebugNativeLibs NO-SOURCE
+> Task :core:database:mergeDebugJniLibFolders UP-TO-DATE
+> Task :engine:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:accessibility:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:datastore:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:memory:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:mcp:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:cloud:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :documentation:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:navigation:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:models:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:network:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:attachments:mergeDebugNativeLibs NO-SOURCE
+> Task :core:database:mergeDebugNativeLibs NO-SOURCE
+> Task :core:datastore:mergeDebugNativeLibs NO-SOURCE
+> Task :core:mcp:mergeDebugNativeLibs NO-SOURCE
+> Task :core:attachments:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:database:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:memory:mergeDebugNativeLibs NO-SOURCE
+> Task :core:mcp:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:datastore:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:permissions:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:memory:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:telemetry:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:models:mergeDebugNativeLibs NO-SOURCE
+> Task :core:navigation:mergeDebugNativeLibs NO-SOURCE
+> Task :core:tools:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:network:mergeDebugNativeLibs NO-SOURCE
+> Task :core:ui:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:navigation:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:utils:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:permissions:mergeDebugNativeLibs NO-SOURCE
+> Task :core:models:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:network:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:tools:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:chat:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:cloud:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:permissions:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:voice:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:chat:mergeDebugNativeLibs NO-SOURCE
+> Task :core:utils:mergeDebugNativeLibs NO-SOURCE
+> Task :core:tools:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:telemetry:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:chat:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:utils:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:telemetry:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:cloud:mergeDebugNativeLibs NO-SOURCE
+> Task :core:voice:mergeDebugNativeLibs NO-SOURCE
+> Task :core:ui:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:models:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:onboarding:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:developer:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:home:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:voice:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:profile:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:developer:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:models:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:home:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:cloud:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:prompts:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:models:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:developer:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:home:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:ui:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:onboarding:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:settings:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:profile:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:onboarding:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:splash:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:voice:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:profile:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:setup:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:prompts:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:settings:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:splash:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:voice:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:prompts:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:settings:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:splash:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:voice:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :feature:setup:mergeDebugNativeLibs NO-SOURCE
+> Task :feature:setup:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :whisper:compileDebugKotlin UP-TO-DATE
+> Task :whisper:javaPreCompileDebug UP-TO-DATE
+> Task :documentation:checkDebugAarMetadata UP-TO-DATE
+> Task :core:datastore:checkDebugAarMetadata UP-TO-DATE
+> Task :core:cloud:checkDebugAarMetadata UP-TO-DATE
+> Task :core:database:checkDebugAarMetadata UP-TO-DATE
+> Task :documentation:stripDebugDebugSymbols NO-SOURCE
+> Task :core:datastore:stripDebugDebugSymbols NO-SOURCE
+> Task :core:database:stripDebugDebugSymbols NO-SOURCE
+> Task :core:cloud:stripDebugDebugSymbols NO-SOURCE
+> Task :documentation:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:datastore:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:database:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :whisper:compileDebugJavaWithJavac NO-SOURCE
+> Task :documentation:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:datastore:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:database:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:cloud:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:datastore:prepareDebugArtProfile UP-TO-DATE
+> Task :whisper:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :documentation:prepareDebugArtProfile UP-TO-DATE
+> Task :core:cloud:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:datastore:prepareLintJarForPublish UP-TO-DATE
+> Task :documentation:prepareLintJarForPublish UP-TO-DATE
+> Task :whisper:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :whisper:generateDebugAssets UP-TO-DATE
+> Task :core:cloud:prepareDebugArtProfile UP-TO-DATE
+> Task :whisper:mergeDebugAssets UP-TO-DATE
+> Task :core:cloud:prepareLintJarForPublish UP-TO-DATE
+> Task :whisper:processDebugJavaRes UP-TO-DATE
+> Task :whisper:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :core:models:checkDebugAarMetadata UP-TO-DATE
+> Task :whisper:preReleaseBuild UP-TO-DATE
+> Task :engine:checkDebugAarMetadata UP-TO-DATE
+> Task :engine:stripDebugDebugSymbols NO-SOURCE
+> Task :engine:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :engine:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :engine:prepareDebugArtProfile UP-TO-DATE
+> Task :core:models:stripDebugDebugSymbols NO-SOURCE
+> Task :engine:prepareLintJarForPublish UP-TO-DATE
+> Task :core:models:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:models:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:memory:checkDebugAarMetadata UP-TO-DATE
+> Task :core:models:prepareDebugArtProfile UP-TO-DATE
+> Task :core:memory:stripDebugDebugSymbols NO-SOURCE
+> Task :core:models:prepareLintJarForPublish UP-TO-DATE
+> Task :core:memory:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:memory:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:network:checkDebugAarMetadata UP-TO-DATE
+> Task :core:memory:prepareDebugArtProfile UP-TO-DATE
+> Task :core:network:stripDebugDebugSymbols NO-SOURCE
+> Task :core:memory:prepareLintJarForPublish UP-TO-DATE
+> Task :core:network:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:network:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:network:prepareDebugArtProfile UP-TO-DATE
+> Task :core:network:prepareLintJarForPublish UP-TO-DATE
+> Task :core:database:prepareDebugArtProfile UP-TO-DATE
+> Task :core:database:prepareLintJarForPublish UP-TO-DATE
+> Task :core:runtime:kspDebugKotlin UP-TO-DATE
+> Task :core:common:kspDebugKotlin UP-TO-DATE
+> Task :core:attachments:checkDebugAarMetadata UP-TO-DATE
+> Task :core:attachments:stripDebugDebugSymbols NO-SOURCE
+> Task :core:attachments:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:attachments:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:attachments:prepareDebugArtProfile UP-TO-DATE
+> Task :core:attachments:prepareLintJarForPublish UP-TO-DATE
+> Task :core:accessibility:checkDebugAarMetadata UP-TO-DATE
+> Task :core:tools:checkDebugAarMetadata UP-TO-DATE
+> Task :core:permissions:checkDebugAarMetadata UP-TO-DATE
+> Task :core:telemetry:checkDebugAarMetadata UP-TO-DATE
+> Task :core:permissions:stripDebugDebugSymbols NO-SOURCE
+> Task :core:telemetry:stripDebugDebugSymbols NO-SOURCE
+> Task :core:accessibility:stripDebugDebugSymbols NO-SOURCE
+> Task :core:tools:stripDebugDebugSymbols NO-SOURCE
+> Task :core:telemetry:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:accessibility:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:tools:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:mcp:checkDebugAarMetadata UP-TO-DATE
+> Task :core:permissions:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:telemetry:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:mcp:stripDebugDebugSymbols NO-SOURCE
+> Task :core:accessibility:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:permissions:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:tools:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:telemetry:prepareDebugArtProfile UP-TO-DATE
+> Task :core:mcp:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:accessibility:prepareDebugArtProfile UP-TO-DATE
+> Task :core:permissions:prepareDebugArtProfile UP-TO-DATE
+> Task :core:tools:prepareDebugArtProfile UP-TO-DATE
+> Task :core:telemetry:prepareLintJarForPublish UP-TO-DATE
+> Task :core:tools:prepareLintJarForPublish UP-TO-DATE
+> Task :core:mcp:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:permissions:prepareLintJarForPublish UP-TO-DATE
+> Task :core:accessibility:prepareLintJarForPublish UP-TO-DATE
+> Task :core:mcp:prepareDebugArtProfile UP-TO-DATE
+> Task :core:mcp:prepareLintJarForPublish UP-TO-DATE
+> Task :core:utils:checkDebugAarMetadata UP-TO-DATE
+> Task :core:utils:stripDebugDebugSymbols NO-SOURCE
+> Task :core:utils:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:utils:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:utils:prepareDebugArtProfile UP-TO-DATE
+> Task :core:utils:prepareLintJarForPublish UP-TO-DATE
+> Task :core:voice:checkDebugAarMetadata UP-TO-DATE
+> Task :core:voice:stripDebugDebugSymbols NO-SOURCE
+> Task :core:voice:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:voice:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:voice:prepareDebugArtProfile UP-TO-DATE
+> Task :core:voice:prepareLintJarForPublish UP-TO-DATE
+> Task :core:common:compileDebugKotlin UP-TO-DATE
+> Task :core:common:javaPreCompileDebug UP-TO-DATE
+> Task :core:runtime:compileDebugKotlin UP-TO-DATE
+> Task :core:common:compileDebugJavaWithJavac NO-SOURCE
+> Task :core:common:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :core:runtime:javaPreCompileDebug UP-TO-DATE
+> Task :documentation:compileDebugKotlin UP-TO-DATE
+> Task :documentation:compileDebugJavaWithJavac NO-SOURCE
+> Task :documentation:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :core:models:kspDebugKotlin UP-TO-DATE
+> Task :core:runtime:compileDebugJavaWithJavac UP-TO-DATE
+> Task :core:runtime:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :core:models:compileDebugKotlin UP-TO-DATE
+> Task :feature:home:checkDebugAarMetadata UP-TO-DATE
+> Task :feature:chat:checkDebugAarMetadata UP-TO-DATE
+> Task :feature:developer:checkDebugAarMetadata UP-TO-DATE
+> Task :core:ui:checkDebugAarMetadata UP-TO-DATE
+> Task :feature:models:checkDebugAarMetadata UP-TO-DATE
+> Task :core:common:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :core:models:compileDebugJavaWithJavac UP-TO-DATE
+> Task :documentation:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :core:common:generateDebugAssets UP-TO-DATE
+> Task :feature:onboarding:checkDebugAarMetadata UP-TO-DATE
+> Task :core:ui:stripDebugDebugSymbols NO-SOURCE
+> Task :core:runtime:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :core:runtime:generateDebugAssets UP-TO-DATE
+> Task :core:ui:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:common:mergeDebugAssets UP-TO-DATE
+> Task :feature:cloud:checkDebugAarMetadata UP-TO-DATE
+> Task :core:runtime:mergeDebugAssets UP-TO-DATE
+> Task :core:navigation:checkDebugAarMetadata UP-TO-DATE
+> Task :core:common:processDebugJavaRes UP-TO-DATE
+> Task :feature:chat:stripDebugDebugSymbols NO-SOURCE
+> Task :core:ui:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:common:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :core:runtime:processDebugJavaRes UP-TO-DATE
+> Task :feature:cloud:stripDebugDebugSymbols NO-SOURCE
+> Task :core:ui:prepareDebugArtProfile UP-TO-DATE
+> Task :feature:cloud:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:ui:prepareLintJarForPublish UP-TO-DATE
+> Task :feature:developer:stripDebugDebugSymbols NO-SOURCE
+> Task :feature:cloud:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :feature:cloud:prepareDebugArtProfile UP-TO-DATE
+> Task :feature:developer:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :feature:chat:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:common:mergeDebugJniLibFolders UP-TO-DATE
+> Task :feature:cloud:prepareLintJarForPublish UP-TO-DATE
+> Task :core:runtime:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :documentation:processDebugJavaRes UP-TO-DATE
+> Task :feature:chat:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :feature:developer:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :documentation:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :core:runtime:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:common:mergeDebugNativeLibs NO-SOURCE
+> Task :core:runtime:mergeDebugNativeLibs NO-SOURCE
+> Task :core:common:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:runtime:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:common:checkDebugAarMetadata UP-TO-DATE
+> Task :core:cloud:kspDebugKotlin UP-TO-DATE
+> Task :core:common:stripDebugDebugSymbols NO-SOURCE
+> Task :core:common:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :feature:chat:prepareDebugArtProfile UP-TO-DATE
+> Task :feature:chat:prepareLintJarForPublish UP-TO-DATE
+> Task :feature:developer:prepareDebugArtProfile UP-TO-DATE
+> Task :documentation:extractDebugAnnotations UP-TO-DATE
+> Task :core:common:extractDebugAnnotations UP-TO-DATE
+> Task :core:common:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :feature:developer:prepareLintJarForPublish UP-TO-DATE
+> Task :documentation:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :core:common:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :feature:home:stripDebugDebugSymbols NO-SOURCE
+> Task :feature:home:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :feature:home:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :feature:home:prepareDebugArtProfile UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :feature:home:prepareLintJarForPublish UP-TO-DATE
+> Task :feature:models:stripDebugDebugSymbols NO-SOURCE
+> Task :app:processDebugGoogleServices UP-TO-DATE
+> Task :feature:models:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :feature:models:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :feature:models:prepareDebugArtProfile UP-TO-DATE
+> Task :core:utils:kspDebugKotlin UP-TO-DATE
+> Task :core:common:mergeDebugConsumerProguardFiles FAILED
+> Task :documentation:mergeDebugConsumerProguardFiles FAILED
+> Task :core:models:processDebugJavaRes
+> Task :core:cloud:compileDebugKotlin UP-TO-DATE
+> Task :whisper:configureCMakeRelease[arm64-v8a]
+> Task :feature:models:prepareLintJarForPublish UP-TO-DATE
+> Task :core:runtime:checkDebugAarMetadata UP-TO-DATE
+> Task :core:utils:compileDebugKotlin UP-TO-DATE
+> Task :core:navigation:kspDebugKotlin UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :core:models:extractDebugAnnotations
+> Task :core:models:bundleLibRuntimeToJarDebug
+> Task :core:models:bundleLibCompileToJarDebug
+> Task :whisper:buildCMakeRelease[arm64-v8a]
+> Task :core:models:bundleLibRuntimeToDirDebug
+> Task :core:cloud:compileDebugJavaWithJavac
+661 actionable tasks: 10 executed, 651 up-to-date

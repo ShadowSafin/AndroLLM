@@ -27,11 +27,9 @@ interface ConversationDao {
     suspend fun delete(conversation: ConversationEntity)
 
     @Query("DELETE FROM conversations WHERE id = :id")
-    suspend fun deleteById(id: String)
-
+    suspend fun deleteById(id: String): Int
     @Query("DELETE FROM conversations")
-    suspend fun deleteAll()
-
+    suspend fun deleteAll(): Int
     @Query("SELECT * FROM conversations WHERE id = :id")
     fun observeById(id: String): Flow<ConversationEntity?>
 
@@ -54,14 +52,11 @@ interface ConversationDao {
     suspend fun count(): Int
 
     @Query("UPDATE conversations SET title = :title, updated_at = :updatedAt WHERE id = :id")
-    suspend fun updateTitle(id: String, title: String, updatedAt: Long)
-
+    suspend fun updateTitle(id: String, title: String, updatedAt: Long): Int
     @Query("UPDATE conversations SET is_pinned = :isPinned WHERE id = :id")
-    suspend fun updatePinned(id: String, isPinned: Boolean)
-
+    suspend fun updatePinned(id: String, isPinned: Boolean): Int
     @Query("UPDATE conversations SET is_archived = :isArchived WHERE id = :id")
-    suspend fun updateArchived(id: String, isArchived: Boolean)
-
+    suspend fun updateArchived(id: String, isArchived: Boolean): Int
     @Query("SELECT * FROM conversations WHERE is_pinned = 1 AND is_archived = 0 ORDER BY updated_at DESC")
     fun observePinned(): Flow<List<ConversationEntity>>
 

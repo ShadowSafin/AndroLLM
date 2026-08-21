@@ -1,9 +1,9 @@
 [versions]
 # Android & Kotlin
-agp = "8.6.0"
-kotlin = "2.1.20"
-kotlinSerialization = "2.1.20"
-ksp = "2.1.20-1.0.32"
+agp = "9.3.1"
+kotlin = "2.2.10"
+kotlinSerialization = "2.2.10"
+ksp = "2.3.2"
 compileSdk = "36"
 minSdk = "26"
 targetSdk = "36"
@@ -11,7 +11,7 @@ jvmTarget = "17"
 
 # Compose
 composeBom = "2024.10.00"
-composeCompiler = "2.1.20"
+composeCompiler = "2.2.10"
 material3 = "1.3.0"
 materialIcons = "1.3.0"
 animation = "1.6.0"
