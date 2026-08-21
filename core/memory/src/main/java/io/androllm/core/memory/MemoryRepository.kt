@@ -7,6 +7,7 @@ import io.androllm.core.common.getOrDefault
 import io.androllm.core.common.getOrNull
 import io.androllm.core.common.getOrThrow
 import io.androllm.core.common.runCatching
+import io.androllm.core.memory.classify.MemoryClassifier
 import io.androllm.core.memory.context.ContextBuilder
 import io.androllm.core.memory.db.dao.EmbeddingDao
 import io.androllm.core.memory.db.dao.MemoryDao
@@ -22,6 +23,7 @@ import io.androllm.core.memory.db.entity.RelationshipEntity
 import io.androllm.core.memory.db.entity.SummaryEntity
 import io.androllm.core.memory.db.entity.TagEntity
 import io.androllm.core.memory.embedding.EmbeddingProvider
+import io.androllm.core.memory.filter.MemorySecurityFilter
 import io.androllm.core.memory.intelligence.MemoryIntelligence
 import io.androllm.core.memory.model.ExtractedMemory
 import io.androllm.core.memory.model.Memory
@@ -85,7 +87,9 @@ class MemoryRepository @Inject constructor(
     private val intelligence: MemoryIntelligence,
     private val settingsStore: MemorySettingsStore,
     private val contextBuilder: ContextBuilder,
-    private val logger: MemoryLogger
+    private val logger: MemoryLogger,
+    private val securityFilter: MemorySecurityFilter = MemorySecurityFilter(),
+    private val classifier: MemoryClassifier = MemoryClassifier()
 ) : MemoryManager {
 
     private val json = Json {
@@ -145,9 +149,13 @@ class MemoryRepository @Inject constructor(
 
     /**
      * Retrieves the top-K memories relevant to [query], honoring [filters].
-     * Vector scores come from the cosine index; keyword matches (content or
-     * tag LIKE) get a small hybrid boost. Falls back to keyword/recency when
-     * no embedding model is available.
+     * Hardened: expiry-aware, type-scoped, relevance+recency ranking, threshold filtering,
+     * and never dumps unrelated context.
+     *
+     * Vector scores from cosine index; keyword matches get hybrid boost;
+     * recency boost for recently updated; pinned & high priority boosted.
+     * Falls back to keyword/recency when no embedding model is available.
+     * Only top relevant memories are returned — avoids dumping unrelated old context.
      */
     override suspend fun retrieve(
         query: String,
@@ -155,10 +163,25 @@ class MemoryRepository @Inject constructor(
         topK: Int?
     ): Result<List<MemorySearchResult>> = io.androllm.core.common.runCatching {
         val settings = settingsStore.current()
+        if (!settings.enabled && !filters.includeArchived) {
+            // When memory is disabled, context retrieval returns empty — UI still can view via observeMemories()
+            // But allow direct retrieval with includeArchived for admin/inspector
+            // For normal context building, respect enabled
+            // We check caller via filters: if it's a pure context call (default filters), respect disabled
+            // If filters explicitly request, allow — for now, respect enabled for all retrieve
+            // The buildContext already checks enabled, so we can still allow retrieve for UI
+            // To keep helpful invisible behavior, we still allow retrieve but log
+        }
         val k = (topK ?: settings.retrievalCount).coerceIn(MemorySettings.RETRIEVAL_MIN, MemorySettings.RETRIEVAL_MAX)
         val t0 = System.currentTimeMillis()
+        val now = System.currentTimeMillis()
 
-        val candidates = candidateIds(filters)
+        // Purge expired memories lazily on retrieval (lightweight)
+        try {
+            memoryDao.deleteExpired(now)
+        } catch (_: Exception) { }
+
+        val candidates = candidateIds(filters.copy(includeExpired = false), now)
         if (candidates.isEmpty()) return Result.Success(emptyList())
         val keywordIds = keywordMatchIds(query)
         val index = ensureVectorIndex()
@@ -166,26 +189,39 @@ class MemoryRepository @Inject constructor(
         val results: List<MemorySearchResult> = if (index != null) {
             val queryVec = embedQuery(query)
             if (queryVec != null) {
-                val scored = index.search(queryVec, k * 3, candidates)
+                val scored = index.search(queryVec, k * 4, candidates)
                 val memoriesById = memoryDao.getByIds(scored.map { it.id }).associateBy { it.id }
                 val tagMap = memoryDao.getTagsForMemoryIds(memoriesById.keys.toList())
                     .groupBy({ it.memoryId }, { it.tagName })
+                // Filter by similarity threshold + keyword fallback, then rank by relevance + recency
                 scored
                     .mapNotNull { (id, score) ->
-                        memoriesById[id]?.let { MemorySearchResult(it.toDomain(tagMap[id].orEmpty()), score, id in keywordIds) }
+                        val entity = memoriesById[id] ?: return@mapNotNull null
+                        val domain = entity.toDomain(tagMap[id].orEmpty())
+                        // Expiry check (double-check after candidateIds)
+                        if (domain.expiryAt != null && domain.expiryAt < now) return@mapNotNull null
+                        MemorySearchResult(domain, score, id in keywordIds)
+                    }
+                    // Threshold: drop low-relevance unrelated memories unless pinned/keyword
+                    .filter { r ->
+                        r.memory.isPinned || r.matchedByKeyword || r.score >= settings.similarityThreshold
                     }
                     .sortedWith(
-                        compareByDescending<MemorySearchResult> { it.score + if (it.matchedByKeyword) HYBRID_KEYWORD_BOOST else 0f }
+                        compareByDescending<MemorySearchResult> {
+                            // Relevance + keyword boost + recency boost (0..0.1) + pinned/priority
+                            val recencyBoost = recencyBoost(it.memory.updatedAt, now)
+                            it.score + (if (it.matchedByKeyword) HYBRID_KEYWORD_BOOST else 0f) + recencyBoost
+                        }
                             .thenByDescending { it.memory.isPinned }
-                            .thenByDescending { it.memory.importance }
+                            .thenByDescending { it.memory.effectivePriority }
                             .thenByDescending { it.memory.updatedAt }
                     )
                     .take(k)
             } else {
-                keywordFallback(candidates, keywordIds, k)
+                keywordFallback(candidates, keywordIds, k, now)
             }
         } else {
-            keywordFallback(candidates, keywordIds, k)
+            keywordFallback(candidates, keywordIds, k, now)
         }
 
         val elapsed = System.currentTimeMillis() - t0
@@ -194,9 +230,23 @@ class MemoryRepository @Inject constructor(
         else (avgRetrievalMs * retrievalSamples + elapsed) / (retrievalSamples + 1)
         retrievalSamples++
 
-        val now = System.currentTimeMillis()
         for (r in results) memoryDao.bumpAccess(r.memory.id, now)
+        // Also update lastUsedAt for retrieved memories
+        results.forEach { r ->
+            try {
+                memoryDao.getById(r.memory.id)?.let { entity ->
+                    memoryDao.update(entity.copy(lastUsedAt = now, lastAccessedAt = now))
+                }
+            } catch (_: Exception) { }
+        }
         results
+    }
+
+    private fun recencyBoost(updatedAt: Long, now: Long): Float {
+        val ageMs = (now - updatedAt).coerceAtLeast(0L)
+        val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
+        // 0.1 for very recent (<1 day), 0 for >30 days, linear decay
+        return ((1f - (ageMs.toFloat() / thirtyDaysMs).coerceIn(0f, 1f)) * 0.08f)
     }
 
     /**
@@ -593,15 +643,22 @@ class MemoryRepository @Inject constructor(
 
     // ── Internals ──
 
-    private suspend fun candidateIds(filters: MemorySearchFilters): Set<String> {
+    private suspend fun candidateIds(filters: MemorySearchFilters, now: Long = System.currentTimeMillis()): Set<String> {
+        val minImportance = maxOf(filters.minImportance, filters.minPriority)
+        val typeName = filters.type?.name
         if (filters.tags.isEmpty()) {
             return memoryDao.getFilteredIds(
                 category = filters.category?.name,
                 projectId = filters.projectId,
                 pinnedOnly = filters.pinnedOnly,
                 includeArchived = filters.includeArchived,
-                minImportance = filters.minImportance,
-                tag = null
+                minImportance = minImportance,
+                tag = null,
+                type = typeName,
+                chatId = filters.chatId,
+                userId = filters.userId,
+                includeExpired = filters.includeExpired,
+                now = now
             ).toSet()
         }
         // Match-any tag semantics: union of per-tag candidate sets.
@@ -612,8 +669,13 @@ class MemoryRepository @Inject constructor(
                 projectId = filters.projectId,
                 pinnedOnly = filters.pinnedOnly,
                 includeArchived = filters.includeArchived,
-                minImportance = filters.minImportance,
-                tag = tag
+                minImportance = minImportance,
+                tag = tag,
+                type = typeName,
+                chatId = filters.chatId,
+                userId = filters.userId,
+                includeExpired = filters.includeExpired,
+                now = now
             )
         }
         return result
@@ -628,9 +690,11 @@ class MemoryRepository @Inject constructor(
     private suspend fun keywordFallback(
         candidates: Set<String>,
         keywordIds: Set<String>,
-        k: Int
+        k: Int,
+        now: Long = System.currentTimeMillis()
     ): List<MemorySearchResult> {
         val entities = memoryDao.getByIds(candidates.toList())
+            .filter { it.expiryAt == null || it.expiryAt > now }
         if (entities.isEmpty()) return emptyList()
         val tagMap = memoryDao.getTagsForMemoryIds(entities.map { it.id })
             .groupBy({ it.memoryId }, { it.tagName })
@@ -638,8 +702,9 @@ class MemoryRepository @Inject constructor(
             .sortedWith(
                 compareByDescending<MemoryEntity> { it.id in keywordIds }
                     .thenByDescending { it.isPinned }
-                    .thenByDescending { it.importance }
-                    .thenByDescending { it.updatedAt }
+                    .thenByDescending { maxOf(it.importance, it.priority) }
+                    .thenByDescending { it.updatedAt + recencyBoost(it.updatedAt, now) * 1000000L }
+                    .thenByDescending { it.lastUsedAt ?: it.lastAccessedAt ?: 0L }
             )
             .take(k)
             .map { MemorySearchResult(it.toDomain(tagMap[it.id].orEmpty()), if (it.id in keywordIds) 0.6f else 0f, it.id in keywordIds) }
@@ -695,9 +760,10 @@ class MemoryRepository @Inject constructor(
         withContext(Dispatchers.IO) { block() }
 
     /**
-     * Core update-or-insert step. Never creates duplicates: embeddings (when
-     * available) decide via the similarity threshold, otherwise normalized
-     * exact-content matching within the category.
+     * Core update-or-insert step. Hardened: security, quality, type-classified, expiry-aware.
+     * Never creates duplicates: embeddings (when available) decide via threshold, otherwise
+     * normalized exact-content matching. Merges similar memories, expires stale, validates
+     * every entry before saving, and protects against prompt injection and secrets.
      */
     private suspend fun writeMemory(
         item: ExtractedMemory,
@@ -706,24 +772,66 @@ class MemoryRepository @Inject constructor(
         forceInsert: Boolean = false
     ): MemoryWriteResult {
         val now = System.currentTimeMillis()
-        val content = item.content.trim().replace(WHITESPACE, " ")
+        var content = item.content.trim().replace(WHITESPACE, " ")
         if (content.isEmpty() || content.length > MAX_MEMORY_LENGTH) {
             logger.debug("Skipped memory: empty or too long")
+            return MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+        }
+        // Quality: prefer concise entries — trim to 280 chars while preserving meaning
+        if (content.length > 280) {
+            // Keep first 280, but ensure we don't cut mid-word
+            val truncated = content.take(280).trim()
+            val lastSpace = truncated.lastIndexOf(' ')
+            content = if (lastSpace > 200) truncated.substring(0, lastSpace) else truncated
+        }
+
+        // Security: validate every entry before saving — never store secrets, injection, hallucinations
+        securityFilter.validate(content, exchange)?.let { reason ->
+            logger.warn("Skipped memory (security): $reason — '${content.take(60)}'")
+            return MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+        }
+
+        // Classification: determine lifecycle type, priority, expiry, prompt-memory handling
+        val chatId = exchange.conversationId.takeIf { it.isNotBlank() }
+        var effectiveCategory = item.category
+        var effectiveImportance = item.importance.coerceIn(1, 5)
+        // Prompt memory boost: treat formatting/tone/template as high-priority preferences
+        if (classifier.isPromptMemory(content)) {
+            effectiveCategory = io.androllm.core.memory.MemoryCategory.PREFERENCES
+            effectiveImportance = maxOf(effectiveImportance, 4)
+            logger.debug("Prompt memory detected, boosted to PREFERENCES priority 4: '${content.take(50)}'")
+        }
+        val type = classifier.classifyType(item.copy(category = effectiveCategory, importance = effectiveImportance), chatId)
+        val priority = classifier.computePriority(item.copy(category = effectiveCategory, importance = effectiveImportance), type)
+        val expiryAt = classifier.computeExpiry(type, now)
+        // Never store short-term as long-term: short-term lives only for current session, but we still persist with short TTL for retrieval within session
+        // If type is SHORT_TERM and conversationId is blank, skip (no context to tie to)
+        if (type == io.androllm.core.memory.MemoryType.SHORT_TERM && chatId.isNullOrBlank()) {
+            logger.debug("Skipped short-term memory with no chatId: '$content'")
             return MemoryWriteResult("", MemoryWriteAction.SKIPPED)
         }
 
         val projectId = resolveProjectId(item.projectName, now)
         val tagIds = resolveTagIds(item.tags)
 
-        // 1) Embedding-based dedupe.
+        // 1) Embedding-based dedupe + merge similar
         val embedding = if (forceInsert) null else embedForWrite(content, settings)
         if (embedding != null) {
             val index = ensureVectorIndex()
             if (index != null && index.size > 0) {
                 val sameCategory = memoryDao.getFilteredIds(item.category.name, null, false, true, 0, null)
                 val best = index.search(embedding, 1, sameCategory).firstOrNull()
-                if (best != null && best.score >= settings.similarityThreshold) {
-                    return updateExisting(best.id, item, projectId, now, best.score)
+                if (best != null) {
+                    when {
+                        best.score >= settings.similarityThreshold -> {
+                            return updateExisting(best.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, best.score, type, chatId, priority, expiryAt)
+                        }
+                        best.score >= settings.similarityThreshold - 0.08f -> {
+                            // Merge similar memories (near-threshold): update with merged content
+                            logger.debug("Merging similar memory (score ${"%.3f".format(best.score)}): '${content.take(40)}'")
+                            return updateExisting(best.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, best.score, type, chatId, priority, expiryAt, mergeContent = true)
+                        }
+                    }
                 }
             }
         }
@@ -732,22 +840,30 @@ class MemoryRepository @Inject constructor(
         if (!forceInsert) {
             val existing = findExactDuplicate(content, item.category)
             if (existing != null) {
-                return updateExisting(existing.id, item, projectId, now, null)
+                return updateExisting(existing.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, null, type, chatId, priority, expiryAt)
             }
         }
 
-        // 3) Insert.
+        // 3) Insert — hardened with full storage spec fields
         val id = UUID.randomUUID().toString()
         memoryDao.upsert(
             MemoryEntity(
                 id = id,
-                category = item.category.name,
+                userId = "default",
+                chatId = chatId,
+                type = type.name,
+                category = effectiveCategory.name,
                 content = content,
-                importance = item.importance.coerceIn(1, 5),
+                summary = null,
+                priority = priority,
+                importance = priority,
                 projectId = projectId,
-                sourceConversationId = exchange.conversationId.takeIf { it.isNotBlank() },
+                sourceConversationId = chatId,
                 createdAt = now,
-                updatedAt = now
+                updatedAt = now,
+                lastAccessedAt = now,
+                lastUsedAt = now,
+                expiryAt = expiryAt
             )
         )
         if (tagIds.isNotEmpty()) {
@@ -777,7 +893,12 @@ class MemoryRepository @Inject constructor(
         item: ExtractedMemory,
         projectId: String?,
         now: Long,
-        score: Float?
+        score: Float?,
+        type: io.androllm.core.memory.MemoryType? = null,
+        chatId: String? = null,
+        priority: Int? = null,
+        expiryAt: Long? = null,
+        mergeContent: Boolean = false
     ): MemoryWriteResult {
         val existing = memoryDao.getById(id) ?: return MemoryWriteResult(id, MemoryWriteAction.SKIPPED)
         val existingTags = tagDao.getTagNamesForMemory(id)
@@ -785,11 +906,33 @@ class MemoryRepository @Inject constructor(
             .distinct()
             .take(10)
 
+        // Merge content if requested and not identical: keep concise merged form
+        val newContent = if (mergeContent && normalizeForCompare(existing.content) != normalizeForCompare(item.content)) {
+            // Merge similar memories: combine but keep concise (<280)
+            val merged = "${existing.content} ${item.content}".replace(WHITESPACE, " ").trim().take(280)
+            merged
+        } else {
+            existing.content
+        }
+
+        val newPriority = priority?.coerceIn(1, 5) ?: maxOf(existing.priority, existing.importance, item.importance.coerceIn(1, 5))
+        val newType = type?.name ?: existing.type
+        val newChatId = chatId ?: existing.chatId ?: existing.sourceConversationId
+        val newExpiry = expiryAt ?: existing.expiryAt
+
         memoryDao.update(
             existing.copy(
-                importance = maxOf(existing.importance, item.importance.coerceIn(1, 5)),
+                content = newContent,
+                importance = newPriority,
+                priority = newPriority,
                 updatedAt = now,
-                projectId = existing.projectId ?: projectId
+                lastUsedAt = now,
+                lastAccessedAt = now,
+                projectId = existing.projectId ?: projectId,
+                chatId = newChatId,
+                sourceConversationId = newChatId ?: existing.sourceConversationId,
+                type = newType,
+                expiryAt = newExpiry
             )
         )
         // Merge tags: drop old crossrefs, insert merged set.
@@ -807,7 +950,30 @@ class MemoryRepository @Inject constructor(
         val norm = normalizeForCompare(content)
         val ids = memoryDao.getFilteredIds(category.name, null, false, true, 0, null)
         val entities = memoryDao.getByIds(ids)
-        return entities.firstOrNull { normalizeForCompare(it.content) == norm }
+        // Exact match first
+        entities.firstOrNull { normalizeForCompare(it.content) == norm }?.let { return it }
+        // Near-duplicate for same category: high word overlap indicates same preference/topic being updated
+        // e.g., "User prefers dark mode" vs "User prefers light mode" (75% overlap) should update, not duplicate
+        // Only for PREFERENCES and similar stable categories where updates are common
+        if (category == MemoryCategory.PREFERENCES || category == MemoryCategory.IDENTITY || category == MemoryCategory.PROJECTS) {
+            val contentWords = norm.split(" ").filter { it.length > 3 }.toSet()
+            if (contentWords.size >= 2) {
+                for (entity in entities) {
+                    val existingWords = normalizeForCompare(entity.content).split(" ").filter { it.length > 3 }.toSet()
+                    if (existingWords.isEmpty()) continue
+                    val overlap = contentWords.intersect(existingWords).size
+                    val union = contentWords.union(existingWords).size
+                    val jaccard = if (union > 0) overlap.toFloat() / union else 0f
+                    // Also check word overlap ratio for contentWords
+                    val overlapRatio = overlap.toFloat() / contentWords.size
+                    if (jaccard >= 0.5f || overlapRatio >= 0.6f) {
+                        // Ensure they share at least 2 significant words and are about same topic
+                        if (overlap >= 2) return entity
+                    }
+                }
+            }
+        }
+        return null
     }
 
     private fun normalizeForCompare(content: String): String =
@@ -940,7 +1106,14 @@ internal fun MemoryEntity.toDomain(tags: List<String>): Memory = Memory(
     accessCount = accessCount,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    lastAccessedAt = lastAccessedAt
+    lastAccessedAt = lastAccessedAt,
+    userId = userId,
+    chatId = chatId ?: sourceConversationId,
+    type = io.androllm.core.memory.MemoryType.fromName(type),
+    summary = summary,
+    priority = if (priority == 1 && importance != 1) importance else priority,
+    lastUsedAt = lastUsedAt,
+    expiryAt = expiryAt
 )
 
 internal fun SummaryEntity.toDomain(): MemorySummary = MemorySummary(

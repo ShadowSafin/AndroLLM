@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "io.androllm.core.whisper"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "26.1.10909125"
 
     defaultConfig {
         minSdk = 28
-        targetSdk = 35
+        targetSdk = 36
 
         // Only arm64-v8a by default (Snapdragon/Adreno target). Add x86_64 via
         // -PandrollmAbis=arm64-v8a,x86_64 to also run on emulators.

@@ -4,9 +4,9 @@ agp = "8.6.0"
 kotlin = "2.1.20"
 kotlinSerialization = "2.1.20"
 ksp = "2.1.20-1.0.32"
-compileSdk = "34"
+compileSdk = "36"
 minSdk = "26"
-targetSdk = "34"
+targetSdk = "36"
 jvmTarget = "17"
 
 # Compose

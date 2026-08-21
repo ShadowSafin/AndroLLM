@@ -82,6 +82,7 @@ interface MemoryDao {
      * Returns the ids of memories matching the given filters. `tag` filters by
      * a single tag name; call once per tag and union the results for multi-tag
      * queries (match-any semantics).
+     * Supports type/chat/user/expiry filtering per hardened spec.
      */
     @Query(
         """
@@ -91,6 +92,10 @@ interface MemoryDao {
           AND (:pinnedOnly = 0 OR m.is_pinned = 1)
           AND (:includeArchived = 1 OR m.is_archived = 0)
           AND m.importance >= :minImportance
+          AND (:type IS NULL OR m.type = :type)
+          AND (:chatId IS NULL OR m.chat_id = :chatId)
+          AND (:userId IS NULL OR m.user_id = :userId)
+          AND (:includeExpired = 1 OR m.expiry_at IS NULL OR m.expiry_at > :now)
           AND (:tag IS NULL OR EXISTS (
                 SELECT 1 FROM $MEMORY_TAG_CROSS_REF_TABLE c
                 JOIN $TAG_TABLE t ON t.id = c.tag_id
@@ -104,8 +109,19 @@ interface MemoryDao {
         pinnedOnly: Boolean,
         includeArchived: Boolean,
         minImportance: Int,
-        tag: String?
+        tag: String?,
+        type: String? = null,
+        chatId: String? = null,
+        userId: String? = null,
+        includeExpired: Boolean = false,
+        now: Long = 0L
     ): List<String>
+
+    @Query("DELETE FROM $MEMORY_ENTITY_TABLE WHERE expiry_at IS NOT NULL AND expiry_at < :now")
+    suspend fun deleteExpired(now: Long): Int
+
+    @Query("SELECT * FROM $MEMORY_ENTITY_TABLE WHERE expiry_at IS NOT NULL AND expiry_at < :now")
+    suspend fun getExpired(now: Long): List<MemoryEntity>
 
     @Query(
         "SELECT DISTINCT id FROM $MEMORY_ENTITY_TABLE WHERE content LIKE '%' || :query || '%'"

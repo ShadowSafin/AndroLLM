@@ -51,7 +51,7 @@ abstract class MemoryDatabase : RoomDatabase() {
 
     companion object {
         const val NAME = "memory.db"
-        const val VERSION = 2
+        const val VERSION = 3
 
         /**
          * v1 -> v2: memories gained an archived flag.
@@ -61,6 +61,25 @@ abstract class MemoryDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE memory_entity ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        /**
+         * v2 -> v3: memory hardened storage spec
+         * Adds: user_id, chat_id, type, summary, priority, last_used_at, expiry_at
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE memory_entity ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default'")
+                db.execSQL("ALTER TABLE memory_entity ADD COLUMN chat_id TEXT")
+                db.execSQL("ALTER TABLE memory_entity ADD COLUMN type TEXT NOT NULL DEFAULT 'LONG_TERM'")
+                db.execSQL("ALTER TABLE memory_entity ADD COLUMN summary TEXT")
+                db.execSQL("ALTER TABLE memory_entity ADD COLUMN priority INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE memory_entity ADD COLUMN last_used_at INTEGER")
+                db.execSQL("ALTER TABLE memory_entity ADD COLUMN expiry_at INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_entity_type ON memory_entity(type)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_entity_expiry_at ON memory_entity(expiry_at)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_entity_user_id ON memory_entity(user_id)")
             }
         }
 
@@ -81,7 +100,7 @@ abstract class MemoryDatabase : RoomDatabase() {
                     // writes (insert + embeddings + summaries) never block the
                     // chat UI's readers.
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

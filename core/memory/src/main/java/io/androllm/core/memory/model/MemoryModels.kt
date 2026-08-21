@@ -1,10 +1,14 @@
 package io.androllm.core.memory.model
 
 import io.androllm.core.memory.MemoryCategory
+import io.androllm.core.memory.MemoryType
 
 /**
  * A single long-term memory. This is the domain model surfaced to UI and
  * chat integration; embeddings live separately in the vector index.
+ *
+ * Storage spec fields: id, userId, chatId, type, content, summary, category,
+ * priority, createdAt, updatedAt, lastUsedAt, expiryAt — plus tags/projects.
  */
 data class Memory(
     val id: String,
@@ -19,8 +23,20 @@ data class Memory(
     val accessCount: Int = 0,
     val createdAt: Long,
     val updatedAt: Long,
-    val lastAccessedAt: Long? = null
-)
+    val lastAccessedAt: Long? = null,
+    // Hardened storage spec — new fields at end for backward compat (positional tests)
+    val userId: String = "default",
+    val chatId: String? = null,
+    val type: MemoryType = MemoryType.LONG_TERM,
+    val summary: String? = null,
+    val priority: Int = 1,
+    val lastUsedAt: Long? = null,
+    val expiryAt: Long? = null
+) {
+    // Keep priority/importance in sync — priority is canonical per spec
+    val effectivePriority: Int get() = priority.coerceIn(1, 5).let { if (it == 1 && importance != 1) importance.coerceIn(1, 5) else it }
+    val effectiveLastUsed: Long? get() = lastUsedAt ?: lastAccessedAt
+}
 
 /**
  * A memory as extracted by the LLM (before persistence). Project and tags are
@@ -109,14 +125,20 @@ data class Relationship(
 
 /**
  * Filtering options for memory retrieval.
+ * Enhanced for type-scoped and expiry-aware retrieval.
  */
 data class MemorySearchFilters(
     val category: MemoryCategory? = null,
     val projectId: String? = null,
+    val chatId: String? = null,
+    val userId: String? = null,
+    val type: MemoryType? = null,
     val pinnedOnly: Boolean = false,
     val tags: Set<String> = emptySet(),
     val minImportance: Int = 0,
-    val includeArchived: Boolean = false
+    val includeArchived: Boolean = false,
+    val includeExpired: Boolean = false,
+    val minPriority: Int = 0
 )
 
 /**

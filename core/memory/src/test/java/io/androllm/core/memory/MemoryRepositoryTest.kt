@@ -1,4 +1,4 @@
-﻿package io.androllm.core.memory
+package io.androllm.core.memory
 
 import android.content.Context
 import io.androllm.core.common.Result
@@ -72,7 +72,7 @@ class MemoryRepositoryTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns emptyList()
         coEvery { memoryDao.getByIds(any()) } returns emptyList()
         coEvery { embeddingDao.getAll() } returns emptyList()
     }
@@ -136,7 +136,7 @@ class MemoryRepositoryTest {
             createdAt = 0L,
             updatedAt = 0L
         )
-        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any()) } returns listOf(id)
+        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns listOf(id)
         coEvery { memoryDao.getByIds(any()) } returns listOf(existing)
         coEvery { memoryDao.getById(id) } returns existing
         coEvery { tagDao.getTagNamesForMemory(id) } returns emptyList()
@@ -149,7 +149,7 @@ class MemoryRepositoryTest {
     @Test
     fun `retrieve falls back to keyword when no vector index`() = runTest {
         coEvery { settingsStore.current() } returns MemorySettings(enabled = true, retrievalCount = 5)
-        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any()) } returns listOf("a", "b")
+        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns listOf("a", "b")
         coEvery { memoryDao.getByIds(any()) } returns listOf(
             MemoryEntity("a", "PREFERENCES", "User likes Kotlin", importance = 3, createdAt = 1L, updatedAt = 2L),
             MemoryEntity("b", "CUSTOM", "unrelated", createdAt = 1L, updatedAt = 1L)
@@ -165,7 +165,7 @@ class MemoryRepositoryTest {
     @Test
     fun `retrieve returns empty when no candidates match filters`() = runTest {
         coEvery { settingsStore.current() } returns MemorySettings(enabled = true)
-        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { memoryDao.getFilteredIds(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns emptyList()
 
         val results = repo().retrieve("anything", MemorySearchFilters(projectId = "nope")).getOrNull().orEmpty()
         assertTrue(results.isEmpty())
@@ -194,7 +194,7 @@ class MemoryRepositoryTest {
         coEvery { settingsStore.current() } returns MemorySettings(
             enabled = true,
             extractionEnabled = true
-            // No local path, no cloud id → embeddings skipped, memory still saved.
+            // No local path, no cloud id ? embeddings skipped, memory still saved.
         )
         coEvery { intelligence.extract(any(), any()) } returns Result.Success(
             listOf(ExtractedMemory("User codes in Kotlin", io.androllm.core.memory.MemoryCategory.SKILLS, 2))
@@ -240,4 +240,5 @@ class MemoryRepositoryTest {
         coVerify(exactly = 0) { memoryDao.getMemoryIdsWithoutEmbeddings() }
     }
 }
+
 

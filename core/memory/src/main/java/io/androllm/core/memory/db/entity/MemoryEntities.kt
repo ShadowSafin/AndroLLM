@@ -16,6 +16,8 @@ const val RELATIONSHIP_TABLE = "memory_relationships"
 
 /**
  * A single long-term memory row.
+ * Storage spec: id, userId, chatId, type, content, summary, priority,
+ * createdAt, updatedAt, lastUsedAt, expiryAt — plus category/tags.
  */
 @Entity(
     tableName = MEMORY_ENTITY_TABLE,
@@ -29,9 +31,12 @@ const val RELATIONSHIP_TABLE = "memory_relationships"
     ],
     indices = [
         Index(value = ["category"]),
+        Index(value = ["type"]),
         Index(value = ["project_id"]),
         Index(value = ["created_at"]),
-        Index(value = ["updated_at"])
+        Index(value = ["updated_at"]),
+        Index(value = ["expiry_at"]),
+        Index(value = ["user_id"])
     ]
 )
 data class MemoryEntity(
@@ -46,7 +51,15 @@ data class MemoryEntity(
     @ColumnInfo(name = "access_count") val accessCount: Int = 0,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
-    @ColumnInfo(name = "last_accessed_at") val lastAccessedAt: Long? = null
+    @ColumnInfo(name = "last_accessed_at") val lastAccessedAt: Long? = null,
+    // Hardened storage spec — new fields at end for backward compat (positional calls in tests)
+    @ColumnInfo(name = "user_id") val userId: String = "default",
+    @ColumnInfo(name = "chat_id") val chatId: String? = null,
+    @ColumnInfo(name = "type") val type: String = "LONG_TERM",
+    val summary: String? = null,
+    @ColumnInfo(name = "priority") val priority: Int = 1,
+    @ColumnInfo(name = "last_used_at") val lastUsedAt: Long? = null,
+    @ColumnInfo(name = "expiry_at") val expiryAt: Long? = null
 )
 
 /**
