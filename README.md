@@ -100,7 +100,7 @@ Hardware-accelerated inference on supported devices via the OpenCL-based LiteRT 
 - GPU backend: OpenCL-based LiteRT GPU delegate
 - Automatic GPU → CPU fallback with corruption recovery (NaN/INF logits, device-lost)
 - Real-time diagnostics: `gpuFree`, `gpuTotal`, `recoveryCount`, active backend
-- NPU acceleration is next on the roadmap
+- NPU acceleration available on supported devices
 
 </td>
 </tr>
@@ -665,7 +665,7 @@ Feature modules depend **only** on `core:*` modules — never on each other.
 | ✅ | MCP server integration (Streamable HTTP) |
 | ✅ | Accessibility UI automation (gestures, multi-step app tasks) |
 | ✅ | Voice confirmations + TTS text normalization |
-| 🔮 | **NPU backend support** (next milestone) |
+| ✅ | **NPU backend support** |
 | 🚧 | Multi-language ASR (Chinese, Japanese, Korean) |
 | 🚧 | CI/CD pipeline |
 | 🔮 | Multi-modal vision models |
