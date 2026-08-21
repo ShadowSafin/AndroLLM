@@ -47,7 +47,7 @@ Thank you for your interest in contributing! This document covers everything you
 |---|---|---|
 | Android Studio | Hedgehog (2023.1.1) | Latest stable preferred |
 | JDK | 17 | Managed by Gradle toolchain (foojay-resolver) |
-| Android SDK | API 35 | `compileSdk 35` |
+| Android SDK | API 36 | `compileSdk 36` |
 
 No NDK, CMake, or Vulkan SDK are required — the inference engine consumes
 LiteRT-LM / LiteRT AARs from Google Maven (the only native build in the repo is

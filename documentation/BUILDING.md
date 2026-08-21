@@ -12,7 +12,7 @@ Complete guide to building AndroLLM from source.
 |---|---|---|
 | Android Studio | Hedgehog (2023.1.1) | Latest stable preferred |
 | JDK | 17 | Auto-managed by Gradle toolchain |
-| Android SDK | Platform 35, Build-Tools 35.x | `compileSdk 35`, `targetSdk 35` |
+| Android SDK | Platform 36, Build-Tools 36.x | `compileSdk 36`, `targetSdk 36` |
 
 **No NDK, CMake, or Vulkan SDK are required.** The inference engine (LiteRT-LM
 + LiteRT) ships as prebuilt AARs from Google Maven and is consumed as ordinary

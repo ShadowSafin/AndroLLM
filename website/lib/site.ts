@@ -17,7 +17,7 @@ export const site = {
   versionCode: 1,
   appId: "io.androllm.app",
   minSdk: 28,
-  targetSdk: 35,
+  targetSdk: 36,
   abi: "arm64-v8a",
   minRam: "4 GB",
   recRam: "8 GB+",

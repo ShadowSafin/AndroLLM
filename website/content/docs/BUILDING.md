@@ -12,7 +12,7 @@ Complete guide to building AndroLLM from source.
 |---|---|---|
 | Android Studio | Hedgehog (2023.1.1) | Latest stable preferred |
 | JDK | 17 | Auto-managed by Gradle toolchain |
-| Android SDK | API 35 | `compileSdk 35`, `targetSdk 35` |
+| Android SDK | API 36 | `compileSdk 36`, `targetSdk 36` |
 
 **No NDK, no CMake, no Vulkan SDK.** The engine is 100% Kotlin/Java — the
 LiteRT-LM and LiteRT runtime AARs are pulled from Google's Maven repository at

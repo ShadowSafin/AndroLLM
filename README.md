@@ -37,7 +37,7 @@ A production-grade AI platform for Android that brings local `.litertlm` model i
 
 <p align="center">
   <img src="https://img.shields.io/badge/minSdk-28-3DDC84?style=for-the-badge&logo=android" alt="minSdk"/>
-  <img src="https://img.shields.io/badge/targetSdk-35-3DDC84?style=for-the-badge&logo=android" alt="targetSdk"/>
+  <img src="https://img.shields.io/badge/targetSdk-36-3DDC84?style=for-the-badge&logo=android" alt="targetSdk"/>
   <img src="https://img.shields.io/badge/Kotlin-2.1.20-7F52FF?style=for-the-badge" alt="Kotlin Version"/>
   <img src="https://img.shields.io/badge/LiteRT--LM-0.16.0-34D399?style=for-the-badge" alt="LiteRT-LM"/>
   <img src="https://img.shields.io/badge/Hilt-2.57.1-EF6C00?style=for-the-badge" alt="Hilt"/>

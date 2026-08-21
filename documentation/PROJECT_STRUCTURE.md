@@ -370,9 +370,9 @@ Feature modules only depend on `core:*` modules and `engine`. Feature modules do
 
 | Setting | Value |
 |---|---|
-| Compile SDK | 35 |
+| Compile SDK | 36 |
 | Min SDK | 28 |
-| Target SDK | 35 |
+| Target SDK | 36 |
 | JVM Target | 17 |
 | ABI | arm64-v8a only |
 | LiteRT-LM | `com.google.ai.edge.litertlm:litertlm-android:0.16.0` (Maven) |

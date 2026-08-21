@@ -335,9 +335,9 @@ Feature modules only depend on `core:*` modules and `engine`. Feature modules do
 
 | Setting | Value |
 |---|---|
-| Compile SDK | 35 |
+| Compile SDK | 36 |
 | Min SDK | 28 |
-| Target SDK | 35 |
+| Target SDK | 36 |
 | JVM Target | 17 |
 | Kotlin | 2.x |
 | AGP | 8.x |
