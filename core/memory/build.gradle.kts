@@ -11,7 +11,6 @@ android {
     compileSdk = 36
     defaultConfig {
         minSdk = 28
-        targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -38,6 +37,7 @@ android {
         // instead of throwing "not mocked", so repositories can log timing
         // telemetry (AndroLLM.Perf) without breaking tests.
         unitTests.isReturnDefaultValues = true
+        targetSdk = 36
     }
     packaging {
         resources {
@@ -46,6 +46,9 @@ android {
     }
     sourceSets {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+    lint {
+        targetSdk = 36
     }
 }
 

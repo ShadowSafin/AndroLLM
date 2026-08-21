@@ -10,7 +10,6 @@ android {
 
     defaultConfig {
         minSdk = 28
-        targetSdk = 36
 
         // Only arm64-v8a by default (Snapdragon/Adreno target). Add x86_64 via
         // -PandrollmAbis=arm64-v8a,x86_64 to also run on emulators.
@@ -71,6 +70,12 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+    lint {
+        targetSdk = 36
+    }
+    testOptions {
+        targetSdk = 36
     }
 }
 

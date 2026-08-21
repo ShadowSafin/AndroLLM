@@ -10,7 +10,6 @@ android {
     compileSdk = 36
     defaultConfig {
         minSdk = 28
-        targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -31,6 +30,12 @@ android {
     }
     buildFeatures {
         compose = false
+    }
+    lint {
+        targetSdk = 36
+    }
+    testOptions {
+        targetSdk = 36
     }
 }
 

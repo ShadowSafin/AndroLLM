@@ -10,7 +10,6 @@ android {
     compileSdk = 36
     defaultConfig {
         minSdk = 28
-        targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -37,6 +36,10 @@ android {
         // StageTracer timing utility can be exercised (and the chat modules
         // can use it) without throwing "not mocked".
         unitTests.isReturnDefaultValues = true
+        targetSdk = 36
+    }
+    lint {
+        targetSdk = 36
     }
 }
 

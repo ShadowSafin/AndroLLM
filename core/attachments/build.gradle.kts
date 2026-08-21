@@ -11,7 +11,6 @@ android {
     compileSdk = 36
     defaultConfig {
         minSdk = 28
-        targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -37,11 +36,15 @@ android {
         // android.util.Log and friends return default values in JVM unit tests
         // instead of throwing "not mocked", so repositories can log freely.
         unitTests.isReturnDefaultValues = true
+        targetSdk = 36
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE,NOTICE}"
         }
+    }
+    lint {
+        targetSdk = 36
     }
 }
 

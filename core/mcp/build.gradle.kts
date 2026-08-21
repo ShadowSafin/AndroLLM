@@ -11,7 +11,6 @@ android {
     compileSdk = 36
     defaultConfig {
         minSdk = 28
-        targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -35,11 +34,15 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+        targetSdk = 36
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE,NOTICE}"
         }
+    }
+    lint {
+        targetSdk = 36
     }
 }
 
