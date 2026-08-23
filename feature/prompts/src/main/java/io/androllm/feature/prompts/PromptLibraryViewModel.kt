@@ -145,7 +145,7 @@ class PromptLibraryViewModel @Inject constructor(
                 _studioUiState.value = _studioUiState.value.copy(history = list)
             }
         }
-        // Observe wizard pieces to keep studioUiState in sync
+        // Observe wizard pieces to keep studioUiState in sync — never crash the wizard
         viewModelScope.launch {
             combine(
                 _selectedStudioTemplate,
@@ -161,7 +161,7 @@ class PromptLibraryViewModel @Inject constructor(
                 val m = args[3] as PreviewMode
                 val e = args[4] as Map<String, String>
                 val r = args[5] as String?
-                val preview = if (t != null) generatePreviewInternal(t, v, r) else ""
+                val preview = runCatching { if (t != null) generatePreviewInternal(t, v, r) else "" }.getOrElse { "" }
                 _studioUiState.value = _studioUiState.value.copy(
                     selectedTemplate = t,
                     wizardStep = s,
@@ -272,38 +272,53 @@ class PromptLibraryViewModel @Inject constructor(
     }
 
     private fun generatePreviewInternal(template: StudioTemplate, values: Map<String, String>, rawOverride: String?): String {
-        if (rawOverride != null) return rawOverride
-        var prompt = template.promptTemplate
-        // Handle conditional blocks {{#var}}...{{/var}}
-        for ((key, value) in values) {
-            val hasValue = value.isNotBlank()
-            val conditionalRegex = Regex("""\{\{#$key}}(.*?)\{\{/$key}}""", setOf(RegexOption.DOT_MATCHES_ALL))
-            prompt = conditionalRegex.replace(prompt) { match ->
-                if (hasValue) {
-                    // Replace inner variables
-                    var inner = match.groupValues[1]
-                    inner = inner.replace("{{$key}}", value)
-                    // Also replace other variables inside
-                    for ((k2, v2) in values) {
-                        inner = inner.replace("{{$k2}}", v2)
-                    }
-                    inner
-                } else ""
+        return runCatching {
+            if (rawOverride != null) return@runCatching rawOverride
+            var prompt = template.promptTemplate
+            // Handle conditional blocks {{#var}}...{{/var}} — wrap in try/catch to avoid regex crash
+            for ((key, value) in values) {
+                val hasValue = value.isNotBlank()
+                val pattern = """\{\{#$key\}\}(.*?)\{\{/$key\}\}"""
+                val conditionalRegex = runCatching { Regex(pattern, setOf(RegexOption.DOT_MATCHES_ALL)) }.getOrNull() ?: continue
+                prompt = conditionalRegex.replace(prompt) { match ->
+                    if (hasValue) {
+                        // Replace inner variables
+                        var inner = match.groupValues[1]
+                        inner = inner.replace("{{$key}}", value)
+                        // Also replace other variables inside
+                        for ((k2, v2) in values) {
+                            inner = inner.replace("{{$k2}}", v2)
+                        }
+                        inner
+                    } else ""
+                }
             }
+            // Remove any remaining empty conditional blocks (for unset optional fields)
+            runCatching {
+                prompt = Regex("""\{\{#\w+\}\}.*?\{\{/\w+\}\}""", setOf(RegexOption.DOT_MATCHES_ALL)).replace(prompt, "")
+            }
+            // Replace simple variables {{var}}
+            for ((key, value) in values) {
+                prompt = prompt.replace("{{$key}}", value)
+            }
+            // Clean any leftover placeholders like {{language}} -> ""
+            runCatching {
+                prompt = Regex("""\{\{\w+\}\}""").replace(prompt, "")
+            }
+            // Trim and normalize whitespace
+            prompt = prompt.trim().replace(Regex("\n{3,}"), "\n\n")
+            // Model-aware tuning
+            prompt = tuneForModel(prompt, values["audience"] ?: values["model_target"] ?: "")
+            return@runCatching prompt.trim()
+        }.getOrElse {
+            // Fallback: simple replacement without conditionals, never crash the wizard
+            var fallback = template.promptTemplate
+            for ((k, v) in values) {
+                fallback = fallback.replace("{{$k}}", v)
+            }
+            fallback = runCatching { Regex("""\{\{.*?\}\}""").replace(fallback, "") }.getOrElse { fallback }
+            fallback.trim()
         }
-        // Remove any remaining empty conditional blocks (for unset optional fields)
-        prompt = Regex("""\{\{#\w+}}.*?\{\{/\w+}}""", setOf(RegexOption.DOT_MATCHES_ALL)).replace(prompt, "")
-        // Replace simple variables {{var}}
-        for ((key, value) in values) {
-            prompt = prompt.replace("{{$key}}", value)
-        }
-        // Clean any leftover placeholders like {{language}} -> ""
-        prompt = Regex("""\{\{\w+}}""").replace(prompt, "")
-        // Trim and normalize whitespace
-        prompt = prompt.trim().replace(Regex("\n{3,}"), "\n\n")
-        // Model-aware tuning
-        prompt = tuneForModel(prompt, values["audience"] ?: values["model_target"] ?: "")
-        return prompt.trim()
     }
 
     private fun tuneForModel(prompt: String, modelTarget: String): String {
