@@ -15,28 +15,36 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessibilityNew
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.BlurOn
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MotionPhotosOn
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
@@ -65,6 +73,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +82,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -91,7 +101,6 @@ import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.CloudCapsuleButton
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.components.SectionHeader
 import io.androllm.core.ui.theme.DeskHairline
 import io.androllm.core.ui.theme.DeskInk
 import io.androllm.core.ui.theme.DeskInkFaint
@@ -146,6 +155,21 @@ fun SettingsScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri -> viewModel.importMemories(uri) }
 
+    val context = LocalContext.current
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var expandedGroup by rememberSaveable { mutableStateOf<String?>(null) }
+
+    fun toggleGroup(group: SettingsGroup) {
+        expandedGroup = if (expandedGroup == group.name) null else group.name
+    }
+
+    LaunchedEffect(searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) return@LaunchedEffect
+        val match = SettingsGroup.entries.firstOrNull { it.matches(q) }
+        if (match != null) expandedGroup = match.name
+    }
+
     // Tool-calling runtime permissions (SMS, contacts, calls, calendar). The
     // tools fail fast without them, so Settings → Automation offers a grant
     // button; rows recompose away once the permission is granted.
@@ -188,29 +212,62 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // 1. User Profile Header Card
-                item {
+                item(key = "settings-search") {
+                    SettingsSearchField(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it }
+                    )
+                }
+                item(key = "settings-quick-actions") {
+                    SettingsQuickActions(
+                        onClearCache = { viewModel.clearCache() },
+                        onExportMemory = { viewModel.exportMemories() },
+                        onImportMemory = {
+                            importLauncher.launch(
+                                arrayOf("application/json", "application/octet-stream", "text/plain")
+                            )
+                        },
+                        onCheckUpdates = {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://github.com/ShadowSafin/AndroLLM/releases")
+                                    )
+                                )
+                            }
+                        }
+                    )
+                }
+
+                settingsAccordionItem(
+                    group = SettingsGroup.Account,
+                    icon = Icons.Filled.Person,
+                    expanded = expandedGroup == SettingsGroup.Account.name,
+                    onToggle = { toggleGroup(SettingsGroup.Account) },
+                    visible = SettingsGroup.Account.matches(searchQuery),
+                    subtitle = if (user?.isGuest == false) "Signed in" else "Guest · optional sync",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     UserProfileCard(user = user)
-                }
-
-                // 2. User Statistics Cards
-                item {
                     UserStatsRow()
-                }
-
-                // 3. Firebase Authentication Section
-                item {
                     FirebaseAuthCard(
                         user = user,
                         onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) }
                     )
                 }
 
-                // 4. Appearance & Motion
-                item {
-                    SectionHeader(title = stringResource(R.string.settings_appearance))
+                settingsAccordionItem(
+                    group = SettingsGroup.Appearance,
+                    icon = Icons.Filled.Palette,
+                    expanded = expandedGroup == SettingsGroup.Appearance.name,
+                    onToggle = { toggleGroup(SettingsGroup.Appearance) },
+                    visible = SettingsGroup.Appearance.matches(searchQuery),
+                    subtitle = settings.theme.displayName(),
+                    reduceMotion = settings.reduceMotion
+                ) {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             SettingRow(
@@ -294,9 +351,15 @@ fun SettingsScreen(
                     }
                 }
 
-                // 5. Storage
-                item {
-                    SectionHeader(title = stringResource(R.string.settings_storage))
+                settingsAccordionItem(
+                    group = SettingsGroup.Storage,
+                    icon = Icons.Filled.Storage,
+                    expanded = expandedGroup == SettingsGroup.Storage.name,
+                    onToggle = { toggleGroup(SettingsGroup.Storage) },
+                    visible = SettingsGroup.Storage.matches(searchQuery),
+                    subtitle = storageStats?.let { "${StorageUtils.formatBytes(it.availableBytes)} free" },
+                    reduceMotion = settings.reduceMotion
+                ) {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             SettingRow(
@@ -330,9 +393,15 @@ fun SettingsScreen(
                     }
                 }
 
-                // 6. On-device Memory
-                item {
-                    SectionHeader(title = "Memory")
+                settingsAccordionItem(
+                    group = SettingsGroup.Memory,
+                    icon = Icons.Filled.Psychology,
+                    expanded = expandedGroup == SettingsGroup.Memory.name,
+                    onToggle = { toggleGroup(SettingsGroup.Memory) },
+                    visible = SettingsGroup.Memory.matches(searchQuery),
+                    subtitle = if (memorySettings.enabled) "On-device" else "Off",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     MemorySettingsCard(
                         settings = memorySettings,
                         stats = memoryStats,
@@ -354,9 +423,15 @@ fun SettingsScreen(
                     )
                 }
 
-                // 7. Voice Assistant (always-on wake word)
-                item {
-                    SectionHeader(title = "Voice Assistant")
+                settingsAccordionItem(
+                    group = SettingsGroup.VoiceAssistant,
+                    icon = Icons.Filled.RecordVoiceOver,
+                    expanded = expandedGroup == SettingsGroup.VoiceAssistant.name,
+                    onToggle = { toggleGroup(SettingsGroup.VoiceAssistant) },
+                    visible = SettingsGroup.VoiceAssistant.matches(searchQuery),
+                    subtitle = if (voiceSettings.enabled) "Listening" else "Off",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     VoiceAssistantSection(
                         settings = voiceSettings,
                         liveState = voiceState,
@@ -368,9 +443,15 @@ fun SettingsScreen(
                     )
                 }
 
-// 7b. Speech Recognition (whisper.cpp)
-                item {
-                    SectionHeader(title = "Speech Recognition")
+                settingsAccordionItem(
+                    group = SettingsGroup.SpeechRecognition,
+                    icon = Icons.Filled.Mic,
+                    expanded = expandedGroup == SettingsGroup.SpeechRecognition.name,
+                    onToggle = { toggleGroup(SettingsGroup.SpeechRecognition) },
+                    visible = SettingsGroup.SpeechRecognition.matches(searchQuery),
+                    subtitle = "whisper.cpp",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     SpeechRecognitionSection(
                         settings = voiceSettings,
                         models = whisperModels,
@@ -385,18 +466,30 @@ fun SettingsScreen(
                     )
                 }
 
-                // 7c. Text Normalization (LLM output → TTS-ready speech)
-                item {
-                    SectionHeader(title = "Text Normalization")
+                settingsAccordionItem(
+                    group = SettingsGroup.TextNormalization,
+                    icon = Icons.Filled.TextFields,
+                    expanded = expandedGroup == SettingsGroup.TextNormalization.name,
+                    onToggle = { toggleGroup(SettingsGroup.TextNormalization) },
+                    visible = SettingsGroup.TextNormalization.matches(searchQuery),
+                    subtitle = if (voiceSettings.tnEnabled) "On" else "Off",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     TextNormalizationSection(
                         settings = voiceSettings,
                         onUpdate = { viewModel.updateVoiceSettings(it) }
                     )
                 }
 
-                // 7d. Automation (Tool Calling — per-tool permission management)
-                item {
-                    SectionHeader(title = "Automation")
+                settingsAccordionItem(
+                    group = SettingsGroup.Automation,
+                    icon = Icons.Filled.Bolt,
+                    expanded = expandedGroup == SettingsGroup.Automation.name,
+                    onToggle = { toggleGroup(SettingsGroup.Automation) },
+                    visible = SettingsGroup.Automation.matches(searchQuery),
+                    subtitle = "Tool calling",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     AutomationSection(
                         settings = automationSettings,
                         tools = viewModel.tools,
@@ -405,9 +498,15 @@ fun SettingsScreen(
                     )
                 }
 
-                // 7e. UI Automation (accessibility engine — last-resort UI control)
-                item {
-                    SectionHeader(title = "UI Automation")
+                settingsAccordionItem(
+                    group = SettingsGroup.UiAutomation,
+                    icon = Icons.Filled.AccessibilityNew,
+                    expanded = expandedGroup == SettingsGroup.UiAutomation.name,
+                    onToggle = { toggleGroup(SettingsGroup.UiAutomation) },
+                    visible = SettingsGroup.UiAutomation.matches(searchQuery),
+                    subtitle = "Accessibility",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     AccessibilitySection(
                         settings = accessibilitySettings,
                         serviceEnabled = viewModel.accessibilityServiceEnabled,
@@ -417,9 +516,15 @@ fun SettingsScreen(
                     )
                 }
 
-                // 7f. Permissions & Access (central gate manager)
-                item {
-                    SectionHeader(title = "Permissions & Access")
+                settingsAccordionItem(
+                    group = SettingsGroup.DevicePermissions,
+                    icon = Icons.Filled.Lock,
+                    expanded = expandedGroup == SettingsGroup.DevicePermissions.name,
+                    onToggle = { toggleGroup(SettingsGroup.DevicePermissions) },
+                    visible = SettingsGroup.DevicePermissions.matches(searchQuery),
+                    subtitle = "SMS, Phone, Calendar, Contacts…",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             SettingRow(
@@ -432,9 +537,15 @@ fun SettingsScreen(
                     }
                 }
 
-                // 7g. MCP Servers (remote tool imports)
-                item {
-                    SectionHeader(title = "MCP Servers")
+                settingsAccordionItem(
+                    group = SettingsGroup.Mcp,
+                    icon = Icons.Filled.Dns,
+                    expanded = expandedGroup == SettingsGroup.Mcp.name,
+                    onToggle = { toggleGroup(SettingsGroup.Mcp) },
+                    visible = SettingsGroup.Mcp.matches(searchQuery),
+                    subtitle = if (mcpServers.isEmpty()) "None" else "${mcpServers.size} server(s)",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     McpSection(
                         servers = mcpServers,
                         states = mcpStates,
@@ -444,9 +555,15 @@ fun SettingsScreen(
                     )
                 }
 
-                // 8. Cloud Providers (LiteLLM gateway)
-                item {
-                    SectionHeader(title = "Cloud Providers")
+                settingsAccordionItem(
+                    group = SettingsGroup.CloudProviders,
+                    icon = Icons.Filled.CloudDone,
+                    expanded = expandedGroup == SettingsGroup.CloudProviders.name,
+                    onToggle = { toggleGroup(SettingsGroup.CloudProviders) },
+                    visible = SettingsGroup.CloudProviders.matches(searchQuery),
+                    subtitle = "LiteLLM",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             SettingRow(
@@ -459,31 +576,41 @@ fun SettingsScreen(
                     }
                 }
 
-                // 8b. Chat Attachments (conversation-scoped files, cloud chat).
-                // Only visible when the active model supports attachments —
-                // local models hide OCR / upload / cache settings entirely.
                 if (attachmentsSupported) {
-                    item {
-                        SectionHeader(title = "Chat Attachments")
+                    settingsAccordionItem(
+                        group = SettingsGroup.ChatAttachments,
+                        icon = Icons.Filled.AttachFile,
+                        expanded = expandedGroup == SettingsGroup.ChatAttachments.name,
+                        onToggle = { toggleGroup(SettingsGroup.ChatAttachments) },
+                        visible = SettingsGroup.ChatAttachments.matches(searchQuery),
+                        subtitle = "Conversation files",
+                        reduceMotion = settings.reduceMotion
+                    ) {
                         AttachmentSettingsCard(
-                        settings = attachmentSettings,
-                        feedback = attachmentMessage,
-                        cacheBytes = attachmentCacheBytes,
-                        onImageQualityChange = { value -> viewModel.updateAttachmentSettings { it.copy(imageQuality = value) } },
-                        onOcrLanguageChange = { value -> viewModel.updateAttachmentSettings { it.copy(ocrLanguage = value) } },
-                        onMaxSizeChange = { value -> viewModel.updateAttachmentSettings { it.copy(maxAttachmentBytes = value) } },
-                        onMaxPerMessageChange = { value -> viewModel.updateAttachmentSettings { it.copy(maxAttachmentsPerMessage = value) } },
-                        onAutoCompressChange = { value -> viewModel.updateAttachmentSettings { it.copy(autoCompressImages = value) } },
-                        onPreserveFilenamesChange = { value -> viewModel.updateAttachmentSettings { it.copy(preserveFilenames = value) } },
-                        onCacheProcessedChange = { value -> viewModel.updateAttachmentSettings { it.copy(cacheProcessedAttachments = value) } },
-                        onClearCache = { viewModel.clearAttachmentCache() }
+                            settings = attachmentSettings,
+                            feedback = attachmentMessage,
+                            cacheBytes = attachmentCacheBytes,
+                            onImageQualityChange = { value -> viewModel.updateAttachmentSettings { it.copy(imageQuality = value) } },
+                            onOcrLanguageChange = { value -> viewModel.updateAttachmentSettings { it.copy(ocrLanguage = value) } },
+                            onMaxSizeChange = { value -> viewModel.updateAttachmentSettings { it.copy(maxAttachmentBytes = value) } },
+                            onMaxPerMessageChange = { value -> viewModel.updateAttachmentSettings { it.copy(maxAttachmentsPerMessage = value) } },
+                            onAutoCompressChange = { value -> viewModel.updateAttachmentSettings { it.copy(autoCompressImages = value) } },
+                            onPreserveFilenamesChange = { value -> viewModel.updateAttachmentSettings { it.copy(preserveFilenames = value) } },
+                            onCacheProcessedChange = { value -> viewModel.updateAttachmentSettings { it.copy(cacheProcessedAttachments = value) } },
+                            onClearCache = { viewModel.clearAttachmentCache() }
                         )
                     }
                 }
 
-                // 8. Developer Options
-                item {
-                    SectionHeader(title = stringResource(R.string.settings_developer))
+                settingsAccordionItem(
+                    group = SettingsGroup.Developer,
+                    icon = Icons.Filled.Code,
+                    expanded = expandedGroup == SettingsGroup.Developer.name,
+                    onToggle = { toggleGroup(SettingsGroup.Developer) },
+                    visible = SettingsGroup.Developer.matches(searchQuery),
+                    subtitle = if (settings.developerMode) "On" else "Off",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             SettingRow(
@@ -494,11 +621,6 @@ fun SettingsScreen(
                             )
                         }
                     }
-                }
-
-                // 9. Logs & Diagnostics
-                item {
-                    SectionHeader(title = stringResource(R.string.settings_logs))
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             SettingRow(
@@ -522,9 +644,15 @@ fun SettingsScreen(
                     }
                 }
 
-                // 10. About & Privacy
-                item {
-                    SectionHeader(title = stringResource(R.string.settings_about))
+                settingsAccordionItem(
+                    group = SettingsGroup.About,
+                    icon = Icons.Filled.Info,
+                    expanded = expandedGroup == SettingsGroup.About.name,
+                    onToggle = { toggleGroup(SettingsGroup.About) },
+                    visible = SettingsGroup.About.matches(searchQuery),
+                    subtitle = "3.0.0",
+                    reduceMotion = settings.reduceMotion
+                ) {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             SettingRow(
@@ -543,7 +671,7 @@ fun SettingsScreen(
                     }
                 }
 
-                item {
+                item(key = "settings-end-spacer") {
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
