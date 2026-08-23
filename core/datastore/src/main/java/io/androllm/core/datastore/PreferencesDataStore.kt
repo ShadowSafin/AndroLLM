@@ -57,6 +57,13 @@ class PreferencesDataStore @Inject constructor(
         val UI_DENSITY = stringPreferencesKey("ui_density")
         val CHAT_WALLPAPER = stringPreferencesKey("chat_wallpaper")
         val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
+        // Prompt Studio settings
+        val STUDIO_DEFAULT_TEMPLATE = stringPreferencesKey("studio_default_template")
+        val STUDIO_AUTO_PREVIEW = booleanPreferencesKey("studio_auto_preview")
+        val STUDIO_SHOW_ADVANCED = booleanPreferencesKey("studio_show_advanced")
+        val STUDIO_SAVE_HISTORY = booleanPreferencesKey("studio_save_history")
+        val STUDIO_ENABLE_REFINEMENT = booleanPreferencesKey("studio_enable_refinement")
+        val STUDIO_HISTORY_JSON = stringPreferencesKey("studio_history_json")
     }
 
     private val dataStore: DataStore<Preferences> = context.preferencesDataStore
@@ -189,6 +196,62 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setTypingIndicator(enabled: Boolean) {
         dataStore.edit { preferences -> preferences[Keys.TYPING_INDICATOR] = enabled }
+    }
+
+    // ── Prompt Studio settings ───────────────────────────────────────────────
+    val studioDefaultTemplate: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.STUDIO_DEFAULT_TEMPLATE]
+    }
+
+    suspend fun setStudioDefaultTemplate(id: String?) {
+        dataStore.edit { preferences ->
+            if (id == null) preferences.remove(Keys.STUDIO_DEFAULT_TEMPLATE)
+            else preferences[Keys.STUDIO_DEFAULT_TEMPLATE] = id
+        }
+    }
+
+    val studioAutoPreview: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.STUDIO_AUTO_PREVIEW] ?: true
+    }
+
+    suspend fun setStudioAutoPreview(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.STUDIO_AUTO_PREVIEW] = enabled }
+    }
+
+    val studioShowAdvanced: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.STUDIO_SHOW_ADVANCED] ?: false
+    }
+
+    suspend fun setStudioShowAdvanced(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.STUDIO_SHOW_ADVANCED] = enabled }
+    }
+
+    val studioSaveHistory: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.STUDIO_SAVE_HISTORY] ?: true
+    }
+
+    suspend fun setStudioSaveHistory(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.STUDIO_SAVE_HISTORY] = enabled }
+    }
+
+    val studioEnableRefinement: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.STUDIO_ENABLE_REFINEMENT] ?: true
+    }
+
+    suspend fun setStudioEnableRefinement(enabled: Boolean) {
+        dataStore.edit { preferences -> preferences[Keys.STUDIO_ENABLE_REFINEMENT] = enabled }
+    }
+
+    val studioHistoryJson: Flow<String> = dataStore.data.map { preferences ->
+        preferences[Keys.STUDIO_HISTORY_JSON] ?: "[]"
+    }
+
+    suspend fun setStudioHistoryJson(json: String) {
+        dataStore.edit { preferences -> preferences[Keys.STUDIO_HISTORY_JSON] = json }
+    }
+
+    suspend fun clearStudioHistory() {
+        dataStore.edit { preferences -> preferences[Keys.STUDIO_HISTORY_JSON] = "[]" }
     }
 
     /**

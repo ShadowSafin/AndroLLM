@@ -7,6 +7,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -29,6 +30,12 @@ class PromptLibraryViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         every { preferencesDataStore.favoritePromptIds } returns MutableStateFlow(emptySet())
+        every { preferencesDataStore.studioDefaultTemplate } returns flowOf(null)
+        every { preferencesDataStore.studioAutoPreview } returns flowOf(true)
+        every { preferencesDataStore.studioShowAdvanced } returns flowOf(false)
+        every { preferencesDataStore.studioSaveHistory } returns flowOf(true)
+        every { preferencesDataStore.studioEnableRefinement } returns flowOf(true)
+        every { preferencesDataStore.studioHistoryJson } returns flowOf("[]")
     }
 
     @After
