@@ -25,7 +25,7 @@ export function ModelsTeaser() {
       <div className="container">
         <SectionHeading
           eyebrow="The model shelf"
-          title="7 curated models. 5 architectures."
+          title="21 curated models. 5 architectures."
           description="Every bundled .litertlm is validated, memory-estimated, and RAM-filterable on your device — from ~475 MB pocket models to 1.3 GB workhorses."
         />
 

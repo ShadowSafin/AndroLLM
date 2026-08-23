@@ -38,7 +38,7 @@ export default function FeaturesPage() {
           <SectionHeading
             eyebrow="Inside the UX"
             title="The Parchment Ledger experience."
-            description="The interface is a design system — adaptive navigation, streaming markdown, a model manager with a 7-model catalog, and security handled at the architecture level."
+            description="The interface is a design system — adaptive navigation, streaming markdown, a model manager with a 21-model catalog, and security handled at the architecture level."
           />
           <RevealStagger className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {uiFeatures.map((f, i) => (

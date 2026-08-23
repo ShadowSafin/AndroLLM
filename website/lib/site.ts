@@ -33,7 +33,7 @@ export const repoShield = (label: string, message: string, color: string) =>
   `https://img.shields.io/badge/${encodeURIComponent(label)}-${encodeURIComponent(message)}-${color}`;
 
 export const stats = [
-  { value: 7, suffix: "", label: "curated LiteRT (.litertlm) models in the catalog", note: "Qwen · Gemma · DeepSeek" },
+  { value: 21, suffix: "", label: "curated LiteRT (.litertlm) models in the catalog", note: "Qwen · Gemma · DeepSeek" },
   { value: 5, suffix: "", label: "model architectures via LiteRT-LM", note: "gemma3 · gemma4 · qwen2 · qwen3 · deepseek" },
   { value: 50, suffix: "+", label: "built-in agent tools", note: "44 core + 9 UI-automation + MCP remote tools" },
   { value: 31, suffix: "", label: "Gradle modules in three clean tiers", note: "app · core · feature · engine" },

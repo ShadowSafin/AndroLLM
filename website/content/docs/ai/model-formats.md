@@ -55,7 +55,7 @@ SHA-256, validates it with `LiteRtValidator`, then loads it through LiteRT-LM.
 
 | Fact | Value |
 |---|---|
-| Models | **7** (6 language models + 1 embedding model) |
+| Models | **21** curated `.litertlm` models |
 | Families | Qwen · Gemma · DeepSeek |
 | Architectures | `gemma3` · `gemma4` · `gemma-embedding` · `qwen2` · `qwen3` |
 | File sizes | ~475 MB – 1.3 GB |

@@ -36,7 +36,7 @@ export function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-[var(--accent)]" />
             </span>
-            v{site.version} · 7 curated models · Apache 2.0
+            v{site.version} · 21 curated models · Apache 2.0
           </Badge>
         </motion.div>
 

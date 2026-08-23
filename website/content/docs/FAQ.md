@@ -64,7 +64,7 @@ LiteRT-LM is Google's on-device LLM inference runtime (formerly the Gemini Nano-
 📖 [LiteRT-LM Engine Documentation](ai/litert-lm.md)
 
 ### What models can I run?
-The curated catalog ships **7 models** (6 `.litertlm` language models + 1 embedding model) from the `litert-community` organization, in Qwen, Gemma, and DeepSeek families. The Models screen shows RAM requirements and metadata context lengths for each model.
+The curated catalog ships **21 `.litertlm` models** from the `litert-community` organization, across Qwen, Gemma, DeepSeek, and other supported families. The Models screen shows RAM requirements and metadata context lengths for each model.
 
 General guidelines (catalog models are ~475 MB–1.3 GB):
 - **2 GB RAM**: Qwen3-0.6B class models

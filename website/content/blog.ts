@@ -19,7 +19,7 @@ export const blogPosts: BlogPost[] = [
       {
         p: [
           "AndroLLM 1.0 is a production-grade AI platform for Android. It runs real models on your phone: .litertlm containers through Google's LiteRT-LM runtime, accelerated by the OpenCL GPU delegate with automatic CPU fallback. Everything else — memory, voice, identity — is built the same way: local first, cloud only when you say so.",
-          "The engine is 100% Kotlin and Java — no native code, no NDK, no vendored llama.cpp. LiteRT-LM 0.16.0 and LiteRT 2.2.0 arrive as Maven artifacts, and the model catalog ships seven curated .litertlm models from the litert-community organization (Qwen, Gemma, and DeepSeek families) that run on devices with 2–4 GB of RAM.",
+          "The engine is 100% Kotlin and Java — no native code, no NDK, no vendored llama.cpp. LiteRT-LM 0.16.0 and LiteRT 2.2.0 arrive as Maven artifacts, and the model catalog ships 21 curated .litertlm models from the litert-community organization across supported Qwen, Gemma, DeepSeek, and other families that run on devices with 2–4 GB of RAM.",
           "The release signs with the project keystore, stamps a single version across app, docs, and website, and ships per-ABI artifacts through the download page.",
           "It is open source under Apache 2.0: the Kotlin app, the LiteRT-LM engine, the memory module, the ONNX voice stack, and the documentation all live in one public monorepo where every claim on this website can be checked against the source.",
         ],
@@ -33,7 +33,7 @@ export const blogPosts: BlogPost[] = [
       {
         h: "For model runners",
         p: [
-          "The catalog lists 7 curated .litertlm models — Qwen2.5-1.5B, Qwen3-0.6B, and Gemma 3 1B among the language models, plus a dedicated embedding model — across five architectures (gemma3, gemma4, gemma-embedding, qwen2, qwen3). Every model's family, context length, and quantization are read from the container's embedded metadata, so chat templates, special tokens, and RAM estimates are never guessed. Files run from ~475 MB to 1.3 GB, sized for phones with 2–4 GB of RAM.",
+          "The catalog lists 21 curated .litertlm models across 11 architectures, including Qwen, Gemma, DeepSeek, and other supported families. Every model's family, context length, and quantization are read from the container's embedded metadata, so chat templates, special tokens, and RAM estimates are never guessed. Files run from ~475 MB to 1.3 GB, sized for phones with 2–4 GB of RAM.",
         ],
       },
     ],

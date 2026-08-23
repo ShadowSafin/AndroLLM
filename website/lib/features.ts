@@ -50,7 +50,7 @@ export const pillars: Feature[] = [
       "Native tool-call markers on Qwen and Gemma models",
       "On-demand debug prompt logging and engine diagnostics",
     ],
-    stat: { value: "7", label: "curated .litertlm models — Qwen · Gemma · DeepSeek families" },
+    stat: { value: "21", label: "curated .litertlm models — Qwen · Gemma · DeepSeek families" },
   },
   {
     id: "gpu",
@@ -267,7 +267,7 @@ export const uiFeatures: Feature[] = [
     name: "Model manager & prompt library",
     tagline: "Catalog, download, load, tweak",
     description:
-      "A curated 7-model .litertlm catalog filtered by your device's RAM, a HuggingFace browser, .litertlm import with container validation, and a parameter sheet for temperature, top-p, seed and personas.",
+      "A curated 21-model .litertlm catalog filtered by your device's RAM, a HuggingFace browser, .litertlm import with container validation, and a parameter sheet for temperature, top-p, seed and personas.",
     bullets: [
       "Compatibility analyzer: will it fit in RAM? Will it GPU-accelerate?",
       "Benchmark tool with tokens/sec, time-to-first-token, memory",

@@ -49,7 +49,7 @@ SmolLM, TinyLlama**.
 
 ### The curated catalog
 
-7 models (6 `.litertlm` language models + 1 embedding model), `runtimeFormat:
+21 curated `.litertlm` models, `runtimeFormat:
 LITERTLM`, sourced from `litert-community` (HuggingFace + ModelScope):
 
 | Family | Architectures | Notes |
@@ -142,7 +142,7 @@ Access from the Models screen → Diagnostics tab.
 
 ### Official Model Catalog
 
-Built into the app. Shows the curated catalog — 7 models from the
+Built into the app. Shows the curated catalog — 21 models from the
 `litert-community` organization (Qwen, Gemma, DeepSeek families), filtered by
 your device's RAM and preferences.
 

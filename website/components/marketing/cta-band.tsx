@@ -27,7 +27,7 @@ export function CtaBand() {
           </h2>
           <p className="mt-5 text-base leading-relaxed text-[var(--muted)] sm:text-lg">
             Requires Android 9+ (API 28) and an ARM64 device. A fresh install ships with a curated catalog of
-            7 models — the app tells you which ones your RAM can run.
+            21 models — the app tells you which ones your RAM can run.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">
