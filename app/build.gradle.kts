@@ -13,12 +13,44 @@ android {
     namespace = "io.androllm.app"
     compileSdk = 36
 
+    // ── Release signing ────────────────────────────────────────────────────
+    // To sign release builds with your release keystore, set these in
+    // ~/.gradle/gradle.properties (DO NOT commit passwords to git):
+    //   RELEASE_STORE_FILE=/path/to/Mainkeystore
+    //   RELEASE_STORE_PASSWORD=your-password
+    //   RELEASE_KEY_ALIAS=key0
+    //   RELEASE_KEY_PASSWORD=your-password
+    //
+    // IMPORTANT: The SHA-256 fingerprint of the keystore used here MUST be
+    // registered in Firebase Console → Project Settings → Your Android app
+    // → SHA certificate fingerprints, otherwise Google/GitHub sign-in will
+    // fail with "Internal Firebase error". Also register the Play App
+    // Signing SHA-256 from Google Play Console → Setup → App Integrity.
+    val releaseKeystorePath = System.getenv("RELEASE_STORE_FILE")
+        ?: project.findProperty("RELEASE_STORE_FILE")?.toString()
+    if (releaseKeystorePath != null && file(releaseKeystorePath).exists()) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                    ?: project.findProperty("RELEASE_STORE_PASSWORD")?.toString()
+                    ?: ""
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                    ?: project.findProperty("RELEASE_KEY_ALIAS")?.toString()
+                    ?: "key0"
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+                    ?: project.findProperty("RELEASE_KEY_PASSWORD")?.toString()
+                    ?: ""
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "io.androllm.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 5
+        versionName = "1.1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -35,7 +67,14 @@ android {
         }
         release {
             isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            val releaseSigning = signingConfigs.findByName("release")
+            if (releaseSigning?.storeFile?.exists() == true) {
+                signingConfig = releaseSigning
+            }
         }
     }
     

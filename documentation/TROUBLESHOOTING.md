@@ -207,12 +207,13 @@ full ~2.3K-token list).
 - OAuth popup closes immediately
 
 **Solutions:**
-1. **SHA fingerprint issue**: The debug keystore SHA-256 must be registered in the Firebase Console
+1. **SHA fingerprint issue**: All signing keys must be registered in the Firebase Console — **especially the Play App Signing key if you upload AABs**:
    ```bash
-   # Get debug keystore SHA-256
+   # Debug keystore
    keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android -rfc
    ```
-   Add the hash to Firebase Console → Project Settings → Your Apps → Add Fingerprint
+   **⚠️ AAB via Google Play?** Get the Play signing SHA-256 from **Google Play Console → Setup → App Integrity → App signing key certificate** and add it to Firebase too. Missing this is the #1 cause of "auth works in APK but not in Play Store".
+   Add each hash to Firebase Console → Project Settings → Your Apps → Add Fingerprint
 2. **Google account not configured**: Add a Google account to the device first
 3. **Network error**: Ensure the device can reach `accounts.google.com` and `firebase.google.com`
 4. **GitHub OAuth**: Ensure the OAuth app is configured with the correct callback URL

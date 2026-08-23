@@ -9,6 +9,3 @@
 -keep class io.androllm.engine.backend.** { *; }
 -keep class io.androllm.engine.jni.** { *; }
 -keep class io.androllm.engine.utils.** { *; }
-
-# Exclude R class to prevent duplicate class errors in consumer apps
--dontkeep class io.androllm.engine.R

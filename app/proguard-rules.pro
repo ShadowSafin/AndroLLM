@@ -67,6 +67,45 @@
 -keep class io.androllm.engine.di.EngineModule { *; }
 -keep class io.androllm.engine.models.** { *; }
 
+# ── Firebase Auth + Google Sign-In (CRITICAL for release builds) ────────────
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.firebase.auth.** { *; }
+-keep class com.google.firebase.internal.api.** { *; }
+-keep class com.google.android.gms.internal.** { *; }
+-keep class com.google.android.gms.internal.firebase_auth.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+-dontwarn com.google.firebase.auth.**
+-dontwarn com.google.android.gms.internal.**
+-dontwarn com.google.android.gms.tasks.**
+
+# ── Google Identity / Credential Manager (required for Google Sign-In) ──────
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+-keep class androidx.credentials.** { *; }
+-keep class androidx.credentials.playservices.** { *; }
+-dontwarn com.google.android.libraries.identity.googleid.**
+-dontwarn androidx.credentials.**
+-dontwarn androidx.credentials.playservices.**
+
+# ── Google Play Services Auth + Common ─────────────────────────────────────
+-keep class com.google.android.gms.auth.** { *; }
+-keep class com.google.android.gms.common.** { *; }
+-keep class com.google.android.gms.base.** { *; }
+-keep class com.google.android.gms.dynamic.** { *; }
+-keep class com.google.android.gms.security.** { *; }
+-dontwarn com.google.android.gms.auth.**
+-dontwarn com.google.android.gms.common.**
+-dontwarn com.google.android.gms.base.**
+-dontwarn com.google.android.gms.dynamic.**
+-dontwarn com.google.android.gms.security.**
+
+# ── Google API Client ──────────────────────────────────────────────────────
+-keep class com.google.api.client.** { *; }
+-dontwarn com.google.api.client.**
+
+# ── PDFBox (optional JPX/JPEG 2000 classes not bundled on Android) ──────────
+-dontwarn com.gemalto.jp2.**
+
 # Suppress warnings
 -dontwarn kotlinx.coroutines.**
 -dontwarn kotlinx.serialization.**

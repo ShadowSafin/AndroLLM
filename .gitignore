@@ -96,6 +96,11 @@ ehthumbs.db
 # Logs, local helper scripts, temp files
 # ---------------------------------------------------------------------------
 *.log
+hs_err_pid*.log
+replay_pid*.log
+*.stackdump
+*.trace
+*.dump
 logs/
 tmp/
 temp/
@@ -103,6 +108,7 @@ temp/
 _gradle_out.txt
 _run_gradle.bat
 _build_out.txt
+_build_out_*.txt
 androllm_*.txt
 
 # ---------------------------------------------------------------------------
@@ -110,14 +116,27 @@ androllm_*.txt
 # ---------------------------------------------------------------------------
 .env
 .env.*
+*.secret
+*.secrets
+*.credentials
+*credentials*.json
 *.pem
 *.key
 *.p12
 *.jks
 *.keystore
+Mainkeystore
 secrets/
 credentials/
 androllm-release.jks
+
+# Firebase config (contains project/client configuration; keep local unless
+# the repository intentionally tracks a reviewed configuration file)
+**/google-services.json
+
+# Release signing config (user-specific passwords)
+signing.properties
+release-signing.properties
 
 # ---------------------------------------------------------------------------
 # Release / signed APKs (never commit)
