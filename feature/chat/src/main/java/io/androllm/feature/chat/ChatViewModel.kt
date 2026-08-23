@@ -15,6 +15,8 @@ import io.androllm.core.common.BaseViewModel
 import io.androllm.core.common.getOrNull
 import io.androllm.core.database.repository.ConversationRepository
 import io.androllm.core.database.repository.MessageRepository
+import io.androllm.core.database.repository.SettingsRepository
+import io.androllm.core.models.AppSettings
 import io.androllm.core.attachments.AttachmentCache
 import io.androllm.core.attachments.AttachmentProcessor
 import io.androllm.core.attachments.AttachmentSettingsStore
@@ -56,6 +58,7 @@ import io.androllm.engine.models.GenerationConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -96,7 +99,8 @@ class ChatViewModel @Inject constructor(
     private val automationSettingsStore: AutomationSettingsStore,
     private val traceStore: ToolExecutionTraceStore,
     private val variableStore: AgentVariableStore,
-    private val toolPromptBuilder: ToolPromptBuilder
+    private val toolPromptBuilder: ToolPromptBuilder,
+    private val settingsRepository: SettingsRepository
 ) : BaseViewModel() {
 
     private val _currentConversationId = MutableStateFlow<String>("")
@@ -129,6 +133,10 @@ class ChatViewModel @Inject constructor(
 
     /** Attachments of the CURRENT turn that will be packaged into the prompt. */
     private var turnAttachments: List<ChatAttachment> = emptyList()
+
+    /** App-wide settings, including AI link warning toggle (default ON). */
+    private val _appSettings = MutableStateFlow(AppSettings())
+    val appSettings: StateFlow<AppSettings> = _appSettings.asStateFlow()
 
     /**
      * Live capability check (cloud mode + a resolved cloud model). Local
@@ -337,6 +345,7 @@ class ChatViewModel @Inject constructor(
         observeActiveMessages()
         observeCloudMode()
         observeToolConfirmations()
+        observeAppSettings()
         // Preload the embedding source in the background so the first prompt
         // after enabling memory never pays a multi-second load on the send
         // path. No-op when memory is disabled or cloud embeddings are active.
@@ -344,6 +353,12 @@ class ChatViewModel @Inject constructor(
             if (memoryManager.currentSettings().enabled) {
                 memoryManager.preloadEmbeddingModel()
             }
+        }
+    }
+
+    private fun observeAppSettings() {
+        viewModelScope.launch {
+            settingsRepository.observeSettings().collect { _appSettings.value = it }
         }
     }
 

@@ -14,6 +14,8 @@ import io.androllm.core.memory.model.MemoryContext
 import io.androllm.core.memory.model.MemorySettings
 import io.androllm.core.models.Message
 import io.androllm.core.models.MessageRole
+import io.androllm.core.database.repository.SettingsRepository
+import io.androllm.core.models.AppSettings
 import io.androllm.core.tools.agent.AgentVariableStore
 import io.androllm.core.tools.coordinator.ToolRunCoordinator
 import io.androllm.core.tools.confirmation.ToolConfirmationManager
@@ -71,6 +73,7 @@ class ChatViewModelStabilizationTest {
     private val traceStore = ToolExecutionTraceStore()
     private val variableStore = mockk<AgentVariableStore>(relaxed = true)
     private val toolPromptBuilder = mockk<ToolPromptBuilder>(relaxed = true)
+    private val settingsRepository = mockk<SettingsRepository>(relaxed = true)
 
     private val engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
     private val generationState = MutableStateFlow<GenerationState>(GenerationState.Idle)
@@ -107,6 +110,7 @@ class ChatViewModelStabilizationTest {
         coEvery { memoryManager.buildContext(any(), any(), any(), any()) } returns MemoryContext()
         every { cloudGateway.settings } returns flowOf(CloudSettings())
         coEvery { cloudGateway.resolveChatTarget() } returns null
+        every { settingsRepository.observeSettings() } returns flowOf(AppSettings())
     }
 
     @After
@@ -139,7 +143,8 @@ class ChatViewModelStabilizationTest {
             automationSettingsStore,
             traceStore,
             variableStore,
-            toolPromptBuilder
+            toolPromptBuilder,
+            settingsRepository
         )
     }
 

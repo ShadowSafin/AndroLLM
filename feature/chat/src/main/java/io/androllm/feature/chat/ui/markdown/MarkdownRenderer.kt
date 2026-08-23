@@ -1,11 +1,15 @@
 package io.androllm.feature.chat.ui.markdown
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +23,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -29,14 +37,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -63,13 +77,15 @@ sealed interface MarkdownNode {
 
 /**
  * High performance Markdown parsing and rendering component for Jetpack Compose.
+ * Now with AI-generated link detection, highlight, and safety warning.
  */
 @Composable
 fun MarkdownRenderer(
     markdownText: String,
     modifier: Modifier = Modifier,
     textColor: Color = MaterialTheme.colorScheme.onSurface,
-    codeWrapping: Boolean = false
+    codeWrapping: Boolean = false,
+    warnBeforeOpeningAiLinks: Boolean = true
 ) {
     val nodes = remember(markdownText) {
         parseMarkdown(markdownText)
@@ -81,14 +97,14 @@ fun MarkdownRenderer(
     ) {
         nodes.forEach { node ->
             when (node) {
-                is MarkdownNode.Header -> HeaderItem(node, textColor)
-                is MarkdownNode.Paragraph -> ParagraphItem(node.text, textColor)
+                is MarkdownNode.Header -> HeaderItem(node, textColor, warnBeforeOpeningAiLinks)
+                is MarkdownNode.Paragraph -> ParagraphItem(node.text, textColor, warnBeforeOpeningAiLinks)
                 is MarkdownNode.CodeBlock -> CodeBlockCard(code = node.code, language = node.language, initialWrapLines = codeWrapping)
-                is MarkdownNode.Blockquote -> BlockquoteItem(node.text, textColor)
-                is MarkdownNode.BulletList -> BulletListItem(node.items, textColor)
-                is MarkdownNode.NumberedList -> NumberedListItem(node.items, textColor)
-                is MarkdownNode.Table -> TableItem(node)
-                is MarkdownNode.Callout -> CalloutItem(node, textColor)
+                is MarkdownNode.Blockquote -> BlockquoteItem(node.text, textColor, warnBeforeOpeningAiLinks)
+                is MarkdownNode.BulletList -> BulletListItem(node.items, textColor, warnBeforeOpeningAiLinks)
+                is MarkdownNode.NumberedList -> NumberedListItem(node.items, textColor, warnBeforeOpeningAiLinks)
+                is MarkdownNode.Table -> TableItem(node, textColor, warnBeforeOpeningAiLinks)
+                is MarkdownNode.Callout -> CalloutItem(node, textColor, warnBeforeOpeningAiLinks)
                 is MarkdownNode.HorizontalRule -> HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -101,51 +117,34 @@ fun MarkdownRenderer(
 }
 
 @Composable
-private fun HeaderItem(header: MarkdownNode.Header, textColor: Color) {
+private fun HeaderItem(header: MarkdownNode.Header, textColor: Color, warnBeforeOpeningAiLinks: Boolean = true) {
     val style = when (header.level) {
         1 -> MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, fontSize = 24.sp, color = textColor)
         2 -> MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp, color = textColor)
         3 -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = textColor)
         else -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = textColor)
     }
-    Text(
-        text = parseFormattedText(
-            header.content,
-            textColor,
-            MaterialTheme.colorScheme.surfaceContainerHighest,
-            MaterialTheme.colorScheme.onSurface,
-            MaterialTheme.colorScheme.primary
-        ),
+    LinkAwareClickableText(
+        text = header.content,
+        textColor = textColor,
         style = style,
+        warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
         modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
     )
 }
 
 @Composable
-private fun ParagraphItem(text: String, textColor: Color) {
-    val context = LocalContext.current
-    val codeChipBg = MaterialTheme.colorScheme.surfaceContainerHighest
-    val codeChipFg = MaterialTheme.colorScheme.onSurface
-    val linkColor = MaterialTheme.colorScheme.primary
-    val annotatedString = remember(text, textColor, codeChipBg, codeChipFg, linkColor) {
-        parseFormattedText(text, textColor, codeChipBg, codeChipFg, linkColor)
-    }
-
-    ClickableText(
-        text = annotatedString,
+private fun ParagraphItem(text: String, textColor: Color, warnBeforeOpeningAiLinks: Boolean = true) {
+    LinkAwareClickableText(
+        text = text,
+        textColor = textColor,
         style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-        onClick = { offset ->
-            annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()?.let { annotation ->
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
-                    runCatching { context.startActivity(intent) }
-                }
-        }
+        warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks
     )
 }
 
 @Composable
-private fun BlockquoteItem(text: String, textColor: Color) {
+private fun BlockquoteItem(text: String, textColor: Color, warnBeforeOpeningAiLinks: Boolean = true) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -166,15 +165,11 @@ private fun BlockquoteItem(text: String, textColor: Color) {
             color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
             shape = RoundedCornerShape(8.dp)
         ) {
-            Text(
-                text = parseFormattedText(
-                    text,
-                    textColor,
-                    MaterialTheme.colorScheme.surfaceContainerHighest,
-                    MaterialTheme.colorScheme.onSurface,
-                    MaterialTheme.colorScheme.primary
-                ),
+            LinkAwareClickableText(
+                text = text,
+                textColor = textColor,
                 style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
                 modifier = Modifier.padding(12.dp)
             )
         }
@@ -182,7 +177,7 @@ private fun BlockquoteItem(text: String, textColor: Color) {
 }
 
 @Composable
-private fun BulletListItem(items: List<String>, textColor: Color) {
+private fun BulletListItem(items: List<String>, textColor: Color, warnBeforeOpeningAiLinks: Boolean = true) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         items.forEach { item ->
             Row(
@@ -193,15 +188,11 @@ private fun BulletListItem(items: List<String>, textColor: Color) {
                     text = "• ",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 )
-                Text(
-                    text = parseFormattedText(
-                        item,
-                        textColor,
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
-                        MaterialTheme.colorScheme.onSurface,
-                        MaterialTheme.colorScheme.primary
-                    ),
+                LinkAwareClickableText(
+                    text = item,
+                    textColor = textColor,
                     style = MaterialTheme.typography.bodyMedium,
+                    warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -210,7 +201,7 @@ private fun BulletListItem(items: List<String>, textColor: Color) {
 }
 
 @Composable
-private fun NumberedListItem(items: List<String>, textColor: Color) {
+private fun NumberedListItem(items: List<String>, textColor: Color, warnBeforeOpeningAiLinks: Boolean = true) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         items.forEachIndexed { index, item ->
             Row(
@@ -221,15 +212,11 @@ private fun NumberedListItem(items: List<String>, textColor: Color) {
                     text = "${index + 1}. ",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 )
-                Text(
-                    text = parseFormattedText(
-                        item,
-                        textColor,
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
-                        MaterialTheme.colorScheme.onSurface,
-                        MaterialTheme.colorScheme.primary
-                    ),
+                LinkAwareClickableText(
+                    text = item,
+                    textColor = textColor,
                     style = MaterialTheme.typography.bodyMedium,
+                    warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -238,7 +225,11 @@ private fun NumberedListItem(items: List<String>, textColor: Color) {
 }
 
 @Composable
-private fun TableItem(table: MarkdownNode.Table) {
+private fun TableItem(
+    table: MarkdownNode.Table,
+    textColor: Color = MaterialTheme.colorScheme.onSurface,
+    warnBeforeOpeningAiLinks: Boolean = true
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -256,9 +247,11 @@ private fun TableItem(table: MarkdownNode.Table) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 table.headers.forEach { header ->
-                    Text(
+                    LinkAwareClickableText(
                         text = header,
+                        textColor = textColor,
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -273,9 +266,11 @@ private fun TableItem(table: MarkdownNode.Table) {
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     row.forEach { cell ->
-                        Text(
+                        LinkAwareClickableText(
                             text = cell,
+                            textColor = textColor,
                             style = MaterialTheme.typography.bodySmall,
+                            warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -551,7 +546,7 @@ private data class CalloutPalette(
 )
 
 @Composable
-private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color) {
+private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color, warnBeforeOpeningAiLinks: Boolean = true) {
     val palette = when (callout.kind) {
         "Tip" -> CalloutPalette(Color(0xFFEDF4E6), Color(0xFFA9BF8A), Color(0xFF5F7D3E), "💡")
         "Warning" -> CalloutPalette(Color(0xFFFBF0DC), Color(0xFFDDB968), Color(0xFF92681E), "⚠️")
@@ -582,18 +577,14 @@ private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color) {
             }
             if (callout.text.isNotBlank()) {
                 Spacer(modifier = Modifier.height(5.dp))
-                Text(
-                    text = parseFormattedText(
-                        callout.text,
-                        textColor,
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
-                        MaterialTheme.colorScheme.onSurface,
-                        MaterialTheme.colorScheme.primary
-                    ),
+                LinkAwareClickableText(
+                    text = callout.text,
+                    textColor = textColor,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         lineHeight = 21.sp,
                         color = textColor.copy(alpha = 0.92f)
-                    )
+                    ),
+                    warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks
                 )
             }
         }
@@ -608,44 +599,202 @@ private fun parseFormattedText(
     linkColor: Color = Color(0xFFB3573E)
 ): AnnotatedString {
     return buildAnnotatedString {
-        var currentIndex = 0
-
-        // Parse link regex first [text](url)
-        val linkRegex = Regex("\\[(.*?)\\]\\((.*?)\\)")
-        val matches = linkRegex.findAll(text).toList()
-
-        if (matches.isEmpty()) {
+        // Use AiLinkUtils to handle both markdown links and plain URLs in one pass,
+        // stripping trailing punctuation and validating schemes.
+        val segments = AiLinkUtils.splitTextWithLinks(text)
+        if (segments.isEmpty()) {
             appendFormattedInline(text, defaultColor, inlineCodeBackground, inlineCodeForeground)
-        } else {
-            for (match in matches) {
-                val start = match.range.first
-                val end = match.range.last + 1
-                if (start > currentIndex) {
-                    appendFormattedInline(text.substring(currentIndex, start), defaultColor, inlineCodeBackground, inlineCodeForeground)
+            return@buildAnnotatedString
+        }
+        // If splitTextWithLinks returned only plain segments (no links), fallback to inline formatting.
+        val hasLinks = segments.any { it is AiLinkUtils.Segment.Link }
+        if (!hasLinks) {
+            // No links detected — preserve original text with inline formatting
+            appendFormattedInline(text, defaultColor, inlineCodeBackground, inlineCodeForeground)
+            return@buildAnnotatedString
+        }
+
+        for (segment in segments) {
+            when (segment) {
+                is AiLinkUtils.Segment.Plain -> {
+                    appendFormattedInline(segment.text, defaultColor, inlineCodeBackground, inlineCodeForeground)
                 }
-
-                val linkText = match.groupValues[1]
-                val url = match.groupValues[2]
-
-                val linkStart = length
-                append(linkText)
-                addStyle(
-                    SpanStyle(
-                        color = linkColor,
-                        textDecoration = TextDecoration.Underline,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    linkStart,
-                    length
-                )
-                addStringAnnotation("URL", url, linkStart, length)
-                currentIndex = end
-            }
-            if (currentIndex < text.length) {
-                appendFormattedInline(text.substring(currentIndex), defaultColor, inlineCodeBackground, inlineCodeForeground)
+                is AiLinkUtils.Segment.Link -> {
+                    val linkStart = length
+                    // Display text is either markdown display or the URL itself
+                    val display = segment.displayText
+                    // Append display text with link style
+                    append(display)
+                    // Append external-link icon as part of the same clickable span so tapping the icon opens the link
+                    val icon = " ↗"
+                    append(icon)
+                    val linkEnd = length
+                    addStyle(
+                        SpanStyle(
+                            color = linkColor,
+                            textDecoration = TextDecoration.Underline,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        linkStart,
+                        linkEnd
+                    )
+                    // Annotate the whole span (display + icon) with the URL
+                    addStringAnnotation("URL", segment.url, linkStart, linkEnd)
+                    // Also add an annotation for the icon alone to make it clear it's an external link
+                    // (optional, not needed)
+                }
             }
         }
     }
+}
+
+@Composable
+internal fun LinkAwareClickableText(
+    text: String,
+    textColor: Color,
+    style: TextStyle,
+    warnBeforeOpeningAiLinks: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val codeChipBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val codeChipFg = MaterialTheme.colorScheme.onSurface
+    val linkColor = MaterialTheme.colorScheme.primary
+    val annotatedString = remember(text, textColor, codeChipBg, codeChipFg, linkColor) {
+        parseFormattedText(text, textColor, codeChipBg, codeChipFg, linkColor)
+    }
+    var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var pendingUrl by remember { mutableStateOf<String?>(null) }
+    var longPressUrl by remember { mutableStateOf<String?>(null) }
+
+    // Warning dialog for tap
+    pendingUrl?.let { url ->
+        AiLinkWarningDialog(
+            url = url,
+            onOpen = { toOpen ->
+                // Double-validate before opening
+                if (AiLinkUtils.isValidForOpening(toOpen)) {
+                    openAiLinkSafely(context, toOpen)
+                } else {
+                    Toast.makeText(context, "Invalid link", Toast.LENGTH_SHORT).show()
+                }
+                pendingUrl = null
+            },
+            onDismiss = { pendingUrl = null }
+        )
+    }
+
+    // Long-press menu
+    longPressUrl?.let { url ->
+        AlertDialog(
+            onDismissRequest = { longPressUrl = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.OpenInNew,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            },
+            title = { Text("Link options", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = url,
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary),
+                        maxLines = 3
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Choose an action for this AI-generated link.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // Copy
+                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Link", url))
+                    Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                    longPressUrl = null
+                }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.ContentCopy, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy")
+                    }
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        // Share
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, url)
+                        }
+                        runCatching {
+                            context.startActivity(Intent.createChooser(shareIntent, "Share link"))
+                        }
+                        longPressUrl = null
+                    }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Share, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Share")
+                        }
+                    }
+                    TextButton(onClick = { longPressUrl = null }) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        )
+    }
+
+    Text(
+        text = annotatedString,
+        style = style,
+        modifier = modifier.pointerInput(annotatedString, warnBeforeOpeningAiLinks) {
+            detectTapGestures(
+                onTap = { pos ->
+                    layoutResult?.let { result ->
+                        val offset = result.getOffsetForPosition(pos)
+                        annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                            .firstOrNull()?.let { ann ->
+                                val url = ann.item
+                                if (!AiLinkUtils.isValidForOpening(url)) {
+                                    Toast.makeText(context, "Invalid link", Toast.LENGTH_SHORT).show()
+                                    return@let
+                                }
+                                // Respect settings toggle: if warn disabled, open directly
+                                if (warnBeforeOpeningAiLinks) {
+                                    pendingUrl = url
+                                } else {
+                                    // Still validate scheme before opening
+                                    if (AiLinkUtils.isAllowedScheme(url)) {
+                                        openAiLinkSafely(context, url)
+                                    } else {
+                                        Toast.makeText(context, "Blocked unsafe URL", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                    }
+                },
+                onLongPress = { pos ->
+                    layoutResult?.let { result ->
+                        val offset = result.getOffsetForPosition(pos)
+                        annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                            .firstOrNull()?.let { ann ->
+                                longPressUrl = ann.item
+                            }
+                    }
+                }
+            )
+        },
+        onTextLayout = { layoutResult = it }
+    )
 }
 
 private fun AnnotatedString.Builder.appendFormattedInline(

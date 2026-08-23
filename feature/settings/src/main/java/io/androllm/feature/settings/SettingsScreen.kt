@@ -603,6 +603,56 @@ fun SettingsScreen(
                 }
 
                 settingsAccordionItem(
+                    group = SettingsGroup.Safety,
+                    icon = Icons.Filled.Security,
+                    expanded = expandedGroup == SettingsGroup.Safety.name,
+                    onToggle = { toggleGroup(SettingsGroup.Safety) },
+                    visible = SettingsGroup.Safety.matches(searchQuery),
+                    subtitle = if (settings.warnBeforeOpeningAiLinks) "Warnings on" else "Warnings off",
+                    reduceMotion = settings.reduceMotion
+                ) {
+                    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.toggleWarnBeforeOpeningAiLinks() }
+                                    .padding(horizontal = 12.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Security,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.ledger.lampDeep,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Warn before opening AI links",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.ledger.deskPaper
+                                        )
+                                    )
+                                    Text(
+                                        text = "Show a confirmation before opening external links found by AI. Highly recommended.",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = MaterialTheme.ledger.deskInk
+                                        )
+                                    )
+                                }
+                                Switch(
+                                    checked = settings.warnBeforeOpeningAiLinks,
+                                    onCheckedChange = { viewModel.setWarnBeforeOpeningAiLinks(it) },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                settingsAccordionItem(
                     group = SettingsGroup.Developer,
                     icon = Icons.Filled.Code,
                     expanded = expandedGroup == SettingsGroup.Developer.name,

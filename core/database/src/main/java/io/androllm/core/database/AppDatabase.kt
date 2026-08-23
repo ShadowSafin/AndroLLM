@@ -114,6 +114,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE settings ADD COLUMN warn_before_opening_ai_links INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         /**
          * Returns the singleton database instance, creating it if necessary.
          */
@@ -129,7 +135,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // to AUTOMATIC (WAL on API 16+) — pin it so writes stay
                     // cheap even when readers are active (chat observer flows).
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }

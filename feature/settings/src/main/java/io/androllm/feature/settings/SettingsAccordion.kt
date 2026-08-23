@@ -72,6 +72,7 @@ enum class SettingsGroup {
     Mcp,
     CloudProviders,
     ChatAttachments,
+    Safety,
     Developer,
     About,
 }
@@ -99,6 +100,7 @@ internal val SettingsGroup.title: String
         SettingsGroup.Mcp -> "MCP Servers"
         SettingsGroup.CloudProviders -> "Cloud Providers"
         SettingsGroup.ChatAttachments -> "Chat Attachments"
+        SettingsGroup.Safety -> "Safety & Links"
         SettingsGroup.Developer -> "Developer Options"
         SettingsGroup.About -> "About"
     }
@@ -143,6 +145,9 @@ internal val SettingsGroup.keywords: List<String>
         SettingsGroup.CloudProviders -> listOf("litellm", "providers", "cloud", "gateway")
         SettingsGroup.ChatAttachments -> listOf(
             "ocr", "image", "file", "compress", "cache", "attachment"
+        )
+        SettingsGroup.Safety -> listOf(
+            "link", "links", "safety", "warning", "external link", "ai link", "open link", "http", "https", "url", "warn"
         )
         SettingsGroup.Developer -> listOf(
             "developer", "logs", "diagnostics", "export logs"

@@ -26,7 +26,9 @@ data class SettingsEntity(
     val modelPath: String? = null,
     /** Keystore-encrypted Gemini API key used by the voice assistant. */
     @ColumnInfo(name = "gemini_api_key_encrypted")
-    val geminiApiKeyEncrypted: String = ""
+    val geminiApiKeyEncrypted: String = "",
+    @ColumnInfo(name = "warn_before_opening_ai_links")
+    val warnBeforeOpeningAiLinks: Boolean = true
 )
 
 /**
@@ -39,7 +41,8 @@ fun SettingsEntity.toDomain(): AppSettings = AppSettings(
     developerMode = developerMode,
     firstLaunch = firstLaunch,
     modelPath = modelPath,
-    geminiApiKeyEncrypted = geminiApiKeyEncrypted
+    geminiApiKeyEncrypted = geminiApiKeyEncrypted,
+    warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks
 )
 
 /**
@@ -52,5 +55,6 @@ fun AppSettings.toEntity(): SettingsEntity = SettingsEntity(
     developerMode = developerMode,
     firstLaunch = firstLaunch,
     modelPath = modelPath,
-    geminiApiKeyEncrypted = geminiApiKeyEncrypted
+    geminiApiKeyEncrypted = geminiApiKeyEncrypted,
+    warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks
 )

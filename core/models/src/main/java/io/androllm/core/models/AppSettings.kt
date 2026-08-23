@@ -25,7 +25,13 @@ data class AppSettings(
      * provider — the voice assistant always talks to Gemini for STT/TTS, but
      * the chat engine still routes through the user's chosen model.
      */
-    val geminiApiKeyEncrypted: String = ""
+    val geminiApiKeyEncrypted: String = "",
+    /**
+     * Warn before opening AI-generated external links. When enabled, tapping
+     * a link in an assistant response shows a confirmation dialog that the
+     * link was found by AI and may be external. Default ON for safety.
+     */
+    val warnBeforeOpeningAiLinks: Boolean = true
 )
 
 @Serializable

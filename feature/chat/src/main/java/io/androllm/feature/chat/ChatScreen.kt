@@ -139,6 +139,8 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
+    val warnBeforeOpeningAiLinks = appSettings.warnBeforeOpeningAiLinks
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -387,6 +389,7 @@ fun ChatScreen(
                                         messageAnimations = successState?.userPreferences?.messageAnimations ?: true,
                                         selected = currentMsg.id in multiSelectIds,
                                         selectionActive = selectionActive,
+                                        warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
                                         onRegenerate = onRegenerate,
                                         onEditPrompt = onEditPrompt,
                                         onDelete = onDelete,
@@ -413,6 +416,7 @@ fun ChatScreen(
                                             cloudMode = successState?.cloudMode == true,
                                             attachmentsEnabled = successState?.attachmentsSupported == true,
                                             messageAnimations = false,
+                                            warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks,
                                             onStop = { viewModel.cancelGeneration() }
                                         )
                                     }

@@ -443,7 +443,8 @@ class SettingsViewModel @Inject constructor(
                     fontSize = prefs.fontSize,
                     chatWallpaper = prefs.chatWallpaper,
                     reduceMotion = prefs.reduceMotion,
-                    accentHex = prefs.accentColor
+                    accentHex = prefs.accentColor,
+                    warnBeforeOpeningAiLinks = settings.warnBeforeOpeningAiLinks
                 )
             }
             .onEach { _uiState.value = UiState.Success(it) }
@@ -687,6 +688,19 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun toggleWarnBeforeOpeningAiLinks() {
+        viewModelScope.launch {
+            val current = (_uiState.value as? UiState.Success)?.data?.warnBeforeOpeningAiLinks ?: true
+            settingsRepository.updateSettings { it.copy(warnBeforeOpeningAiLinks = !current) }
+        }
+    }
+
+    fun setWarnBeforeOpeningAiLinks(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateSettings { it.copy(warnBeforeOpeningAiLinks = enabled) }
+        }
+    }
+
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch { preferencesDataStore.setDynamicColor(enabled) }
     }
@@ -775,7 +789,8 @@ data class SettingsData(
     val fontSize: ChatFontSize = ChatFontSize.MEDIUM,
     val chatWallpaper: String = "",
     val reduceMotion: Boolean = false,
-    val accentHex: String = ""
+    val accentHex: String = "",
+    val warnBeforeOpeningAiLinks: Boolean = true
 )
 
 /**

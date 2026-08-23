@@ -80,6 +80,7 @@ import io.androllm.core.ui.theme.EmberRed
 import io.androllm.core.ui.theme.LampAmber
 import io.androllm.core.ui.theme.LampDeep
 import io.androllm.feature.chat.ChatMessage
+import io.androllm.feature.chat.ui.markdown.LinkAwareClickableText
 import io.androllm.feature.chat.export.ConversationSharer
 import io.androllm.feature.chat.ui.markdown.MarkdownRenderer
 import java.text.SimpleDateFormat
@@ -116,6 +117,7 @@ fun MessageCard(
     messageAnimations: Boolean = true,
     selected: Boolean = false,
     selectionActive: Boolean = false,
+    warnBeforeOpeningAiLinks: Boolean = true,
     onRegenerate: () -> Unit = {},
     onEditPrompt: () -> Unit = {},
     onDelete: () -> Unit = {},
@@ -280,11 +282,22 @@ fun MessageCard(
                                         MarkdownRenderer(
                                             markdownText = displayContent,
                                             textColor = MaterialTheme.ledger.deskPaper,
-                                            codeWrapping = codeWrapping
+                                            codeWrapping = codeWrapping,
+                                            warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks
                                         )
                                     }
                                     if (isStreaming) BlinkingCursor()
                                 }
+                            } else if (!isUser) {
+                                // Assistant with markdown disabled: still handle AI links
+                                LinkAwareClickableText(
+                                    text = if (isStreaming) displayContent else message.content,
+                                    textColor = MaterialTheme.ledger.deskPaper,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        lineHeight = 22.sp
+                                    ),
+                                    warnBeforeOpeningAiLinks = warnBeforeOpeningAiLinks
+                                )
                             } else {
                                 Text(
                                     text = if (isStreaming) displayContent else message.content,
