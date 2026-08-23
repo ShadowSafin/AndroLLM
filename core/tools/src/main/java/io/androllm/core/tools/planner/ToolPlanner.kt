@@ -249,6 +249,24 @@ class ToolPlanner @Inject constructor(
             }
 
             if (calls.isEmpty()) {
+                // Fallback: local model failed to emit valid tool syntax — try heuristic
+                // intent detection from the user's natural language (requirement 9).
+                // This makes plain-text-only models first-class citizens.
+                val heuristic = heuristicFallback(latestUser, specs)
+                if (heuristic.isNotEmpty()) {
+                    Timber.i("ToolPlanner: heuristic fallback from user intent produced ${heuristic.size} call(s): ${heuristic.map { it.name }}")
+                    logger.logSelection(heuristic.map { it.name }, "$latestUser [heuristic fallback]")
+                    // Validate heuristic calls through strict validator before returning
+                    val validatedHeuristic = heuristic.mapNotNull { call ->
+                        val v = validator.validate(call)
+                        logger.logValidation(call.name, v)
+                        if (v is ValidationResult.Valid) call else null
+                    }
+                    if (validatedHeuristic.isNotEmpty()) {
+                        logger.logValidation("fallback", ValidationResult.Valid)
+                        return validatedHeuristic
+                    }
+                }
                 // Model correctly decided no tool needed -> normal assistant response
                 return emptyList()
             }
@@ -308,7 +326,133 @@ class ToolPlanner @Inject constructor(
             // All calls valid
             return validCalls
         }
+        // Final heuristic fallback after all retries exhausted but no valid calls emerged
+        // (e.g., model never emitted valid JSON). Try once more from user intent.
+        val finalFallback = heuristicFallback(latestUser, specs)
+        if (finalFallback.isNotEmpty()) {
+            Timber.i("ToolPlanner: final heuristic fallback produced ${finalFallback.size} call(s)")
+            val validated = finalFallback.mapNotNull { call ->
+                val v = validator.validate(call)
+                logger.logValidation(call.name, v)
+                if (v is ValidationResult.Valid) call else null
+            }
+            if (validated.isNotEmpty()) return validated
+        }
         return emptyList()
+    }
+
+    /**
+     * Heuristic fallback: when the local model fails to emit structured tool syntax,
+     * infer intent directly from the user's natural language and synthesize a
+     * normalized ToolCall with heuristic argument extraction (requirement 9).
+     * The result is still validated strictly before execution.
+     */
+    private fun heuristicFallback(userMessage: String, specs: List<ToolSpec>): List<ToolCall> {
+        if (userMessage.isBlank() || specs.isEmpty()) return emptyList()
+        val lower = userMessage.lowercase()
+        val specsByName = specs.associateBy { it.name }
+        val out = mutableListOf<ToolCall>()
+
+        // Calculator: detect math expression in user request
+        if (specsByName.containsKey("calculate") && (lower.contains("calculat") || lower.contains("evaluate") || lower.contains("solve") || Regex("""\d+\s*[+\-*/x×÷^%]\s*\d+""").containsMatchIn(userMessage))) {
+            val expr = extractMathExpressionFromUser(userMessage)
+            if (!expr.isNullOrBlank()) {
+                out += ToolCall(
+                    id = "call_calculate_heuristic_0",
+                    name = "calculate",
+                    arguments = buildJsonObject { put("expression", expr) }
+                )
+                return out
+            } else {
+                // Try to extract any math-like content after the trigger phrase
+                val fallbackExpr = Regex("""([\d\.\s\+\-\*\/\(\)\^%xX×÷]+)""").find(userMessage)?.groupValues?.get(1)?.trim()?.replace(Regex("""\s+"""), "")
+                if (!fallbackExpr.isNullOrBlank() && fallbackExpr.any { it.isDigit() } && fallbackExpr.length >= 2) {
+                    val normalized = fallbackExpr.replace(Regex("""[xX×]"""), "*").replace("÷", "/")
+                    out += ToolCall(id = "call_calculate_heuristic_0", name = "calculate", arguments = buildJsonObject { put("expression", normalized) })
+                    return out
+                }
+            }
+        }
+
+        // Web search
+        if (specsByName.containsKey("search_web") && (lower.contains("search") || lower.contains("look up") || lower.contains("google"))) {
+            val q = extractSearchQueryFromUser(userMessage)
+            if (!q.isNullOrBlank()) {
+                out += ToolCall(id = "call_search_web_heuristic_0", name = "search_web", arguments = buildJsonObject { put("query", q) })
+                return out
+            }
+        }
+
+        // Weather
+        if (specsByName.containsKey("get_weather") && (lower.contains("weather") || lower.contains("forecast"))) {
+            val loc = extractWeatherLocationFromUser(userMessage)
+            out += ToolCall(id = "call_get_weather_heuristic_0", name = "get_weather", arguments = buildJsonObject { put("location", loc ?: "Current") })
+            return out
+        }
+
+        // General keyword fallback: pick the highest-confidence routed tool and emit a minimal call
+        // This covers sms, phone, calendar, contacts, location, etc. — validation will request missing args
+        val best = specs.maxByOrNull { spec ->
+            val haystack = (spec.name + " " + spec.description + " " + spec.supportedTasks.joinToString(" ")).lowercase()
+            var hits = 0
+            for (tok in userMessage.lowercase().split(Regex("""\s+"""))) {
+                if (tok.length >= 3 && tok in haystack) hits++
+            }
+            hits
+        }
+        if (best != null) {
+            val hasSignal = best.supportedTasks.any { it.lowercase() in lower } || lower.contains(best.name) || lower.contains(best.name.replace("_", " "))
+            if (hasSignal) {
+                out += ToolCall(id = "call_${best.name}_heuristic_0", name = best.name, arguments = buildJsonObject { })
+                return out
+            }
+        }
+
+        return out
+    }
+
+    private fun extractMathExpressionFromUser(text: String): String? {
+        val afterKeyword = Regex("""(?:evaluate|calculate|computed?|solve|what\s+is|is)\s*[:\-]?\s*([0-9][0-9\s\.\+\-\*\/\(\)\^%xX×÷]*[0-9\)])""", RegexOption.IGNORE_CASE).find(text)
+        if (afterKeyword != null) {
+            var expr = afterKeyword.groupValues[1].trim().trimEnd('.', ',', '!', '?')
+            expr = expr.replace(Regex("""[xX×]"""), "*").replace("÷", "/").replace(Regex("""\s+"""), "")
+            if (expr.isNotBlank() && expr.any { it.isDigit() }) return expr
+        }
+        val m = Regex("""(\d[\d\s\.\+\-\*\/\(\)\^%]*\d)""").find(text)
+        if (m != null) {
+            var expr = m.groupValues[1].trim().replace(Regex("""\s+"""), "")
+            expr = expr.replace(Regex("""[xX×]"""), "*").replace("÷", "/")
+            if (expr.length >= 1) return expr
+        }
+        return null
+    }
+
+    private fun extractSearchQueryFromUser(text: String): String? {
+        val patterns = listOf(
+            Regex("""search\s+for\s+(.+?)(?:\.|$|and|then)""", RegexOption.IGNORE_CASE),
+            Regex("""look\s+up\s+(.+?)(?:\.|$|and|then)""", RegexOption.IGNORE_CASE),
+            Regex("""google\s+(.+?)(?:\.|$|and|then)""", RegexOption.IGNORE_CASE),
+            Regex("""search\s+(.+?)(?:\.|$|and|then)""", RegexOption.IGNORE_CASE)
+        )
+        for (pat in patterns) {
+            val mm = pat.find(text)
+            if (mm != null) {
+                var q = mm.groupValues[1].trim().trimEnd('.', ',', '!', '?', '"', '\'').trim()
+                q = q.replace(Regex("""^["']|["']$"""), "").trim()
+                if (q.length >= 2) return q
+            }
+        }
+        return null
+    }
+
+    private fun extractWeatherLocationFromUser(text: String): String? {
+        val pat = Regex("""weather\s+(?:in|for|at)\s+([A-Za-z][A-Za-z\s\-]+)""", RegexOption.IGNORE_CASE).find(text)
+        if (pat != null) {
+            var loc = pat.groupValues[1].trim().trimEnd('.', ',', '!', '?')
+            loc = loc.split(Regex("""\b(and|then|today|tomorrow)\b""", RegexOption.IGNORE_CASE))[0].trim()
+            if (loc.length in 2..40) return loc
+        }
+        return null
     }
 
     /**
@@ -453,35 +597,55 @@ object ToolPrompts {
      * instead of asking the user — re-injected on every planning round so
      * multi-step tasks can branch on previous tool outputs.
      */
+    /**
+     * Dedicated local-model tool-calling instruction template (requirement 8).
+     * Tells the local model exactly how/when to request tools, the JSON format,
+     * and forbids leaking raw tool syntax to the user.
+     */
+    const val LOCAL_TOOL_INSTRUCTION_HEADER = """
+You are the tool planner of an on-device AI assistant. Your ONLY job is to decide which tools to call for the user's LATEST request.
+
+HOW TO REQUEST TOOLS:
+- If the request needs a device action, network lookup, or communication (search, weather, calculator, opening apps, messaging, calendar, contacts, files, etc.), you MUST request the matching tool via JSON.
+- If the request is small talk, creative writing, or can be answered from your own knowledge (explain a concept, write a poem, summarize without tools), output {"calls": []} — no tool.
+
+WHEN TO REQUEST TOOLS:
+- Only when the tool matches the user's intent and the required arguments are present in the conversation, the context block, or previous tool results.
+- Never invent argument values. If a required argument is missing, omit the call (return {"calls": []}) and the assistant will ask the user for the missing info.
+
+HOW TO FORMAT TOOL INTENTS (JSON ONLY):
+- Output EXACTLY one JSON object: {"calls": [{"name": "tool_name", "arguments": { ... }}]}
+- Use EXACTLY the tool names and argument names listed under AVAILABLE TOOLS.
+- CORRECT examples:
+  {"calls": [{"name": "calculate", "arguments": {"expression": "2+2"}}]}
+  {"calls": [{"name": "search_web", "arguments": {"query": "android ai"}}]}
+  {"calls": [{"name": "get_weather", "arguments": {"location": "Delhi"}}]}
+  {"calls": []}
+- INCORRECT — NEVER output these (they will be rejected and stripped):
+  <tool_call>{"name":"web_search",...}</tool_call>
+  {"tool":"calculator","args":{"expression":"2+2"}}
+  Use the calculator to evaluate 2+2.
+  Any XML tags, markdown, prose, or <tool_call> markup.
+
+CRITICAL SAFETY:
+- NEVER leak raw tool syntax, JSON blobs, XML tags, or internal reasoning to the user. The UI strips them and the user must see ONLY your final natural-language answer.
+- NEVER answer with tool markup unless the system explicitly expects JSON (this planner turn). For normal answer turns, output plain text only.
+- If you are the planner, output ONLY the JSON object — no prose, no markdown, no explanation, no tool_call tags.
+"""
+
     fun system(specs: List<ToolSpec>, contextBlock: String = "", maxChars: Int = 0): String {
         val sb = StringBuilder()
+        sb.append(LOCAL_TOOL_INSTRUCTION_HEADER.trimIndent())
+        sb.append("\n\nRules:\n")
         sb.append(
             """
-            You are the tool planner of an on-device AI assistant. The user's request
-            may need one or more device or network actions. Decide which tools to call
-            and with which arguments, then output ONLY a JSON object:
-            {"calls": [{"name": "tool_name", "arguments": { ... }}]}
-            Rules:
-            - Output {"calls": []} when no tool is needed (small talk, questions that
-              the assistant can answer from its own knowledge, requests to write text,
-              summarize, translate, explain, or review code).
+            - Output {"calls": []} when no tool is needed (small talk, questions that the assistant can answer from its own knowledge, requests to write text, summarize, translate, explain, or review code).
             - Use exactly the tool names and argument names listed below.
-            - Supply only arguments that appear in the conversation, the context
-              below, or the results of tools you already ran; never invent values.
-              If a required argument is missing, omit the call.
-            - Prefer dedicated tools (send_sms, set_alarm, get_weather, maps,
-              launcher) over ui_* UI-automation tools whenever one exists.
-              Use ui_run / ui_click / ui_type only for apps that have NO
-              native tool (e.g. WhatsApp, Uber, YouTube).
+            - Supply only arguments that appear in the conversation, the context below, or the results of tools you already ran; never invent values. If a required argument is missing, omit the call.
+            - Prefer dedicated tools (send_sms, set_alarm, get_weather, maps, launcher) over ui_* UI-automation tools whenever one exists. Use ui_run / ui_click / ui_type only for apps that have NO native tool (e.g. WhatsApp, Uber, YouTube).
             - For "find the nearest X" or navigation requests, prefer the maps tools.
-            - You may emit MULTIPLE calls when a task needs several steps. Emit them
-              in execution order — the results of earlier calls are available to
-              later calls in the NEXT round via variable_get and the context block.
-            - Conditional workflows: after running a tool, branch on its result in
-              the next round (IF/ELSE). For lists, iterate item by item (FOR EACH)
-              using variable_set to remember the current index; stop when done
-              (WHILE) — never emit more than a few iterations per round.
-            - Respond with the JSON object only — no prose, no markdown.
+            - You may emit MULTIPLE calls when a task needs several steps. Emit them in execution order — the results of earlier calls are available to later calls in the NEXT round via variable_get and the context block.
+            - Conditional workflows: after running a tool, branch on its result in the next round (IF/ELSE). For lists, iterate item by item (FOR EACH) using variable_set to remember the current index; stop when done (WHILE) — never emit more than a few iterations per round.
             """.trimIndent()
         )
         if (contextBlock.isNotBlank()) {

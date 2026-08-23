@@ -75,6 +75,17 @@ enum class ToolCategory(val displayName: String) {
 }
 
 /**
+ * Backend where a tool can run. Local = on-device LiteRT/utility code,
+ * Cloud = via LiteLLM gateway / provider. Most tools are local; some
+ * (e.g. Github, large web search) are cloud-agnostic but still work
+ * locally via network.
+ */
+enum class ToolBackend {
+    LOCAL,
+    CLOUD
+}
+
+/**
  * Static, discoverable description of a tool. Everything the planner needs to
  * know about a tool lives here (plus [Tool.execute]): the LLM sees only
  * [name], [description] and [parameters], never the implementation.
@@ -114,5 +125,32 @@ data class ToolSpec(
      * a regenerated answer re-running a web search). Never true for tools
      * that send, write, or change device state.
      */
-    val cacheable: Boolean = false
-)
+    val cacheable: Boolean = false,
+    /**
+     * Backends where this tool is supported. Requirement 4: supported backends
+     * + availability + local/cloud-only. Default: local + cloud (both).
+     * Tools that are cloud-only (e.g. some LLM-dependent transforms) can set
+     * setOf(CLOUD); device-only tools set setOf(LOCAL).
+     */
+    val supportedBackends: Set<ToolBackend> = setOf(ToolBackend.LOCAL, ToolBackend.CLOUD),
+    /**
+     * Whether the tool is currently available on this device (e.g. hardware
+     * sensor present, permission declared). Evaluated at registration time;
+     * unavailable tools are still registered but filtered from the planner
+     * when [availableOnDevice] is false.
+     */
+    val availableOnDevice: Boolean = true,
+    /**
+     * Whether this tool can run with a local LiteRT model as first-class
+     * citizen (prompt-based emulation). False = cloud-only tool.
+     */
+    val worksLocally: Boolean = true,
+    /** True when the tool is cloud-only (never runs locally). */
+    val isCloudOnly: Boolean = false
+) {
+    /** Convenience: does this tool support the given backend? */
+    fun supports(backend: ToolBackend): Boolean = backend in supportedBackends
+
+    /** Availability check for the planner: must be enabled and available on device. */
+    val isAvailable: Boolean get() = availableOnDevice
+}

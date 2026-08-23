@@ -1,6 +1,7 @@
 package io.androllm.core.tools.tool.impl
 
 import io.androllm.core.tools.api.Tool
+import io.androllm.core.tools.api.ToolBackend
 import io.androllm.core.tools.api.ToolCategory
 import io.androllm.core.tools.api.ToolPermission
 import io.androllm.core.tools.api.ToolResult
@@ -34,7 +35,11 @@ class NotificationTool @Inject constructor() : Tool {
             }
         },
         permission = ToolPermission.NOTIFICATIONS,
-        category = ToolCategory.INFORMATION
+        category = ToolCategory.INFORMATION,
+        requiresConfirmation = true,
+        supportedBackends = setOf(ToolBackend.LOCAL, ToolBackend.CLOUD),
+        availableOnDevice = true,
+        worksLocally = true
     )
 
     override suspend fun execute(arguments: JsonObject): ToolResult {

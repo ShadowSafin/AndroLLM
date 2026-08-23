@@ -66,14 +66,69 @@ class ToolRegistry @Inject constructor() {
         return tools.remove(name)
     }
 
+    // Alias normalization for provider/model synonyms (requirement 3 & 4)
+    // Maps common model outputs to canonical registry names.
+    private val aliasMap = mapOf(
+        "calculator" to "calculate",
+        "calc" to "calculate",
+        "web_search" to "search_web",
+        "websearch" to "search_web",
+        "search" to "search_web",
+        "device_info" to "get_device_info",
+        "deviceinfo" to "get_device_info",
+        "location" to "get_location",
+        "current_location" to "get_location",
+        "my_location" to "get_location",
+        "translation" to "open_translation",
+        "translate" to "open_translation",
+        "notifications" to "read_notifications",
+        "notification" to "read_notifications",
+        "contacts" to "find_contacts",
+        "contact" to "find_contacts",
+        "phone_call" to "make_call",
+        "call" to "make_call",
+        "phone" to "make_call",
+        "dial" to "make_call",
+        "sms" to "send_sms",
+        "text_message" to "send_sms",
+        "voice_recorder" to "record_voice",
+        "voice_record" to "record_voice",
+        "recorder" to "record_voice",
+        "weather" to "get_weather",
+        "battery" to "get_battery"
+    )
+
+    private fun canonicalName(name: String): String {
+        val lower = name.trim().lowercase()
+        return aliasMap[lower] ?: lower
+    }
+
     fun get(name: String): Tool? {
         if (name.isBlank()) return null
-        return tools[name]
+        val trimmed = name.trim()
+        tools[trimmed]?.let { return it }
+        // Try canonical alias
+        val canonical = canonicalName(trimmed)
+        if (canonical != trimmed) {
+            tools[canonical]?.let { return it }
+        }
+        // Try lowercase direct
+        val lower = trimmed.lowercase()
+        tools[lower]?.let { return it }
+        if (canonical != lower) {
+            tools[canonical]?.let { return it }
+        }
+        return null
     }
 
     fun contains(name: String): Boolean {
         if (name.isBlank()) return false
-        return tools.containsKey(name)
+        if (tools.containsKey(name.trim())) return true
+        val canonical = canonicalName(name.trim())
+        if (tools.containsKey(canonical)) return true
+        val lower = name.trim().lowercase()
+        if (tools.containsKey(lower)) return true
+        return tools.containsKey(canonicalName(lower))
     }
 
     /** All registered tools (order is registration order). */

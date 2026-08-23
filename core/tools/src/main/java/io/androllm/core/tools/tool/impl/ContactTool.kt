@@ -5,6 +5,7 @@ import android.content.Context
 import android.provider.ContactsContract
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.androllm.core.tools.api.Tool
+import io.androllm.core.tools.api.ToolBackend
 import io.androllm.core.tools.api.ToolCategory
 import io.androllm.core.tools.api.ToolPermission
 import io.androllm.core.tools.api.ToolResult
@@ -42,7 +43,11 @@ class ContactTool @Inject constructor(
             putJsonArray("required") { add("name") }
         },
         permission = ToolPermission.CONTACTS,
-        category = ToolCategory.COMMUNICATION
+        category = ToolCategory.COMMUNICATION,
+        requiresConfirmation = true,
+        supportedBackends = setOf(ToolBackend.LOCAL, ToolBackend.CLOUD),
+        availableOnDevice = true,
+        worksLocally = true
     )
 
     override suspend fun execute(arguments: JsonObject): ToolResult {
