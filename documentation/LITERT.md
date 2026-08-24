@@ -25,7 +25,10 @@ All resolved from **Google Maven** — no NDK/CMake required.
 | `ConversationConfig` | Context length, warmup settings |
 | `SamplerConfig` | temperature, top-k, top-p, random seed (ULong) |
 | `ExperimentalFlags` | `overwritePromptTemplate` — force the family template |
-| `EngineConfig` | Backend selection (`GPU` default / `CPU`) |
+| `EngineConfig` | Backend selection (`GPU` default / `CPU` / `NPU`) |
+| `Backend.NPU(nativeLibraryDir)` | NPU delegate via vendor dispatch libraries |
+| `Backend.GOOGLE_TENSOR()` | Google Tensor NPU backend |
+| `BenchmarkInfo` | Prefill/decode token counts, tokens/sec, time-to-first-token |
 
 ## Key LiteRT (raw) API Surface
 
@@ -44,7 +47,7 @@ All resolved from **Google Maven** — no NDK/CMake required.
 | Embedding engine | `engine/.../embedding/LiteRtEmbeddingEngine.kt` |
 | Family compat | `engine/.../compat/` |
 | Hilt bindings | `engine/.../di/EngineModule.kt` |
-| Diagnostics | `engine/.../diagnostics/RuntimeLogger.kt` (logcat tag `AndroLLM-Engine`) |
+| Diagnostics | `engine/.../diagnostics/RuntimeLogger.kt`, `EnginePerformanceMonitor.kt`, `EngineCrashGuard.kt`, `EngineDiagnostics.kt` (logcat tag `AndroLLM-Engine`) |
 
 ---
 

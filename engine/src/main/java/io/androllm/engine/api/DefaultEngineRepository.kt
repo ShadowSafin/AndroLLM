@@ -389,14 +389,9 @@ class DefaultEngineRepository @Inject constructor(
         android.util.Log.i(TAG, "Generation started: promptLen=${prompt.length} maxTokens=${config.maxTokens}")
 
         // PERFORMANCE: append into a StringBuilder instead of `fullText += delta`.
-        // Per-token String concatenation copies the ENTIRE accumulated response
-        // on every token (O(n²) total garbage) — the GC spike lands right after
-        // the generation ends and can freeze the UI for seconds.
-        val fullTextBuilder = StringBuilder()
-        // Live display buffer: includes reasoning (thinking) deltas so the UI
-        // streams progress immediately; the final assistant message uses only
-        // [fullTextBuilder] (decoded answer text, never thinking).
-        val displayBuilder = StringBuilder()
+        // Pre-size to reduce internal array resizing during streaming.
+        val fullTextBuilder = StringBuilder(2048)
+        val displayBuilder = StringBuilder(2048)
         var lastEmitTime = 0L
         var tokenCount = 0L
         // Stall detection: a decode that produces no token (hung GPU fence, dead
@@ -578,12 +573,9 @@ android.util.Log.e(TAG, "Generation failed: ${e.message}", e)
 
         // PERFORMANCE: StringBuilder append instead of `fullText += delta` (see
         // [generate]) to avoid the O(n²) String-copy garbage spike after the
-        // generation finishes.
-        val fullTextBuilder = StringBuilder()
-        // Live display buffer — includes thinking deltas so the UI never looks
-        // frozen; [fullTextBuilder] keeps only decoded answer text and is what
-        // gets persisted as the assistant message (see [StreamChunk.isThinking]).
-        val displayBuilder = StringBuilder()
+        // generation finishes. Pre-size to reduce resizing during streaming.
+        val fullTextBuilder = StringBuilder(2048)
+        val displayBuilder = StringBuilder(2048)
         var lastEmitTime = 0L
         var tokenCount = 0L
         // Same stall detection as [generate]: no first token within

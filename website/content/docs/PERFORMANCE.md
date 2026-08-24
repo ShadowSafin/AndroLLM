@@ -97,21 +97,46 @@ Automatic fallback to CPU (XNNPACK) happens when:
 3. GPU memory is insufficient for the model
 4. A GPU session error occurs and recovery fails
 
-Fallback is seamless — the session continues on CPU without user action.
+Fallback is seamless — the session continues on the next backend without user action.
 
-### Monitoring GPU Memory
+### NPU Acceleration
+
+The engine supports NPU inference on supported devices (Qualcomm Hexagon,
+MediaTek NeuroPilot, Google Tensor). NPU is preferred over GPU when available.
+
+### Performance Profiles
+
+Device-class-specific presets optimize thread count, batch size, context
+length, and streaming rate for each device class:
+
+| Profile | Threads | Batch | Context | Streaming |
+|---|---|---|---|---|
+| LOW_END | 2 | 512 | 2048 | 32ms |
+| MID_RANGE | 3 | 1024 | 4096 | 16ms |
+| FLAGSHIP | 4 | 2048 | 8192 | 16ms |
+
+### Interpreter Warmup
+
+After model load, a short background prompt primes the interpreter so the
+first real prompt arrives faster.
+
+### Monitoring Acceleration
 
 Check the Developer screen → Hardware Info for:
-- `gpuFree`: Available GPU memory
-- `gpuTotal`: Total GPU memory
-- `recoveryCount`: Number of GPU→CPU fallback/recovery events
-- `backend`: Current backend type (`GPU` or `CPU`)
+- `backend`: Current backend type (`NPU` / `GPU` / `CPU`)
+- `vendor`: Accelerator vendor (Qualcomm, ARM, etc.)
+- `accelerator`: Accelerator block (Adreno, Mali, Hexagon HTP)
+- `gpuFree` / `gpuTotal`: GPU memory (when on GPU)
+- `recoveryCount`: Corruption-recovery cycles
 
 ### Recovery
 
 The engine tracks corruption recovery in `MemoryStats`. A rising
 `recoveryCount` with low `gpuFree` usually means the GPU cannot fit the working
 set — close other GPU-heavy apps or use a smaller model.
+
+`EngineCrashGuard` auto-disables backends after 3 consecutive failures and
+falls back to the next backend in the chain.
 
 `BackendType` legacy values (`QUALCOMM_QNN`, `LLAMA_CPP_VULKAN`, `ONNX_RUNTIME`,
 `VULKAN`) are compat-only — never produced, kept for persisted-state

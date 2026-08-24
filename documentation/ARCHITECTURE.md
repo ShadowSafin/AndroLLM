@@ -327,14 +327,34 @@ NPU (QNN) is the next planned backend — not yet implemented.
 - `SentencePieceTokenizer` — Gemma 3 unigram tokenizer (262k vocab) for
   token-id conversion before embedding
 
+### Backend Selection (`engine/backend`)
+
+- `BackendSelector` — determines ordered fallback chain (NPU → GPU → CPU) from
+  probe results and model compatibility flags
+- `HardwareBackendProbe` — startup hardware probe detecting SoC vendor, GPU
+  identity, NPU availability, and vendor dispatch libraries
+- `InferenceBackend` — sealed class with NPU/GPU/CPU backends, each building
+  the native LiteRT-LM `Backend`
+- `NpuVendor` — vendor detection (Qualcomm, MediaTek, Google Tensor)
+- `PerformanceProfiles` — device-class-specific presets (LOW_END, MID_RANGE,
+  FLAGSHIP, GPU/NPU/CPU_OPTIMIZED)
+
 ### Diagnostics (`engine/diagnostics`)
 
-- `RuntimeLogger` — tag-scoped logger under the stable `AndroLLM-Engine` logcat tag
+- `RuntimeLogger` — tag-scoped logger with rate-limited warnings and
+  conditional verbose/debug logging
+- `EnginePerformanceMonitor` — lock-free pipeline-stage profiler (model init,
+  container read, conversation create, first-token latency, warmup)
+- `EngineCrashGuard` — crash recording, backend auto-disable after 3
+  failures, crash telemetry ring buffer
+- `EngineDiagnostics` + `EngineDiagnosticsCollector` — aggregated diagnostics
+  model for the developer panel
 
 ### Utils (`engine/utils`)
 
 - `MemoryEstimator` — predicts RAM requirements from model metadata
-- `ThreadManager` — thread-count recommendation and background-priority scoping
+- `ThreadManager` — device-class-adaptive threading with cached hardware info
+  (5-tier classification: low→high)
 - `CoherenceChecker` — post-load self-test probe (temperature-0) detecting
   tokenizer/weight corruption
 - `LiteRtValidator` — pre-load validation of `.litertlm` containers

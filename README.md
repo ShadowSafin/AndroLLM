@@ -100,7 +100,11 @@ Hardware-accelerated inference on supported devices via the OpenCL-based LiteRT 
 - GPU backend: OpenCL-based LiteRT GPU delegate
 - Automatic GPU → CPU fallback with corruption recovery (NaN/INF logits, device-lost)
 - Real-time diagnostics: `gpuFree`, `gpuTotal`, `recoveryCount`, active backend
-- NPU acceleration available on supported devices
+- NPU acceleration available on supported devices (Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor)
+- Interpreter warmup after model load for faster first-token latency
+- Device-class-adaptive threading (5-tier: low→high)
+- Performance profiles for different device classes
+- Crash hardening with backend auto-disable and crash telemetry
 
 </td>
 </tr>

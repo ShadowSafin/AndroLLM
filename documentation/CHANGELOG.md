@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Engine performance optimization pass**: pre-sized StringBuilders, pre-compiled regex for control-token stripping, metadata caching, conditional verbose logging
+- **Interpreter warmup**: short background prompt after model load primes the interpreter so the first real prompt arrives faster
+- **Device-class-adaptive threading**: 5-tier device classification (low→high) tuning thread count, context length, batch size, and memory budget
+- **Performance profiles**: LOW_END, MID_RANGE, FLAGSHIP, GPU/NPU/CPU_OPTIMIZED presets for maximum throughput per device class
+- **Crash hardening**: `EngineCrashGuard` with crash recording, backend auto-disable after 3 failures, crash telemetry ring buffer
+- **Pipeline profiling**: `EnginePerformanceMonitor` tracks model init, container read, conversation creation, first-token latency
+- **Diagnostics model**: `EngineDiagnostics` + `EngineDiagnosticsCollector` aggregate performance, memory, backend, and crash telemetry
+- **NPU backend support**: `InferenceBackend.NpuBackend` with vendor dispatch (Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor)
+- **Backend auto-disable**: `EngineCrashGuard` tracks per-backend failures and skips backends that fail 3 consecutive times
+- **Safe cancellation**: atomic reference capture in cancel path prevents race conditions between cancel and concurrent generation
+- **Container metadata caching**: LRU cache (max 4 entries) in `ContainerMetadataReader` avoids re-parsing headers on backend switches
+- **Rate-limited logging**: `RuntimeLogger.wRateLimited()` throttles repeated warnings; conditional verbose/debug logging via `Log.isLoggable`
+- **Adaptive context sizing**: `ContextManager` resolves context length based on device class (2048–8192)
+- **Cached hardware info**: `ThreadManager` caches core count, device tier, and RAM after first computation
+- **Memory stats optimization**: cached `ActivityManager` and PID array avoid `getSystemService()` every second
+- **Crash safety tests**: 25 new tests for `OutputSanitizer` and `EngineCrashGuard`
 - Modular multi-module Gradle project with 33 modules
 - Jetpack Compose Material 3 UI with "Parchment Ledger" design system
 - **LiteRT-LM engine migration**: full on-device inference via Google's

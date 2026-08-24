@@ -33,6 +33,8 @@ import io.androllm.engine.compat.ModelFamilyRegistry
 import io.androllm.engine.compat.OutputDecoder
 import io.androllm.engine.compat.StopSequenceTracker
 import io.androllm.engine.compat.TokenizerFiles
+import io.androllm.engine.diagnostics.EngineCrashGuard
+import io.androllm.engine.diagnostics.EnginePerformanceMonitor
 import io.androllm.engine.diagnostics.RuntimeLogger
 import io.androllm.engine.models.BackendType
 import io.androllm.engine.models.BenchmarkResult
@@ -210,23 +212,28 @@ class LiteRtLmEngine @Inject constructor(
         // global initialization is required. The startup HARDWARE PROBE runs
         // here — once, cheaply, best-effort — and drives every later backend
         // decision (automatic selection + adaptive settings UI).
-        val probe = HardwareBackendProbe.probe(context)
-        _backendCapabilities.value = probe
-        val best = BackendSelector.bestAvailable(probe)
-        _capabilities = _capabilities.copy(
-            version = LITERTLM_VERSION,
-            supportsGpuAcceleration = true,
-            supportsNpuAcceleration = probe.npuUsable,
-            backend = best,
-            backendCapabilities = probe.copy(selectedBackend = best)
-        )
-        logger.i(
-            "LiteRT-LM engine ready (runtime $LITERTLM_VERSION): " +
-                "SoC-NPU=${if (probe.npuAvailable) "present" else "absent"} " +
-                "NPU-usable=${probe.npuUsable} vendor=${probe.npuVendor ?: "—"} " +
-                "GPU=${probe.gpuName ?: "—"} NNAPI=${probe.nnApiAvailable} " +
-                "best=${best.name}"
-        )
+        try {
+            val probe = HardwareBackendProbe.probe(context)
+            _backendCapabilities.value = probe
+            val best = BackendSelector.bestAvailable(probe)
+            _capabilities = _capabilities.copy(
+                version = LITERTLM_VERSION,
+                supportsGpuAcceleration = true,
+                supportsNpuAcceleration = probe.npuUsable,
+                backend = best,
+                backendCapabilities = probe.copy(selectedBackend = best)
+            )
+            logger.i(
+                "LiteRT-LM engine ready (runtime $LITERTLM_VERSION): " +
+                    "SoC-NPU=${if (probe.npuAvailable) "present" else "absent"} " +
+                    "NPU-usable=${probe.npuUsable} vendor=${probe.npuVendor ?: "—"} " +
+                    "GPU=${probe.gpuName ?: "—"} NNAPI=${probe.nnApiAvailable} " +
+                    "best=${best.name}"
+            )
+        } catch (e: Throwable) {
+            EngineCrashGuard.recordCrash("initialize", "", e)
+            throw e
+        }
     }
 
     override fun isLoaded(): Boolean = engine != null && loadedModel != null
@@ -270,7 +277,7 @@ class LiteRtLmEngine @Inject constructor(
             // Read LiteRT-LM's own container metadata before the Engine is
             // built. max_num_tokens is the model's authoritative context
             // contract; catalog/default settings must never overwrite it.
-            val container = runCatching { ContainerMetadataReader.read(file) }
+            val container = runCatching { EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.CONTAINER_READ) { ContainerMetadataReader.read(file) } }
                 .onFailure { e ->
                     logger.w("LiteRT-LM container metadata unreadable (${e.message}) — relying on runtime probing")
                 }
@@ -298,14 +305,16 @@ class LiteRtLmEngine @Inject constructor(
 
             val (selectedBackend, initMs) = withContext(Dispatchers.Default) {
                 ThreadManager.withBackgroundInferencePriority {
-                    createEngineWithFallback(
-                        path = path,
-                        cacheDir = cacheDir,
-                        candidates = candidates,
-                        threads = config.threads,
-                        npuLibDir = npuLibDir,
-                        maxNumTokens = metadataMaxContext
-                    )
+                    EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.MODEL_INIT) {
+                        createEngineWithFallback(
+                            path = path,
+                            cacheDir = cacheDir,
+                            candidates = candidates,
+                            threads = config.threads,
+                            npuLibDir = npuLibDir,
+                            maxNumTokens = metadataMaxContext
+                        )
+                    }
                 }
             }
 
@@ -442,6 +451,30 @@ class LiteRtLmEngine @Inject constructor(
                 "LiteRT-LM model loaded: ${model.name} backend=${selectedBackend.displayName} " +
                     "delegate=${selectedBackend.delegate} init=${initMs}ms"
             )
+            // PERFORMANCE: background warmup — run a short prompt to prime
+            // the interpreter (JIT compile graphs, allocate compute buffers,
+            // warm the KV cache). This does NOT delay the Ready state; the
+            // first real prompt arrives faster because the interpreter is
+            // already hot.
+            scope.launch(Dispatchers.Default) {
+                val eng = engine ?: return@launch
+                EngineCrashGuard.guardOrNull("warmup") {
+                    EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.WARMUP) {
+                        val conv = createConversationWithFamilyFlags(
+                            eng, conversationConfigForSampler(GenerationConfig())
+                        )
+                        try {
+                            conv.sendMessage(
+                                Message.user("Hi"),
+                                maxOutputToken = 1
+                            )
+                        } finally {
+                            runCatching { conv.close() }
+                        }
+                    }
+                    logger.d("Interpreter warmup complete")
+                }
+            }
             loadedModel!!
             } catch (e: Exception) {
                 // A load failure must NEVER leave the engine in Loading or leak
@@ -495,8 +528,15 @@ class LiteRtLmEngine @Inject constructor(
         conversation = null
         engine?.let { runCatching { it.close() } }
         engine = null
+        // Evict cached container metadata for the unloaded model to prevent
+        // stale metadata from being reused if a different model is loaded.
+        loadedFilePath?.let { path ->
+            runCatching { ContainerMetadataReader.evictCache(java.io.File(path)) }
+        }
         loadedModel = null
         loadedFilePath = null
+        familyConfig = null
+        outputDecoder = null
         generationActive.set(false)
         _memoryStats.value = null
         _engineState.value = EngineState.Unloaded
@@ -567,8 +607,10 @@ class LiteRtLmEngine @Inject constructor(
             val holdback = tracker.holdbackLength
             val stopDetected = AtomicBoolean(false)
             val completed = AtomicBoolean(false)
-            val rawTextBuilder = StringBuilder()
-            val emittedBuilder = StringBuilder()
+            // PERFORMANCE: pre-size builders to typical response length (~2KB)
+            // to avoid repeated internal array resizing on every token.
+            val rawTextBuilder = StringBuilder(2048)
+            val emittedBuilder = StringBuilder(2048)
 
             fun emitDelta(text: String) {
                 val delta = text.removePrefix(emittedBuilder.toString())
@@ -607,7 +649,13 @@ class LiteRtLmEngine @Inject constructor(
                     rawTextBuilder.append(text)
                     if (firstTokenSeenAt.get() == 0L) {
                         firstTokenSeenAt.set(System.currentTimeMillis())
-                        logger.i("first token after ${firstTokenSeenAt.get() - startedAt}ms: '${stripControlTokens(text).take(60)}'")
+                        val firstTokenMs = firstTokenSeenAt.get() - startedAt
+                        EnginePerformanceMonitor.recordTiming(
+                            EnginePerformanceMonitor.Stages.FIRST_TOKEN,
+                            firstTokenMs * 1_000_000L,
+                            mapOf("promptLength" to prompt.length.toString())
+                        )
+                        logger.i("first token after ${firstTokenMs}ms: '${stripControlTokens(text).take(60)}'")
                     }
                     tokenCount++
                     if (tracker.feed(text) != null) {
@@ -658,6 +706,8 @@ class LiteRtLmEngine @Inject constructor(
                         finishCleanly("stop_sequence")
                         return
                     }
+                    // Record the crash for diagnostics (non-critical).
+                    EngineCrashGuard.recordCrash("token_stream", "", error)
                     trySend(Result.Error(EngineException(error.message ?: "Generation failed", error)))
                     close()
                 }
@@ -857,11 +907,9 @@ class LiteRtLmEngine @Inject constructor(
         }
         val startedAt = System.currentTimeMillis()
         val firstTokenSeenAt = AtomicLong(0L)
-        val cleanTextBuilder = StringBuilder()
-        // Raw (pre-strip) stream accumulation: the native tool-call markers
-        // are stripped from the display text but must be parsed at completion
-        // — scan this buffer, never the cleaned transcript.
-        val rawTextBuilder = StringBuilder()
+        // PERFORMANCE: pre-size builders to reduce resizing during streaming.
+        val cleanTextBuilder = StringBuilder(2048)
+        val rawTextBuilder = StringBuilder(2048)
         var tokenCount = 0L
         outputDecoder?.reset()
 
@@ -1131,7 +1179,9 @@ class LiteRtLmEngine @Inject constructor(
             ExperimentalFlags.overwritePromptTemplate = fam.chatTemplate
             ExperimentalFlags.filterChannelContentFromKvCache = fam.thinkingChannel != null
         }
-        return eng.createConversation(config)
+        return EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.CONVERSATION_CREATE) {
+            eng.createConversation(config)
+        }
     }
 
     /**
@@ -1382,6 +1432,11 @@ class LiteRtLmEngine @Inject constructor(
         var attempted = 0
         for (candidate in candidates) {
             attempted++
+            // Skip backends that have failed too many consecutive times.
+            if (EngineCrashGuard.isBackendDisabled(candidate.displayName)) {
+                logger.w("Backend ${candidate.displayName} disabled after consecutive failures — skipping")
+                continue
+            }
             var newEngine: Engine? = null
             val startedAt = System.currentTimeMillis()
             try {
@@ -1390,9 +1445,6 @@ class LiteRtLmEngine @Inject constructor(
                         modelPath = path,
                         backend = candidate.toLiteRtBackend(threads, npuLibDir),
                         cacheDir = cacheDir,
-                        // Configure LiteRT with its own declared maximum.
-                        // Passing null lets the runtime use the container for
-                        // legacy artifacts whose metadata cannot be read.
                         maxNumTokens = maxNumTokens
                     )
                 )
@@ -1400,6 +1452,8 @@ class LiteRtLmEngine @Inject constructor(
                 engine?.let { old -> runCatching { old.close() } }
                 engine = newEngine
                 val initMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                // Record success so the backend is not disabled after a single failure.
+                EngineCrashGuard.recordSuccess(candidate.displayName)
                 if (attempted > 1) {
                     logger.w("LiteRT-LM backend fallback: running on ${candidate.displayName} after $attempted attempt(s)")
                 }
@@ -1407,6 +1461,7 @@ class LiteRtLmEngine @Inject constructor(
             } catch (e: Throwable) {
                 lastError = e
                 runCatching { newEngine?.close() }
+                EngineCrashGuard.recordCrash("backend_init", candidate.displayName, e)
                 logger.w(
                     "Backend ${candidate.displayName} (${candidate.delegate}) init failed " +
                         "(${e.message}) — ${if (candidates.size > attempted) "falling back" else "no more backends"}"
@@ -1653,13 +1708,26 @@ class LiteRtLmEngine @Inject constructor(
     }
 
     override fun cancel(): Result<Unit> = io.androllm.core.common.runCatching {
-        if (conversation != null) {
-            runCatching { conversation?.cancelProcess() }
-            // A cancelled conversation is wedged — every later send fails with
-            // "CANCELLED: Task cancelled" (the native onError fires instead of
-            // a coroutine CancellationException, so the flow's own cleanup
-            // never runs). Close it here so the next turn starts fresh.
-            runCatching { conversation?.close() }
+        // Capture the conversation reference atomically to avoid races
+        // where another thread nulls it between our null-check and cancel.
+        val conv = conversation ?: return@runCatching
+        try {
+            runCatching { conv.cancelProcess() }
+        } catch (e: Throwable) {
+            // cancelProcess can throw if the conversation is in a bad state —
+            // record but do not rethrow; we still need to clean up.
+            EngineCrashGuard.recordCrash("cancel", "", e)
+        }
+        // A cancelled conversation is wedged — every later send fails with
+        // "CANCELLED: Task cancelled". Close it so the next turn starts fresh.
+        try {
+            runCatching { conv.close() }
+        } catch (e: Throwable) {
+            EngineCrashGuard.recordCrash("cancel_cleanup", "", e)
+        }
+        // Only null out if this is still the same conversation we captured.
+        // Another thread may have already replaced it (e.g. reseedAfterOverflow).
+        if (conversation === conv) {
             conversation = null
             consumedTurns = emptyList()
         }
@@ -1753,15 +1821,20 @@ class LiteRtLmEngine @Inject constructor(
 
     override fun release() {
         stopRuntimeMetricsRefresh()
-        runCatching { conversation?.close() }
+        // Use crash guard to ensure every cleanup step runs even if one fails.
+        EngineCrashGuard.guardOrNull("release_conversation") { conversation?.close() }
         conversation = null
-        runCatching { engine?.close() }
+        EngineCrashGuard.guardOrNull("release_engine") { engine?.close() }
         engine = null
         loadedModel = null
         loadedFilePath = null
         familyConfig = null
         outputDecoder = null
         generationActive.set(false)
+        // Clear all caches to free memory when the engine is fully released.
+        runCatching { ContainerMetadataReader.clearCache() }
+        EnginePerformanceMonitor.resetAll()
+        EngineCrashGuard.reset()
         _engineState.value = EngineState.Unloaded
         _stats.value = null
         _memoryStats.value = null
@@ -1774,6 +1847,23 @@ class LiteRtLmEngine @Inject constructor(
      * leave unsupported delegate counters unset (their UI reads "Unavailable").
      */
     @OptIn(ExperimentalApi::class)
+    /** Cached ActivityManager to avoid getSystemService() on every refresh. */
+    @Volatile
+    private var cachedActivityManager: ActivityManager? = null
+
+    /** Cached PID array for getProcessMemoryInfo (reused every second). */
+    private val myPidArray = intArrayOf(Process.myPid())
+
+    /**
+     * Takes one live memory snapshot. Optimized to minimize allocations
+     * since this runs every second while a model is loaded.
+     *
+     * LiteRT-LM 0.16 exposes delegate identity and generation benchmarks,
+     * but has no public allocator/Vulkan API. We therefore report Android's
+     * actual process/heap counters and deliberately leave unsupported delegate
+     * counters unset (their UI reads "Unavailable").
+     */
+    @OptIn(ExperimentalApi::class)
     private fun fetchMemoryStats(): MemoryStats? {
         val model = loadedModel ?: return null
         val backend = activeBackendInfo
@@ -1784,9 +1874,15 @@ class LiteRtLmEngine @Inject constructor(
         val nativeHeapSize = runCatching { Debug.getNativeHeapSize() }.getOrDefault(0L)
         val javaCommitted = runtime.totalMemory().coerceAtLeast(0L)
         val javaUsed = (javaCommitted - runtime.freeMemory()).coerceAtLeast(0L)
+
+        // PSS: cache the ActivityManager to avoid getSystemService() every second.
+        val am = cachedActivityManager ?: run {
+            val mgr = runCatching { context.getSystemService(ActivityManager::class.java) }.getOrNull()
+            cachedActivityManager = mgr
+            mgr
+        }
         val processPss = runCatching {
-            context.getSystemService(ActivityManager::class.java)
-                ?.getProcessMemoryInfo(intArrayOf(Process.myPid()))
+            am?.getProcessMemoryInfo(myPidArray)
                 ?.firstOrNull()
                 ?.totalPss
                 ?.toLong()
@@ -1804,13 +1900,8 @@ peakProcessPssBytes = maxOf(peakProcessPssBytes, processPss)
         }.getOrDefault(-1L)
 
         return MemoryStats(
-            // This is the exact model artifact size. LiteRT may memory-map it,
-            // so it must not be presented as heap allocation.
-modelSizeBytes = fileSize,
-            // LiteRT-LM does not expose its KV-cache allocation in bytes; the
-            // live token counter is carried separately (kvCacheTokens).
+            modelSizeBytes = fileSize,
             contextSizeBytes = 0L,
-            // Peak PSS is a real resident-memory peak, not an estimate.
             peakMemoryBytes = peakProcessPssBytes,
             backend = type.name.lowercase(),
             backendReason = when (type) {
@@ -1922,12 +2013,17 @@ javaHeapUsedBytes = javaUsed,
          * stream delta accumulation stays on RAW text (correct deltas); only
          * the emitted chunk is filtered.
          */
+        // PERFORMANCE: pre-compiled regex replaces all markers in a single pass
+        // instead of N separate String.replace() calls per token.
+        private val CONTROL_TOKEN_PATTERN = Regex(
+            CONTROL_TOKEN_MARKERS.joinToString("|") { Regex.escape(it) }
+        )
+
         fun stripControlTokens(text: String): String {
-            var result = text
-            for (marker in CONTROL_TOKEN_MARKERS) {
-                if (marker in result) result = result.replace(marker, "")
-            }
-            return result
+            if (text.isEmpty()) return text
+            // Fast path: skip regex entirely when none of the marker chars exist.
+            if (!CONTROL_TOKEN_MARKERS.any { it[0] in text }) return text
+            return CONTROL_TOKEN_PATTERN.replace(text, "")
         }
 
         /** Max send attempts for a single chat stream (1 initial + 1 overflow reseed retry). */

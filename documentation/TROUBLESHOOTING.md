@@ -61,22 +61,25 @@ org.gradle.caching=true
 
 ---
 
-### GPU Acceleration Not Working / Falls Back to CPU
+### Hardware Acceleration Not Working / Falls Back to CPU
 
 **Symptoms:**
-- `backend=cpu` in Developer Diagnostics even though the device has a GPU
-- Logs show GPU delegate initialization failure
+- `backend=cpu` in Developer Diagnostics even though the device has a GPU/NPU
+- Logs show GPU/NPU delegate initialization failure
 
 **Cause:**
-- The device's OpenCL drivers are old or buggy
-- The GPU delegate is unsupported on this SoC/OS combination
-- GPU memory is insufficient for the model
+- The device's OpenCL drivers are old or buggy (GPU)
+- The vendor dispatch library is missing (NPU)
+- The delegate is unsupported on this SoC/OS combination
+- GPU/NPU memory is insufficient for the model
+- `EngineCrashGuard` auto-disabled the backend after 3 consecutive failures
 
 **Solution:**
-1. Check Developer screen → Hardware Info: `backend` should read `GPU`
+1. Check Developer screen → Hardware Info: `backend` should read `GPU` or `NPU`
 2. Update the device OS/drivers if available
-3. Prefer smaller models (Gemma 3 1B, Qwen3 0.6B) which fit GPU memory more easily
+3. Prefer smaller models (Gemma 3 1B, Qwen3 0.6B) which fit memory more easily
 4. CPU inference is fully supported — a CPU fallback is not an error
+5. If a backend keeps failing, `EngineCrashGuard` will auto-skip it after 3 failures
 
 ---
 

@@ -42,11 +42,14 @@ engine/src/main/java/io/androllm/engine/
 ├── models/       EngineModelInfo, EngineConfig, GenerationConfig, EngineCapabilities,
 │                 EngineDebugInfo, EngineException, EngineStats, MemoryStats,
 │                 BackendType, ModelLoadConfig, ChatPromptMessage, StreamChunk
-├── diagnostics/  RuntimeLogger
+├── backend/      BackendSelector, HardwareBackendProbe, InferenceBackend,
+│                 NpuVendor, PerformanceProfiles
+├── diagnostics/  RuntimeLogger, EnginePerformanceMonitor, EngineCrashGuard,
+│                 EngineDiagnostics, EngineDiagnosticsCollector
 ├── embedding/    LiteRtEmbeddingEngine, SentencePieceTokenizer
-├── memory/       (engine-side memory helpers)
-└── utils/        MemoryEstimator, ThreadManager, CoherenceChecker,
-                  LiteRtValidator, ModelResourceGuard
+├── memory/       ContextManager (adaptive context sizing, KV-cache estimation)
+└── utils/        MemoryEstimator, ThreadManager (device-class-adaptive),
+                  CoherenceChecker, LiteRtValidator, ModelResourceGuard
 ```
 
 ### The two public faces

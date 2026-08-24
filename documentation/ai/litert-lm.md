@@ -21,12 +21,14 @@ The engine module (`:engine`) wraps three layers:
 │  api/    — InferenceEngine, EngineRepository, EngineState  │
 │  core/   — LiteRtLmEngine, NativeToolCallScanner           │
 │  compat/ — family resolution, templates, decoding          │
+│  backend/ — NPU/GPU/CPU selection, PerformanceProfiles     │
+│  diagnostics/ — performance monitor, crash guard           │
 │  embedding/ — LiteRtEmbeddingEngine (raw LiteRT)           │
 ├─────────────────────────────────────────────────────────────┤
 │ LiteRT-LM Kotlin API  (com.google.ai.edge.litertlm)         │
 │  Engine · Conversation · SamplerConfig · ConversationConfig │
 ├─────────────────────────────────────────────────────────────┤
-│ LiteRT runtime (CPU XNNPACK / GPU OpenCL delegate)          │
+│ LiteRT runtime (CPU XNNPACK / GPU OpenCL / NPU delegate)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -188,11 +190,23 @@ fun bindEngineRepository(impl: DefaultEngineRepository): EngineRepository
 ## Diagnostics
 
 `RuntimeLogger` (engine/diagnostics) writes to the **`AndroLLM-Engine`** logcat
-tag with stage timings and generation stats. `EngineDebugInfo` exposes:
+tag with stage timings and generation stats. Additional diagnostics:
 
-- Backend (`GPU` / `CPU`) and fallback history
-- `MemoryStats`: `gpuFree`, `gpuTotal`, `recoveryCount`
-- Tokens/sec, time-to-first-token, load time
+- `EnginePerformanceMonitor` — lock-free pipeline-stage profiler tracking
+  model init, container read, conversation creation, first-token latency,
+  warmup. Exposes min/max/avg stats per stage.
+- `EngineCrashGuard` — records every exception in the inference pipeline,
+  auto-disables backends after 3 consecutive failures, provides crash
+  telemetry ring buffer and summary.
+- `EngineDiagnostics` + `EngineDiagnosticsCollector` — aggregates performance,
+  memory, backend, and crash telemetry into a single snapshot for the
+  developer diagnostics panel.
+- `EngineDebugInfo` — backend (NPU/GPU/CPU), fallback history, MemoryStats
+  (gpuFree, gpuTotal, recoveryCount), tokens/sec, time-to-first-token, load
+  time.
+- `RuntimeLogger.wRateLimited()` — rate-limited warnings to reduce logcat
+  overhead during streaming.
+- Conditional verbose/debug logging via `Log.isLoggable` guard.
 
 ---
 

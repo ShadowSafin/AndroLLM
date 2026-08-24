@@ -25,6 +25,9 @@ class StopSequenceTracker(
         .distinct()
         .sortedByDescending { it.length }
 
+    /** Pre-computed holdback length (longest stop - 1). */
+    private val _holdbackLength: Int = (stops.maxOfOrNull { it.length } ?: 1) - 1
+
     private val tail = StringBuilder()
     private var fedChars = 0L
 
@@ -38,7 +41,7 @@ class StopSequenceTracker(
      * streamed — its leading chars stay un-emitted until the next fragment
      * proves they are not part of a stop.
      */
-    val holdbackLength: Int get() = (stops.maxOfOrNull { it.length } ?: 1) - 1
+    val holdbackLength: Int get() = _holdbackLength
 
     /** True once a stop sequence has been completed (first match wins). */
     val isStopped: Boolean get() = matchedStop != null

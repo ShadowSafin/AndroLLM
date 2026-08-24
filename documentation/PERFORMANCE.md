@@ -92,29 +92,56 @@ The engine's `MemoryEstimator` predicts RAM requirements from container metadata
 
 ---
 
-## GPU Acceleration (LiteRT GPU Delegate)
+## Hardware Acceleration (NPU, GPU, CPU)
 
-### When GPU Is Used
+### Backend Selection
 
-GPU acceleration is automatic when:
-1. `EngineConfig.backend == GPU` (the default)
-2. The device's OpenCL GPU delegate initializes successfully
-3. The model supports GPU execution (all catalog models carry `supportedBackends: [CPU, GPU]`)
+The engine uses automatic backend selection (NPU → GPU → CPU) with silent fallback:
 
-### When CPU Fallback Occurs
+1. **Startup probe** (`HardwareBackendProbe`) runs once at engine initialization
+   and detects SoC vendor, GPU identity, NPU availability, and vendor dispatch
+   libraries.
+2. **BackendSelector** determines the ordered fallback chain from the probe
+   results and the model's compatibility flags.
+3. Each backend is **attempted** in order; failures fall through silently.
+4. `EngineCrashGuard` auto-disables a backend after 3 consecutive failures.
 
-The engine falls back to CPU when:
-1. GPU delegate initialization fails (old GPUs, missing drivers)
-2. GPU memory is insufficient for the model
-3. The GPU delegate crashes during generation (recovery path re-arms the model on CPU)
+### When Each Backend Is Used
 
-### Monitoring GPU Memory
+| Backend | When Used | Requirements |
+|---|---|---|
+| **NPU** | Preferred when supported and stable | Vendor dispatch library (`libLiteRtDispatch_*.so`) in native lib dir |
+| **GPU** | Preferred when NPU unavailable | OpenCL GPU delegate, sufficient GPU memory |
+| **CPU** | Always available as fallback | XNNPACK, works on every arm64 device |
 
-Check the Developer screen -> Hardware Info for:
-- `gpuFree`: Available GPU memory
-- `gpuTotal`: Total GPU memory
-- `recoveryCount`: Number of corruption-recovery cycles performed
-- `backend`: Current backend type (`GPU` or `CPU`)
+### Performance Profiles
+
+`PerformanceProfiles` provides device-class-specific presets:
+
+| Profile | Threads | Batch | Context | Streaming Rate |
+|---|---|---|---|---|
+| LOW_END | 2 | 512 | 2048 | 32ms (~30 FPS) |
+| MID_RANGE | 3 | 1024 | 4096 | 16ms (~60 FPS) |
+| FLAGSHIP | 4 | 2048 | 8192 | 16ms |
+| GPU_OPTIMIZED | 2 | 2048 | 8192 | 16ms |
+| NPU_OPTIMIZED | 2 | 2048 | 8192 | 16ms |
+| CPU_OPTIMIZED | adaptive | 1024 | 4096 | 32ms |
+
+### Interpreter Warmup
+
+After model load, a short background prompt primes the interpreter so the
+first real prompt arrives faster. Warmup runs on `Dispatchers.Default` and
+does not delay the Ready state.
+
+### Monitoring Acceleration
+
+Check the Developer screen → Hardware Info for:
+- `backend`: Current backend type (`NPU` / `GPU` / `CPU`)
+- `vendor`: Accelerator vendor (Qualcomm, ARM, etc.)
+- `accelerator`: Accelerator block (Adreno, Mali, Hexagon HTP)
+- `delegate`: Runtime delegate label (XNNPACK, LiteRT GPU, LiteRT Delegate)
+- `gpuFree` / `gpuTotal`: GPU memory (when on GPU)
+- `recoveryCount`: Corruption-recovery cycles
 
 ### Corruption Recovery
 
@@ -200,10 +227,13 @@ Prolonged generation can cause thermal throttling, reducing clock speeds:
 ### For Developers
 
 1. Profile with Android Studio's CPU/Memory profilers
-2. Use `StageTracer` to measure pipeline stage timings
+2. Use `EnginePerformanceMonitor` to measure pipeline stage timings (model init, container read, conversation create, first-token latency)
 3. Check engine debug info (logcat tag `AndroLLM-Engine`) for engine stats
 4. Monitor `CosineVectorIndex` memory (grows with each memory)
 5. Test on real devices, not just emulators (emulators lack a working OpenCL GPU delegate)
+6. Use `EngineDiagnostics` + `EngineDiagnosticsCollector` for the developer diagnostics panel
+7. Check `EngineCrashGuard.crashSummary()` for crash telemetry
+8. Use `ThreadManager.threadingProfile()` to verify device-class-adaptive settings
 
 ---
 

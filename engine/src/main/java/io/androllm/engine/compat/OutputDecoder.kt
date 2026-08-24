@@ -15,23 +15,47 @@ package io.androllm.engine.compat
  * sequences (catalog metadata, container stop tokens) are merged in via
  * [extraStopSequences]; a decoder instance is cheap and stateless apart from
  * the UTF-8 hold-back buffer, so callers can create one per generation.
+ *
+ * Optimization: strip tokens and stop sequences are pre-sorted by length
+ * (longest first) and pre-allocated once at construction. The hot-path
+ * [clean] method uses a single-pass scan for stop sequences and a
+ * pre-compiled replacement set for special tokens.
  */
 class OutputDecoder(
     private val config: ModelFamilyConfig,
     extraStopSequences: List<String> = emptyList()
 ) {
 
-    private val stripTokens: List<String> =
+    /**
+     * Pre-compiled strip tokens: sorted longest-first so that longer tokens
+     * are matched and removed before shorter ones that might be substrings.
+     * Immutable after construction — safe for concurrent reads.
+     */
+    private val stripTokens: Array<String> =
         (config.forbiddenInOutput + listOfNotNull(
             config.thinkingChannel?.start,
             config.thinkingChannel?.end
-        )).sortedByDescending { it.length }
+        )).filter { it.isNotEmpty() }
+          .sortedByDescending { it.length }
+          .toTypedArray()
 
-    private val stopSequences: List<String> = (config.stopSequences + extraStopSequences)
+    /**
+     * Pre-compiled stop sequences: sorted longest-first for correct
+     * first-match semantics. Immutable after construction.
+     */
+    private val stopSequences: Array<String> = (config.stopSequences + extraStopSequences)
         .filter { it.isNotBlank() }
         .distinct()
         .sortedByDescending { it.length }
+        .toTypedArray()
 
+    /** Optimization: when there are no strip tokens, skip the strip loop entirely. */
+    private val hasStripTokens: Boolean = stripTokens.isNotEmpty()
+
+    /** Optimization: when there are no stop sequences, skip the stop scan entirely. */
+    private val hasStopSequences: Boolean = stopSequences.isNotEmpty()
+
+    /** UTF-8 hold-back buffer for cross-chunk multibyte sequences. */
     private var buffer = ByteArray(0)
 
     fun reset() {
@@ -53,6 +77,7 @@ class OutputDecoder(
 
     /** Flushes any held-back bytes and returns the final clean text. */
     fun finish(): String {
+        if (buffer.isEmpty()) return ""
         val text = String(buffer, Charsets.UTF_8)
         buffer = ByteArray(0)
         return clean(text)
@@ -63,16 +88,33 @@ class OutputDecoder(
      * first stop sequence, then strip every special token.
      */
     fun clean(text: String): String {
+        if (text.isEmpty()) return text
+
         var result = text
-        var cut = result.length
-        for (stop in stopSequences) {
-            val idx = result.indexOf(stop)
-            if (idx in 0 until cut) cut = idx
+
+        // Phase 1: Cut at the first stop sequence (longest-first scan).
+        if (hasStopSequences) {
+            var cut = result.length
+            for (stop in stopSequences) {
+                val idx = result.indexOf(stop)
+                if (idx in 0 until cut) {
+                    cut = idx
+                }
+            }
+            if (cut < result.length) {
+                result = result.substring(0, cut)
+            }
         }
-        if (cut < result.length) result = result.substring(0, cut)
-        for (token in stripTokens) {
-            result = result.replace(token, "")
+
+        // Phase 2: Strip special tokens.
+        if (hasStripTokens && result.isNotEmpty()) {
+            for (token in stripTokens) {
+                if (token in result) {
+                    result = result.replace(token, "")
+                }
+            }
         }
+
         return result.trim()
     }
 

@@ -38,6 +38,22 @@ object ContainerMetadataReader {
     /** Container format version (1.x.y) — minor bumps add sections. */
     private const val SUPPORTED_MAJOR = 1
 
+    /**
+     * Parsed metadata cache: avoids re-reading the container header on
+     * repeated loads of the same file (e.g. backend switching, self-test
+     * retries). Keyed by canonical file path. Entries are evicted when the
+     * model is unloaded to prevent stale metadata.
+     *
+     * Uses a synchronized LinkedHashMap for LRU eviction without circular
+     * references.
+     */
+    private val metadataCache = object : LinkedHashMap<String, ContainerContents>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ContainerContents>?): Boolean {
+            return size > MAX_CACHE_SIZE
+        }
+    }
+    private const val MAX_CACHE_SIZE = 4
+
     data class ContainerContents(
         val metadata: ContainerMetadata,
         val hfTokenizer: EmbeddedTokenizer?,
@@ -59,6 +75,10 @@ object ContainerMetadataReader {
      * is never touched.
      */
     fun read(file: File): ContainerContents {
+        // Check cache first (avoids re-parsing the header for repeated loads)
+        val canonicalPath = file.canonicalPath
+        metadataCache[canonicalPath]?.let { return it }
+
         if (!file.exists()) {
             throw ModelCompatibilityException("Model file not found: ${file.absolutePath}")
         }
@@ -94,7 +114,21 @@ object ContainerMetadataReader {
 
         val hfTokenizer = hfZlib?.let { decompressHfTokenizer(it) }
         val spTokenizer = spBytes?.let { EmbeddedTokenizer(TokenizerKind.SENTENCEPIECE, it) }
-        return ContainerContents(metadata, hfTokenizer, spTokenizer)
+        val result = ContainerContents(metadata, hfTokenizer, spTokenizer)
+
+        // Cache the result for subsequent loads of the same file
+        metadataCache[canonicalPath] = result
+        return result
+    }
+
+    /** Evicts the metadata cache entry for the given file. */
+    fun evictCache(file: File) {
+        metadataCache.remove(file.canonicalPath)
+    }
+
+    /** Clears the entire metadata cache. */
+    fun clearCache() {
+        metadataCache.clear()
     }
 
     /**

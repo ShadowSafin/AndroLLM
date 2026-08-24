@@ -60,14 +60,20 @@ Supporting layers in `engine/src/main/java/io/androllm/engine/`:
   `EngineCapabilities`, `EngineDebugInfo`, `EngineException`, `EngineStats`,
   `MemoryStats`, `BackendType`, `ModelLoadConfig`, `ChatPromptMessage`,
   `StreamChunk`.
-- `diagnostics/` — `RuntimeLogger` (tagged debug logging, incl. rendered-prompt
-  dumps).
+- `backend/` — `BackendSelector`, `HardwareBackendProbe`, `InferenceBackend`
+  (NPU/GPU/CPU selection with silent fallback chain), `BackendCapabilities`,
+  `NpuVendor`, `PerformanceProfiles` (device-class-specific presets).
+- `diagnostics/` — `RuntimeLogger` (tagged debug logging),
+  `EnginePerformanceMonitor` (lock-free pipeline-stage profiler),
+  `EngineCrashGuard` (crash recording, backend auto-disable, telemetry),
+  `EngineDiagnostics` (aggregated diagnostics model + collector).
 - `embedding/` — `LiteRtEmbeddingEngine` + `SentencePieceTokenizer` (local
   embedding path for the memory system, via the LiteRT `CompiledModel` API).
-- `memory/` — context-length resolution, budget tracking.
+- `memory/` — `ContextManager` (adaptive context sizing, KV-cache estimation).
 - `utils/` — `MemoryEstimator`, `ModelResourceGuard` (RAM gate before load),
   `LiteRtValidator` (container sniffing before the runtime spends time),
-  `CoherenceChecker` (garbage-output detection), `ThreadManager`.
+  `CoherenceChecker` (garbage-output detection), `ThreadManager`
+  (device-class-adaptive threading with cached hardware info).
 
 ---
 
@@ -167,7 +173,7 @@ Why the cap exists — measured on-device (see the engine instrumented test
 
 ---
 
-## 6. Backends: CPU and GPU
+## 6. Backends: NPU, GPU, and CPU
 
 `BackendType` semantics after the migration:
 
@@ -175,17 +181,23 @@ Why the cap exists — measured on-device (see the engine instrumented test
 |---|---|
 | `CPU` | XNNPACK, always available — the engine's floor |
 | `GPU` | OpenCL-based LiteRT GPU delegate — preferred when available |
-| `QUALCOMM_QNN`, `LLAMA_CPP_VULKAN`, `ONNX_RUNTIME`, `VULKAN` | **Legacy enum values kept only for serializer/UI compatibility** with old persisted state — never produced by the LiteRT engine |
+| `NPU` | LiteRT NPU delegate (vendor dispatch — Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor) |
+| `AUTO` | Automatic selection: NPU → GPU → CPU, resolved at model load |
+| `QUALCOMM_QNN`, `LLAMA_CPP_VULKAN`, `ONNX_RUNTIME`, `VULKAN` | **Legacy enum values kept only for serializer/UI compatibility** — never produced by the engine |
 
-GPU selection and health:
+Backend selection and health:
 
-- Load prefers `Backend.GPU`; the runtime falls back to CPU automatically.
-- `MemoryStats` tracks `backend == "gpu"`, `gpuFree`, `gpuTotal`,
-  `recoveryCount`, `gpuLayersOffloaded`; a "GPU init failed: …" reason is kept
-  stable so the UI warning text does not drift.
-- **NPU is the next milestone** (not yet implemented): `BackendType` already
-  reserves the concept, and the engine is designed so a new backend plugs in
-  at the load/fallback layer.
+- The **startup hardware probe** (`HardwareBackendProbe`) runs once at engine
+  initialization and detects SoC vendor, GPU identity, NPU availability, and
+  vendor dispatch libraries.
+- `BackendSelector` determines the ordered fallback chain (NPU → GPU → CPU)
+  from the probe results and the model's compatibility flags.
+- Each backend is **attempted** in order; failures fall through silently — a
+  backend that cannot initialize on this device/driver never crashes the app.
+- `EngineCrashGuard` tracks per-backend failure counts and auto-disables a
+  backend after 3 consecutive failures.
+- `MemoryStats` tracks `backend`, `gpuFree`, `gpuTotal`, `recoveryCount`;
+  a "GPU init failed: …" reason is kept stable for the UI warning text.
 
 ---
 
@@ -216,24 +228,87 @@ because LiteRT-LM's `EmbeddingEngine` is unreleased as of 0.16.0:
 
 ---
 
-## 9. Error taxonomy
+## 9. Performance optimization
+
+The engine is optimized for speed, memory efficiency, and crash resilience:
+
+### Pipeline profiling
+
+`EnginePerformanceMonitor` tracks wall-clock time for every stage of the
+inference pipeline: model init, container read, conversation creation, first-
+token latency, warmup. All operations are lock-free and allocation-free in
+the hot path. Stats are exposed via `EngineDiagnostics` for the developer
+panel.
+
+### Interpreter warmup
+
+After model load, a short background prompt ("Hi", 1 token) primes the
+interpreter — JIT-compiling compute graphs, allocating buffers, warming the
+KV cache — so the first real prompt arrives faster. Warmup runs on
+`Dispatchers.Default` and does not delay the Ready state.
+
+### Device-class-adaptive threading
+
+`ThreadManager` classifies devices into 5 tiers (low → high) based on core
+count and RAM. Each tier tunes:
+- Thread count (1–4, capped at 4 for mobile P-core sweet spot)
+- Context length defaults (2048–8192)
+- Batch size (512–2048)
+- Memory budget fraction (45–75%)
+- Streaming update rate (16–32ms)
+
+### Performance profiles
+
+`PerformanceProfiles` provides presets for LOW_END, MID_RANGE, FLAGSHIP,
+GPU_OPTIMIZED, NPU_OPTIMIZED, and CPU_OPTIMIZED, each tuning thread count,
+batch size, context length, and streaming rate for maximum throughput on
+that device class.
+
+### Metadata caching
+
+`ContainerMetadataReader` caches parsed container metadata (LRU, max 4
+entries) to avoid re-parsing headers when switching backends or retrying loads
+of the same file. Cache is evicted on model unload.
+
+### Allocation reduction
+
+- Pre-sized `StringBuilder(2048)` in all streaming paths
+- Pre-compiled `Array<String>` for strip tokens and stop sequences in
+  `OutputDecoder`
+- Pre-compiled regex for `stripControlTokens` (single-pass replacement)
+- Pre-computed `holdbackLength` in `StopSequenceTracker`
+- Cached `ActivityManager` and PID array for memory stats (avoids
+  `getSystemService()` every second)
+- Conditional verbose/debug logging (`Log.isLoggable` guard)
+
+### Crash hardening
+
+`EngineCrashGuard` records every exception in the inference pipeline,
+auto-disables backends after 3 consecutive failures, and ensures clean state
+transitions on any error path. The cancel path uses atomic reference capture
+to prevent race conditions.
+
+---
+
+## 10. Error taxonomy
 
 | Failure | Layer | User-visible |
 |---|---|---|
 | Not a valid `.litertlm` container | `LiteRtValidator` | Clear message before load |
 | Container incompatible with runtime | `ModelCompatibilityException` | Compatibility explanation |
 | Input too long for real context | LiteRT-LM (`EngineException` code 3) | "Input token ids are too long" — prompts are budgeted to avoid it |
-| GPU init failure | GPU delegate | Automatic CPU fallback + stable warning |
+| GPU init failure | GPU delegate | Automatic NPU/GPU→CPU fallback |
+| Backend auto-disabled | `EngineCrashGuard` | Fallback to next backend in chain |
 | Degenerate/garbage output | `CoherenceChecker` | Detection + diagnostics |
 | Generation failure | `EngineException` | Streamed `Result.Error` |
 
 ---
 
-## 10. Tests
+## 11. Tests
 
-- Unit: engine `compat/`, `utils/`, `models/` tests (family resolution,
-  template rendering, stop sequences, memory estimation, validator, coherence
-  checker).
+- Unit: engine `compat/`, `utils/`, `models/`, `diagnostics/` tests (family
+  resolution, template rendering, stop sequences, memory estimation, validator,
+  coherence checker, crash guard, output decoder, sanitizer crash safety).
 - Instrumented (`EngineStressInstrumentedTest`, device + `modelPath`):
   clean-prompt fidelity, tool-advertisement degradation probes, native
   tool-call scanning — run against real `.litertlm` files
