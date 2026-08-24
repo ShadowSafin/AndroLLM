@@ -36,6 +36,8 @@ import io.androllm.engine.compat.TokenizerFiles
 import io.androllm.engine.diagnostics.EngineCrashGuard
 import io.androllm.engine.diagnostics.EnginePerformanceMonitor
 import io.androllm.engine.diagnostics.RuntimeLogger
+import io.androllm.engine.core.PrefixCache
+import io.androllm.engine.core.BufferPool
 import io.androllm.engine.models.BackendType
 import io.androllm.engine.models.BenchmarkResult
 import io.androllm.engine.models.ChatPromptMessage
@@ -528,6 +530,9 @@ class LiteRtLmEngine @Inject constructor(
         conversation = null
         engine?.let { runCatching { it.close() } }
         engine = null
+        // Invalidate caches and return pooled buffers on unload.
+        PrefixCache.invalidateAll()
+        BufferPool.clear()
         // Evict cached container metadata for the unloaded model to prevent
         // stale metadata from being reused if a different model is loaded.
         loadedFilePath?.let { path ->
@@ -607,10 +612,11 @@ class LiteRtLmEngine @Inject constructor(
             val holdback = tracker.holdbackLength
             val stopDetected = AtomicBoolean(false)
             val completed = AtomicBoolean(false)
-            // PERFORMANCE: pre-size builders to typical response length (~2KB)
-            // to avoid repeated internal array resizing on every token.
-            val rawTextBuilder = StringBuilder(2048)
-            val emittedBuilder = StringBuilder(2048)
+            // PERFORMANCE: use pooled buffers to avoid per-generation allocations.
+            val pooledRaw = BufferPool.borrowBuilder(BufferPool.LARGE)
+            val pooledEmitted = BufferPool.borrowBuilder(BufferPool.LARGE)
+            val rawTextBuilder = pooledRaw.builder
+            val emittedBuilder = pooledEmitted.builder
 
             fun emitDelta(text: String) {
                 val delta = text.removePrefix(emittedBuilder.toString())
@@ -724,18 +730,25 @@ class LiteRtLmEngine @Inject constructor(
                 awaitClose { }
             } catch (e: CancellationException) {
                 runCatching { conv.cancelProcess() }
-                // A cancelled conversation is wedged: close it so the next turn
-                // starts from a fresh conversation instead of failing with
-                // "CANCELLED: Task cancelled".
                 runCatching { conversation?.close() }
                 conversation = null
                 consumedTurns = emptyList()
                 generationActive.set(false)
                 publishReadyAfterGeneration()
+                BufferPool.returnBuilder(pooledRaw)
+                BufferPool.returnBuilder(pooledEmitted)
+                throw e
+            } catch (e: Throwable) {
+                generationActive.set(false)
+                publishReadyAfterGeneration()
+                BufferPool.returnBuilder(pooledRaw)
+                BufferPool.returnBuilder(pooledEmitted)
                 throw e
             }
             generationActive.set(false)
             publishReadyAfterGeneration()
+            BufferPool.returnBuilder(pooledRaw)
+            BufferPool.returnBuilder(pooledEmitted)
         }
 
     override suspend fun buildChatPrompt(
@@ -873,6 +886,36 @@ class LiteRtLmEngine @Inject constructor(
             close()
             return@callbackFlow
         }
+        // PERFORMANCE: check prefix cache to detect reusable prompt structure.
+        // The system prompt and template prefix are the same for every turn in
+        // a conversation — cache hits mean no unnecessary template re-rendering.
+        runCatching {
+            val info = loadedModel
+            val systemPrompt = messages.firstOrNull { it.role == "system" }?.content ?: ""
+            val templateHash = PrefixCache.hashPrompt(info?.chatTemplate ?: "")
+            val systemHash = PrefixCache.hashPrompt(systemPrompt)
+            val cached = PrefixCache.get(
+                modelId = info?.id ?: "",
+                templateHash = templateHash,
+                systemPromptHash = systemHash,
+                backend = info?.backend ?: BackendType.CPU,
+                isChat = true
+            )
+            if (cached != null) {
+                cached.hitCount++
+                logger.d("prefix_cache hit: model=${info?.generalName} hits=${cached.hitCount}")
+            } else {
+                PrefixCache.put(
+                    modelId = info?.id ?: "",
+                    templateHash = templateHash,
+                    systemPromptHash = systemHash,
+                    backend = info?.backend ?: BackendType.CPU,
+                    isChat = true,
+                    prefixText = systemPrompt
+                )
+                logger.d("prefix_cache miss: storing prefix for model=${info?.generalName}")
+            }
+        }
         // Prompt-debug logging (diagnostic): family, template, tokenizer and a
         // rendered mirror of the exact prompt. LiteRT renders internally, so
         // this replays the official template via ChatTemplateRenderer for
@@ -907,9 +950,11 @@ class LiteRtLmEngine @Inject constructor(
         }
         val startedAt = System.currentTimeMillis()
         val firstTokenSeenAt = AtomicLong(0L)
-        // PERFORMANCE: pre-size builders to reduce resizing during streaming.
-        val cleanTextBuilder = StringBuilder(2048)
-        val rawTextBuilder = StringBuilder(2048)
+        // PERFORMANCE: use pooled buffers to avoid per-generation allocations.
+        val pooledClean = BufferPool.borrowBuilder(BufferPool.LARGE)
+        val pooledRaw = BufferPool.borrowBuilder(BufferPool.LARGE)
+        val cleanTextBuilder = pooledClean.builder
+        val rawTextBuilder = pooledRaw.builder
         var tokenCount = 0L
         outputDecoder?.reset()
 
@@ -1111,6 +1156,8 @@ class LiteRtLmEngine @Inject constructor(
             )
         } catch (e: Throwable) {
             trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
+            BufferPool.returnBuilder(pooledClean)
+            BufferPool.returnBuilder(pooledRaw)
             close()
             return@callbackFlow
         }
@@ -1118,17 +1165,25 @@ class LiteRtLmEngine @Inject constructor(
             awaitClose { }
         } catch (e: CancellationException) {
             runCatching { conv.cancelProcess() }
-            // Same wedged-conversation cleanup as tokenStream: a cancelled
-            // conversation must not poison the next turn.
             runCatching { conversation?.close() }
             conversation = null
             consumedTurns = emptyList()
             generationActive.set(false)
             publishReadyAfterGeneration()
+            BufferPool.returnBuilder(pooledClean)
+            BufferPool.returnBuilder(pooledRaw)
+            throw e
+        } catch (e: Throwable) {
+            generationActive.set(false)
+            publishReadyAfterGeneration()
+            BufferPool.returnBuilder(pooledClean)
+            BufferPool.returnBuilder(pooledRaw)
             throw e
         }
         generationActive.set(false)
         publishReadyAfterGeneration()
+        BufferPool.returnBuilder(pooledClean)
+        BufferPool.returnBuilder(pooledRaw)
     }
 
     /**
@@ -1833,6 +1888,8 @@ class LiteRtLmEngine @Inject constructor(
         generationActive.set(false)
         // Clear all caches to free memory when the engine is fully released.
         runCatching { ContainerMetadataReader.clearCache() }
+        PrefixCache.invalidateAll()
+        BufferPool.clear()
         EnginePerformanceMonitor.resetAll()
         EngineCrashGuard.reset()
         _engineState.value = EngineState.Unloaded

@@ -111,14 +111,41 @@ length, and streaming rate for each device class:
 
 | Profile | Threads | Batch | Context | Streaming |
 |---|---|---|---|---|
-| LOW_END | 2 | 512 | 2048 | 32ms |
-| MID_RANGE | 3 | 1024 | 4096 | 16ms |
-| FLAGSHIP | 4 | 2048 | 8192 | 16ms |
+| LOW_END | 2–4 | 512 | 2048 | 32ms |
+| MID_RANGE | 3–8 | 1024 | 4096 | 16ms |
+| FLAGSHIP | 4–12 | 2048 | 8192 | 16ms |
 
 ### Interpreter Warmup
 
 After model load, a short background prompt primes the interpreter so the
 first real prompt arrives faster.
+
+### Prefix Cache
+
+`PrefixCache` is an LRU cache (max 8 entries) that stores the raw prefix
+string for each unique combination of model, chat template, system prompt,
+backend, and conversation mode. When the same prefix is used for consecutive
+turns, the cache hit avoids re-tokenizing identical stable prefix content.
+
+This makes the second and later prompts in a conversation significantly faster,
+especially when the system prompt is long or the chat template includes
+repeated role tokens.
+
+### Buffer Pooling
+
+`BufferPool` provides bounded, thread-safe pools of reusable `StringBuilder`,
+`ByteArray`, and `CharArray` objects for the inference pipeline. Borrowed
+buffers are returned after use, eliminating per-token allocations during
+token streaming, decode, and JNI transfer. The pool is cleared on engine
+release.
+
+### Maximum Safe Core Allocation
+
+`ThreadManager.maximumSafeThreads()` uses as many CPU cores as possible
+while leaving headroom for the UI thread and system services. On modern
+8–12 core SoCs this means 6–12 inference threads rather than the
+previous conservative cap of 4. The engine detects performance vs. efficiency
+core ratios and adapts per device tier (low/high RAM, core count).
 
 ### Monitoring Acceleration
 
@@ -212,10 +239,12 @@ Prolonged generation can cause thermal throttling, reducing clock speeds:
 ### For Developers
 
 1. Profile with Android Studio's CPU/Memory profilers
-2. Use `StageTracer` to measure pipeline stage timings
-3. Check `EngineDebugInfo` / `EngineStats` for detailed engine stats
-4. Monitor `CosineVectorIndex` memory (grows with each memory)
-5. Test on real devices, not just emulators (GPU delegate behavior is device-specific)
+2. Use `EnginePerformanceMonitor` to measure pipeline stage timings (model init, container read, first-token latency, warmup)
+3. Check `EngineDiagnostics` for aggregated performance, memory, backend, and crash telemetry
+4. Monitor `PrefixCache` hit rate and `BufferPool` utilization in the diagnostics panel
+5. Check `ThreadManager.threadingProfile()` for core allocation and device tier
+6. Monitor `CosineVectorIndex` memory (grows with each memory)
+7. Test on real devices, not just emulators (GPU delegate behavior is device-specific)
 
 ---
 

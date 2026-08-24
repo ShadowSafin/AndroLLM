@@ -20,6 +20,7 @@ import io.androllm.engine.models.ModelLoadConfig
 import io.androllm.engine.models.StreamChunk
 import io.androllm.engine.models.BackendType
 import io.androllm.engine.models.ChatPromptMessage
+import io.androllm.engine.core.BufferPool
 import io.androllm.engine.core.OutputSanitizer
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -388,10 +389,11 @@ class DefaultEngineRepository @Inject constructor(
         _generationState.value = GenerationState.Generating(prompt = prompt, streamingText = "", generatedTokens = 0L)
         android.util.Log.i(TAG, "Generation started: promptLen=${prompt.length} maxTokens=${config.maxTokens}")
 
-        // PERFORMANCE: append into a StringBuilder instead of `fullText += delta`.
-        // Pre-size to reduce internal array resizing during streaming.
-        val fullTextBuilder = StringBuilder(2048)
-        val displayBuilder = StringBuilder(2048)
+        // PERFORMANCE: use pooled buffers to avoid per-generation allocations.
+        val pooledFull = BufferPool.borrowBuilder(BufferPool.LARGE)
+        val pooledDisplay = BufferPool.borrowBuilder(BufferPool.LARGE)
+        val fullTextBuilder = pooledFull.builder
+        val displayBuilder = pooledDisplay.builder
         var lastEmitTime = 0L
         var tokenCount = 0L
         // Stall detection: a decode that produces no token (hung GPU fence, dead
@@ -552,6 +554,9 @@ android.util.Log.e(TAG, "Generation failed: ${e.message}", e)
                 partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
             )
             Result.Error(e)
+        } finally {
+            BufferPool.returnBuilder(pooledFull)
+            BufferPool.returnBuilder(pooledDisplay)
         }
     }
 
@@ -571,11 +576,11 @@ android.util.Log.e(TAG, "Generation failed: ${e.message}", e)
         _generationState.value = GenerationState.Generating(prompt = lastUser, streamingText = "", generatedTokens = 0L)
         android.util.Log.i(TAG, "Chat generation started: messages=${messages.size} lastUserLen=${lastUser.length}")
 
-        // PERFORMANCE: StringBuilder append instead of `fullText += delta` (see
-        // [generate]) to avoid the O(n²) String-copy garbage spike after the
-        // generation finishes. Pre-size to reduce resizing during streaming.
-        val fullTextBuilder = StringBuilder(2048)
-        val displayBuilder = StringBuilder(2048)
+        // PERFORMANCE: use pooled buffers to avoid per-generation allocations.
+        val pooledFull = BufferPool.borrowBuilder(BufferPool.LARGE)
+        val pooledDisplay = BufferPool.borrowBuilder(BufferPool.LARGE)
+        val fullTextBuilder = pooledFull.builder
+        val displayBuilder = pooledDisplay.builder
         var lastEmitTime = 0L
         var tokenCount = 0L
         // Same stall detection as [generate]: no first token within
@@ -728,6 +733,9 @@ android.util.Log.e(TAG, "Generation failed: ${e.message}", e)
                 partialText = OutputSanitizer.sanitize(fullTextBuilder.toString())
             )
             Result.Error(e)
+        } finally {
+            BufferPool.returnBuilder(pooledFull)
+            BufferPool.returnBuilder(pooledDisplay)
         }
     }
 

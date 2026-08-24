@@ -251,7 +251,7 @@ KV cache — so the first real prompt arrives faster. Warmup runs on
 
 `ThreadManager` classifies devices into 5 tiers (low → high) based on core
 count and RAM. Each tier tunes:
-- Thread count (1–4, capped at 4 for mobile P-core sweet spot)
+- Thread count (2–12, scaled to device tier and CPU topology)
 - Context length defaults (2048–8192)
 - Batch size (512–2048)
 - Memory budget fraction (45–75%)
@@ -280,6 +280,32 @@ of the same file. Cache is evicted on model unload.
 - Cached `ActivityManager` and PID array for memory stats (avoids
   `getSystemService()` every second)
 - Conditional verbose/debug logging (`Log.isLoggable` guard)
+
+### Prefix cache
+
+`PrefixCache` is an LRU cache (max 8 entries) that stores the raw prefix
+string for each unique combination of model, chat template, system prompt,
+backend, and conversation mode. When the same prefix is used for consecutive
+turns, the cache hit avoids re-tokenizing identical stable prefix content.
+
+Cache key: `model_id|template_hash|system_prompt_hash|backend|isChat`
+Cache invalidation: model switch, template change, backend change, context reset.
+
+### Buffer pooling
+
+`BufferPool` provides bounded, thread-safe pools of reusable `StringBuilder`,
+`ByteArray`, and `CharArray` objects for the inference pipeline. Borrowed
+buffers are returned after use, eliminating per-token allocations during
+token streaming, decode, and JNI transfer. The pool is cleared on engine
+release.
+
+### Maximum safe core allocation
+
+`ThreadManager.maximumSafeThreads()` uses as many CPU cores as possible
+while leaving headroom for the UI thread and system services. On modern
+8–12 core SoCs this means 6–12 inference threads rather than the
+previous conservative cap of 4. The engine detects performance vs. efficiency
+core ratios and adapts per device tier (low/high RAM, core count).
 
 ### Crash hardening
 

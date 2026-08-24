@@ -34,7 +34,7 @@ toolchains.
 ```
 engine/src/main/java/io/androllm/engine/
 ├── api/          InferenceEngine, EngineRepository, DefaultEngineRepository, EngineState
-├── core/         LiteRtLmEngine + compat layer
+├── core/         LiteRtLmEngine + compat layer + PrefixCache + BufferPool
 ├── compat/       ModelFamily, ModelFamilyRegistry, ModelFamilyConfig,
 │                 ContainerMetadataReader, ChatTemplateRenderer, SpecialTokens,
 │                 OutputDecoder, StopSequenceTracker, TokenizerFiles,
@@ -48,8 +48,9 @@ engine/src/main/java/io/androllm/engine/
 │                 EngineDiagnostics, EngineDiagnosticsCollector
 ├── embedding/    LiteRtEmbeddingEngine, SentencePieceTokenizer
 ├── memory/       ContextManager (adaptive context sizing, KV-cache estimation)
-└── utils/        MemoryEstimator, ThreadManager (device-class-adaptive),
-                  CoherenceChecker, LiteRtValidator, ModelResourceGuard
+└── utils/        MemoryEstimator, ThreadManager (device-class-adaptive,
+                  maximum safe core allocation), CoherenceChecker,
+                  LiteRtValidator, ModelResourceGuard
 ```
 
 ### The two public faces
@@ -157,6 +158,7 @@ the tool list never crowds out the conversation.
 |---|---|---|
 | CPU | LiteRT-LM on XNNPACK | Default, always available |
 | GPU | OpenCL-based LiteRT GPU delegate | Faster on capable devices; automatic fallback to CPU |
+| NPU | LiteRT NPU delegate (vendor dispatch) | Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor |
 
 `BackendType` also carries **legacy values** (`QUALCOMM_QNN`,
 `LLAMA_CPP_VULKAN`, `ONNX_RUNTIME`, `VULKAN`) — these are never produced by the
@@ -200,14 +202,22 @@ the engine never throws across the repository boundary.
 
 ---
 
-## Threading
+## Threading and Core Allocation
 
 - LiteRT-LM inference runs on a backend thread owned by `LiteRtLmEngine`;
   token delivery is throttled to ~60 fps (16 ms interval) for the UI.
 - `DefaultEngineRepository` serializes concurrent `generate` calls with a
   `Mutex` — chat generation, background memory extraction, and benchmarks
   never interleave.
-- `ThreadManager` handles runtime thread/affinity setup.
+- `ThreadManager` handles runtime thread/affinity setup with **maximum safe
+core allocation**: on modern 8–12 core SoCs the engine uses 6–12 inference
+threads rather than the previous conservative cap of 4. The engine detects
+performance vs. efficiency core ratios and adapts per device tier.
+- `PrefixCache` reuses prompt prefixes across turns to avoid re-tokenizing
+identical system prompts and chat template headers.
+- `BufferPool` provides bounded pools of reusable StringBuilders, ByteArrays,
+and CharArrays for the inference pipeline, eliminating per-token allocations
+during streaming and JNI transfer.
 
 ---
 

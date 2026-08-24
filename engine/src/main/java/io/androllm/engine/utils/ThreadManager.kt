@@ -59,12 +59,11 @@ object ThreadManager {
     }
 
     /**
-     * Hard ceiling for compute threads. On 8-core SoCs this deliberately
-     * leaves the efficiency cores and at least one performance core free for
-     * the UI. The native engine applies the same cap (MAX_COMPUTE_THREADS)
-     * as a second line of defense.
+     * Absolute ceiling for compute threads. On modern SoCs (8-12 cores),
+     * inference benefits from using most cores. We leave 1-2 cores free
+     * for the UI thread and system services, not a fixed 4-core cap.
      */
-    private const val MAX_COMPUTE_THREADS = 4
+    private const val ABSOLUTE_MAX_THREADS = 12
 
     /**
      * Minimum threads for battery saver mode.
@@ -72,40 +71,68 @@ object ThreadManager {
     private const val MIN_BATTERY_SAVER_THREADS = 1
 
     /**
-     * Recommended threads for generation: capped at the mobile P-core sweet
-     * spot (4). Device-class-adaptive: low-end devices use fewer threads to
-     * avoid thermal throttling.
+     * Number of cores to reserve for the UI/system (never use these
+     * for inference).
      */
-    fun recommendedThreads(): Int {
+    private const val UI_RESERVE_CORES = 2
+
+    /**
+     * Estimated number of performance (big) cores on modern SoCs.
+     * Most 8-core SoCs have 4 big + 4 little; 12-core have 4 big + 8 little.
+     * We detect this conservatively.
+     */
+    fun performanceCoreCount(): Int {
         val cores = hardwareCores()
-        val tier = deviceTier()
-        return when (tier) {
-            "low" -> maxOf(1, minOf(2, cores - 1))
-            "medium" -> maxOf(2, minOf(3, cores - 1))
-            else -> when {
-                cores >= 4 -> MAX_COMPUTE_THREADS
-                else -> maxOf(1, cores - 1)
-            }
+        // Most mobile SoCs: half the cores are performance cores.
+        // On 4-core chips, all cores are performance.
+        return when {
+            cores <= 4 -> cores
+            cores <= 6 -> cores / 2 + 1
+            else -> cores / 2  // 4 on 8-core, 4 on 10-core, 6 on 12-core
         }
     }
 
     /**
-     * Threads for specified performance profile. Even MAXIMUM_PERFORMANCE is
-     * capped at [MAX_compute_THREADS] — going beyond it never helps on phones
-     * and risks starving the system.
+     * Maximum safe threads for inference on this device. Uses as many
+     * cores as possible while leaving enough headroom for the UI.
+     *
+     * Strategy: use all cores minus UI_RESERVE_CORES, but never less than
+     * half the performance cores.
+     */
+    fun maximumSafeThreads(): Int {
+        val cores = hardwareCores()
+        val tier = deviceTier()
+        return when (tier) {
+            "low" -> maxOf(2, cores - 2).coerceAtMost(4)
+            "low-medium" -> maxOf(2, cores - 2).coerceAtMost(6)
+            "medium" -> maxOf(3, cores - 1).coerceAtMost(8)
+            "medium-high" -> maxOf(4, cores - 1).coerceAtMost(10)
+            "high" -> maxOf(4, cores - UI_RESERVE_CORES).coerceAtMost(ABSOLUTE_MAX_THREADS)
+            else -> maxOf(4, cores - UI_RESERVE_CORES).coerceAtMost(ABSOLUTE_MAX_THREADS)
+        }
+    }
+
+    /**
+     * Recommended threads for generation. Uses the maximum safe thread
+     * count to maximize tokens/sec on capable devices.
+     */
+    fun recommendedThreads(): Int = maximumSafeThreads()
+
+    /**
+     * Threads for specified performance profile.
      */
     fun profileThreads(profile: io.androllm.engine.models.PerformanceProfile): Int {
         val cores = hardwareCores()
         val tier = deviceTier()
         return when (profile) {
             io.androllm.engine.models.PerformanceProfile.BATTERY_SAVER -> {
-                val base = maxOf(MIN_BATTERY_SAVER_THREADS, cores / 3)
-                base.coerceAtMost(MAX_COMPUTE_THREADS)
+                maxOf(MIN_BATTERY_SAVER_THREADS, cores / 4)
             }
-            io.androllm.engine.models.PerformanceProfile.BALANCED -> recommendedThreads()
+            io.androllm.engine.models.PerformanceProfile.BALANCED -> {
+                maxOf(3, cores - 2).coerceAtMost(8)
+            }
             io.androllm.engine.models.PerformanceProfile.MAXIMUM_PERFORMANCE -> {
-                // On low-end devices even "max performance" should be conservative
-                if (tier == "low") minOf(2, MAX_COMPUTE_THREADS) else MAX_COMPUTE_THREADS
+                maximumSafeThreads()
             }
         }
     }
@@ -117,10 +144,11 @@ object ThreadManager {
      * reduces contention.
      */
     fun gpuThreads(profile: io.androllm.engine.models.PerformanceProfile): Int {
+        val cores = hardwareCores()
         return when (profile) {
-            io.androllm.engine.models.PerformanceProfile.BATTERY_SAVER -> 1
-            io.androllm.engine.models.PerformanceProfile.BALANCED -> 2
-            io.androllm.engine.models.PerformanceProfile.MAXIMUM_PERFORMANCE -> 4
+            io.androllm.engine.models.PerformanceProfile.BATTERY_SAVER -> 2
+            io.androllm.engine.models.PerformanceProfile.BALANCED -> maxOf(3, cores / 2)
+            io.androllm.engine.models.PerformanceProfile.MAXIMUM_PERFORMANCE -> maxOf(4, cores - 2)
         }
     }
 
@@ -243,8 +271,10 @@ object ThreadManager {
         val cores = hardwareCores()
         val tier = deviceTier()
         val ram = totalRamGb()
-        return "cores=$cores tier=$tier ram=${ram}GB " +
-            "threads=${recommendedThreads()} " +
+        val perfCores = performanceCoreCount()
+        val safeThreads = maximumSafeThreads()
+        return "cores=$cores(p=$perfCores) tier=$tier ram=${ram}GB " +
+            "threads=$safeThreads(max) rec=${recommendedThreads()} " +
             "ctx=${recommendedContextLength()} " +
             "batch=${recommendedBatchSize()} " +
             "budget=${(memoryBudgetFraction() * 100).toInt()}%"

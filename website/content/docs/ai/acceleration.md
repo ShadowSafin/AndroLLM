@@ -11,10 +11,13 @@ delegate, fallback and recovery, and what `MemoryStats` tells you.
 |---|---|---|
 | **CPU** | LiteRT-LM on **XNNPACK** | Default, works everywhere, no driver requirements |
 | **GPU** | **OpenCL-based LiteRT GPU delegate** | Faster on capable devices; requires a working OpenCL driver |
+| **NPU** | **LiteRT NPU delegate** (vendor dispatch) | Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor |
+| **AUTO** | **Automatic selection** | NPU → GPU → CPU, resolved at model load |
 
 Backend selection happens at engine initialization (`LiteRtLmEngine`) and is
-reported through `EngineDebugInfo`/`EngineStats`. There is no per-model GPU
-layer slider — the runtime manages tensor placement internally.
+reported through `EngineDebugInfo`/`EngineStats`. `HardwareBackendProbe` detects
+SoC vendor and NPU availability at startup. `EngineCrashGuard` auto-disables
+a backend after 3 consecutive failures and falls back to the next in the chain.
 
 ---
 
@@ -24,15 +27,18 @@ layer slider — the runtime manages tensor placement internally.
 
 | Value | Produced? | Purpose |
 |---|---|---|
-| `CPU` | ✅ | Active CPU backend |
-| `GPU` | ✅ | Active GPU delegate backend |
+| `CPU` | ✅ | Active CPU backend (XNNPACK) |
+| `GPU` | ✅ | Active GPU delegate backend (OpenCL) |
+| `NPU` | ✅ | Active NPU delegate (vendor dispatch) |
+| `AUTO` | ✅ | Automatic selection: NPU → GPU → CPU |
 | `QUALCOMM_QNN` | ❌ | Legacy — never produced; kept for persisted-state/UI compat |
 | `LLAMA_CPP_VULKAN` | ❌ | Legacy — never produced; kept for persisted-state/UI compat |
 | `ONNX_RUNTIME` | ❌ | Legacy — never produced; kept for persisted-state/UI compat |
 | `VULKAN` | ❌ | Legacy — never produced; kept for persisted-state/UI compat |
 
 The legacy values exist **only** so old persisted state serializers and UI code
-can still read historical records. New sessions always report `CPU` or `GPU`.
+can still read historical records. New sessions always report `CPU`, `GPU`,
+`NPU`, or `AUTO`.
 
 ---
 
@@ -68,12 +74,26 @@ the working set — close other GPU-heavy apps or use a smaller model.
 
 ---
 
-## NPU (Planned)
+## NPU Acceleration
 
-NPU acceleration (e.g. Qualcomm QNN-style hardware) is the **next planned
-feature** and is **not implemented**. `BackendType.QUALCOMM_QNN` is a legacy
-compat value, not a working backend — do not expect NPU paths in current
-builds.
+NPU inference is supported via the LiteRT NPU delegate with vendor-specific
+dispatch:
+
+| Vendor | NPU Block | Supported |
+|---|---|---|
+| Qualcomm | Hexagon HTP (HTPv73/75) | ✅ |
+| MediaTek | NeuroPilot (APU) | ✅ |
+| Google | Tensor TPU | ✅ |
+
+`HardwareBackendProbe` detects the SoC vendor and NPU availability at engine
+initialization. NPU is preferred over GPU when available and stable. If NPU
+initialization fails, the engine falls back to GPU, then CPU.
+
+`EngineCrashGuard` tracks per-backend failures and auto-disables NPU after
+3 consecutive failures, falling back to GPU or CPU.
+
+Note: `BackendType.QUALCOMM_QNN` is a legacy compat value, not a working
+NPU backend. The actual NPU backend is `BackendType.NPU`.
 
 ---
 

@@ -102,6 +102,9 @@ Hardware-accelerated inference on supported devices via the OpenCL-based LiteRT 
 - Real-time diagnostics: `gpuFree`, `gpuTotal`, `recoveryCount`, active backend
 - NPU acceleration available on supported devices (Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor)
 - Interpreter warmup after model load for faster first-token latency
+- Prefix cache reuses prompt prefixes across turns, avoiding re-tokenization
+- Buffer pooling eliminates per-token allocations during streaming and JNI transfer
+- Maximum safe core allocation (2–12 threads) with CPU topology detection
 - Device-class-adaptive threading (5-tier: low→high)
 - Performance profiles for different device classes
 - Crash hardening with backend auto-disable and crash telemetry

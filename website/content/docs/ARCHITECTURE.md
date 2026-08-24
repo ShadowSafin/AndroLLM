@@ -280,10 +280,13 @@ MODEL_LOADING
 |---|---|---|
 | CPU | LiteRT-LM on XNNPACK | Default, always available |
 | GPU | OpenCL-based LiteRT GPU delegate | Automatic fallback to CPU + corruption recovery |
+| NPU | LiteRT NPU delegate (vendor dispatch) | Qualcomm Hexagon, MediaTek NeuroPilot, Google Tensor |
+| AUTO | Automatic selection | NPU → GPU → CPU, resolved at model load |
 
 `BackendType` legacy values (`QUALCOMM_QNN`, `LLAMA_CPP_VULKAN`, `ONNX_RUNTIME`,
 `VULKAN`) are kept **only** for persisted-state serializer/UI compatibility —
-the engine never produces them. NPU acceleration is planned, not implemented.
+the engine never produces them. `EngineCrashGuard` tracks per-backend failures
+and auto-disables a backend after 3 consecutive failures.
 
 ### Tool Calling
 

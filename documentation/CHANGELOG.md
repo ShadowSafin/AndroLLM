@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Adaptive context sizing**: `ContextManager` resolves context length based on device class (2048–8192)
 - **Cached hardware info**: `ThreadManager` caches core count, device tier, and RAM after first computation
 - **Memory stats optimization**: cached `ActivityManager` and PID array avoid `getSystemService()` every second
+- **Prefix cache**: `PrefixCache` LRU cache reuses prompt prefixes across turns, avoiding re-tokenization of identical system prompts and chat template headers
+- **Buffer pooling**: `BufferPool` provides bounded thread-safe pools of reusable StringBuilders, ByteArrays, and CharArrays for the inference pipeline, eliminating per-token allocations
+- **Maximum safe core allocation**: `ThreadManager.maximumSafeThreads()` uses as many CPU cores as possible (2–12) while leaving UI headroom, replacing the previous conservative cap of 4
 - **Crash safety tests**: 25 new tests for `OutputSanitizer` and `EngineCrashGuard`
 - Modular multi-module Gradle project with 33 modules
 - Jetpack Compose Material 3 UI with "Parchment Ledger" design system

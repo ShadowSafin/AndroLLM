@@ -95,6 +95,24 @@ data class EngineDiagnostics(
     /** Crash guard summary. */
     val crashSummary: String = "No crashes recorded",
 
+    // --- Prefix Cache ---
+    /** Prefix cache hit rate. */
+    val prefixCacheHitRate: Float = 0f,
+    /** Prefix cache hit/miss summary. */
+    val prefixCacheSummary: String = "",
+
+    // --- Buffer Pool ---
+    /** Buffer pool outstanding count. */
+    val bufferPoolOutstanding: Int = 0,
+    /** Buffer pool summary. */
+    val bufferPoolSummary: String = "",
+
+    // --- Threading ---
+    /** Maximum safe thread count for this device. */
+    val maxSafeThreads: Int = 0,
+    /** Performance core count estimate. */
+    val performanceCores: Int = 0,
+
     // --- Raw Debug Info ---
     /** Full engine debug info from the last snapshot. */
     val rawDebugInfo: EngineDebugInfo? = null
@@ -190,6 +208,18 @@ object EngineDiagnosticsCollector {
             // Crash telemetry
             recentCrashEvents = EngineCrashGuard.getRecentEvents().take(10),
             crashSummary = EngineCrashGuard.crashSummary(),
+
+            // Prefix cache
+            prefixCacheHitRate = io.androllm.engine.core.PrefixCache.stats().hitRate,
+            prefixCacheSummary = io.androllm.engine.core.PrefixCache.stats().summary(),
+
+            // Buffer pool
+            bufferPoolOutstanding = io.androllm.engine.core.BufferPool.stats().outstandingBuffers,
+            bufferPoolSummary = io.androllm.engine.core.BufferPool.stats().summary(),
+
+            // Threading
+            maxSafeThreads = io.androllm.engine.utils.ThreadManager.maximumSafeThreads(),
+            performanceCores = io.androllm.engine.utils.ThreadManager.performanceCoreCount(),
 
             rawDebugInfo = debugInfo
         )
