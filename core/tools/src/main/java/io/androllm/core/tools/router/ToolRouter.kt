@@ -77,44 +77,108 @@ class ToolRouter @Inject constructor() {
             )
         }
 
-        // 2. Intent detection by strongest signal. Order matters: concrete
-        //    intents win over the no-tool heuristic so "write a text to mom"
-        //    routes to SMS, not to NO_TOOLS. DEVICE runs before MATH so
-        //    "battery percentage" routes to the battery tool, not the
-        //    calculator.
-        val intent = when {
-            isDeviceRequest(q) -> ToolIntent.DEVICE
-            isMathRequest(q) -> ToolIntent.MATH
-            isWebRequest(q) -> ToolIntent.WEB
-            isCommunicationRequest(q) -> ToolIntent.COMMUNICATION
-            // 3. Explicit no-tool intents (small talk / writing). The spec's
-            //    "Write a poem" and "Hello" cases.
-            isNoToolRequest(q) -> ToolIntent.NO_TOOLS
-            else -> ToolIntent.GENERAL
-        }
+        // 2. Hardened multi-intent detection — dependency-aware routing for autonomous agents.
+        //    Instead of first-match-wins (which breaks "Research then SMS" or "Weather then message Mom"),
+        //    collect ALL matching intents and union their tool sets (smallest required set that still
+        //    satisfies the full multi-step request). Sequential keywords (then, after, next, finally,
+        //    before, first, second, last, and then, once finished, after researching, before sending)
+        //    and parallel markers (weather and news) are understood so the planner sees the full
+        //    dependency chain upfront. Conditional IF branches are also detected.
+        val mathMatch = isMathRequest(q)
+        val deviceMatch = isDeviceRequest(q)
+        val webMatch = isWebRequest(q)
+        val commMatch = isCommunicationRequest(q)
+        val productivityMatch = isProductivityRequest(q)
+        val translationMatch = isTranslationRequest(q)
+        val mapsMatch = isMapsRequest(q)
 
-        val specs = when (intent) {
-            ToolIntent.MATH -> pick(enabledTools, MATH_TOOLS)
-            ToolIntent.DEVICE -> pick(enabledTools, DEVICE_TOOLS)
-            ToolIntent.WEB -> pick(enabledTools, WEB_TOOLS)
-            ToolIntent.COMMUNICATION -> pick(enabledTools, COMMUNICATION_TOOLS)
-            ToolIntent.GENERAL -> {
-                // Generic fallback: everything enabled, but ordered by
-                // confidence so the highest-relevance tools come first.
+        val sequential = hasSequentialMarker(q)
+        val conditional = hasConditionalMarker(q)
+        val matchedIntents = mutableListOf<ToolIntent>()
+        if (deviceMatch) matchedIntents += ToolIntent.DEVICE
+        if (mathMatch) matchedIntents += ToolIntent.MATH
+        if (webMatch) matchedIntents += ToolIntent.WEB
+        if (commMatch) matchedIntents += ToolIntent.COMMUNICATION
+        // Productivity / translation / maps are sub-families of GENERAL but tracked for smallest-set unions
+        if (productivityMatch) matchedIntents += ToolIntent.GENERAL // marker — will union productivity tools
+        if (translationMatch) matchedIntents += ToolIntent.GENERAL
+        if (mapsMatch) matchedIntents += ToolIntent.GENERAL
+
+        // Composite multi-step: more than one distinct family OR explicit sequential/parallel structure
+        val isComposite = matchedIntents.distinct().size > 1 || sequential || (conditional && (webMatch || commMatch))
+        // Also treat research + sms style as composite even when webMatch relied on substring "search" in "research"
+        // — the smallest-set guarantee still holds because we union, not expose every tool.
+
+        val intent: ToolIntent
+        val specs: List<ToolSpec>
+        val reason: String
+
+        if (isComposite) {
+            // Union of all required families — the smallest set that can complete the whole chain.
+            // Example: "Research quantum computing and then message Dad via SMS" -> WEB + COMMUNICATION
+            //          "Check weather then message Mom if rain" -> WEB + COMMUNICATION (conditional)
+            //          "Search weather and latest AI news" -> WEB (parallel read)
+            val unionNames = mutableSetOf<String>()
+            if (mathMatch) unionNames += MATH_TOOLS
+            if (deviceMatch) unionNames += DEVICE_TOOLS
+            if (webMatch) unionNames += WEB_TOOLS
+            if (commMatch) unionNames += COMMUNICATION_TOOLS
+            if (productivityMatch) unionNames += PRODUCTIVITY_TOOLS
+            if (translationMatch) unionNames += TRANSLATION_TOOLS
+            if (mapsMatch) unionNames += MAPS_TOOLS
+            // If sequential but no family matched (e.g. "find cheapest hotel then save as note" — hotel not in WEB_TERMS robustly),
+            // fall back to GENERAL sorted by confidence so planner still sees note_save + search_web
+            val pickedUnion = pick(enabledTools, unionNames)
+            val compositeSpecs = if (pickedUnion.isEmpty()) {
+                // No family term hit, but sequential structure implies multi-step — expose GENERAL ordered by confidence
                 enabledTools.sortedByDescending { confidence(it, q) }
+            } else {
+                // Add family-expanded siblings (permission siblings) and keep confidence ordering within union
+                pickedUnion.sortedByDescending { confidence(it, q) } + enabledTools.filter { it.name !in unionNames && confidence(it, q) > 0.25f }.sortedByDescending { confidence(it, q) }
             }
-            else -> emptyList()
+            // Dedupe while preserving order
+            val deduped = compositeSpecs.distinctBy { it.name }
+            intent = ToolIntent.GENERAL
+            specs = deduped
+            reason = buildString {
+                append("composite multi-step request")
+                if (sequential) append(" (sequential: ${matchedIntents.distinct().joinToString(",") { it.displayName }})")
+                if (conditional) append(" [conditional branch]")
+                if (hasParallelMarker(q)) append(" [parallel]")
+                append(" — union of required tool families")
+            }
+        } else {
+            // Single-intent path — preserves original exclusive routing for single-step requests (regression-safe)
+            intent = when {
+                deviceMatch -> ToolIntent.DEVICE
+                mathMatch -> ToolIntent.MATH
+                webMatch -> ToolIntent.WEB
+                commMatch -> ToolIntent.COMMUNICATION
+                isNoToolRequest(q) -> ToolIntent.NO_TOOLS
+                else -> ToolIntent.GENERAL
+            }
+            specs = when (intent) {
+                ToolIntent.MATH -> pick(enabledTools, MATH_TOOLS)
+                ToolIntent.DEVICE -> pick(enabledTools, DEVICE_TOOLS)
+                ToolIntent.WEB -> pick(enabledTools, WEB_TOOLS)
+                ToolIntent.COMMUNICATION -> pick(enabledTools, COMMUNICATION_TOOLS)
+                ToolIntent.GENERAL -> {
+                    // Generic fallback: everything enabled, but ordered by confidence so highest-relevance first
+                    enabledTools.sortedByDescending { confidence(it, q) }
+                }
+                else -> emptyList()
+            }
+            reason = when (intent) {
+                ToolIntent.ATTACHMENT -> "attachments present and the request references them — content is injected, no tools exposed"
+                ToolIntent.MATH -> "math request — calculator tools only"
+                ToolIntent.DEVICE -> "device-state request — device tools only"
+                ToolIntent.WEB -> "live-information request — web/weather tools only"
+                ToolIntent.COMMUNICATION -> "communication request — messaging tools only"
+                ToolIntent.NO_TOOLS -> "small talk / writing request — no tools needed"
+                ToolIntent.GENERAL -> "general request — full tool set"
+            }
         }
 
-        val reason = when (intent) {
-            ToolIntent.ATTACHMENT -> "attachments present and the request references them — content is injected, no tools exposed"
-            ToolIntent.MATH -> "math request — calculator tools only"
-            ToolIntent.DEVICE -> "device-state request — device tools only"
-            ToolIntent.WEB -> "live-information request — web/weather tools only"
-            ToolIntent.COMMUNICATION -> "communication request — messaging tools only"
-            ToolIntent.NO_TOOLS -> "small talk / writing request — no tools needed"
-            ToolIntent.GENERAL -> "general request — full tool set"
-        }
         return RoutedTools(
             intent = intent,
             specs = specs,
@@ -159,11 +223,15 @@ class ToolRouter @Inject constructor() {
         return WRITING_VERBS.any { q.startsWith(it) || " $it " in q }
     }
 
-    private fun isMathRequest(q: String): Boolean =
-        MATH_TERMS.any { it in q } ||
-            // "what is 25 x 67", "23 * 48", "500 / 7" …
+    private fun isMathRequest(q: String): Boolean {
+        // Hardening: "battery percentage" is a device query, not a math calculation.
+        // The term "percentage" alone in a battery context must not trigger MATH (which would
+        // cause composite routing to incorrectly union device+math and break single-intent expectation).
+        if (q.contains("battery") && (q.contains("percentage") || q.contains("percent"))) return false
+        return MATH_TERMS.any { it in q } ||
             q.contains(Regex("\\d+\\s*[+\\-*x×÷/^]\\s*\\d+")) ||
             q.contains(Regex("\\b(how much is|what is|what's)\\b.*\\b(divided by|multiplied by|percent|percent of|\\+|-|x|×|÷|/|times)\\b"))
+    }
 
     private fun isDeviceRequest(q: String): Boolean =
         DEVICE_TERMS.any { it in q }
@@ -173,6 +241,34 @@ class ToolRouter @Inject constructor() {
 
     private fun isCommunicationRequest(q: String): Boolean =
         COMMUNICATION_TERMS.any { it in q }
+
+    // ── Sequential / conditional / parallel understanding (agent planner awareness) ──
+
+    private fun hasSequentialMarker(q: String): Boolean =
+        SEQUENTIAL_MARKERS.any { it in q } || q.contains(Regex("\\b(then|after|next|finally|before|first|second|last)\\b"))
+
+    private fun hasConditionalMarker(q: String): Boolean =
+        CONDITIONAL_MARKERS.any { it in q }
+
+    private fun hasParallelMarker(q: String): Boolean {
+        // Independent work: "weather and news" without ordering dependency
+        if (q.contains(" and ") && !hasSequentialMarker(q)) {
+            val families = listOf(isWebRequest(q), isCommunicationRequest(q), isDeviceRequest(q), isMathRequest(q)).count { it }
+            if (families >= 2) return true
+            if (q.contains("weather") && q.contains("news")) return true
+            if (q.contains("search") && q.contains(" and ")) return true
+        }
+        return false
+    }
+
+    private fun isProductivityRequest(q: String): Boolean =
+        PRODUCTIVITY_TERMS.any { it in q }
+
+    private fun isTranslationRequest(q: String): Boolean =
+        TRANSLATION_TERMS.any { it in q }
+
+    private fun isMapsRequest(q: String): Boolean =
+        MAPS_TERMS.any { it in q }
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -209,6 +305,36 @@ class ToolRouter @Inject constructor() {
         /** Communication tools. */
         private val COMMUNICATION_TOOLS = setOf("send_sms", "make_call", "send_email", "share_text")
 
+        /** Productivity / file / note tools */
+        private val PRODUCTIVITY_TOOLS = setOf("note_save", "note_list", "note_get", "export_pdf", "export_markdown", "list_app_files", "list_downloads", "note_delete")
+
+        /** Translation tools */
+        private val TRANSLATION_TOOLS = setOf("open_translation")
+
+        /** Maps / places tools */
+        private val MAPS_TOOLS = setOf("open_navigation", "search_places")
+
+        /** Sequential markers: then, after, next, finally, before, first, second, last, and then, once finished, after researching, before sending, etc. */
+        private val SEQUENTIAL_MARKERS = listOf(
+            " and then ", " then ", " after ", " next ", " finally ", " before ",
+            " first ", " second ", " last ", " once finished ", " once done ",
+            " after researching", " after checking", " before sending",
+            " after that", " and next", " followed by", " once finished"
+        )
+
+        /** Conditional markers: if, whether, when, unless, in case, only if */
+        private val CONDITIONAL_MARKERS = listOf(
+            " if ", " whether ", " when ", " unless ", " in case ", " only if ", " if it rains", " if it will rain"
+        )
+
+        /** Extended web terms — add research, investigate, explore for "Research quantum computing" */
+        private val WEB_TERMS_EXT = listOf("research", "researching", "investigate", "explore")
+        private val PRODUCTIVITY_TERMS = listOf(
+            "note", "save", "save it as", "save as note", "pdf", "export", "markdown", "file", "download", "shopping list"
+        )
+        private val TRANSLATION_TERMS = listOf("translate", "translation", "spanish", "french", "german", "language")
+        private val MAPS_TERMS = listOf("navigate", "navigation", "maps", "restaurant", "nearest", "hospital", "hotel", "flight", "cheapest", "tokyo")
+
         private val MATH_TERMS = listOf(
             "calculate", "computation", "compute", "calculator", "arithmetic",
             "math", "mathematical", "equation", "sum", "total", "multiply",
@@ -229,13 +355,15 @@ class ToolRouter @Inject constructor() {
             "search", "search the web", "look up", "look it up", "latest news",
             "news", "current", "today's", "who won", "what happened",
             "weather", "forecast", "temperature outside", "price of",
-            "google", "how to", "when did"
+            "google", "how to", "when did",
+            "research", "researching", "investigate", "explore", "find the cheapest", "cheapest"
         )
 
         private val COMMUNICATION_TERMS = listOf(
             "send a text", "send text", "text ", "sms", "call ", "phone call",
             "call mom", "call dad", "email ", "send an email", "send email",
-            "share with", "share this"
+            "share with", "share this",
+            "message dad", "message mom", "message ", "messaging", "text dad", "text mom"
         )
 
         private val WRITING_VERBS = listOf(

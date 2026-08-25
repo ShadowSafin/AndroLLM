@@ -22,6 +22,10 @@ AndroLLM is built on three core principles:
 │  Feature modules (home, chat, models, settings, voice, etc.)       │
 │  Jetpack Compose · StateFlow · ViewModel · Navigation Compose      │
 ├─────────────────────────────────────────────────────────────────────┤
+│                          AGENT LAYER                                │
+│  Planner · Execution Engine · Tool Registry · Loop & Observation  │
+│  Context Propagation · Working Memory · Retry · Validation · Permissions │
+├─────────────────────────────────────────────────────────────────────┤
 │                           DOMAIN LAYER                              │
 │  Core interfaces · Use cases · Domain models                       │
 │  InferenceEngine · MemoryManager · CloudGateway · SpeechRecognizer │
@@ -100,12 +104,30 @@ ChatViewModel.sendMessage(text)
         │
         ├──▶ EngineRepository.buildChatPrompt()      [Family chat template]
         │
-        └──▶ INFERENCEROUTING
+        ├──▶ AgentPlanner.createPlan()                [Goal→Graph, hidden unless dev mode]
+        │       │
+        │       ▼
+        │   ToolRouter.route() + ToolRanker.rank()   [smallest set, health-ranked]
+        │       │
+        │       ▼
+        │   ToolRunCoordinator.runLocalWorkflow()     [AGENT LOOP]
+        │       ├──▶ Validation → Permission → Confirmation → Execution (sandbox + 20s timeout)
+        │       ├──▶ Output validation + health update + confidence + structured log (dev)
+        │       ├──▶ Working Memory (variableStore) + Context Propagation (agentContext)
+        │       ├──▶ Parallel (async) vs Sequential (dependency graph)
+        │       ├──▶ Conditional IF/ELSE evaluation
+        │       ├──▶ Retry (3× backoff) → Alternative tool → Recovery
+        │       └──▶ Loop Guard (12 total, 2 consecutive, dedupe, disable on failure)
+        │       │
+        │       └──▶ Need More Work? → re-plan → next tool(s) → Goal Complete?
+        │
+        └──▶ INFERENCEROUTING (tool results injected as system feedback)
                 │
         ┌───────┴────────┐
         ▼                ▼
   Local Path         Cloud Path
   EngineRepository   CloudGateway.streamChat()
+  (native tool_calls) │
         │                │
         ▼                ▼
   LiteRtLmEngine     LiteLLMClient
@@ -120,7 +142,7 @@ ChatViewModel.sendMessage(text)
         │                │
         └───────┬────────┘
                 ▼
-       ChatViewModel._messages.add()
+       ChatViewModel._messages.add()   [never-blank guard grounded in tool results]
                 │
                 ▼
           ChatScreen UI update
@@ -432,6 +454,121 @@ retrieve(query, filters, topK):
 
 Local embeddings run through `LiteRtEmbeddingEngine` (LiteRT CompiledModel API)
 — the former llama.cpp GGUF embedding handle was removed with the migration.
+
+---
+
+## Agent Architecture
+
+The agent layer is the autonomous orchestration system that turns a single user request into a complete multi-step workflow. It is the only layer that plans, chains, validates, and recovers tool calls — the inference engine and UI never execute tools directly.
+
+```
+User Request
+     │
+     ▼
+ ┌──────────┐    Goal → Required Info → Required Tools → Order → Dependencies
+ │  Planner │──→ Execution Graph (Research → Summarize → SMS Draft → Send → Verify)
+ └────┬─────┘    internal only; hidden unless developer mode
+      │
+      ▼
+ ┌──────────────┐   Tool Selection (smallest required set, health-ranked)
+ │ Tool Registry│──→ ToolSpec: name, description, input/output schema, permission,
+ └──────┬───────┘    cost, privacy, latency, failureModes, dependencies, capabilities
+        │
+        ▼
+ ┌─────────────────┐  Validation → Permission → Confirmation → Execution → Observation
+ │ Execution Engine│──→ Loop: Execute → Observe → Replan → Next Tool → Goal Complete?
+ └────────┬────────┘    (parallel, conditional, retry, recovery, sandboxing)
+          │
+     ┌────┴─────────────────────────────┐
+     │ Working Memory + Context Propagation │
+     └──────────────────────────────────┘
+```
+
+### Component Map (`core/tools`)
+
+| Component | Location | Responsibility |
+|---|---|---|
+| `AgentPlanner` | `agent/AgentPlanner.kt` | Builds internal `AgentPlan` + `ExecutionGraph` before any tool; splits sequential markers (`then, after, before, first/second/last, and then, once finished, after researching`) and detects parallel/conditional branches |
+| `ToolPlanner` | `planner/ToolPlanner.kt` | LLM-driven tool selection (cloud `tools` array vs local JSON-grammar `{"calls":[...]}`); merges planner graph with router routing |
+| `ToolRouter` | `router/ToolRouter.kt` | Deterministic keyword routing; composite union for multi-intent (`Research then SMS → WEB+COMMUNICATION`), confidence scoring, sequential/parallel markers |
+| `ToolRegistry` | `registry/ToolRegistry.kt` | Single source of truth `Map<String, Tool>`; Hilt multibinding `Set<Tool>`, alias normalization, strict validation |
+| `ToolRunCoordinator` | `coordinator/ToolRunCoordinator.kt` | Provider-agnostic glue: multi-round workflow, cloud `role=tool` chunking, local feedback injection |
+| `ToolLoopGuard` | `coordinator/ToolLoopGuard.kt` | Per-turn guard: total cap 12, consecutive cap 2, dedupe `(name,args)`, disable on 2 failures; injects `stopReason` |
+| `ToolExecutor` | `executor/ToolExecutor.kt` | **Only** executor: permission gate → confirmation gate → timeout (20s default, per-tool override) → sandboxed execution |
+| `ToolHealthMonitor` | `monitoring/ToolHealthMonitor.kt` | Tracks `avgLatency, failureRate, timeoutRate, successRate, lastSuccess`; `healthScore 0..1` for ranking |
+| `ToolRanker` | `monitoring/ToolRanker.kt` | Ranks candidates by `health 40 + speed 15 + cost 10 + privacy 10 + local 10 + available 5 + queryHits` |
+| `ToolCallValidator` | `validation/ToolCallValidator.kt` | Strict JSON-schema validation (`required, types, enums, extra fields, nullable`) |
+| `ToolOutputValidator` | `validation/ToolOutputValidator.kt` | Validates every tool output (rejects `{}`, blank, missing `temperature/rain` for weather, missing `path` for files) |
+| `PromptInjectionDetector` | `validation/PromptInjectionDetector.kt` | Sanitizes hidden tool syntax in user prompts and tool outputs |
+| `ToolExecutionLogger` + `ToolExecutionTraceStore` | `validation/ToolExecutionLogger.kt`, `trace/ToolExecutionTraceStore.kt` | Structured logs: `executionId, goal, planner, toolSelected, arguments, executionTime, result, validation, nextStep, finalStatus, confidence` (dev mode only) |
+| `AgentVariableStore` | `agent/AgentVariableStore.kt` | Per-conversation `Map<String,String>` scoped to turn, reset on `beginTurn(scope)` |
+| `AgentContextBuilder` | `agent/AgentContextBuilder.kt` | Injects `CURRENT CONTEXT` block (time, battery, clipboard, foreground app, device, network, variables) each round |
+| `ClarificationEngine` | `clarification/ClarificationEngine.kt` | Asks only missing info: `"Which Dad contact should I message?"` not `"Can you clarify?"` |
+| `DeviceContextProvider` | `agent/DeviceContextProvider.kt` | Collects live facts never asked from user |
+
+### Execution Loop & Observation
+
+```
+User
+ ↓
+Planner (internal graph) ──┐
+ ↓                         │
+Tool Selection (registry + router + ranker + health) │
+ ↓                         │
+Execute Tool (validation → permission → confirmation → sandbox + timeout) │
+ ↓                         │
+Observe Result (output validation → confidence 0..1 → health update → structured log) │
+ ↓                         │
+Need More Work? ── YES ────┘
+ ↓ NO
+Goal Completed / User interaction / Permission / Unrecoverable / Safety
+ ↓
+Final Response (grounded in tool results)
+```
+
+- **Goal-oriented**: the loop continues until the *final goal* (e.g. `Dad receives SMS`) not just `search done`; `ToolRunCoordinator.runLocalWorkflow` asks internally *“Does original request require additional actions?”* and injects `"Reminder still needs …"` to prevent early exit.
+- **Replanning**: after every tool the current history + feedback + context block is re-fed to `ToolPlanner.planLocal`; the model may emit `[]` (done) or next tool(s).
+
+### Dependency Resolution & Context Propagation
+
+- Sequential markers (`then, after, next, finally, before, first/second/last, and then, once finished, after researching, before sending`) enforce order `Search → Read → Summarize → Email` never reversed; enforced by `orderByDependencies` using the planner graph.
+- Every tool receives `original request + conversation history + previous tool outputs (via feedback system message) + relevant memory + execution state (variables)` — no tool runs in isolation.
+- Working memory `AgentVariableStore` persists `weather, search_results, last_tool_output` for the turn; `ToolRunCoordinator.storeToolResultMemory` writes each success, next tool reads via `variable_get`.
+
+### Tool Selection, Ranking & Validation
+
+1. `ToolRouter.route(query, hasAttachments, enabledTools)` classifies intents (`ATTACHMENT, MATH, DEVICE, WEB, COMMUNICATION, GENERAL`) and unions composite requests (`Research then SMS → WEB+COMMUNICATION`) — smallest required set.
+2. `ToolRanker.rank(candidates, query)` scores by `health, speed (estimated + measured), reliability, cost, privacy, local preference`.
+3. `ToolCallValidator` checks `tool exists, name non-empty, JSON schema`; `ToolOutputValidator` checks outputs; `PromptInjectionDetector` sanitizes.
+4. `ToolRegistry` declares each `ToolSpec` with `name, description, parameters (JSON Schema), permission, requiresConfirmation, category, capabilities, estimatedLatencyMs, cost, privacyLevel, failureModes, dependencies, supportedBackends, availableOnDevice`.
+
+### Retry Manager, Health & Recovery
+
+- **Retry with backoff**: `TOOL_MAX_ATTEMPTS=3`, `RetryPolicy(initial 500ms, max 8000ms, jitter 150ms)`, never for confirmation-gated or non-retryable.
+- **Alternative tool**: after retries, `findAlternativeTool` picks health-ranked alternative with same `permission/category`.
+- **Health**: `ToolHealthMonitor` tracks `avgLatency (EMA), failureRate, timeoutRate, successRate, lastSuccessAt`; unhealthy tools are deprioritized.
+- **Recovery without restart**: handles `timeouts, rate limits (backoff), network failures (retry), permission changes (clear error), API failures (retry/alt), malformed responses (output validation), missing params (clarification)` — the workflow continues from the next step, not from scratch.
+
+### Working Memory & Loop Protection
+
+- `AgentVariableStore.beginTurn(scope)` clears per conversation; variable tools `variable_set/get` implement `WHILE index<n` and `FOR EACH` loops.
+- `ToolLoopGuard` prevents infinite execution: `repeated tool calls, repeated reasoning, repeated retries, circular execution` → safe abort with explanation.
+
+### Sandboxing & Permission
+
+- `ToolExecutor` isolates every call in `withTimeout` + `try/catch`; one failed tool returns `ToolResult.Failure` without crashing the agent.
+- Permission manager: Settings → Automation master switch + per-tool toggles `ToolPermission` → Android runtime permissions (`SEND_SMS, READ_CONTACTS, CALL_PHONE, CALENDAR, RECORD_AUDIO, LOCATION`) requested lazily via confirmation card; confirmation required only for `SMS, Phone Calls, Payments, Email, Calendar Changes, Deleting Files, System Changes, External API with side effects`; everything else auto-executes.
+
+### Streaming & Logging
+
+- **Streaming**: `onActivity` chips (`Planning…, Searching Web…, Reading Sources…, Summarizing…, Preparing SMS…, Waiting for confirmation…, Sending…, Done`) and `ToolEvent(Started/Succeeded/Failed/Declined)` render live per-tool cards; throttled to ~60fps, never truncated.
+- **Developer logs**: `ToolExecutionLogger.StructuredLog` + `ToolExecutionTraceStore` (200 entries) show `executionId, goal, planner (hidden reasoning), toolSelected, arguments, executionTime, result, validation, nextStep, finalStatus, confidence` — available in Developer → Tool Debug, not exposed to normal users.
+
+### Interaction Without Exposing Reasoning
+
+The planner's internal `AgentPlan` and hidden reasoning are never added to the user-visible chat; only `ToolPromptBuilder.advertisement()` (tool names + args) and context block are injected as system messages. Developer mode is the sole surface for graph inspection.
+
+Implementation: [`ToolRunCoordinator.kt`](../../core/tools/src/main/java/io/androllm/core/tools/coordinator/ToolRunCoordinator.kt), [`AgentPlanner.kt`](../../core/tools/src/main/java/io/androllm/core/tools/agent/AgentPlanner.kt), [`ToolPlanner.kt`](../../core/tools/src/main/java/io/androllm/core/tools/planner/ToolPlanner.kt), [`ToolRegistry.kt`](../../core/tools/src/main/java/io/androllm/core/tools/registry/ToolRegistry.kt)
 
 ---
 

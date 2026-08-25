@@ -146,11 +146,38 @@ data class ToolSpec(
      */
     val worksLocally: Boolean = true,
     /** True when the tool is cloud-only (never runs locally). */
-    val isCloudOnly: Boolean = false
+    val isCloudOnly: Boolean = false,
+    /** Estimated latency in ms (for ranking: faster preferred when accuracy equal). */
+    val estimatedLatencyMs: Long = 2000L,
+    /** Privacy level: higher means more sensitive data. */
+    val privacyLevel: PrivacyLevel = PrivacyLevel.LOCAL,
+    /** Cost hint: FREE vs NETWORK vs PAID. */
+    val cost: ToolCost = ToolCost.FREE,
+    /** Known failure modes for recovery planning (timeout, rate_limit, network, auth, malformed). */
+    val failureModes: List<String> = emptyList(),
+    /** Tool dependencies: other tool names that must have succeeded before this can run (e.g. note_save depends on search_web). */
+    val dependencies: List<String> = emptyList(),
+    /** Declared capabilities for capability-aware ranking. */
+    val capabilities: List<String> = emptyList()
 ) {
     /** Convenience: does this tool support the given backend? */
     fun supports(backend: ToolBackend): Boolean = backend in supportedBackends
 
     /** Availability check for the planner: must be enabled and available on device. */
     val isAvailable: Boolean get() = availableOnDevice
+}
+
+/** Privacy level for tool execution — used in ranking (LOCAL preferred over CLOUD). */
+enum class PrivacyLevel(val rank: Int) {
+    LOCAL(0),        // purely on-device, no data leaves device
+    NETWORK(1),      // network call but anonymized (e.g. weather)
+    CLOUD(2),        // cloud provider involved
+    SENSITIVE(3)     // personal data (contacts, SMS, location)
+}
+
+/** Cost hint for ranking — cheaper preferred. */
+enum class ToolCost(val rank: Int) {
+    FREE(0),
+    NETWORK(1),
+    PAID(2)
 }

@@ -6,7 +6,7 @@ This document describes the module layout and dependency graph of the AndroLLM G
 
 ## Module Count
 
-**31 Gradle modules** organized into three tiers: Application, Core libraries, and Feature modules (plus `whisper` and `documentation` auxiliary modules).
+**33 Gradle modules** organized into four tiers: Application, Core libraries, Feature modules, and engine/voice/documentation support modules.
 
 ---
 
@@ -17,9 +17,9 @@ This document describes the module layout and dependency graph of the AndroLLM G
 | `app` | `io.androllm.app` | Entry point, `Application` class, root navigation graph, Firebase auth integration |
 
 Key classes in `app`:
-- `AndroLLMApplication.kt` — Hilt application class, WorkManager configuration
+- `AndroLLMApplication.kt` — Hilt application class, WorkManager configuration, telemetry initialization
 - `MainActivity.kt` — Single-activity host, theme application, lifecycle management
-- `navigation/AppNavHost.kt` — Root `NavHost` wiring all destination routes
+- `navigation/AppNavHost.kt` — Root `NavHost` wiring all 15 destination routes
 - `auth/FirebaseAuthScreen.kt` — Google Sign-In + GitHub OAuth login UI
 - `profile/ProfileSetupScreen.kt` — One-time profile completion flow
 
@@ -90,21 +90,22 @@ Namespace: `io.androllm.core.models`
 
 | Class | Role |
 |---|---|
-| `Model` | Primary domain model for a downloaded `.litertlm` file |
-| `CatalogModel` | Rich remote catalog entry (families, architectures, tags, licenses, RAM fit, etc.) |
+| `Model` | Primary domain model for a downloaded model file |
+| `CatalogModel` | Rich remote catalog entry (37 fields: families, architectures, tags, licenses, RAM fit, trending score, etc.) |
 | `Conversation` / `Message` | Chat domain objects |
 | `AppSettings` | App-wide settings model |
-| `Enums` | `DownloadStatus`, `ModelFormat`, `ModelStatus`, `ModelCategory`, `ModelOrigin` |
-| `catalog/CatalogRepository` | Loads/refreshes catalog JSON from bundled asset or remote source |
+| `Enums` | `DownloadStatus`, `ModelFormat` (GGUF legacy, LITERTLM, TFLITE, …), `ModelStatus`, `ModelCategory`, `ModelOrigin` |
+| `catalog/CatalogRepository` | Loads/refreshes catalog JSON from bundled asset or HuggingFace |
 | `catalog/CatalogLoader` | Parses + validates catalog JSON |
 | `catalog/CatalogParser` | JSON deserialization for catalog |
-| `catalog/CatalogValidator` | Validates IDs uniqueness, required fields, supported architectures, SHA-256 format, HTTPS URLs |
-| `catalog/SupportedArchitectures` | Whitelist of supported LiteRT architectures (`gemma3`, `gemma4`, `gemma-embedding`, `qwen2`, `qwen3`) |
-| `catalog/ModelSearchEngine` | Search/filter/sort over catalog dimensions |
+| `catalog/CatalogValidator` | Validates IDs uniqueness, required fields, LiteRT artifacts (`.litertlm` / `.tflite` only), SHA-256 format, HTTPS URLs |
+| `catalog/ModelSearchEngine` | Search/filter/sort over filter dimensions and sort options |
 | `catalog/RecommendationEngine` | Scores models by RAM fit, size fit, quant tier, popularity, curated flag |
-| `catalog/OfficialModelCatalog` | Hardcoded built-in models (Qwen, Gemma, DeepSeek variants) |
+| `catalog/CatalogModels` | Hardcoded built-in models (Gemma, Qwen, DeepSeek variants) |
+| `catalog/ModelInspector` | Reads `.litertlm` container metadata (LlmMetadata proto) for display; also parses GGUF headers of imported files via `GgufReader` |
 | `catalog/QuantClassifier` | Maps quant strings → `QuantLevel` enum |
-| `catalog/ParameterCount` | Parses "1.5B", "0.6B" → double |
+| `catalog/ParameterCount` | Parses "1.5B", "407M" → double |
+| `gguf/GgufReader` + `gguf/GgufType` | Pure-JVM GGUF v2/v3 header parser — used ONLY for metadata inspection of GGUF files in the import flow; GGUF is not runnable by the LiteRT runtime |
 
 ### `core:network` — HTTP & Downloads
 Namespace: `io.androllm.core.network`
@@ -112,11 +113,11 @@ Namespace: `io.androllm.core.network`
 | Class | Role |
 |---|---|
 | `HttpClientFactory` | Ktor `HttpClient(Android)` singleton with ContentNegotiation + Logging |
-| `ModelApi` / `HuggingFaceApi` | Retrofit-style API interfaces for model repositories |
+| `ModelApi` / `HuggingFaceApi` | Retrofit-style API interfaces for HuggingFace repo (filtered to `litertlm` artifacts) |
 | `DownloadManager` | Background file downloads with progress tracking |
 | `NetworkModule` | Hilt `@Module` providing `HttpClient` |
-| `catalog/CatalogNetworkModule` + remote source | Remote catalog refresh |
-| `repository/HuggingFaceRepository` | Search/query model repositories |
+| `catalog/CatalogNetworkModule` + `HfCatalogRemoteSource` | Remote catalog refresh from HuggingFace |
+| `repository/HuggingFaceRepository` | Search/query HuggingFace model repos for LiteRT artifacts |
 | `repository/ModelRepositoryProvider` / `RepositoryRegistry` | Factory registry for model sources |
 
 ### `core:cloud` — Cloud AI Providers
@@ -164,7 +165,7 @@ See [Memory Architecture Deep Dive](memory/memory-architecture.md) for details.
 |---|---|
 | `db/` | `MemoryDatabase` (separate Room instance), `MemoryDao`, `EmbeddingDao`, entities |
 | `vector/` | `CosineVectorIndex` (in-memory brute-force cosine similarity), `VectorMath` |
-| `embedding/` | `EmbeddingProvider` interface, `RoutingEmbeddingProvider`, `CloudEmbeddingProvider`, `LiteRtEmbeddingProvider` (LiteRT CompiledModel API) |
+| `embedding/` | `EmbeddingProvider` interface, `RoutingEmbeddingProvider`, `CloudEmbeddingProvider`, `LiteRtEmbeddingProvider` (LiteRT CompiledModel via `LiteRtEmbeddingEngine`) |
 | `intelligence/` | `MemoryIntelligence` interface, `RoutingMemoryIntelligence`, `CloudMemoryIntelligence`, `LocalMemoryIntelligence` |
 | `extraction/` | `MemoryExtractor`, `ExtractionJson`, `ExtractionJsonParser` |
 | `context/` | `ContextBuilder` — formats memories for system prompt injection |
@@ -208,11 +209,21 @@ See [Voice Assistant Architecture](voice/voice-assistant.md) for details.
 | Sub-package | Classes |
 |---|---|
 | `wakeword/` | `WakeWordEngine` interface, `OpenWakeWordEngine` (Hilt-bound), `SherpaOnnxWakeWordEngine` (actual implementation) |
-| `asr/` | `SpeechRecognizer` interface, `SherpaRecognizer`, `SherpaOnnxStreamingRecognizer`, `GeminiStreamingRecognizer` |
+| `asr/` | `SpeechRecognizer` interface, `SherpaRecognizer`, `SherpaOnnxStreamingRecognizer`, `GeminiStreamingRecognizer`, whisper.cpp STT (`:whisper` module) |
 | `tts/` | `OfflineTtsEngine` interface, `PiperSpeechSynthesizer`, `SherpaOnnxOfflineTtsEngine`, `GeminiOfflineTtsEngine` |
 | `vad/` | `Vad` (energy-based), `SherpaVad` (interface wrapper) |
 | `audio/` | `AudioRecorder` (16kHz mono, 200ms chunks), `AudioPlayer` (AudioTrack MODE_STREAM) |
 | `model/` | `VoiceSettings`, `VoiceModels` (asset paths for ONNX models) |
+
+### Agent Core Modules
+
+| Module | Namespace | Role |
+|---|---|---|
+| `core:tools` | `io.androllm.core.tools` | **Autonomous agent platform (production-grade):** `ToolSpec` registry (47+ built-in tools with `cost, privacy, latency, failureModes, dependencies, capabilities`), `AgentPlanner` (internal `Goal→Graph` with sequential/parallel/conditional, hidden unless dev mode), `ToolPlanner` (cloud native + local JSON-grammar `planLocal` with `PLAN_SCHEMA`), `ToolRunCoordinator` (multi-round `Plan→Select→Execute→Observe→Replan` loop, parallel via `async`, conditional IF/ELSE, retry 3× + alternative, health-ranked, sandbox, output validation), `ToolRouter` (composite union, confidence), `ToolHealthMonitor` + `ToolRanker` (latency, failureRate, healthScore), `ToolOutputValidator`, `ClarificationEngine` (targeted asks), `ToolLoopGuard` (12 total, 2 consecutive, dedupe, disable), `AgentVariableStore` (per-turn working memory), `AgentContextBuilder/DeviceContextProvider` (live context), `ToolExecutionLogger/TraceStore` (structured `executionId, goal, planner, tool, args, time, result, validation, nextStep, finalStatus, confidence`) |
+| `core:mcp` | `io.androllm.core.mcp` | MCP client — connect external tools via Streamable HTTP; tools surface as `mcp_<server>_<tool>` (same gates/health/trace) |
+| `core:accessibility` | `io.androllm.core.accessibility` | Accessibility-driven UI automation (tap/type/scroll/drag/swipe/pinch + `HeuristicActionPlanner`/`LlmActionPlanner`, `UiGestureTool`) |
+| `core:runtime` | `io.androllm.core.runtime` | Runtime component registry (`ToolRuntime`, `VoiceRuntime`, …) |
+| `core:permissions` | `io.androllm.core.permissions` | Permission manager (see above) — backs Automation → per-tool toggles + runtime grant buttons |
 
 ---
 
@@ -224,7 +235,7 @@ Each feature module owns one screen or service. They depend on `core:*` modules 
 |---|---|---|
 | `feature:home` | `io.androllm.feature.home` | `HomeScreen`, `HomeViewModel`, `ChatActivityCard` |
 | `feature:chat` | `io.androllm.feature.chat` | `ChatScreen`, `ChatViewModel`, `MessageCard`, `ComposeInputArea`, `MarkdownRenderer`, `ConversationDrawer`, `GenerationStatsPanel`, `ModelParameterSheet`, `SearchOverlay`, `TypingAndThinkingIndicator`, `ConversationExporter`, `ConversationSharer` |
-| `feature:models` | `io.androllm.feature.models` | `ModelsScreen`, `ModelsViewModel`, `DownloadManager`, `ModelDownloadWorker`, `CompatibilityAnalyzer`, `OfficialModelCatalog`, `CatalogModelMapper`, `ModelBenchmarker`, `CloudDownloadProgress` |
+| `feature:models` | `io.androllm.feature.models` | `ModelsScreen`, `ModelsViewModel`, `DownloadManager`, `ModelDownloadWorker`, `CompatibilityAnalyzer`, `CatalogModelMapper`, `ModelBenchmarker`, `CloudDownloadProgress` |
 | `feature:settings` | `io.androllm.feature.settings` | `SettingsScreen`, `SettingsViewModel`, `VoiceAssistantSection` |
 | `feature:voice` | `io.androllm.feature.voice` | `VoiceAssistantService` (foreground), `VoiceAssistantController` (singleton StateFlow), `VoiceAssistant`, `VoiceOverlayWindow` (TYPE_APPLICATION_OVERLAY), `VoiceOverlay`, `VoiceCommandRouter`, `SentenceAssembler`, `ChatManager`, `VoiceNotifications` |
 | `feature:splash` | `io.androllm.feature.splash` | `SplashScreen` |
@@ -239,9 +250,9 @@ Each feature module owns one screen or service. They depend on `core:*` modules 
 
 ## The Engine Module
 
-The `engine` module bridges the Kotlin app layer and the **LiteRT-LM** inference
-runtime (`com.google.ai.edge.litertlm:litertlm-android:0.16.0`) plus **LiteRT
-2.2.0** for embeddings. It is 100% Kotlin/Java — no `cpp/`, no NDK, no CMake.
+The `engine` module hosts the **LiteRT-LM** inference runtime integration — a
+100% Kotlin/Java module. There is **no native code**: no `src/main/cpp/` tree,
+no JNI, no NDK, no CMake. The LiteRT-LM and LiteRT AARs come from Google Maven.
 
 ```
 engine/
@@ -249,45 +260,67 @@ engine/
     ├── api/
     │   ├── InferenceEngine.kt       # Primary interface: loadModel, generateChatStream, cancel...
     │   ├── EngineRepository.kt      # Facade adding Mutex serialization for concurrent callers
-    │   └── EngineState.kt           # StateFlow-emitting sealed interface
+    │   ├── DefaultEngineRepository.kt # @Singleton impl: state publishing, stall watchdogs
+    │   └── EngineState.kt           # StateFlow-emitting sealed interface (Unloaded/Loading/Ready/Error)
     ├── core/
-    │   └── LiteRtLmEngine.kt        # Singleton: wraps the LiteRT-LM runtime lifecycle
+    │   ├── LiteRtLmEngine.kt        # @Singleton: wraps the LiteRT-LM Engine + Conversation
+    │   └── NativeToolCallScanner.kt # Parses <|tool_call|> markers from native output
     ├── compat/
-    │   ├── ModelFamily.kt / ModelFamilyRegistry.kt / ModelFamilyConfig.kt
-    │   ├── ContainerMetadataReader.kt   # Reads LlmMetadata proto from .litertlm
-    │   ├── ChatTemplateRenderer.kt      # Per-family chat template rendering
-    │   ├── SpecialTokens.kt             # bos/eos/stop tokens from container metadata
-    │   ├── OutputDecoder.kt             # token ids → text, control-token filtering
-    │   ├── StopSequenceTracker.kt       # stops generation at family stop sequences
-    │   ├── TokenizerFiles.kt            # locates/loads the family tokenizer
-    │   └── ModelCompatibilityException.kt
-    ├── models/
-    │   ├── EngineModelInfo.kt / EngineConfig.kt / GenerationConfig.kt
-    │   ├── EngineCapabilities.kt / EngineDebugInfo.kt / EngineException.kt
-    │   ├── EngineStats.kt / MemoryStats.kt / BackendType.kt
-    │   ├── ModelLoadConfig.kt / ChatPromptMessage.kt / StreamChunk.kt
+    │   ├── ModelFamily.kt           # Supported families (Gemma, Qwen2/2.5/3, Phi, Llama3, ...)
+    │   ├── ModelFamilyRegistry.kt   # Container metadata → family resolution
+    │   ├── ModelFamilyConfig.kt     # Per-family contract: template, tokens, defaults
+    │   ├── ContainerMetadataReader.kt # LlmMetadata proto reader
+    │   ├── ContainerMetadata.kt     # Parsed container metadata model
+    │   ├── FlatBufferReader.kt      # FlatBuffers wire parsing for the metadata proto
+    │   ├── ProtoWireReader.kt       # Protobuf wire-format helpers
+    │   ├── ChatTemplateRenderer.kt  # Renders the family chat template (prompt mirroring)
+    │   ├── ChatTemplates.kt         # Official chat template strings per family
+    │   ├── SpecialTokens.kt         # bos/eos/forbidden token sets per family
+    │   ├── StopSequenceTracker.kt   # Completes stop sequences across stream fragments
+    │   ├── OutputDecoder.kt         # Special-token stripping + stop cutting
+    │   ├── TokenizerFiles.kt        # Tokenizer file names per family
+    │   ├── ModelCompatibilityResolver.kt # Load-time compatibility checks
+    │   └── ModelCompatibilityException.kt # Thrown on unresolved family/template
     ├── diagnostics/
-    │   └── RuntimeLogger.kt            # tag prefix: AndroLLM-Engine
+    │   └── RuntimeLogger.kt         # Tag-scoped logger (logcat tag: AndroLLM-Engine)
+    ├── di/
+    │   └── EngineModule.kt          # Hilt bindings: LiteRtLmEngine → InferenceEngine,
+    │                                #   DefaultEngineRepository → EngineRepository
     ├── embedding/
-    │   ├── LiteRtEmbeddingEngine.kt    # LiteRT CompiledModel API embeddings
-    │   └── SentencePieceTokenizer.kt
-    ├── memory/                         # (engine-side memory helpers)
+    │   ├── LiteRtEmbeddingEngine.kt # Raw LiteRT CompiledModel API (EmbeddingGemma 300M)
+    │   └── SentencePieceTokenizer.kt # Gemma 3 unigram tokenizer (262k vocab)
+    ├── memory/
+    │   └── ContextManager.kt        # Context budget tracking for conversations
+    ├── models/
+    │   ├── EngineModels.kt          # EngineConfig, ModelLoadConfig, GenerationConfig,
+    │   │                            #   EngineModelInfo, EngineDebugInfo, EngineException,
+    │   │                            #   EngineCapabilities, EngineStats, StreamChunk, ...
+    │   ├── MemoryStats.kt           # RAM/GPU telemetry + recovery counters
+    │   └── BackendType               # CPU/GPU + legacy-compat enum values
     └── utils/
-        ├── MemoryEstimator.kt          # Estimates RAM requirement from container metadata
-        ├── ThreadManager.kt
-        ├── CoherenceChecker.kt
-        ├── LiteRtValidator.kt          # Container/metadata validation before load
-        └── ModelResourceGuard.kt
+        ├── MemoryEstimator.kt       # RAM requirement prediction from metadata
+        ├── ThreadManager.kt         # Thread-count recommendation + background priority
+        ├── CoherenceChecker.kt      # Post-load temperature-0 self-test probe
+        ├── LiteRtValidator.kt       # Pre-load .litertlm container validation
+        └── ModelResourceGuard.kt    # Refuses loads that exceed available RAM
 ```
 
-### Runtime Dependencies
+### Engine Dependencies
 
-- LiteRT-LM AARs are pulled from Google's Maven repository at build time —
-  no vendored sources, no native builds.
-- ABI: `arm64-v8a` only.
-- `ModelInspector` (consumed by the Models feature) reads container metadata
-  for display; `GgufReader`/`GgufType` exist **only** for GGUF metadata
-  inspection in the import flow — GGUF is not runnable.
+- **Chat/generation**: `com.google.ai.edge.litertlm:litertlm-android:0.16.0`
+  (LiteRT-LM Kotlin API: `Engine`, `Conversation`, `SamplerConfig`, streaming)
+- **Embeddings**: `com.google.ai.edge.litert:litert:2.2.0` — raw LiteRT
+  `CompiledModel` API (`org.tensorflow.lite.Interpreter`)
+- 100% Kotlin/Java — no `libandrollm_llama.so`, no `.so` files at all
+
+---
+
+## Support Modules
+
+| Module | Namespace | Purpose |
+|---|---|---|
+| `:whisper` | `io.androllm.core.whisper` | whisper.cpp STT (`WhisperContext`, `WhisperLib`) — the only NDK/CMake module in the repo, used by the voice assistant's speech recognition |
+| `:documentation` | `io.androllm.docs` | Bundled documentation module (docs app screens, `AppDocs`) |
 
 ---
 
@@ -313,6 +346,8 @@ app
 ├── core:runtime
 ├── core:voice
 ├── engine
+├── whisper
+├── documentation
 ├── feature:home
 ├── feature:chat
 ├── feature:models
@@ -339,17 +374,16 @@ Feature modules only depend on `core:*` modules and `engine`. Feature modules do
 | Min SDK | 28 |
 | Target SDK | 36 |
 | JVM Target | 17 |
-| Kotlin | 2.x |
-| AGP | 8.x |
-| Hilt | 2.57.x |
-| Compose BOM | recent stable |
-| Room | 5 (WAL) |
-| Ktor | 3.x |
-| Firebase BoM | recent stable |
-| sherpa-onnx | recent stable |
-| LiteRT-LM | 0.16.0 (`litertlm-android`) |
-| LiteRT | 2.2.0 |
+| ABI | arm64-v8a only |
+| LiteRT-LM | `com.google.ai.edge.litertlm:litertlm-android:0.16.0` (Maven) |
+| LiteRT | `com.google.ai.edge.litert:litert:2.2.0` (Maven) |
+| Hilt | 2.57.1 |
+| Room | v5 (WAL) |
+| Firebase BoM | 34.12.0 |
+| sherpa-onnx | 1.13.4 |
 | R8/ProGuard | Disabled in release (`isMinifyEnabled = false`) |
 | CI/CD | Not configured |
 | Product Flavors | None |
-| Native toolchains | None (no NDK/CMake/Vulkan SDK) |
+
+> **No NDK, no CMake, no Vulkan SDK** are required to build the engine — the
+> only native build in the repo is the `:whisper` module (whisper.cpp STT).

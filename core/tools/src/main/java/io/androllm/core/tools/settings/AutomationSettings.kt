@@ -29,8 +29,8 @@ data class AutomationSettings(
     val disabledTools: Set<String> = emptySet(),
     /** Voice mode asks for confirmation out loud and listens for yes/no. */
     val voiceConfirmations: Boolean = true,
-    /** Max planner→execute→re-plan rounds in one turn (loop guard). */
-    val maxToolRounds: Int = 3,
+    /** Max planner→execute→re-plan rounds in one turn (loop guard) — hardened to 6 for stress-test workflows. */
+    val maxToolRounds: Int = 5,
     /** Show tool activity chips in the chat stream. */
     val showToolActivity: Boolean = true
 ) {

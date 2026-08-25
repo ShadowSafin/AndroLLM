@@ -219,11 +219,11 @@ See [Voice Assistant Architecture](voice/voice-assistant.md) for details.
 
 | Module | Namespace | Role |
 |---|---|---|
-| `core:tools` | `io.androllm.core.tools` | `ToolSpec` registry (47 built-in tools), `ToolPlanner` (cloud native function calling + local `planLocal` JSON fallback), `ToolRunCoordinator`, `ToolConfirmationManager`, `ToolPromptBuilder` (tool advertisement system message, context-budgeted) |
-| `core:mcp` | `io.androllm.core.mcp` | MCP client — connect external tools via Streamable HTTP; tools surface as `mcp_<server>_<tool>` |
-| `core:accessibility` | `io.androllm.core.accessibility` | Accessibility-driven UI automation (tap/type/scroll/drag/swipe/pinch gestures) |
-| `core:runtime` | `io.androllm.core.runtime` | Runtime component registry |
-| `core:permissions` | `io.androllm.core.permissions` | Permission manager (see above) |
+| `core:tools` | `io.androllm.core.tools` | **Autonomous agent platform (production-grade):** `ToolSpec` registry (47+ built-in tools with `cost, privacy, latency, failureModes, dependencies, capabilities`), `AgentPlanner` (internal `Goal→Graph` with sequential/parallel/conditional, hidden unless dev mode), `ToolPlanner` (cloud native + local JSON-grammar `planLocal` with `PLAN_SCHEMA`), `ToolRunCoordinator` (multi-round `Plan→Select→Execute→Observe→Replan` loop, parallel via `async`, conditional IF/ELSE, retry 3× + alternative, health-ranked, sandbox, output validation), `ToolRouter` (composite union, confidence), `ToolHealthMonitor` + `ToolRanker` (latency, failureRate, healthScore), `ToolOutputValidator`, `ClarificationEngine` (targeted asks), `ToolLoopGuard` (12 total, 2 consecutive, dedupe, disable), `AgentVariableStore` (per-turn working memory), `AgentContextBuilder/DeviceContextProvider` (live context), `ToolExecutionLogger/TraceStore` (structured `executionId, goal, planner, tool, args, time, result, validation, nextStep, finalStatus, confidence`) |
+| `core:mcp` | `io.androllm.core.mcp` | MCP client — connect external tools via Streamable HTTP; tools surface as `mcp_<server>_<tool>` (same gates/health/trace) |
+| `core:accessibility` | `io.androllm.core.accessibility` | Accessibility-driven UI automation (tap/type/scroll/drag/swipe/pinch + `HeuristicActionPlanner`/`LlmActionPlanner`, `UiGestureTool`) |
+| `core:runtime` | `io.androllm.core.runtime` | Runtime component registry (`ToolRuntime`, `VoiceRuntime`, …) |
+| `core:permissions` | `io.androllm.core.permissions` | Permission manager (see above) — backs Automation → per-tool toggles + runtime grant buttons |
 
 ---
 

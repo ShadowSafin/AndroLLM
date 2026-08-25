@@ -289,6 +289,129 @@ implementation(project(":core:<name>"))
 
 ---
 
+## Adding a New Tool
+
+The agent platform is modular — new tools (camera, file system, shell, OCR, maps, contacts, SMS, weather, GitHub, etc.) are added without changing the planner. Follow this contract to make the planner, ranking, validation, and recovery work automatically.
+
+### 1. Implement `Tool` + `ToolSpec`
+
+Create `core/tools/src/main/java/io/androllm/core/tools/tool/impl/MyTool.kt`:
+
+```kotlin
+@Singleton
+class MyTool @Inject constructor(
+    @ApplicationContext private val context: Context
+) : Tool {
+
+    override val spec = ToolSpec(
+        name = "my_tool",  // snake_case, LLM-visible, matches alias in ToolCallParser if needed
+        description = "One–two sentences: what it does, when to use it.",
+        parameters = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("query") { put("type", "string") }
+                putJsonObject("limit") { put("type", "integer"); put("minimum", 1) }
+            }
+            putJsonArray("required") { add("query") }
+        },
+        permission = ToolPermission.SEARCH,          // toggle in Settings → Automation
+        requiresConfirmation = false,                 // true for SMS, calls, email, calendar writes, delete, payments, system
+        category = ToolCategory.INFORMATION,
+        capabilities = ["search","lookup"],
+        estimatedLatencyMs = 1500,                    // for ranking: faster preferred
+        cost = ToolCost.FREE,                        // FREE < NETWORK < PAID
+        privacyLevel = PrivacyLevel.NETWORK,         // LOCAL < NETWORK < CLOUD < SENSITIVE
+        failureModes = listOf("timeout","network","empty"),
+        dependencies = emptyList(),                  // e.g. listOf("search_web") if must run after search
+        supportedBackends = setOf(ToolBackend.LOCAL, ToolBackend.CLOUD),
+        availableOnDevice = true,                    // false when hardware missing (checked before execution)
+        cacheable = true                             // true only for pure reads (replayed on regenerate)
+    )
+
+    override suspend fun execute(arguments: JsonObject): ToolResult {
+        val query = ToolArgs.str(arguments, "query") // supports alias via ToolArgs
+            ?: return ToolResult.Failure("Missing required argument: query", retryable = false)
+        // Never throw unchecked — return Failure with guidance; sandbox will catch crashes anyway
+        return runCatching {
+            val result = doWork(query)
+            ToolResult.Success(
+                summary = "Found ${result.size} results for \"$query\": ${result.joinToString()}",
+                data = buildJsonObject { put("query", query); putJsonArray("items") { /* … */ } }
+            )
+        }.getOrElse {
+            ToolResult.Failure("MyTool failed: ${it.message}", retryable = true)
+        }
+    }
+}
+```
+
+**Required interfaces/contracts:**
+- `Tool.execute(JsonObject): ToolResult` — `Success(summary, data)` or `Failure(summary, data?, retryable)`. `summary` is the text fed back to the LLM (chunked if >8k); `data` is structured JSON for callers.
+- `ToolSpec.parameters` MUST be strict JSON Schema (types, required, enums, `additionalProperties: false` via `JsonSchemaValidator`). Extra fields are rejected; nullable only when explicitly `type: ["string","null"]`.
+
+### 2. Register in `ToolsModule`
+
+```kotlin
+// core/tools/src/main/java/io/androllm/core/tools/di/ToolsModule.kt
+@Binds @IntoSet abstract fun bindMyTool(tool: MyTool): Tool
+```
+
+In `provideToolRegistry` the `Set<Tool>` is collected into `ToolRegistry` — the planner sees the tool immediately. MCP remote tools appear identically as `mcp_<server>_<tool>`.
+
+### 3. Permission & Availability
+
+- Declare `permission` → auto toggle in **Settings → Automation** (grouped by `category`) and derived grant buttons from `ToolPermission.runtimePermissions()` (e.g. `READ_CONTACTS`).
+- Return clear `Failure("Enable … in Android settings")` when runtime permission missing — confirmation card requests it on approve.
+- Set `availableOnDevice` based on hardware (e.g. `context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)`) — filtered from planner when false.
+
+### 4. Validation Rules
+
+- **Input**: `ToolCallValidator.validate(call)` checks `name non-empty, known tool, schema (required, types, enums, no extra fields)`. Hallucinated names and prompt injection are rejected before execution.
+- **Output**: `ToolOutputValidator.validate(toolName, result)` rejects `{}`, blank, missing `temperature` for weather, missing `path` for files — becomes `Failure(retryable=true)` for retry/alternative.
+
+### 5. Error Handling & Retry Expectations
+
+- Return `Failure(retryable=true)` for transient failures (`timeout, network, rate limit, malformed`) — the coordinator retries 3× with backoff (500ms→8000ms) then tries a health-ranked alternative with same `permission/category`.
+- Return `Failure(retryable=false)` for `user declined, disabled in settings, unknown tool, invalid args` — never retried.
+- Never crash: `ToolExecutor` isolates via `withTimeout` + `try/catch`; one failed tool never kills the agent.
+
+### 6. Logging Expectations
+
+- `ToolExecutionLogger.logValidation` + `logExecution` automatically log `toolName, validationResult, executionTimeMs, success, error` via Timber (dev mode) and `ToolExecutionTraceStore` (Developer → Tool Debug).
+- Structured logs `executionId, goal, planner (hidden reasoning), toolSelected, arguments, executionTime, result, validation, nextStep, finalStatus, confidence` are emitted at `INFO` and visible only with developer mode.
+- Do **not** log raw user data at `DEBUG` in release; use `take(300)` truncation.
+
+### 7. Execution Lifecycle
+
+```
+ToolPlanner.planLocal (routed + ranked) → ToolCall → ToolRunCoordinator.executeCalls (parallel/conditional)
+  → ToolExecutor.execute (validation → device capability → dependency → permission → confirmation → sandbox + timeout → output validation → health + confidence)
+  → ToolExecutionTraceStore.record + healthMonitor.recordSuccess/Failure → variableStore.set(toolName, summary)
+  → buildLocalToolFeedback (system message) → replanning
+```
+
+### 8. Best Practices
+
+- Keep `description` concise and task-oriented; list trigger phrases in `supportedTasks` for router confidence.
+- Use `ToolArgs.str/int` helpers — they accept aliases (`phone`/`to`/`number`) for robustness.
+- Provide `confirmationPrompt` for high-risk tools (`"send the SMS to {phone}"`).
+- Prefer dedicated tools over `ui_*` UI automation; use `ui_run` only when no native tool exists.
+- For long tools (e.g. `ui_run`), set `executionTimeoutMs = 90_000`.
+- Declare `dependencies` when order matters (`note_save` after `search_web`) — the coordinator sorts via `orderByDependencies`.
+
+### 9. Common Mistakes to Avoid
+
+- ❌ Forgetting `@Singleton` + `@Inject` → not bound, planner never sees the tool
+- ❌ Loose `parameters` schema (missing `required` or allowing extra fields) → rejected by validator, wasted round
+- ❌ `cacheable=true` for side-effecting tools (SMS, delete) → replicated send on regenerate
+- ❌ Throwing exception instead of returning `Failure` → still sandboxed but health tracking loses context
+- ❌ Not checking `availableOnDevice` → planner advertises a tool that fails on every device
+- ❌ Hardcoding permission strings instead of `ToolPermission` → toggle missing in settings
+
+After adding, run `./gradlew :core:tools:testDebugUnitTest` and add a `ToolHardeningTest` entry for the new tool's valid/invalid args, then verify via Developer → Tool Debug.
+
+---
+
 ## Working with the Engine
 
 ### Architecture at a Glance

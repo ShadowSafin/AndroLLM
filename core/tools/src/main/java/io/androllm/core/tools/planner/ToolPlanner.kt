@@ -49,7 +49,9 @@ class ToolPlanner @Inject constructor(
     private val agentContext: AgentContextBuilder,
     private val router: ToolRouter,
     private val validator: ToolCallValidator = ToolCallValidator(registry),
-    private val logger: ToolExecutionLogger = ToolExecutionLogger()
+    private val logger: ToolExecutionLogger = ToolExecutionLogger(),
+    private val agentVariableStore: io.androllm.core.tools.agent.AgentVariableStore = io.androllm.core.tools.agent.AgentVariableStore(),
+    private val agentPlanner: io.androllm.core.tools.agent.AgentPlanner = io.androllm.core.tools.agent.AgentPlanner(logger, agentVariableStore)
 ) {
 
     /**
@@ -134,18 +136,51 @@ class ToolPlanner @Inject constructor(
             sanitized
         } else rawLatestUser
 
-        // ── Tool selection: must first decide whether a tool is actually required ──
-        val routed = router.route(latestUser, hasAttachments = hasAttachments, enabledTools = allowedTools())
-        if (routed.specs.isEmpty()) {
+        // ── Internal Agent Planner: before ANY tool, create execution plan (hidden unless developer mode)
+        // Goal -> Required Information -> Required Tools -> Execution Order -> Dependencies -> Run Tools -> Observe -> Continue
+        val enabledForPlan = allowedTools()
+        val internalPlan = try {
+            agentPlanner.createPlan(
+                userRequest = latestUser,
+                enabledTools = enabledForPlan,
+                conversationContext = messages.joinToString("\n") { "${it.role}: ${it.content?.take(300)}" },
+                previousToolOutputs = agentVariableStore.snapshot(),
+                developerMode = false // internal only; developer view renders via log when settings.developerMode == true
+            )
+        } catch (e: Exception) {
+            Timber.w(e, "ToolPlanner: internal plan failed")
+            null
+        }
+        // Hardened planner never stops early — internal plan records original goal and required steps for later observation
+        // (ToolRunCoordinator will check completedSteps vs plannedSteps before allowing early exit)
+
+        // ── Tool selection: must first decide whether a tool is actually required (with dependency-aware routing) ──
+        val routed = router.route(latestUser, hasAttachments = hasAttachments, enabledTools = enabledForPlan)
+        // Merge internal plan's required tools into routed set to guarantee dependency awareness:
+        // e.g. "Research quantum then SMS Dad" — internal plan requires [search_web, send_sms]; even if router's single-intent heuristics missed one,
+        // the planner must still see both (smallest required set that satisfies the whole chain).
+        val mergedSpecs = if (internalPlan != null && internalPlan.requiredTools.isNotEmpty()) {
+            val byName = routed.specs.associateBy { it.name }.toMutableMap()
+            for (toolName in internalPlan.requiredTools) {
+                if (toolName !in byName) {
+                    enabledForPlan.find { it.name == toolName }?.let { byName[toolName] = it }
+                }
+            }
+            // Preserve router's confidence ordering but ensure required tools are front-loaded in dependency order
+            val orderIdx = internalPlan.executionOrder.mapIndexed { i, s -> s.toolName to i }.toMap()
+            byName.values.sortedWith(compareBy({ orderIdx[it.name] ?: Int.MAX_VALUE }, { - (routed.confidence[it.name] ?: 0f) }))
+        } else routed.specs
+
+        if (mergedSpecs.isEmpty()) {
             if (routed.intent != ToolIntent.GENERAL) {
-                Timber.i("ToolPlanner: route=${routed.intent.name} — no tools exposed, skipping plan")
+                Timber.i("ToolPlanner: route=${routed.intent.name} — no tools exposed, skipping plan (internalPlan=${internalPlan?.requiredTools})")
             }
             logger.logSelection(emptyList(), latestUser)
             return emptyList()
         }
-        logger.logSelection(routed.specs.map { it.name }, latestUser)
+        logger.logSelection(mergedSpecs.map { it.name }, latestUser + (internalPlan?.let { " [plan:${it.requiredTools.joinToString(",")}]" } ?: ""))
         // Never allow prompt to modify available tool list — routed specs are already filtered to registry
-        val specs = routed.specs
+        val specs = mergedSpecs
         // Defensive: planning needs a loaded GGUF model.
         if (engineRepository.engineState.value !is io.androllm.engine.api.EngineState.Ready) {
             Timber.w("ToolPlanner: no model loaded — skipping plan")
@@ -644,8 +679,28 @@ CRITICAL SAFETY:
             - Supply only arguments that appear in the conversation, the context below, or the results of tools you already ran; never invent values. If a required argument is missing, omit the call.
             - Prefer dedicated tools (send_sms, set_alarm, get_weather, maps, launcher) over ui_* UI-automation tools whenever one exists. Use ui_run / ui_click / ui_type only for apps that have NO native tool (e.g. WhatsApp, Uber, YouTube).
             - For "find the nearest X" or navigation requests, prefer the maps tools.
+
+            MULTI-STEP ORCHESTRATION (autonomous agent behavior — like ChatGPT/Claude/Gemini/OpenAI Agents):
+            - Before executing ANY tool, you have already created an internal execution plan: Goal -> Required Information -> Required Tools -> Execution Order -> Dependencies -> Run Tools -> Observe -> Continue Until Goal Complete. This plan is internal only and never exposed unless developer mode is on.
+            - DECOMPOSE complex requests automatically. Examples that MUST work:
+              * "Research quantum computing then SMS Dad" -> Plan: Search Web -> Read/ Summarize -> Generate SMS -> Call SMS Tool -> Return Success (Research MUST finish before SMS, never reverse).
+              * "Check weather then message Mom if it will rain" -> Weather -> Read Weather -> Decision (IF rain?) -> If raining -> Generate SMS -> Send SMS -> Confirm sent else Say no SMS (conditional IF/ELSE).
+              * "Find cheapest flight to Tokyo then save as note" -> Flight Search -> Sort Results -> Pick Cheapest -> Generate Summary -> Notes Tool -> Save Note.
+              * "Search AI news then email me summary" -> Search News -> Collect Articles -> Summarize -> Email Tool -> Done.
+            - SEQUENTIAL keywords tell you order: understand then, after, next, finally, before, first, second, last, and then, once finished, after researching, after checking, before sending, etc. Keep dependency order (then = strict sequence).
+            - PARALLEL: if tools are independent (e.g. "Search weather and latest AI news" — Weather || News Search), you may emit them together in the SAME round; they will run in parallel and merge before the next step. Do NOT serialize independent work.
+            - CONDITIONAL IF/ELSE: support "Message Mom if it rains" as Weather -> Rain? -> Yes -> SMS -> Done else Return field. Branch on tool output in the NEXT round using the context block (weather=rain expected, 80% chance). The output of one tool becomes input to the next.
+            - TOOL RESULT MEMORY: every completed call's output is stored as a temporary workflow variable (weather, search_results, etc.). Reuse it — never call Weather again unless required. Variables are scoped to this turn.
+            - TOOL CONTEXT: each tool receives Original request + Relevant conversation context + Outputs from previous tools + Intermediate reasoning (internal).
+            - EXECUTION GRAPH: represent internally as Research -> Summary -> SMS Draft -> SMS Send -> Done, not isolated calls.
+            - OBSERVATION: after every tool, ask Goal complete? Need another tool? Need clarification? Need retry? Never stop early.
+            - PREVENT EARLY EXIT: NEVER stop after the first successful tool. Always ask: Does the user's original request require additional actions? YES -> continue tool execution; NO -> finish. "Research then SMS" is NOT complete after search alone.
+            - CONFIRMATION: require confirmation ONLY for SMS, Phone Calls, Deleting Files, Payments, Emails, Calendar Changes, System Changes, External API with side effects. Everything else executes automatically.
+
             - You may emit MULTIPLE calls when a task needs several steps. Emit them in execution order — the results of earlier calls are available to later calls in the NEXT round via variable_get and the context block.
             - Conditional workflows: after running a tool, branch on its result in the next round (IF/ELSE). For lists, iterate item by item (FOR EACH) using variable_set to remember the current index; stop when done (WHILE) — never emit more than a few iterations per round.
+            - Parameter filling: extract parameters automatically — Message Dad -> Recipient=Dad Contact -> SMS Text -> SMS Tool; Navigate to nearest hospital -> Current Location -> Maps Tool.
+            - Retry: if a tool fails, it will be retried intelligently with backoff (up to 3 times) before returning error — do not instantly fail.
             """.trimIndent()
         )
         if (contextBlock.isNotBlank()) {

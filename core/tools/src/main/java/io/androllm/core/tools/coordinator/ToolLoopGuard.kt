@@ -22,7 +22,7 @@ import kotlinx.serialization.json.JsonObject
  * further tool calls (the spec's "abort execution" path).
  */
 class ToolLoopGuard(
-    val maxTotalCalls: Int = 5,
+    val maxTotalCalls: Int = 12,
     val maxConsecutiveSameTool: Int = 2
 ) {
 

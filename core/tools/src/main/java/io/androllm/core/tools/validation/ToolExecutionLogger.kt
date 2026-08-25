@@ -14,6 +14,10 @@ import javax.inject.Singleton
  *
  * Never exposed to the user — internal diagnostics only.
  * Uses Timber internally; could be extended to persist to file or analytics.
+ *
+ * Production-grade structured execution logs (requirement 23):
+ * Execution ID, Goal, Planner, Reasoning Hidden, Tool Selected, Arguments,
+ * Execution Time, Result, Validation, Next Step, Final Status — visible only in developer mode.
  */
 @Singleton
 class ToolExecutionLogger @Inject constructor() {
@@ -28,7 +32,24 @@ class ToolExecutionLogger @Inject constructor() {
         val error: String? = null
     )
 
+    /** Structured execution log visible in developer mode (requirement 23). */
+    data class StructuredLog(
+        val executionId: String,
+        val timestamp: Long = System.currentTimeMillis(),
+        val goal: String,
+        val planner: String, // hidden reasoning summary (never exposed to user)
+        val toolSelected: String,
+        val arguments: String,
+        val executionTimeMs: Long? = null,
+        val result: String? = null,
+        val validation: String? = null,
+        val nextStep: String? = null,
+        val finalStatus: String? = null,
+        val confidence: Double? = null
+    )
+
     private val entries = mutableListOf<LogEntry>()
+    private val structured = mutableListOf<StructuredLog>()
     private val maxEntries = 500
     private val lock = Any()
 
@@ -73,6 +94,17 @@ class ToolExecutionLogger @Inject constructor() {
     fun logRetry(toolName: String, attempt: Int, reason: String) {
         Timber.w("ToolExecutionLogger: retry $attempt for '$toolName' due to: $reason")
     }
+
+    fun logStructured(log: StructuredLog) {
+        synchronized(lock) {
+            structured += log
+            if (structured.size > maxEntries) structured.removeAt(0)
+        }
+        // Only visible in developer mode — Timber at verbose level, not user-facing
+        Timber.i("StructuredLog id=${log.executionId} goal='${log.goal.take(40)}' tool=${log.toolSelected} time=${log.executionTimeMs}ms result=${log.result?.take(60)} next=${log.nextStep} status=${log.finalStatus} conf=${log.confidence}")
+    }
+
+    fun getStructuredLogs(limit: Int = 50): List<StructuredLog> = synchronized(lock) { structured.takeLast(limit).toList() }
 
     private fun addEntry(entry: LogEntry) {
         synchronized(lock) {
