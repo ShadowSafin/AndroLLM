@@ -222,9 +222,17 @@ fun ChatScreen(
                 viewModel.toggleSearch(true)
                 scope.launch { drawerState.close() }
             },
+            onHomeClick = {
+                navController.navigate("home") {
+                    launchSingleTop = true
+                }
+                scope.launch { drawerState.close() }
+            },
             onOpenSettings = {
                 navController.navigate("settings")
+
                 scope.launch { drawerState.close() }
+
             }
         )
     }
