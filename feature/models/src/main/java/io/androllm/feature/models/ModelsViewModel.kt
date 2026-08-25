@@ -460,8 +460,11 @@ class ModelsViewModel @Inject constructor(
 
                 // Backend preference → explicit load request. AUTO leaves the
                 // decision to the engine's startup probe (NPU → GPU → CPU with
-                // silent fallback); explicit selections are honored verbatim
-                // and fall back the same way when they cannot initialize.
+                // silent fallback). Explicit selections are EXCLUSIVE: only
+                // the requested delegate is attempted — if it cannot load or
+                // fails its self-test, the error surfaces here instead of a
+                // silent CPU switch (spec: never swap delegates behind the
+                // user's back).
                 val loadConfig = when (backendPreference.value) {
                     BackendType.CPU -> ModelLoadConfig(backend = BackendType.CPU)
                     BackendType.GPU -> ModelLoadConfig(backend = BackendType.GPU)

@@ -493,4 +493,113 @@ class EngineRepositoryTest {
         assertTrue("must name the loop: ${failed.message}", failed.message.contains("No-progress"))
         assertFalse(repository.generationState.value is GenerationState.Completed)
     }
+
+    // ── Delegate fallback contract ───────────────────────────────────────────
+    // EXPLICIT backend requests are exclusive: a failing self-test must never
+    // silently swap the delegate. Only AUTO may fall back to CPU.
+
+    /** Fake whose probe output is degenerate on the first load, coherent after. */
+    private class DegenerateFirstLoadEngine : InferenceEngine {
+        var loadCount = 0
+        val requestedBackends = mutableListOf<io.androllm.engine.models.BackendType?>()
+        var unloadCount = 0
+
+        override val capabilities = EngineCapabilities(
+            name = "DegFake", version = "1.0", backend = BackendType.CPU
+        )
+
+        private val _backendCapabilities = MutableStateFlow<BackendCapabilities>(BackendCapabilities.UNKNOWN)
+        override val backendCapabilities: StateFlow<BackendCapabilities> = _backendCapabilities.asStateFlow()
+
+        private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
+        override val engineState: Flow<EngineState> = _engineState.asStateFlow()
+
+        private val _stats = MutableStateFlow<io.androllm.engine.models.EngineStats?>(null)
+        override val stats: Flow<io.androllm.engine.models.EngineStats?> = _stats.asStateFlow()
+
+        override suspend fun initialize(config: io.androllm.engine.models.EngineConfig): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+
+        override fun isLoaded(): Boolean = true
+
+        override fun getLoadedModel(): EngineModelInfo? = null
+
+        override suspend fun loadModel(
+            model: Model,
+            config: io.androllm.engine.models.ModelLoadConfig
+        ): io.androllm.core.common.Result<EngineModelInfo> {
+            loadCount++
+            requestedBackends.add(config.backend)
+            return io.androllm.core.common.Result.Success(EngineModelInfo(model.id, model.filePath ?: "", 4096, 32000, BackendType.CPU))
+        }
+
+        override suspend fun unloadModel(): io.androllm.core.common.Result<Unit> {
+            unloadCount++
+            return io.androllm.core.common.Result.Success(Unit)
+        }
+
+        override fun tokenStream(prompt: String, config: GenerationConfig): Flow<io.androllm.core.common.Result<StreamChunk>> =
+            flow {
+                emit(io.androllm.core.common.Result.Success(StreamChunk("", true, generatedTokens = 0)))
+            }
+
+        override suspend fun buildChatPrompt(
+            messages: List<io.androllm.engine.models.ChatPromptMessage>,
+            addAssistant: Boolean
+        ): io.androllm.core.common.Result<String> = io.androllm.core.common.Result.Success("assistant\n")
+
+        override suspend fun generate(prompt: String, config: GenerationConfig): io.androllm.core.common.Result<String> {
+            // First load = degenerate probe output (fails coherence);
+            // afterwards = coherent.
+            val text = if (loadCount <= 1) "uuuuuuuu" else "Hello there friend"
+            return io.androllm.core.common.Result.Success(text)
+        }
+
+        override fun cancel(): io.androllm.core.common.Result<Unit> = io.androllm.core.common.Result.Success(Unit)
+
+        override fun benchmark(iterations: Int): Flow<io.androllm.core.common.Result<io.androllm.engine.models.BenchmarkResult>> =
+            flow { }
+
+        override suspend fun resetChat(): io.androllm.core.common.Result<Unit> =
+            io.androllm.core.common.Result.Success(Unit)
+
+        override suspend fun getDebugInfo(): io.androllm.core.common.Result<io.androllm.engine.models.EngineDebugInfo?> =
+            io.androllm.core.common.Result.Success(null)
+
+        override fun release() = Unit
+    }
+
+    @Test
+    fun `explicit GPU request never silently falls back to CPU when the self-test fails`() = runTest {
+        val engine = DegenerateFirstLoadEngine()
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+
+        val result = repository.loadModel(
+            Model(id = "gpu1", name = "G", filePath = "/tmp/g.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(backend = BackendType.GPU, runSelfTest = true)
+        )
+
+        assertTrue("explicit-GPU load must surface an error instead of switching delegates: $result", result.isError())
+        assertEquals("the GPU delegate must be attempted exactly ONCE — no CPU reload", 1, engine.loadCount)
+        assertEquals(1, engine.unloadCount)
+        val state = repository.engineState.value
+        assertTrue("engine must end in Failed, not Ready-on-CPU: $state", state is EngineState.Failed)
+        assertFalse("CPU must never be loaded behind an explicit GPU request", engine.requestedBackends.contains(BackendType.CPU))
+    }
+
+    @Test
+    fun `AUTO mode still falls back to CPU after a failed self-test`() = runTest {
+        val engine = DegenerateFirstLoadEngine()
+        val repository = DefaultEngineRepository(engine)
+        repository.initialize()
+
+        val result = repository.loadModel(
+            Model(id = "auto1", name = "A", filePath = "/tmp/a.gguf"),
+            io.androllm.engine.models.ModelLoadConfig(runSelfTest = true)
+        )
+
+        assertTrue("AUTO load must succeed via CPU fallback: $result", result.isSuccess())
+        assertEquals("first GPU attempt + one CPU retry", 2, engine.loadCount)
+    }
 }

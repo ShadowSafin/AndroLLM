@@ -181,6 +181,18 @@ class LiteRtLmEngine @Inject constructor(
     @Volatile
     private var activeBackendInitMs: Long = 0L
 
+    /** Wall-clock time of the LAST successful full model load, including warm-up (ms). */
+    @Volatile
+    private var lastModelLoadMs: Long = 0L
+
+    /**
+     * Duration of the one-time post-load warm-up inference (ms); -1 when it
+     * did not complete cleanly. Exposed through [getDebugInfo] so first-token
+     * regressions are visible in diagnostics.
+     */
+    @Volatile
+    private var lastWarmupMs: Long = -1L
+
     /**
      * Native `<|tool_call|>` markers the model emitted in the last chat
      * generation, consumed by the chat layer via [takeLastNativeToolCalls]
@@ -238,12 +250,73 @@ class LiteRtLmEngine @Inject constructor(
         }
     }
 
+    /**
+     * Runs the ONE-TIME post-load warm-up inference on an isolated throwaway
+     * session: compiles the delegate's graphs, allocates compute buffers and
+     * populates internal caches so the first USER prompt decodes immediately.
+     *
+     * Bounded by [WARMUP_TIMEOUT_MS] with an ACTIVE cancel — a hung compile
+     * is aborted via `cancelProcess()` instead of wedging the load forever
+     * (stalled-initialization requirement). Never throws; returns the warm-up
+     * duration in ms, or -1 when it failed/was aborted (non-fatal).
+     */
+    private suspend fun runWarmup(eng: Engine): Long {
+        if (!acquireGenerationSlot()) {
+            logger.w("WARMUP skipped: generation slot unavailable")
+            return -1L
+        }
+        var conv: Conversation? = null
+        // The watchdog needs the session reference to actively abort a hung
+        // compile (a bare coroutine timeout CANNOT interrupt blocking JNI).
+        val convRef = java.util.concurrent.atomic.AtomicReference<Conversation?>(null)
+        val startedAt = System.currentTimeMillis()
+        // Watchdog on the engine scope: after WARMUP_TIMEOUT_MS without
+        // completion, cancel the native compile so load always finishes.
+        val watchdog = scope.launch {
+            try {
+                delay(WARMUP_TIMEOUT_MS)
+                logger.w("WARMUP TIMEOUT after ${WARMUP_TIMEOUT_MS}ms — aborting the stuck initialization")
+                convRef.get()?.let { runCatching { it.cancelProcess() } }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                // Normal completion — cancelled in the finally below.
+            }
+        }
+        try {
+            return withContext(Dispatchers.Default) {
+                ThreadManager.withBackgroundInferencePriority {
+                    EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.WARMUP) {
+                        try {
+                            conv = createConversationWithFamilyFlags(
+                                eng, conversationConfigForSampler(GenerationConfig())
+                            )
+                            convRef.set(conv)
+                            // Isolated throwaway session: never touches chat state,
+                            // never appears in history. One token is enough to force
+                            // full graph compilation + buffer allocation.
+                            conv!!.sendMessage(Message.user("Hi"), maxOutputToken = 1)
+                            (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
+                        } finally {
+                            conv?.let { runCatching { it.close() } }
+                        }
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            logger.w("WARMUP failed or aborted (non-fatal): ${e.message}")
+            return -1L
+        } finally {
+            watchdog.cancel()
+            generationActive.set(false)
+        }
+    }
+
     override fun isLoaded(): Boolean = engine != null && loadedModel != null
 
     override fun getLoadedModel(): EngineModelInfo? = loadedModel
 
     override suspend fun loadModel(model: Model, config: ModelLoadConfig): Result<EngineModelInfo> =
         io.androllm.core.common.runCatching {
+            val modelLoadStartedAt = System.currentTimeMillis()
             try {
                 val path = model.filePath
                 check(!path.isNullOrBlank()) { "Model file path is empty" }
@@ -442,7 +515,37 @@ class LiteRtLmEngine @Inject constructor(
 
             val memStats = fetchMemoryStats()
             _memoryStats.value = memStats
+
+            // ── TTFT-CRITICAL: one-time warm-up, BEFORE Ready ────────────────
+            // The first native invoke on a freshly built delegate pays graph
+            // compilation + compute-buffer allocation (tens of seconds on
+            // Vulkan). This MUST happen here — during load, behind the
+            // WarmingUp state — and never race the user's first prompt. The
+            // previous fire-and-forget version queued the first real request
+            // BEHIND its own compilation at the JNI layer, where the first-
+            // token watchdog killed it: "first prompt times out, identical
+            // retry is instant". Bounded by [WARMUP_TIMEOUT_MS] with an
+            // active cancel so a hung compile can never wedge the load.
+            _engineState.value = EngineState.WarmingUp("Preparing ${selectedBackend.displayName}…")
+            logger.i(
+                "WARMUP START on ${selectedBackend.displayName}: compiling graphs / allocating " +
+                    "delegate buffers once per load (bounded at ${WARMUP_TIMEOUT_MS / 1000}s)"
+            )
+            lastWarmupMs = runWarmup(checkNotNull(engine))
+            if (lastWarmupMs > 0) {
+                logger.i(
+                    "WARMUP COMPLETE in ${lastWarmupMs}ms on ${selectedBackend.displayName} — " +
+                        "delegate hot; the first user prompt will NOT pay this cost"
+                )
+            } else {
+                logger.w(
+                    "WARMUP did not complete cleanly (${lastWarmupMs}ms) — non-fatal; " +
+                        "the first prompt may include one-time compile cost"
+                )
+            }
+
             startRuntimeMetricsRefresh()
+            lastModelLoadMs = System.currentTimeMillis() - modelLoadStartedAt
             _engineState.value = EngineState.Ready(
                 model = loadedModel!!,
                 memoryStats = memStats,
@@ -451,32 +554,9 @@ class LiteRtLmEngine @Inject constructor(
             )
             logger.i(
                 "LiteRT-LM model loaded: ${model.name} backend=${selectedBackend.displayName} " +
-                    "delegate=${selectedBackend.delegate} init=${initMs}ms"
+                    "delegate=${selectedBackend.delegate} init=${initMs}ms " +
+                    "warmup=${if (lastWarmupMs > 0) "${lastWarmupMs}ms" else "incomplete"} totalLoad=${lastModelLoadMs}ms"
             )
-            // PERFORMANCE: background warmup — run a short prompt to prime
-            // the interpreter (JIT compile graphs, allocate compute buffers,
-            // warm the KV cache). This does NOT delay the Ready state; the
-            // first real prompt arrives faster because the interpreter is
-            // already hot.
-            scope.launch(Dispatchers.Default) {
-                val eng = engine ?: return@launch
-                EngineCrashGuard.guardOrNull("warmup") {
-                    EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.WARMUP) {
-                        val conv = createConversationWithFamilyFlags(
-                            eng, conversationConfigForSampler(GenerationConfig())
-                        )
-                        try {
-                            conv.sendMessage(
-                                Message.user("Hi"),
-                                maxOutputToken = 1
-                            )
-                        } finally {
-                            runCatching { conv.close() }
-                        }
-                    }
-                    logger.d("Interpreter warmup complete")
-                }
-            }
             loadedModel!!
             } catch (e: Exception) {
                 // A load failure must NEVER leave the engine in Loading or leak
@@ -500,7 +580,12 @@ class LiteRtLmEngine @Inject constructor(
             val failure = EngineErrorMapper.map(e, model.name)
             conversation?.let { runCatching { it.close() } }
             conversation = null
-            engine?.let { runCatching { it.close() } }
+            engine?.let {
+                runCatching {
+                    logger.i("DELEGATE DESTROY: closing interpreter after failed load")
+                    it.close()
+                }
+            }
             engine = null
             loadedModel = null
             loadedFilePath = null
@@ -526,6 +611,7 @@ class LiteRtLmEngine @Inject constructor(
     override suspend fun unloadModel(): Result<Unit> = io.androllm.core.common.runCatching {
         _engineState.value = EngineState.Unloading
         stopRuntimeMetricsRefresh()
+        logger.i("DELEGATE DESTROY: unloadModel — closing session + interpreter (${activeBackendInfo?.displayName ?: "unknown delegate"})")
         conversation?.let { runCatching { it.close() } }
         conversation = null
         engine?.let { runCatching { it.close() } }
@@ -577,22 +663,33 @@ class LiteRtLmEngine @Inject constructor(
                 close()
                 return@callbackFlow
             }
-            var conv: Conversation
+            logger.i(
+                "generation start: promptChars=${prompt.length} (~${prompt.length / 4} tokens) " +
+                    "maxTokens=${streamingMaxOutputTokens(config)} temp=${config.temperature}"
+            )
+            logger.i("Generation Started")
+            logger.i("Decoder Created: isolated session will be built")
+            var conv: Conversation? = null
             try {
-                // createConversation is a blocking native call — never run it
-                // on the collector's thread (Main when driven from a
-                // viewModelScope turn).
+                // ISOLATED conversation: a plain (non-chat) generation must
+                // never touch the resident CHAT conversation. Sharing it used
+                // to inject raw extraction/benchmark prompts into the chat KV
+                // cache — poisoning the next chat turn's context (the reuse
+                // contract compares transcripts that no longer matched what
+                // the conversation actually held). The throwaway conversation
+                // is closed when the run ends; the multi-turn CHAT reuse
+                // optimization in [ensureConversationForHistory] is untouched.
                 conv = withContext(Dispatchers.Default) {
-                    val c = conversation ?: createConversationWithFamilyFlags(eng, conversationConfigForSampler(config))
-                    conversation = c
-                    c
+                    createConversationWithFamilyFlags(eng, conversationConfigForSampler(config))
                 }
+                logger.i("Decoder Created")
             } catch (e: Throwable) {
                 generationActive.set(false)
                 trySend(Result.Error(EngineException("Failed to create conversation: ${e.message}", e)))
                 close()
                 return@callbackFlow
             }
+            val activeConv: Conversation = checkNotNull(conv)
 
             val startedAt = System.currentTimeMillis()
             val firstTokenSeenAt = AtomicLong(0L)
@@ -612,11 +709,30 @@ class LiteRtLmEngine @Inject constructor(
             val holdback = tracker.holdbackLength
             val stopDetected = AtomicBoolean(false)
             val completed = AtomicBoolean(false)
+            // Loop protection: same fragment forever / same phrase forever —
+            // terminate cleanly instead of burning the whole token budget.
+            val loopGuard = GenerationLoopGuard()
             // PERFORMANCE: use pooled buffers to avoid per-generation allocations.
             val pooledRaw = BufferPool.borrowBuilder(BufferPool.LARGE)
             val pooledEmitted = BufferPool.borrowBuilder(BufferPool.LARGE)
             val rawTextBuilder = pooledRaw.builder
             val emittedBuilder = pooledEmitted.builder
+
+            /** Full cleanup shared by every exit path (idempotent). */
+            val released = AtomicBoolean(false)
+            fun releaseRun() {
+                if (!released.compareAndSet(false, true)) return
+                logger.i("CLEANUP STARTED: releasing generation flags, streaming buffers, session slot")
+                logger.i("Cleanup Started")
+                generationActive.set(false)
+                publishReadyAfterGeneration()
+                BufferPool.returnBuilder(pooledRaw)
+                BufferPool.returnBuilder(pooledEmitted)
+                logger.i("CLEANUP FINISHED — generation lock released, GENERATION JOB DESTROYED")
+                logger.i("Cleanup Finished")
+                logger.i("Generation Lock Released")
+                logger.i("Generation Job Destroyed")
+            }
 
             fun emitDelta(text: String) {
                 val delta = text.removePrefix(emittedBuilder.toString())
@@ -630,16 +746,38 @@ class LiteRtLmEngine @Inject constructor(
                 if (!completed.compareAndSet(false, true)) return
                 val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
                 val firstMs = if (firstTokenSeenAt.get() > 0) firstTokenSeenAt.get() - startedAt else elapsedMs
-                logger.i("generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, text='${stripControlTokens(emittedBuilder.toString()).take(120)}'")
+                logger.i("EOS Received: stop=$stopReason")
+                logger.i(
+                    "generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, " +
+                        "firstTokenMs=$firstMs, text='${stripControlTokens(emittedBuilder.toString()).take(120)}'"
+                )
                 _stats.value = buildGenerationStats(
-                    conversation = conv,
+                    conversation = activeConv,
                     totalTimeMs = elapsedMs,
                     fallbackFirstTokenMs = firstMs,
                     fallbackGeneratedTokens = tokenCount,
+                    fallbackPromptTokens = prompt.length / 4L,
                     stopReason = stopReason
                 )
                 trySend(Result.Success(StreamChunk("", true, tokenCount, tokenCount)))
                 close()
+                logger.i("Streaming Finished")
+            }
+
+            /**
+             * Terminates the native decode for [reason] and finishes. Runs on
+             * the engine scope OFF the native callback thread (cancelProcess +
+             * close are blocking calls); the finished chunk is emitted only
+             * after the unwind completes so no new turn can start against the
+             * closing conversation.
+             */
+            fun unwindAndFinish(reason: String) {
+                scope.launch(Dispatchers.Default) {
+                    runCatching { activeConv.cancelProcess() }
+                    runCatching { activeConv.close() }
+                    finishCleanly(reason)
+                    releaseRun()
+                }
             }
 
             // The Flow-returning sendMessageAsync overload is compiled against
@@ -650,105 +788,137 @@ class LiteRtLmEngine @Inject constructor(
             val callback = object : MessageCallback {
                 override fun onMessage(partial: Message) {
                     if (stopDetected.get()) return
-                    val text = partial.toString()
-                    if (text.isEmpty()) return
-                    rawTextBuilder.append(text)
-                    if (firstTokenSeenAt.get() == 0L) {
-                        firstTokenSeenAt.set(System.currentTimeMillis())
-                        val firstTokenMs = firstTokenSeenAt.get() - startedAt
-                        EnginePerformanceMonitor.recordTiming(
-                            EnginePerformanceMonitor.Stages.FIRST_TOKEN,
-                            firstTokenMs * 1_000_000L,
-                            mapOf("promptLength" to prompt.length.toString())
-                        )
-                        logger.i("first token after ${firstTokenMs}ms: '${stripControlTokens(text).take(60)}'")
-                    }
-                    tokenCount++
-                    if (tracker.feed(text) != null) {
-                        // A stop sequence just completed (possibly split across
-                        // fragments — the rolling window handled it). Cut the
-                        // raw stream at the stop start: the holdback guarantees
-                        // no partial stop has been emitted, so the delta below
-                        // is exactly the remaining answer text.
-                        stopDetected.set(true)
-                        val cutRaw = rawTextBuilder.substring(0, tracker.stopStartIndex.toInt())
-                        emitDelta(outputDecoder?.clean(cutRaw) ?: stripControlTokens(cutRaw))
-                        // Terminate the native decode NOW and retire the wedged
-                        // conversation (same cleanup as [cancel]). The finished
-                        // chunk is emitted only after the unwind completes, so
-                        // no new turn can start against the closing conversation.
-                        scope.launch(Dispatchers.Default) {
-                            runCatching { conv.cancelProcess() }
-                            runCatching { conversation?.close() }
-                            conversation = null
-                            consumedTurns = emptyList()
-                            finishCleanly("stop_sequence")
+                    // NEVER let an exception escape into the native callback
+                    // thread: a throw here kills the runtime's callback pump
+                    // and leaves the flow open forever ("Preparing answer…").
+                    try {
+                        // Extract ONLY the plain text content — Message.toString()
+                        // serializes structured contents as JSON
+                        // ([{"type":"text","text":"…"}]) which must never reach
+                        // the UI. Tool responses/images/channels are dropped.
+                        val text = MessageText.extract(partial)
+                        if (text.isEmpty()) return
+                        rawTextBuilder.append(text)
+                        if (firstTokenSeenAt.get() == 0L) {
+                            firstTokenSeenAt.set(System.currentTimeMillis())
+                            val firstTokenMs = firstTokenSeenAt.get() - startedAt
+                            EnginePerformanceMonitor.recordTiming(
+                                EnginePerformanceMonitor.Stages.FIRST_TOKEN,
+                                firstTokenMs * 1_000_000L,
+                                mapOf("promptLength" to prompt.length.toString())
+                            )
+                            logger.i(
+                                "PREFILL END / DECODER START — TTFT=${firstTokenMs}ms: '${stripControlTokens(text).take(60)}'"
+                            )
+                            logger.i("First Token")
                         }
-                        return
+                        tokenCount++
+                        if (tracker.feed(text) != null) {
+                            // A stop sequence just completed (possibly split across
+                            // fragments — the rolling window handled it). Cut the
+                            // raw stream at the stop start: the holdback guarantees
+                            // no partial stop has been emitted, so the delta below
+                            // is exactly the remaining answer text.
+                            stopDetected.set(true)
+                            val cutRaw = rawTextBuilder.substring(0, tracker.stopStartIndex.toInt())
+                            emitDelta(outputDecoder?.clean(cutRaw) ?: stripControlTokens(cutRaw))
+                            logger.i("EOS/stop-sequence detected (${tracker.matched?.let { "match '${it.take(12)}'" } ?: "native"}) after $tokenCount fragments")
+                            unwindAndFinish("stop_sequence")
+                            return
+                        }
+                        if (loopGuard.feed(text)) {
+                            // Pathological repetition: stop safely, keep the
+                            // text produced so far and the conversation intact.
+                            stopDetected.set(true)
+                            logger.w("loop detected: ${loopGuard.detail} — terminating generation after $tokenCount fragments")
+                            unwindAndFinish("loop_detected")
+                            return
+                        }
+                        // Emit the clean text up to `holdback` raw chars before the
+                        // stream end. Control tokens (im_start/think/bos/...) belong
+                        // to the tokenizer only — the decoder strips them so the UI
+                        // receives pure decoded text even if a misbehaving model
+                        // samples one.
+                        val emissionPoint = (rawTextBuilder.length - holdback).coerceAtLeast(0)
+                        val emittedRaw = rawTextBuilder.substring(0, emissionPoint)
+                        emitDelta(outputDecoder?.clean(emittedRaw) ?: stripControlTokens(emittedRaw))
+                    } catch (e: Throwable) {
+                        // Surface as a stream error instead of crashing the
+                        // native thread; onError-style cleanup keeps the engine
+                        // usable for the next turn.
+                        EngineCrashGuard.recordCrash("token_stream_callback", "", e)
+                        logger.w("token-stream callback failed: ${e.message}")
+                        if (completed.compareAndSet(false, true)) {
+                            trySend(Result.Error(EngineException(e.message ?: "Generation failed", e)))
+                            close()
+                        }
                     }
-                    // Emit the clean text up to `holdback` raw chars before the
-                    // stream end. Control tokens (im_start/think/bos/...) belong
-                    // to the tokenizer only — the decoder strips them so the UI
-                    // receives pure decoded text even if a misbehaving model
-                    // samples one.
-                    val emissionPoint = (rawTextBuilder.length - holdback).coerceAtLeast(0)
-                    val emittedRaw = rawTextBuilder.substring(0, emissionPoint)
-                    emitDelta(outputDecoder?.clean(emittedRaw) ?: stripControlTokens(emittedRaw))
                 }
 
                 override fun onDone() {
                     if (completed.get()) return
                     // Natural end (native EOS / token cap): flush the held-back
                     // tail, then complete.
-                    emitDelta(outputDecoder?.clean(rawTextBuilder.toString()) ?: stripControlTokens(rawTextBuilder.toString()))
-                    finishCleanly("eos")
+                    try {
+                        emitDelta(outputDecoder?.clean(rawTextBuilder.toString()) ?: stripControlTokens(rawTextBuilder.toString()))
+                        finishCleanly("eos")
+                    } catch (e: Throwable) {
+                        EngineCrashGuard.recordCrash("token_stream_done", "", e)
+                        logger.w("token-stream onDone flush failed: ${e.message}")
+                        if (completed.compareAndSet(false, true)) {
+                            trySend(Result.Error(EngineException(e.message ?: "Generation failed", e)))
+                            close()
+                        }
+                    }
                 }
 
                 override fun onError(error: Throwable) {
                     // cancelProcess() races onDone/onError — when WE terminated
-                    // on a stop sequence, the resulting error is the expected
-                    // unwind, not a failure.
+                    // on a stop sequence or loop guard, the resulting error is
+                    // the expected unwind, not a failure.
                     if (stopDetected.get()) {
-                        finishCleanly("stop_sequence")
+                        finishCleanly(if (loopGuard.isLooping) "loop_detected" else "stop_sequence")
                         return
                     }
                     // Record the crash for diagnostics (non-critical).
                     EngineCrashGuard.recordCrash("token_stream", "", error)
-                    trySend(Result.Error(EngineException(error.message ?: "Generation failed", error)))
-                    close()
+                    logger.w("token-stream error: ${error.message}")
+                    if (completed.compareAndSet(false, true)) {
+                        trySend(Result.Error(EngineException(error.message ?: "Generation failed", error)))
+                        close()
+                    }
                 }
             }
 
             try {
-                conv.sendMessageAsync(prompt, callback, maxOutputToken = streamingMaxOutputTokens(config))
+                logger.i(
+                    "PREFILL START: isolated session, promptChars=${prompt.length} (~${prompt.length / 4} tokens) — " +
+                        "delegate=${activeBackendInfo?.displayName ?: "?"} already warm"
+                )
+                activeConv.sendMessageAsync(prompt, callback, maxOutputToken = streamingMaxOutputTokens(config))
             } catch (e: Throwable) {
-                trySend(Result.Error(EngineException(e.message ?: "Generation failed", e)))
+                // The send never started: reset the slot + state HERE (the code
+                // after awaitClose is skipped by this early return) so the next
+                // turn cannot wedge on "generation already in progress".
+                runCatching { activeConv.close() }
+                if (completed.compareAndSet(false, true)) {
+                    trySend(Result.Error(EngineException(e.message ?: "Generation failed", e)))
+                }
                 close()
+                releaseRun()
                 return@callbackFlow
             }
             try {
                 awaitClose { }
             } catch (e: CancellationException) {
-                runCatching { conv.cancelProcess() }
-                runCatching { conversation?.close() }
-                conversation = null
-                consumedTurns = emptyList()
-                generationActive.set(false)
-                publishReadyAfterGeneration()
-                BufferPool.returnBuilder(pooledRaw)
-                BufferPool.returnBuilder(pooledEmitted)
+                runCatching { activeConv.cancelProcess() }
+                runCatching { activeConv.close() }
+                logger.i("generation cancelled by collector after $tokenCount fragments")
+                finishCleanly("cancelled")
                 throw e
-            } catch (e: Throwable) {
-                generationActive.set(false)
-                publishReadyAfterGeneration()
-                BufferPool.returnBuilder(pooledRaw)
-                BufferPool.returnBuilder(pooledEmitted)
-                throw e
+            } finally {
+                releaseRun()
             }
-            generationActive.set(false)
-            publishReadyAfterGeneration()
-            BufferPool.returnBuilder(pooledRaw)
-            BufferPool.returnBuilder(pooledEmitted)
         }
 
     override suspend fun buildChatPrompt(
@@ -797,6 +967,7 @@ class LiteRtLmEngine @Inject constructor(
                         totalTimeMs = elapsedMs,
                         fallbackFirstTokenMs = elapsedMs,
                         fallbackGeneratedTokens = 0L,
+                        fallbackPromptTokens = prompt.length / 4L,
                         stopReason = "eos"
                     )
                     result
@@ -839,6 +1010,7 @@ class LiteRtLmEngine @Inject constructor(
                     totalTimeMs = elapsedMs,
                     fallbackFirstTokenMs = elapsedMs,
                     fallbackGeneratedTokens = 0L,
+                    fallbackPromptTokens = messages.sumOf { it.content.length } / 4L,
                     stopReason = "eos"
                 )
                 updateConsumedTranscript(messages, cleanResult)
@@ -949,6 +1121,13 @@ class LiteRtLmEngine @Inject constructor(
             }
         }
         val startedAt = System.currentTimeMillis()
+        logger.i(
+            "chat decode start: messages=${messages.size} promptChars=${
+                messages.sumOf { it.content.length }
+            } (~${messages.sumOf { it.content.length } / 4} tokens) maxTokens=${streamingMaxOutputTokens(config)}"
+        )
+        logger.i("Generation Started")
+        logger.i("Decoder Created: chat session ready")
         val firstTokenSeenAt = AtomicLong(0L)
         // PERFORMANCE: use pooled buffers to avoid per-generation allocations.
         val pooledClean = BufferPool.borrowBuilder(BufferPool.LARGE)
@@ -957,6 +1136,23 @@ class LiteRtLmEngine @Inject constructor(
         val rawTextBuilder = pooledRaw.builder
         var tokenCount = 0L
         outputDecoder?.reset()
+        logger.i("DECODER STATE RESET: decoder, sampler, stop tracker, loop guard and buffers are fresh for this run")
+
+        /** Full cleanup shared by every exit path (idempotent). */
+        val released = AtomicBoolean(false)
+        fun releaseRun() {
+            if (!released.compareAndSet(false, true)) return
+            logger.i("CLEANUP STARTED: releasing generation flags, streaming buffers, session slot")
+            logger.i("Cleanup Started")
+            generationActive.set(false)
+            publishReadyAfterGeneration()
+            BufferPool.returnBuilder(pooledClean)
+            BufferPool.returnBuilder(pooledRaw)
+            logger.i("CLEANUP FINISHED — generation lock released, GENERATION JOB DESTROYED")
+            logger.i("Cleanup Finished")
+            logger.i("Generation Lock Released")
+            logger.i("Generation Job Destroyed")
+        }
 
         // --- Stop-sequence enforcement (same as [tokenStream]) --------------
         // The decoder cuts the output at the first stop sequence, but the
@@ -971,6 +1167,9 @@ class LiteRtLmEngine @Inject constructor(
         val holdback = tracker.holdbackLength
         val stopDetected = AtomicBoolean(false)
         val completed = AtomicBoolean(false)
+        // Loop protection: terminate pathological repetition safely while
+        // keeping everything produced so far (and the conversation history).
+        val loopGuard = GenerationLoopGuard()
 
         // Same callback-bridge reasoning as [tokenStream]: the Flow overload
         // crashes on kotlinx-coroutines 1.8+/1.9 (SendChannel.close$default no
@@ -987,6 +1186,9 @@ class LiteRtLmEngine @Inject constructor(
         // repository excludes them from the final assistant message.
         var sendAttempts = 0
 
+        /** Set by the FIRST callback of any kind (token/error/EOS). */
+        val anyCallbackSeen = AtomicBoolean(false)
+
         fun emitDelta(text: String) {
             val delta = text.removePrefix(cleanTextBuilder.toString())
             if (delta.isNotEmpty()) {
@@ -995,10 +1197,11 @@ class LiteRtLmEngine @Inject constructor(
             }
         }
 
-        fun finishCleanly(stopReason: String) {
+        fun finishCleanly(stopReason: String, persistTranscript: Boolean = true) {
             if (!completed.compareAndSet(false, true)) return
             val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
             val firstMs = if (firstTokenSeenAt.get() > 0) firstTokenSeenAt.get() - startedAt else elapsedMs
+            logger.i("EOS Received: stop=$stopReason")
             val fullClean = cleanTextBuilder.toString()
             // Native tool-call markers: parsed from the RAW buffer (the
             // cleaned text has them stripped) and handed to the chat layer.
@@ -1008,102 +1211,198 @@ class LiteRtLmEngine @Inject constructor(
                 rawTextBuilder.toString()
             }
             lastNativeToolCalls = NativeToolCallScanner.scan(scanRaw)
-            logger.i("chat generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, text='${stripControlTokens(fullClean).take(120)}' nativeCalls=${lastNativeToolCalls.size}")
+            logger.i(
+                "chat generation done: ${tokenCount} chunks in ${elapsedMs}ms, stop=$stopReason, " +
+                    "firstTokenMs=$firstMs, text='${stripControlTokens(fullClean).take(120)}' nativeCalls=${lastNativeToolCalls.size}"
+            )
             _stats.value = buildGenerationStats(
                 conversation = conv,
                 totalTimeMs = elapsedMs,
                 fallbackFirstTokenMs = firstMs,
                 fallbackGeneratedTokens = tokenCount,
+                fallbackPromptTokens = messages.sumOf { it.content.length } / 4L,
                 stopReason = stopReason
             )
             trySend(Result.Success(StreamChunk("", true, tokenCount, tokenCount)))
+            logger.i("Streaming Finished")
             // The persisted transcript must be the FILTERED text (what the
             // next turn seeds its conversation with) — never raw markers.
-            val persisted = outputDecoder?.clean(stripControlTokens(fullClean)) ?: stripControlTokens(fullClean)
-            updateConsumedTranscript(messages, persisted)
+            // A CANCELLED run's partial answer is never persisted: it must
+            // not leak into the next turn's context.
+            if (persistTranscript) {
+                val persisted = outputDecoder?.clean(stripControlTokens(fullClean)) ?: stripControlTokens(fullClean)
+                updateConsumedTranscript(messages, persisted)
+            }
             close()
+        }
+
+        /**
+         * Terminates the native decode for [reason] OFF the native callback
+         * thread, then finishes the stream. The wedged conversation is
+         * retired exactly like [cancel] does; the finished chunk is emitted
+         * only after the unwind completes.
+         */
+        fun unwindAndFinish(reason: String) {
+            scope.launch(Dispatchers.Default) {
+                runCatching { conv.cancelProcess() }
+                runCatching { conversation?.close() }
+                conversation = null
+                consumedTurns = emptyList()
+                finishCleanly(reason)
+            }
+        }
+
+        /**
+         * BOUNDED recovery from a broken/wedged reused session: abort the
+         * current decode, retire the conversation, reseed from history and
+         * resend ONCE. Shared by the onError path (context overflow /
+         * template round-trip drift) and the stalled-session watchdog below —
+         * both are the same failure family: the resident conversation can no
+         * longer continue this turn. [latchReuseBroken] permanently disables
+         * reuse for models whose drift makes every reuse fail identically.
+         */
+        fun retryOnFreshSession(cb: MessageCallback, reason: String, latchReuseBroken: Boolean) {
+            if (sendAttempts >= MAX_STREAM_SEND_ATTEMPTS - 1) {
+                logger.w("chat-stream retry budget exhausted ($reason) — surfacing as failure")
+                return
+            }
+            sendAttempts++
+            if (latchReuseBroken) reuseBroken.set(true)
+            android.util.Log.w("LiteRtLmEngine", "Chat stream recovering ($reason) — retiring session, reseeding, retrying once")
+            scope.launch(Dispatchers.Default) {
+                try {
+                    runCatching { conv.cancelProcess() }
+                    conv = reseedAfterOverflow(eng, messages, config)
+                    logger.i("PREFILL START: fresh reseeded session after recovery ($reason)")
+                    conv.sendMessageAsync(
+                        Message.user(last.content),
+                        cb,
+                        maxOutputToken = streamingMaxOutputTokens(config),
+                        thinkingConfig = thinkingConfig()
+                    )
+                } catch (e: Throwable) {
+                    trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
+                    close()
+                    releaseRun()
+                }
+            }
         }
 
         val callback = object : MessageCallback {
             override fun onMessage(partial: Message) {
+                anyCallbackSeen.set(true)
                 if (stopDetected.get()) return
-                // LiteRT-LM streams per-token FRAGMENTS (not cumulative text) —
-                // see [tokenStream]. Emit each fragment directly.
-                val thinking = partial.channels.values.joinToString("")
-                if (thinking.isNotEmpty()) {
-                    tokenCount++
-                    rawTextBuilder.append(thinking)
-                    tracker.feed(thinking)
-                    if (firstTokenSeenAt.get() == 0L) firstTokenSeenAt.set(System.currentTimeMillis())
-                    val cleanThinking = outputDecoder?.clean(stripControlTokens(thinking)) ?: stripControlTokens(thinking)
-                    trySend(Result.Success(StreamChunk(cleanThinking, false, tokenCount, tokenCount, isThinking = true)))
-                }
-                val clean = partial.toString()
-                if (clean.isNotEmpty()) {
-                    rawTextBuilder.append(clean)
-                    if (firstTokenSeenAt.get() == 0L) {
-                        firstTokenSeenAt.set(System.currentTimeMillis())
-                        logger.i("first chat token after ${firstTokenSeenAt.get() - startedAt}ms: '${stripControlTokens(clean).take(60)}'")
+                // NEVER let an exception escape into the native callback
+                // thread — it would kill the runtime's callback pump and
+                // leave this flow open forever (infinite "Preparing…").
+                try {
+                    // LiteRT-LM streams per-token FRAGMENTS (not cumulative text).
+                    // Thinking deltas arrive via the channels map; answer text via
+                    // the structured contents — extracted with [MessageText] so a
+                    // serialized contents payload ([{"type":"text",…}]) can never
+                    // leak into the chat.
+                    val thinking = partial.channels.values.joinToString("")
+                    if (thinking.isNotEmpty()) {
+                        tokenCount++
+                        rawTextBuilder.append(thinking)
+                        tracker.feed(thinking)
+                        if (firstTokenSeenAt.get() == 0L) firstTokenSeenAt.set(System.currentTimeMillis())
+                        val cleanThinking = outputDecoder?.clean(stripControlTokens(thinking)) ?: stripControlTokens(thinking)
+                        trySend(Result.Success(StreamChunk(cleanThinking, false, tokenCount, tokenCount, isThinking = true)))
                     }
-                    tokenCount++
-                    if (tracker.feed(clean) != null) {
-                        // A stop sequence just completed (possibly split across
-                        // fragments — the rolling window handled it). Cut the
-                        // raw stream at the stop start and emit the remaining
-                        // answer delta; the holdback guarantees no partial stop
-                        // was streamed. Then terminate the native decode and
-                        // retire the wedged conversation (same cleanup as
-                        // [cancel]). The finished chunk is emitted only after
-                        // the unwind completes, so no new turn can start
-                        // against the closing conversation.
-                        stopDetected.set(true)
-                        val cutRaw = rawTextBuilder.substring(0, tracker.stopStartIndex.toInt())
-                        val finalClean = outputDecoder
-                            ?.clean(NativeToolCallScanner.strip(cutRaw))
-                            ?: NativeToolCallScanner.strip(cutRaw)
-                        emitDelta(finalClean)
-                        scope.launch(Dispatchers.Default) {
-                            runCatching { conv.cancelProcess() }
-                            runCatching { conversation?.close() }
-                            conversation = null
-                            consumedTurns = emptyList()
-                            finishCleanly("stop_sequence")
+                    val clean = MessageText.extract(partial)
+                    if (clean.isNotEmpty()) {
+                        rawTextBuilder.append(clean)
+                        if (firstTokenSeenAt.get() == 0L) {
+                            firstTokenSeenAt.set(System.currentTimeMillis())
+                            logger.i(
+                                "PREFILL END / DECODER START — TTFT=${firstTokenSeenAt.get() - startedAt}ms: '${stripControlTokens(clean).take(60)}'"
+                            )
+                            logger.i("First Token")
                         }
-                        return
+                        tokenCount++
+                        if (tracker.feed(clean) != null) {
+                            // A stop sequence just completed (possibly split across
+                            // fragments — the rolling window handled it). Cut the
+                            // raw stream at the stop start and emit the remaining
+                            // answer delta; the holdback guarantees no partial stop
+                            // was streamed. Then terminate the native decode and
+                            // retire the wedged conversation (same cleanup as
+                            // [cancel]). The finished chunk is emitted only after
+                            // the unwind completes, so no new turn can start
+                            // against the closing conversation.
+                            stopDetected.set(true)
+                            val cutRaw = rawTextBuilder.substring(0, tracker.stopStartIndex.toInt())
+                            val finalClean = outputDecoder
+                                ?.clean(NativeToolCallScanner.strip(cutRaw))
+                                ?: NativeToolCallScanner.strip(cutRaw)
+                            emitDelta(finalClean)
+                            logger.i("EOS/stop-sequence detected (${tracker.matched?.let { "match '${it.take(12)}'" } ?: "native"}) after $tokenCount fragments")
+                            unwindAndFinish("stop_sequence")
+                            return
+                        }
+                        if (loopGuard.feed(clean)) {
+                            // Pathological repetition: stop safely. Text produced
+                            // so far is preserved and the turn still completes as
+                            // a normal answer — the history stays intact.
+                            stopDetected.set(true)
+                            logger.w("chat loop detected: ${loopGuard.detail} — terminating generation after $tokenCount fragments")
+                            unwindAndFinish("loop_detected")
+                            return
+                        }
+                        // The emitted delta is the difference between the FULLY
+                        // cleaned accumulated raw text (family special tokens,
+                        // stop sequences, AND tool-call payloads removed) and what
+                        // we already emitted. Per-token fragments split a marker
+                        // block across tokens, so a per-fragment strip could leak
+                        // "call: get_battery{}" into the UI — the accumulated
+                        // diff never does. The strip is a linear scan over the
+                        // bounded output text (at most a few thousand tokens).
+                        val emissionPoint = (rawTextBuilder.length - holdback).coerceAtLeast(0)
+                        val emittedRaw = rawTextBuilder.substring(0, emissionPoint)
+                        val fullyCleaned = outputDecoder
+                            ?.clean(NativeToolCallScanner.strip(emittedRaw))
+                            ?: NativeToolCallScanner.strip(emittedRaw)
+                        emitDelta(fullyCleaned)
                     }
-                    // The emitted delta is the difference between the FULLY
-                    // cleaned accumulated raw text (family special tokens,
-                    // stop sequences, AND tool-call payloads removed) and what
-                    // we already emitted. Per-token fragments split a marker
-                    // block across tokens, so a per-fragment strip could leak
-                    // "call: get_battery{}" into the UI — the accumulated
-                    // diff never does. The strip is a linear scan over the
-                    // bounded output text (at most a few thousand tokens).
-                    val emissionPoint = (rawTextBuilder.length - holdback).coerceAtLeast(0)
-                    val emittedRaw = rawTextBuilder.substring(0, emissionPoint)
-                    val fullyCleaned = outputDecoder
-                        ?.clean(NativeToolCallScanner.strip(emittedRaw))
-                        ?: NativeToolCallScanner.strip(emittedRaw)
-                    emitDelta(fullyCleaned)
+                } catch (e: Throwable) {
+                    EngineCrashGuard.recordCrash("chat_stream_callback", "", e)
+                    logger.w("chat-stream callback failed: ${e.message}")
+                    if (completed.compareAndSet(false, true)) {
+                        trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
+                        close()
+                    }
                 }
             }
 
             override fun onDone() {
+                anyCallbackSeen.set(true)
                 if (completed.get()) return
                 // Natural end (native EOS / token cap): flush the held-back
                 // tail, then complete.
-                val flushRaw = outputDecoder
-                    ?.clean(NativeToolCallScanner.strip(rawTextBuilder.toString()))
-                    ?: NativeToolCallScanner.strip(rawTextBuilder.toString())
-                emitDelta(flushRaw)
-                finishCleanly("eos")
+                try {
+                    val flushRaw = outputDecoder
+                        ?.clean(NativeToolCallScanner.strip(rawTextBuilder.toString()))
+                        ?: NativeToolCallScanner.strip(rawTextBuilder.toString())
+                    emitDelta(flushRaw)
+                    finishCleanly("eos")
+                } catch (e: Throwable) {
+                    EngineCrashGuard.recordCrash("chat_stream_done", "", e)
+                    logger.w("chat-stream onDone flush failed: ${e.message}")
+                    if (completed.compareAndSet(false, true)) {
+                        trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
+                        close()
+                    }
+                }
             }
 
             override fun onError(error: Throwable) {
+                anyCallbackSeen.set(true)
                 // cancelProcess() races onDone/onError — when WE terminated on
-                // a stop sequence, the resulting error is the expected unwind.
+                // a stop sequence or the loop guard, the resulting error is
+                // the expected unwind.
                 if (stopDetected.get()) {
-                    finishCleanly("stop_sequence")
+                    finishCleanly(if (loopGuard.isLooping) "loop_detected" else "stop_sequence")
                     return
                 }
                 if (sendAttempts < MAX_STREAM_SEND_ATTEMPTS - 1 && isReseedable(error)) {
@@ -1112,42 +1411,50 @@ class LiteRtLmEngine @Inject constructor(
                     //  2. template round-trip drift — the model cannot
                     //     continue a conversation (position-dependent think
                     //     wrapping).
-                    // In both cases reseed from trimmed history OFF the native
-                    // callback thread and restart the send on the fresh
-                    // conversation. Bounded: at most one retry. The latch
-                    // stops later turns from repeating the same failed reuse.
-                    sendAttempts++
-                    if (isReuseMismatch(error)) {
-                        reuseBroken.set(true)
-                        android.util.Log.w("LiteRtLmEngine", "Chat stream KV reuse mismatch — reseeding and retrying (${error.message})")
-                    } else {
-                        android.util.Log.w("LiteRtLmEngine", "Chat stream context full — reseeding and retrying (${error.message})")
-                    }
-                    val self: MessageCallback = this
-                    scope.launch {
-                        try {
-                            conv = reseedAfterOverflow(eng, messages, config)
-                            conv.sendMessageAsync(
-                                Message.user(last.content),
-                                self,
-                                maxOutputToken = streamingMaxOutputTokens(config),
-                                thinkingConfig = thinkingConfig()
-                            )
-                        } catch (e: Throwable) {
-                            trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
-                            close()
-                            generationActive.set(false)
-                            publishReadyAfterGeneration()
-                        }
-                    }
+                    // Bounded: at most one retry via the shared recovery path.
+                    retryOnFreshSession(this, error.message ?: "recoverable send failure", isReuseMismatch(error))
                 } else {
+                    logger.w("chat-stream error: ${error.message}")
                     trySend(Result.Error(EngineException(error.message ?: "Chat generation failed", error)))
                     close()
                 }
             }
         }
 
+        // ── STALLED-SESSION WATCHDOG (reused sessions only) ─────────────────
+        // Turn N>1 reuses the resident conversation. A degenerate mode of
+        // reused-session continuation is a SILENT native stall:
+        // sendMessageAsync accepts but NO callback ever fires — no token, no
+        // error, no EOS ("prompt 1 works, prompt 2 hangs forever"). On a
+        // reused session prefill only encodes the NEW user message (the KV
+        // prefix is already resident), so silence beyond this window is
+        // pathological. Recovery is bounded: abort the wedged decode, retire
+        // the session, reseed from history and resend once. Fresh sessions
+        // are NOT covered here — their full-history prefill can legitimately
+        // take longer; the repository init-stall watchdog remains the final
+        // net for them.
+        val stalledSessionWatchdog: Job? = if (lastSessionReused) {
+            scope.launch {
+                try {
+                    delay(FIRST_CALLBACK_TIMEOUT_MS)
+                    if (!anyCallbackSeen.get() && !completed.get() && !stopDetected.get()) {
+                        logger.w(
+                            "STALLED SESSION: no native callback within ${FIRST_CALLBACK_TIMEOUT_MS}ms of send on a " +
+                                "REUSED conversation — recovering via bounded reseed"
+                        )
+                        retryOnFreshSession(callback, "no callback from reused session", false)
+                    }
+                } catch (_: kotlinx.coroutines.CancellationException) {
+                    // Cancelled after first callback / flow end.
+                }
+            }
+        } else null
+
         try {
+            logger.i(
+                "PREFILL START: session=${if (lastSessionReused) "REUSED (KV hit — only new message prefilled)" else "fresh (full history prefill)"} " +
+                    "messages=${messages.size} delegate=${activeBackendInfo?.displayName ?: "?"}"
+            )
             conv.sendMessageAsync(
                 Message.user(last.content),
                 callback,
@@ -1155,10 +1462,15 @@ class LiteRtLmEngine @Inject constructor(
                 thinkingConfig = thinkingConfig()
             )
         } catch (e: Throwable) {
-            trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
-            BufferPool.returnBuilder(pooledClean)
-            BufferPool.returnBuilder(pooledRaw)
+            // The send never started: reset the generation slot + state HERE.
+            // This early return skips the cleanup after awaitClose — without
+            // this reset every later turn would wedge for the full drain
+            // window on "generation already in progress".
+            if (completed.compareAndSet(false, true)) {
+                trySend(Result.Error(EngineException(e.message ?: "Chat generation failed", e)))
+            }
             close()
+            releaseRun()
             return@callbackFlow
         }
         try {
@@ -1168,22 +1480,16 @@ class LiteRtLmEngine @Inject constructor(
             runCatching { conversation?.close() }
             conversation = null
             consumedTurns = emptyList()
-            generationActive.set(false)
-            publishReadyAfterGeneration()
-            BufferPool.returnBuilder(pooledClean)
-            BufferPool.returnBuilder(pooledRaw)
+            logger.i("chat generation cancelled by collector after $tokenCount fragments")
+            finishCleanly("cancelled", persistTranscript = false)
             throw e
-        } catch (e: Throwable) {
-            generationActive.set(false)
-            publishReadyAfterGeneration()
-            BufferPool.returnBuilder(pooledClean)
-            BufferPool.returnBuilder(pooledRaw)
-            throw e
+        } finally {
+            stalledSessionWatchdog?.cancel()
+            if (!completed.get()) {
+                logger.w("WARNING: chat stream exited WITHOUT a terminal EOS/error callback — forcing cleanup")
+            }
+            releaseRun()
         }
-        generationActive.set(false)
-        publishReadyAfterGeneration()
-        BufferPool.returnBuilder(pooledClean)
-        BufferPool.returnBuilder(pooledRaw)
     }
 
     /**
@@ -1234,6 +1540,11 @@ class LiteRtLmEngine @Inject constructor(
             ExperimentalFlags.overwritePromptTemplate = fam.chatTemplate
             ExperimentalFlags.filterChannelContentFromKvCache = fam.thinkingChannel != null
         }
+        logger.d(
+            "SESSION CREATE: conversation on ${activeBackendInfo?.displayName ?: "active delegate"} " +
+                "(the DELEGATE itself is NOT recreated — only this lightweight session)"
+        )
+        logger.i("Decoder Created: conversation on ${activeBackendInfo?.displayName ?: "active delegate"}")
         return EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.CONVERSATION_CREATE) {
             eng.createConversation(config)
         }
@@ -1485,16 +1796,24 @@ class LiteRtLmEngine @Inject constructor(
     ): Pair<InferenceBackend, Long> {
         var lastError: Throwable? = null
         var attempted = 0
+        logger.i(
+            "DELEGATE LIFECYCLE begin: ${candidates.size} candidate(s) [${candidates.joinToString { it.displayName }}] " +
+                "threads=$threads maxNumTokens=$maxNumTokens"
+        )
         for (candidate in candidates) {
             attempted++
             // Skip backends that have failed too many consecutive times.
             if (EngineCrashGuard.isBackendDisabled(candidate.displayName)) {
-                logger.w("Backend ${candidate.displayName} disabled after consecutive failures — skipping")
+                logger.w("DELEGATE SKIP: ${candidate.displayName} disabled after consecutive failures — skipping")
                 continue
             }
             var newEngine: Engine? = null
             val startedAt = System.currentTimeMillis()
             try {
+                logger.i(
+                    "DELEGATE CREATE attempt $attempted/${candidates.size}: ${candidate.displayName} " +
+                        "(delegate=${candidate.delegate}) — building interpreter"
+                )
                 newEngine = Engine(
                     LitertEngineConfig(
                         modelPath = path,
@@ -1504,22 +1823,41 @@ class LiteRtLmEngine @Inject constructor(
                     )
                 )
                 newEngine.initialize()
-                engine?.let { old -> runCatching { old.close() } }
-                engine = newEngine
                 val initMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                if (attempted > 1 || engine != null) {
+                    logger.w(
+                        "DELEGATE SWAP: replacing ${engine?.let { "previous ${activeBackendInfo?.displayName ?: "delegate"}" } ?: "no"} " +
+                            "interpreter with ${candidate.displayName}"
+                    )
+                    engine?.let { old ->
+                        runCatching {
+                            logger.i("DELEGATE DESTROY: closing previous interpreter")
+                            old.close()
+                        }
+                    }
+                }
+                engine = newEngine
                 // Record success so the backend is not disabled after a single failure.
                 EngineCrashGuard.recordSuccess(candidate.displayName)
-                if (attempted > 1) {
-                    logger.w("LiteRT-LM backend fallback: running on ${candidate.displayName} after $attempted attempt(s)")
-                }
+                logger.i(
+                    "DELEGATE ACTIVE: ${candidate.displayName} initialized in ${initMs}ms — this delegate is " +
+                        "reused for EVERY generation until the model is unloaded (never recreated per prompt)"
+                )
                 return candidate to initMs
             } catch (e: Throwable) {
                 lastError = e
                 runCatching { newEngine?.close() }
                 EngineCrashGuard.recordCrash("backend_init", candidate.displayName, e)
+                val msg = e.message ?: ""
+                val unsupportedOps = msg.contains("op ", ignoreCase = true) ||
+                    msg.contains("operator", ignoreCase = true) ||
+                    msg.contains("not supported", ignoreCase = true) ||
+                    msg.contains("unsupported", ignoreCase = true)
                 logger.w(
-                    "Backend ${candidate.displayName} (${candidate.delegate}) init failed " +
-                        "(${e.message}) — ${if (candidates.size > attempted) "falling back" else "no more backends"}"
+                    "DELEGATE FAILED: ${candidate.displayName} (${candidate.delegate}) init failed after " +
+                        "${System.currentTimeMillis() - startedAt}ms — ${if (unsupportedOps) "[UNSUPPORTED-OPERATOR SIGNATURE] " else ""}" +
+                        "${e.javaClass.simpleName}: $msg — " +
+                        "${if (candidates.size > attempted) "falling through to next candidate" else "NO more backends"}"
                 )
             }
         }
@@ -1538,13 +1876,19 @@ class LiteRtLmEngine @Inject constructor(
         totalTimeMs: Long,
         fallbackFirstTokenMs: Long,
         fallbackGeneratedTokens: Long,
+        fallbackPromptTokens: Long = 0L,
         stopReason: String
     ): EngineStats {
         // The module compiles with -Xskip-metadata-version-check (the AAR
         // ships Kotlin 2.3.0 metadata), so BenchmarkInfo is read as a Kotlin
         // class: access its properties directly, not Java-style getters.
         val benchmark = runCatching { conversation.getBenchmarkInfo() }.getOrNull()
-        val promptTokens = benchmark?.lastPrefillTokenCount?.toLong()?.takeIf { it > 0L } ?: 0L
+        // Prompt tokens: prefer the runtime's own prefill counter; when a
+        // backend does not report it, fall back to the caller's estimate so
+        // the context meter never shows "Context 0 / N" after a successful
+        // prompt insertion.
+        val promptTokens = benchmark?.lastPrefillTokenCount?.toLong()?.takeIf { it > 0L }
+            ?: fallbackPromptTokens.coerceAtLeast(0L)
         val generatedTokens = benchmark?.lastDecodeTokenCount?.toLong()?.takeIf { it > 0L }
             ?: fallbackGeneratedTokens
         val promptTokensPerSecond = benchmark?.lastPrefillTokensPerSecond
@@ -1662,11 +2006,16 @@ class LiteRtLmEngine @Inject constructor(
         return after.takeWhile { it.isDigit() }.toIntOrNull() ?: 0
     }
 
+    /** True when the last chat turn reused the resident session (KV hit). */
+    @Volatile
+    private var lastSessionReused: Boolean = false
+
     private fun ensureConversationForHistory(
         eng: Engine,
         messages: List<ChatPromptMessage>,
         config: GenerationConfig
     ): Conversation {
+        val sessionLookupStartedAt = System.currentTimeMillis()
         val system = messages.firstOrNull { it.role == "system" }?.content
         val turns = messages.filter { it.role != "system" }
         // The incoming history EXCLUDING the new user message (the caller
@@ -1686,8 +2035,20 @@ class LiteRtLmEngine @Inject constructor(
             // history, regenerated reply, switched system prompt) or the model
             // proved reuse-broken (template round-trip drift — see
             // [reuseBroken]).
+            lastSessionReused = true
+            logger.i(
+                "SESSION LOOKUP: KV-cache REUSE hit (${System.currentTimeMillis() - sessionLookupStartedAt}ms) — " +
+                    "only the new user message will be prefilled"
+            )
             return live
         }
+        val reseedReason = when {
+            reuseBroken.get() -> "template-drift latch"
+            live == null -> "no resident session"
+            conversationSystemPrompt != system -> "system prompt changed"
+            else -> "history changed"
+        }
+        logger.i("SESSION LOOKUP: RESEED required ($reseedReason) — full history will be prefilled")
         // Seed the full history MINUS the last user message, sanitized to
         // strict user/assistant alternation (leading assistant turns and
         // trailing user turns break LiteRT's chat template).
@@ -1706,11 +2067,17 @@ class LiteRtLmEngine @Inject constructor(
             )
         }
         conversation?.let { runCatching { it.close() } }
-        return createConversationWithFamilyFlags(eng, conversationConfig).also {
+        val fresh = createConversationWithFamilyFlags(eng, conversationConfig).also {
             conversation = it
             conversationSystemPrompt = system
             consumedTurns = seed
         }
+        lastSessionReused = false
+        logger.i(
+            "SESSION LOOKUP: reseed complete in ${System.currentTimeMillis() - sessionLookupStartedAt}ms " +
+                "(seedTurns=${seed.size})"
+        )
+        return fresh
     }
 
     @Volatile
@@ -1766,6 +2133,7 @@ class LiteRtLmEngine @Inject constructor(
         // Capture the conversation reference atomically to avoid races
         // where another thread nulls it between our null-check and cancel.
         val conv = conversation ?: return@runCatching
+        logger.i("cancel requested: aborting the active decode and retiring the conversation")
         try {
             runCatching { conv.cancelProcess() }
         } catch (e: Throwable) {
@@ -1797,22 +2165,25 @@ class LiteRtLmEngine @Inject constructor(
             emit(Result.Error(EngineException("Generation already in progress")))
             return@flow
         }
+        // ISOLATED throwaway conversation (see [tokenStream]): a benchmark
+        // must never inject its synthetic prompts into the resident CHAT
+        // conversation's KV cache.
+        var conv: Conversation? = null
         try {
             // createConversation + sendMessage are blocking native calls —
             // benchmark flows may be collected from any dispatcher, so run the
             // whole pass off the caller's thread.
-            val conv = withContext(Dispatchers.Default) {
-                conversation ?: createConversationWithFamilyFlags(
-                    eng, conversationConfigForSampler(GenerationConfig())
-                ).also { conversation = it }
+            conv = withContext(Dispatchers.Default) {
+                createConversationWithFamilyFlags(eng, conversationConfigForSampler(GenerationConfig()))
             }
+            val activeConv = checkNotNull(conv)
             val prompt = "The quick brown fox jumps over the lazy dog."
             var best = 0f
             var sum = 0f
             for (i in 0 until iterations) {
                 val startedAt = System.currentTimeMillis()
                 withContext(Dispatchers.Default) {
-                    conv.sendMessage(Message.user(prompt), maxOutputToken = 32)
+                    activeConv.sendMessage(Message.user(prompt), maxOutputToken = 32)
                 }
                 val elapsed = (System.currentTimeMillis() - startedAt).coerceAtLeast(1L)
                 // Approximate tps: 9 prompt tokens + 32 generated ~ decoded length
@@ -1833,6 +2204,7 @@ class LiteRtLmEngine @Inject constructor(
         } catch (e: Throwable) {
             emit(Result.Error(EngineException(e.message ?: "Benchmark failed", e)))
         } finally {
+            conv?.let { runCatching { it.close() } }
             generationActive.set(false)
         }
     }
@@ -1857,6 +2229,8 @@ class LiteRtLmEngine @Inject constructor(
             delegate = backend?.delegate ?: "",
             delegateVersion = LITERTLM_VERSION,
             backendInitMs = activeBackendInitMs,
+            modelLoadMs = lastModelLoadMs,
+            warmupMs = lastWarmupMs,
             currentRamBytes = runCatching { Debug.getNativeHeapAllocatedSize() }.getOrDefault(0L),
             peakTokensPerSecond = stats?.peakTokensPerSecond ?: 0f,
             nCtx = model.contextLength,
@@ -1876,6 +2250,7 @@ class LiteRtLmEngine @Inject constructor(
 
     override fun release() {
         stopRuntimeMetricsRefresh()
+        logger.i("DELEGATE DESTROY: release — closing session + interpreter (${activeBackendInfo?.displayName ?: "unknown delegate"})")
         // Use crash guard to ensure every cleanup step runs even if one fails.
         EngineCrashGuard.guardOrNull("release_conversation") { conversation?.close() }
         conversation = null
@@ -2027,6 +2402,23 @@ javaHeapUsedBytes = javaUsed,
         const val LITERTLM_VERSION = "0.16.0"
 
         const val DEFAULT_MAX_CONTEXT = 8192
+
+        /**
+         * Bound for the one-time post-load warm-up inference. GPU graph
+         * compilation is the expensive part (tens of seconds worst case on
+         * slow Vulkan drivers); a compile that exceeds this budget is
+         * aborted so the load always finishes (stalled-init requirement) —
+         * the first prompt then pays the remaining cost with normal
+         * watchdog protection.
+         */
+        private const val WARMUP_TIMEOUT_MS = 90_000L
+
+        /**
+         * Silence budget for a REUSED session after send: prefill only encodes the
+         * new user message (KV prefix resident), so no callback within this window
+         * means the continuation wedged. Triggers the bounded reseed recovery.
+         */
+        private const val FIRST_CALLBACK_TIMEOUT_MS = 25_000L
 
         /** Refresh live process counters once per second while a model is resident. */
         private const val RUNTIME_METRICS_REFRESH_MS = 1_000L

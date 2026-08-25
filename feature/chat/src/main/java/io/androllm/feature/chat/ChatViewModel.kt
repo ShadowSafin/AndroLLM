@@ -811,11 +811,12 @@ class ChatViewModel @Inject constructor(
             // Local tool calling (cloud-style): the model emits native
             // `<|tool_call|>` markers during the answer generation; the loop
             // executes them, feeds the results back and continues — exactly
-            // like a cloud provider's function calling. Models without native
-            // markers get ONE deduped pre-planner pass as a compatibility
-            // fallback. BOUNDED: the loop caps at maxToolRounds and each
-            // round is a bounded generation; this outer budget guarantees the
-            // turn always finishes.
+            // like a cloud provider's function calling. The FIRST answer
+            // token always comes straight from round 1 — no planning pass
+            // ever runs before it (removed for time-to-first-token).
+            // BOUNDED: the loop caps at maxToolRounds and each round is a
+            // bounded generation; this outer budget guarantees the turn
+            // always finishes.
             // The prompt list is remembered for the one-shot plain-text
             // regeneration when the sanitized answer comes back empty.
             lastLocalMessages = messages
@@ -1485,50 +1486,23 @@ class ChatViewModel @Inject constructor(
      * continues the SAME conversation — until the model answers without
      * tools. Returns true when the loop committed the answer itself.
      *
-     * Families WITHOUT native markers (the engine's `nativeToolMarkers` flag)
-     * get ONE legacy pre-planner pass BEFORE the first generation
-     * (compatibility for models without native function calling); planned
-     * calls are deduped against already-executed ones so a confused model can
-     * never re-run the same tool every round. Running it before round 1 keeps
-     * the streamed answer final: it is committed the moment generation ends,
-     * never hidden while a slow planning pass runs afterwards.
+     * LATENCY CONTRACT: this loop NEVER runs a generation before the answer.
+     * The legacy "compat pre-planner" (a full extra inference pass before
+     * round 1 for families without native markers) was REMOVED — it added
+     * 30s+ to EVERY prompt's time-to-first-token on CPU-sized models and was
+     * indistinguishable from a hung self-test. Models with native
+     * `<|tool_call|>` markers keep full function calling; models without them
+     * answer directly at full speed.
      */
     private suspend fun runLocalToolLoop(messages: List<ChatPromptMessage>): Boolean {
         nativeToolLoopActive = true
         try {
             var history = messages
             val maxRounds = runCatching { automationSettingsStore.current().maxToolRounds }.getOrDefault(3)
-            // Per-turn loop protection shared by the pre-planner and every
-            // native round: total cap 5, consecutive-same-tool cap 2, dedupe
-            // of identical (name, arguments) calls, disable-on-repeated-failure.
+            // Per-turn loop protection for the native rounds: total cap 5,
+            // consecutive-same-tool cap 2, dedupe of identical (name,
+            // arguments) calls, disable-on-repeated-failure.
             val loopGuard = io.androllm.core.tools.coordinator.ToolLoopGuard()
-
-            // Compatibility pre-planner: only for families WITHOUT native
-            // `<|tool_call|>` markers (Qwen3/2.5/2 and the function-calling
-            // Gemma repacks emit them natively — an answer without markers is
-            // authoritative there, so the slow JSON planner must never run).
-            // It runs BEFORE the first generation so the round-1 answer is
-            // always final: once text streams it is committed immediately and
-            // can never "vanish" behind a ~20s planning pass that commits the
-            // same text much later.
-            val nativeMarkers = (engineRepository.engineState.value as? EngineState.Ready)
-                ?.model?.nativeToolMarkers
-            if (nativeMarkers != true) {
-                android.util.Log.i(TAG, "NATIVE LOOP: compat pre-planner (nativeMarkers=$nativeMarkers)")
-                val planned = toolCoordinator.planLocal(
-                    history,
-                    hasAttachments = turnAttachments.isNotEmpty()
-                )
-                val fresh = planned.filter { loopGuard.canExecute(it.name, it.arguments) }
-                if (fresh.isNotEmpty()) {
-                    android.util.Log.i(TAG, "NATIVE LOOP: pre-planner returned ${fresh.size} call(s)")
-                    val records = executeToolCallsWithStatus(fresh, loopGuard)
-                    if (records.isNotEmpty()) {
-                        toolsExecutedThisTurn = true
-                        history = history + toolCoordinator.buildLocalToolFeedback(records)
-                    }
-                }
-            }
 
             for (round in 0 until maxRounds) {
                 android.util.Log.i(TAG, "NATIVE LOOP round=${round + 1}/$maxRounds messages=${history.size}")

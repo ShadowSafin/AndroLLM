@@ -93,6 +93,26 @@ object OutputSanitizer {
     /** SentencePiece byte-fallback tokens: `<0x0A>`, `<0xD0>`, `<0x1F600>`. */
     private val BYTE_FALLBACK_TOKEN_REGEX = Regex("<0x[0-9A-Fa-f]{1,4}>")
 
+    /**
+     * A serialized structured-response element: `{"type":"text","text":"…"}`.
+     * Internal message objects (LiteRT-LM contents, cloud content parts,
+     * tool-response payloads) must never be rendered as chat text — when one
+     * leaks into a response it is flattened to its text field here.
+     */
+    private val TEXT_ELEMENT_REGEX = Regex(
+        """\{\s*"type"\s*:\s*"text"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}"""
+    )
+
+    /** A whole serialized contents array: `[ …text elements… ]`. */
+    private val SERIALIZED_CONTENTS_ARRAY_REGEX = Regex(
+        """\[\s*(?:${TEXT_ELEMENT_REGEX.pattern}\s*,?\s*)+\]"""
+    )
+
+    /** A single standalone text-content object. */
+    private val SINGLE_TEXT_ELEMENT_REGEX = Regex(
+        """^\s*\{\s*"type"\s*:\s*"text"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}\s*$"""
+    )
+
     /** The UTF-8 replacement character — the visible mark of an invalid sequence. */
     private const val INVALID_UTF8_MARKER = '\uFFFD'
 
@@ -144,6 +164,10 @@ object OutputSanitizer {
     fun sanitize(text: String): String {
         if (text.isBlank()) return ""
         var result = text
+        // Structured-response flattening FIRST: an internal message object
+        // that leaked this far is converted to plain text before any of the
+        // tag/token passes below could mangle its JSON shape.
+        result = flattenStructuredResponse(result)
         result = NativeToolCallScanner.strip(result)
         result = BLOCK_REGEX.replace(result, "")
         result = BLOCK_PIPE_CLOSE_REGEX.replace(result, "")
@@ -242,6 +266,72 @@ object OutputSanitizer {
 
     /** True when [text] is blank AFTER sanitization. */
     fun isBlankAfterSanitization(text: String): Boolean = sanitize(text).isBlank()
+
+    /**
+     * Converts structured message objects into plain chat text.
+     *
+     * `[{"type":"text","text":"Hello"}]` → `Hello`
+     * `[{"type":"text","text":"Hi"},{"type":"text","text":"!"}]` → `Hi!`
+     * A single standalone object keeps only its text field.
+     *
+     * The pattern requires the exact serialized content-element shape, so
+     * ordinary prose (even JSON examples inside code blocks are protected by
+     * requiring the FULL array/object match) is never touched. Multiple
+     * matches are all flattened; JSON escapes in the text field are decoded.
+     */
+    fun flattenStructuredResponse(text: String): String {
+        if (!text.contains("\"type\"")) return text
+        var result = SERIALIZED_CONTENTS_ARRAY_REGEX.replace(text) { m ->
+            buildString {
+                for (el in TEXT_ELEMENT_REGEX.findAll(m.value)) {
+                    append(unescapeJsonString(el.groupValues[1]))
+                }
+            }
+        }
+        val single = SINGLE_TEXT_ELEMENT_REGEX.find(result)
+        if (single != null) {
+            result = unescapeJsonString(single.groupValues[1])
+        }
+        return result
+    }
+
+    /** Minimal JSON string unescape for extracted text fields. */
+    private fun unescapeJsonString(s: String): String {
+        if ('\\' !in s) return s
+        val sb = StringBuilder(s.length)
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\\' && i + 1 < s.length) {
+                when (val n = s[i + 1]) {
+                    'n' -> sb.append('\n')
+                    't' -> sb.append('\t')
+                    'r' -> sb.append('\r')
+                    'b' -> sb.append('\b')
+                    'f' -> sb.append('\u000C')
+                    '"' -> sb.append('"')
+                    '\\' -> sb.append('\\')
+                    '/' -> sb.append('/')
+                    'u' -> {
+                        val hex = s.substring(i + 2, (i + 6).coerceAtMost(s.length))
+                        val code = if (hex.length == 4) hex.toIntOrNull(16) else null
+                        if (code != null) {
+                            sb.append(code.toChar())
+                            i += 4
+                        } else {
+                            sb.append(n)
+                        }
+                    }
+                    else -> sb.append(n)
+                }
+                i += 2
+            } else {
+                sb.append(c)
+                i++
+            }
+        }
+        return sb.toString()
+    }
 
     /**
      * Streaming-safe sanitization of the ACCUMULATED buffer. Any trailing

@@ -302,4 +302,46 @@ class OutputSanitizerTest {
         assertEquals("youи_!", OutputSanitizer.streamingReady("youи_!"))
         assertEquals("a|>b", OutputSanitizer.streamingReady("a|>b"))
     }
+
+    // ------------------------------------------------- structured responses
+
+    @Test
+    fun `flattens a serialized text-content array to plain text`() {
+        // Regression for the raw-JSON symptom: the UI showed
+        // [{"type":"text","text":"Hello"}] instead of Hello.
+        assertEquals(
+            "Hello",
+            OutputSanitizer.flattenStructuredResponse("""[{"type":"text","text":"Hello"}]""")
+        )
+        assertEquals(
+            "Hello",
+            OutputSanitizer.sanitize("""[{"type":"text","text":"Hello"}]""")
+        )
+    }
+
+    @Test
+    fun `flattens multi-element structured arrays`() {
+        assertEquals(
+            "Hi there!",
+            OutputSanitizer.flattenStructuredResponse(
+                """[{"type":"text","text":"Hi"},{"type":"text","text":" there!"}]"""
+            )
+        )
+    }
+
+    @Test
+    fun `structured flattening decodes escapes`() {
+        assertEquals(
+            "line1\nline2",
+            OutputSanitizer.flattenStructuredResponse("""[{"type":"text","text":"line1\nline2"}]""")
+        )
+    }
+
+    @Test
+    fun `ordinary prose with brackets is never flattened`() {
+        val prose = "Use the array [1, 2, 3] syntax here."
+        assertEquals(prose, OutputSanitizer.flattenStructuredResponse(prose))
+        val jsonExample = """The API returns {"type":"greeting"} objects."""
+        assertEquals(jsonExample, OutputSanitizer.flattenStructuredResponse(jsonExample))
+    }
 }

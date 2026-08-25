@@ -63,24 +63,24 @@ class BackendSelectorTest {
         assertEquals(listOf(BackendType.CPU), types(candidates))
     }
 
-    // ── Explicit selection still falls back silently ────────────────────────
+    // ── Explicit selection is EXCLUSIVE — never a silent delegate swap ──────
 
     @Test
-    fun `explicit NPU when usable and model supports it tries NPU GPU CPU`() {
+    fun `explicit NPU when usable and model supports it tries only NPU`() {
         val candidates = BackendSelector.orderedCandidates(BackendType.NPU, caps(npuUsable = true), npuModel)
-        assertEquals(listOf(BackendType.NPU, BackendType.GPU, BackendType.CPU), types(candidates))
+        assertEquals(listOf(BackendType.NPU), types(candidates))
     }
 
     @Test
-    fun `explicit NPU when unusable falls back to GPU CPU`() {
-        val candidates = BackendSelector.orderedCandidates(BackendType.NPU, caps(npuUsable = false), model)
-        assertEquals(listOf(BackendType.GPU, BackendType.CPU), types(candidates))
+    fun `explicit NPU when unusable produces no candidates and fails the load visibly`() {
+        val candidates = BackendSelector.orderedCandidates(BackendType.NPU, caps(npuUsable = false), npuModel)
+        assertTrue(candidates.isEmpty())
     }
 
     @Test
-    fun `explicit GPU falls back to CPU`() {
+    fun `explicit GPU tries only GPU`() {
         val candidates = BackendSelector.orderedCandidates(BackendType.GPU, caps(npuUsable = true), model)
-        assertEquals(listOf(BackendType.GPU, BackendType.CPU), types(candidates))
+        assertEquals(listOf(BackendType.GPU), types(candidates))
     }
 
     @Test
@@ -90,10 +90,10 @@ class BackendSelectorTest {
     }
 
     @Test
-    fun `explicit GPU with GPU-unsupported model falls back to CPU`() {
+    fun `explicit GPU with GPU-unsupported model produces no candidates`() {
         val modelCpuOnly = model.copy(supportsGpu = false)
         val candidates = BackendSelector.orderedCandidates(BackendType.GPU, caps(), modelCpuOnly)
-        assertEquals(listOf(BackendType.CPU), types(candidates))
+        assertTrue(candidates.isEmpty())
     }
 
     // ── resolveAuto / bestAvailable / normalizePreference ───────────────────
@@ -132,10 +132,15 @@ class BackendSelectorTest {
     }
 
     @Test
-    fun `every candidate chain ends in CPU`() {
-        for (pref in listOf(BackendType.AUTO, BackendType.NPU, BackendType.GPU, BackendType.CPU)) {
+    fun `AUTO chains always end in CPU while explicit chains never contain it`() {
+        val auto = BackendSelector.orderedCandidates(BackendType.AUTO, caps(npuUsable = true), npuModel)
+        assertTrue("AUTO chain must end with CPU: ${types(auto)}", auto.last().type == BackendType.CPU)
+        for (pref in listOf(BackendType.NPU, BackendType.GPU, BackendType.CPU)) {
             val chain = BackendSelector.orderedCandidates(pref, caps(npuUsable = true), npuModel)
-            assertTrue("chain for $pref must end with CPU: ${types(chain)}", chain.last().type == BackendType.CPU)
+            assertTrue(
+                "explicit $pref chain must not contain CPU: ${types(chain)}",
+                chain.none { it.type == BackendType.CPU } || pref == BackendType.CPU
+            )
         }
     }
 }

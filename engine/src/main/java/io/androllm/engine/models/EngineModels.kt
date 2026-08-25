@@ -244,6 +244,14 @@ data class EngineDebugInfo(
     val delegateVersion: String = "",
     /** Wall-clock time to build the native engine on the active backend (ms). */
     val backendInitMs: Long = 0,
+    /** Wall-clock time of the last full model load including warm-up (ms). */
+    val modelLoadMs: Long = 0,
+    /**
+     * Duration of the one-time post-load warm-up inference (ms); -1 when it
+     * did not complete. A large warm-up value explains a slow FIRST token —
+     * after warm-up this cost is never paid again.
+     */
+    val warmupMs: Long = -1,
     /** Current native heap of this process at snapshot time (bytes). */
     val currentRamBytes: Long = 0,
     /** Peak tok/s observed in the last generation. */
