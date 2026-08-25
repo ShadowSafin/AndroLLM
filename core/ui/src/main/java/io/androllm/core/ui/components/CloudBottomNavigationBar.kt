@@ -78,7 +78,10 @@ fun CloudBottomNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(start = 20.dp,
+                end = 20.dp,
+                top = 10.dp,
+                bottom = 0.dp),
         contentAlignment = Alignment.Center
     ) {
         BoxWithConstraints(
@@ -96,7 +99,7 @@ fun CloudBottomNavigationBar(
         ) {
             val tabWidth = maxWidth / tabCount
             val itemWidth = tabWidth
-            val itemHeight = maxHeight - 12.dp
+            val itemHeight = maxHeight - 3.dp
             val indicatorOffset by animateDpAsState(
                 targetValue = tabWidth * selectedIndex,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
