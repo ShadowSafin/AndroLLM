@@ -84,7 +84,7 @@ fun CloudAdaptiveNavigation(
         WindowWidthSizeClass.Compact
     }
 
-    if (widthClass == WindowWidthSizeClass.Expanded) {
+    if (widthClass == WindowWidthSizeClass.Expanded || widthClass == WindowWidthSizeClass.Medium) {
         Row(modifier = Modifier.fillMaxSize()) {
             CloudNavigationRail(
                 currentRoute = currentRoute,

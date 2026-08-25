@@ -85,7 +85,6 @@ fun ConversationDrawerContent(
     onDeleteChat: (Conversation) -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
-    onHomeClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     ModalDrawerSheet(
@@ -103,20 +102,9 @@ fun ConversationDrawerContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onHomeClick() }
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    io.androllm.core.ui.components.CloudBugdroidLogo(
-                        size = 28.dp,
-                        showMoon = false
-                    )
-
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    io.androllm.core.ui.components.CloudBugdroidLogo(size = 28.dp, showMoon = false)
                     Spacer(modifier = Modifier.width(10.dp))
-
                     Column {
                         Text(
                             text = "AndroLLM",
