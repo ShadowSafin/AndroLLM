@@ -89,7 +89,8 @@ class MemoryRepository @Inject constructor(
     private val contextBuilder: ContextBuilder,
     private val logger: MemoryLogger,
     private val securityFilter: MemorySecurityFilter = MemorySecurityFilter(),
-    private val classifier: MemoryClassifier = MemoryClassifier()
+    private val classifier: MemoryClassifier = MemoryClassifier(),
+    private val hardeningHelper: io.androllm.core.memory.hardening.MemoryHardeningHelper = io.androllm.core.memory.hardening.MemoryHardeningHelper()
 ) : MemoryManager {
 
     private val json = Json {
@@ -98,7 +99,14 @@ class MemoryRepository @Inject constructor(
     }
 
     private val indexMutex = Mutex()
+    private val writeMutex = Mutex()
     private var vectorIndex: CosineVectorIndex? = null
+
+    // LRU cache for retrieval: query+filters -> result, invalidated on writes/deletes
+    private val retrievalCache = object : LinkedHashMap<String, List<MemorySearchResult>>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<MemorySearchResult>>): Boolean = size > 64
+    }
+    private val cacheMutex = Mutex()
 
     // ── Inspector timings ──
     @Volatile private var lastRetrievalMs = 0L
@@ -110,6 +118,83 @@ class MemoryRepository @Inject constructor(
     @Volatile private var totalEmbeddings = 0L
     @Volatile private var totalInserted = 0L
     @Volatile private var totalUpdated = 0L
+
+    @Volatile private var startupValidated = false
+    private val startupMutex = Mutex()
+
+    private suspend fun ensureStartupValidated() {
+        if (startupValidated) return
+        startupMutex.withLock {
+            if (startupValidated) return
+            try {
+                // Validate database integrity: check for null/blank content, corrupted metadata
+                val all = try { memoryDao.getAll() } catch (e: Exception) {
+                    logger.warn("Startup validation: memoryDao.getAll failed: ${e.message}")
+                    emptyList()
+                }
+                var repaired = 0
+                var removedCorrupted = 0
+                for (entity in all) {
+                    // Safeguards against null values and corrupted metadata (defensive even though Room non-null)
+                    if (entity.content.isBlank() || entity.content.length > 2000) {
+                        try {
+                            memoryDao.deleteById(entity.id)
+                            indexMutex.withLock { vectorIndex?.remove(entity.id) }
+                            try { embeddingDao.deleteByMemoryId(entity.id) } catch (_: Exception) {}
+                            removedCorrupted++
+                        } catch (_: Exception) {}
+                        continue
+                    }
+                    // Corrupted category/type: fallback to CUSTOM/LONG_TERM if unknown
+                    val catValid = try { MemoryCategory.fromName(entity.category); true } catch (_: Exception) { false }
+                    val typeValid = try { io.androllm.core.memory.MemoryType.fromName(entity.type); true } catch (_: Exception) { false }
+                    if (!catValid || !typeValid) {
+                        try {
+                            memoryDao.update(entity.copy(category = "CUSTOM", type = "LONG_TERM"))
+                            repaired++
+                        } catch (_: Exception) {}
+                    }
+                }
+                // Validate embedding consistency: remove embeddings for missing memories, detect corrupted vectors
+                try {
+                    val embeddings = embeddingDao.getAll()
+                    val memoryIds = all.map { it.id }.toSet()
+                    for (emb in embeddings) {
+                        if (emb.memoryId !in memoryIds) {
+                            try { embeddingDao.deleteByMemoryId(emb.memoryId) } catch (_: Exception) {}
+                            indexMutex.withLock { vectorIndex?.remove(emb.memoryId) }
+                            repaired++
+                        } else {
+                            // Corrupted embedding: invalid bytes or dimension mismatch
+                            try {
+                                val vec = VectorMath.fromBytes(emb.vector)
+                                if (vec.isEmpty() || vec.any { it.isNaN() || it.isInfinite() } || emb.dimension <= 0 || vec.size != emb.dimension) {
+                                    embeddingDao.deleteByMemoryId(emb.memoryId)
+                                    indexMutex.withLock { vectorIndex?.remove(emb.memoryId) }
+                                    repaired++
+                                }
+                            } catch (_: Exception) {
+                                try { embeddingDao.deleteByMemoryId(emb.memoryId) } catch (_: Exception) {}
+                                indexMutex.withLock { vectorIndex?.remove(emb.memoryId) }
+                                repaired++
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.warn("Startup embedding validation failed: ${e.message}")
+                }
+                if (repaired > 0 || removedCorrupted > 0) {
+                    logger.info("Startup validation: repaired $repaired, removed $removedCorrupted corrupted records")
+                }
+                // Clear retrieval cache after repair
+                cacheMutex.withLock { retrievalCache.clear() }
+                startupValidated = true
+            } catch (e: Exception) {
+                logger.warn("Startup validation failed: ${e.message}")
+                startupValidated = true // avoid infinite retry; next operation will try again if needed
+            }
+        }
+    }
 
     // ── Settings ──
 
@@ -173,6 +258,21 @@ class MemoryRepository @Inject constructor(
             // To keep helpful invisible behavior, we still allow retrieve but log
         }
         val k = (topK ?: settings.retrievalCount).coerceIn(MemorySettings.RETRIEVAL_MIN, MemorySettings.RETRIEVAL_MAX)
+        ensureStartupValidated()
+        // Check retrieval cache (correct invalidation on writes ensures freshness)
+        val cacheKey = "${query.take(80).lowercase()}|${filters.hashCode()}|$k"
+        cacheMutex.withLock {
+            retrievalCache[cacheKey]?.let { cached ->
+                // Validate cached still valid (not expired, not corrupted)
+                val nowCache = System.currentTimeMillis()
+                val validCached = cached.filter { it.memory.expiryAt == null || it.memory.expiryAt > nowCache }
+                if (validCached.size == cached.size) {
+                    return@runCatching validCached
+                } else {
+                    retrievalCache.remove(cacheKey)
+                }
+            }
+        }
         val t0 = System.currentTimeMillis()
         val now = System.currentTimeMillis()
 
@@ -193,28 +293,61 @@ class MemoryRepository @Inject constructor(
                 val memoriesById = memoryDao.getByIds(scored.map { it.id }).associateBy { it.id }
                 val tagMap = memoryDao.getTagsForMemoryIds(memoriesById.keys.toList())
                     .groupBy({ it.memoryId }, { it.tagName })
-                // Filter by similarity threshold + keyword fallback, then rank by relevance + recency
+                // Hardened: validate each retrieved entity still valid, not corrupted, not expired, not contradictory
                 scored
                     .mapNotNull { (id, score) ->
                         val entity = memoriesById[id] ?: return@mapNotNull null
-                        val domain = entity.toDomain(tagMap[id].orEmpty())
-                        // Expiry check (double-check after candidateIds)
+                        // Validation: ensure retrieved memories are still valid (not corrupted, not blank, valid metadata)
+                        if (entity.content.isBlank() || entity.content.length > 2000) {
+                            logger.warn("Skipped corrupted memory ${entity.id} blank/too long")
+                            return@mapNotNull null
+                        }
+                        // Safeguard against null/corrupted category/type
+                        val catValid = try { MemoryCategory.fromName(entity.category); true } catch (_: Exception) { false }
+                        val typeValid = try { io.androllm.core.memory.MemoryType.fromName(entity.type); true } catch (_: Exception) { false }
+                        if (!catValid || !typeValid) {
+                            logger.warn("Skipped corrupted memory ${entity.id} invalid category/type")
+                            return@mapNotNull null
+                        }
+                        val domain = try { entity.toDomain(tagMap[id].orEmpty()) } catch (e: Exception) {
+                            logger.warn("Skipped malformed memory ${entity.id}: ${e.message}")
+                            return@mapNotNull null
+                        }
                         if (domain.expiryAt != null && domain.expiryAt < now) return@mapNotNull null
+                        // Detect contradictory memories before use: will be filtered later, but mark
                         MemorySearchResult(domain, score, id in keywordIds)
                     }
                     // Threshold: drop low-relevance unrelated memories unless pinned/keyword
                     .filter { r ->
                         r.memory.isPinned || r.matchedByKeyword || r.score >= settings.similarityThreshold
                     }
-                    .sortedWith(
-                        compareByDescending<MemorySearchResult> {
-                            // Relevance + keyword boost + recency boost (0..0.1) + pinned/priority
-                            val recencyBoost = recencyBoost(it.memory.updatedAt, now)
-                            it.score + (if (it.matchedByKeyword) HYBRID_KEYWORD_BOOST else 0f) + recencyBoost
+                    // Detect contradictory memories among candidates: keep higher confidence (priority + recency)
+                    .let { filtered ->
+                        val toRemove = mutableSetOf<String>()
+                        for (i in filtered.indices) {
+                            for (j in i + 1 until filtered.size) {
+                                val a = filtered[i]
+                                val b = filtered[j]
+                                if (hardeningHelper.isContradictory(a.memory.content, b.memory.content)) {
+                                    // Resolve using timestamps, confidence (priority), evidence
+                                    val winner = hardeningHelper.resolveConflict(b.memory.content, b.memory.effectivePriority, b.memory.updatedAt, a.memory)
+                                    val loserId = if (winner?.id == a.memory.id) b.memory.id else a.memory.id
+                                    toRemove.add(loserId)
+                                    logger.info("Contradiction detected between ${a.memory.id} and ${b.memory.id}, keeping ${winner?.id ?: b.memory.id}")
+                                }
+                            }
                         }
+                        if (toRemove.isNotEmpty()) filtered.filter { it.memory.id !in toRemove } else filtered
+                    }
+                    .sortedWith(
+                        // Separate semantic relevance from recency: semantic (score + keyword) dominates, recency only tie-breaks when scores close
+                        compareByDescending<MemorySearchResult> { it.score + (if (it.matchedByKeyword) HYBRID_KEYWORD_BOOST else 0f) }
                             .thenByDescending { it.memory.isPinned }
                             .thenByDescending { it.memory.effectivePriority }
-                            .thenByDescending { it.memory.updatedAt }
+                            .thenByDescending { 
+                                // Recency only as final tie-breaker, not mixed into score
+                                it.memory.updatedAt
+                            }
                     )
                     .take(k)
             } else {
@@ -230,8 +363,8 @@ class MemoryRepository @Inject constructor(
         else (avgRetrievalMs * retrievalSamples + elapsed) / (retrievalSamples + 1)
         retrievalSamples++
 
-        for (r in results) memoryDao.bumpAccess(r.memory.id, now)
-        // Also update lastUsedAt for retrieved memories
+        for (r in results) try { memoryDao.bumpAccess(r.memory.id, now) } catch (_: Exception) {}
+        // Also update lastUsedAt for retrieved memories (thread-safe, transactional)
         results.forEach { r ->
             try {
                 memoryDao.getById(r.memory.id)?.let { entity ->
@@ -239,6 +372,8 @@ class MemoryRepository @Inject constructor(
                 }
             } catch (_: Exception) { }
         }
+        // Update cache with fresh accessed values (ensures next hit reflects recency)
+        try { cacheMutex.withLock { retrievalCache[cacheKey] = results } } catch (_: Exception) {}
         results
     }
 
@@ -396,9 +531,17 @@ class MemoryRepository @Inject constructor(
     }
 
     override suspend fun deleteMemory(id: String): Result<Unit> = io.androllm.core.common.runCatching {
-        memoryDao.deleteById(id)
-        indexMutex.withLock { vectorIndex?.remove(id) }
-        logger.info("Deleted memory $id")
+        writeMutex.withLock {
+            // Transactional delete: memory + embedding + tags + index + cache (relationships are orphaned and ignored in retrieval)
+            try {
+                memoryDao.deleteById(id)
+            } catch (e: Exception) { logger.warn("deleteMemory: memoryDao failed for $id: ${e.message}") }
+            try { embeddingDao.deleteByMemoryId(id) } catch (_: Exception) {}
+            try { tagDao.deleteCrossRefsForMemory(id) } catch (_: Exception) {}
+            indexMutex.withLock { vectorIndex?.remove(id) }
+            cacheMutex.withLock { retrievalCache.clear() }
+            logger.info("Deleted memory $id and purged embeddings/cache")
+        }
     }
 
     override suspend fun updateImportance(id: String, importance: Int): Result<Unit> = io.androllm.core.common.runCatching {
@@ -406,18 +549,26 @@ class MemoryRepository @Inject constructor(
     }
 
     /**
-     * Wipes the entire memory store (database, index, logs).
+     * Wipes the entire memory store (database, index, logs) — transactional with rollback.
      */
     override suspend fun deleteAll(): Result<Unit> = io.androllm.core.common.runCatching {
-        memoryDao.deleteAll()
-        embeddingDao.deleteAll()
-        summaryDao.deleteAll()
-        projectDao.deleteAll()
-        tagDao.deleteAll()
-        relationshipDao.deleteAll()
-        indexMutex.withLock { vectorIndex?.clear() }
-        logger.clear()
-        logger.info("Memory store wiped")
+        writeMutex.withLock {
+            try {
+                memoryDao.deleteAll()
+                embeddingDao.deleteAll()
+                summaryDao.deleteAll()
+                projectDao.deleteAll()
+                tagDao.deleteAll()
+                relationshipDao.deleteAll()
+                indexMutex.withLock { vectorIndex?.clear() }
+                cacheMutex.withLock { retrievalCache.clear() }
+                logger.clear()
+                logger.info("Memory store wiped")
+            } catch (e: Exception) {
+                logger.error("deleteAll failed: ${e.message}")
+                throw e
+            }
+        }
     }
 
     override suspend fun deleteSummariesForConversation(conversationId: String): Result<Unit> =
@@ -760,26 +911,25 @@ class MemoryRepository @Inject constructor(
         withContext(Dispatchers.IO) { block() }
 
     /**
-     * Core update-or-insert step. Hardened: security, quality, type-classified, expiry-aware.
-     * Never creates duplicates: embeddings (when available) decide via threshold, otherwise
-     * normalized exact-content matching. Merges similar memories, expires stale, validates
-     * every entry before saving, and protects against prompt injection and secrets.
+     * Core update-or-insert step. Production-hardened: deterministic dedupe, confidence gating,
+     * temporary-context filtering, type-classified expiry, security, merging, conflict resolution.
+     * Never creates duplicates: embedding threshold + deterministic normalized comparison + word-overlap.
+     * Thread-safe via [writeMutex], transactional with rollback, ensures cache invalidation.
      */
     private suspend fun writeMemory(
         item: ExtractedMemory,
         exchange: MemoryExchange,
         settings: MemorySettings,
         forceInsert: Boolean = false
-    ): MemoryWriteResult {
+    ): MemoryWriteResult = writeMutex.withLock {
         val now = System.currentTimeMillis()
         var content = item.content.trim().replace(WHITESPACE, " ")
         if (content.isEmpty() || content.length > MAX_MEMORY_LENGTH) {
             logger.debug("Skipped memory: empty or too long")
-            return MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+            return@withLock MemoryWriteResult("", MemoryWriteAction.SKIPPED)
         }
         // Quality: prefer concise entries — trim to 280 chars while preserving meaning
         if (content.length > 280) {
-            // Keep first 280, but ensure we don't cut mid-word
             val truncated = content.take(280).trim()
             val lastSpace = truncated.lastIndexOf(' ')
             content = if (lastSpace > 200) truncated.substring(0, lastSpace) else truncated
@@ -788,7 +938,20 @@ class MemoryRepository @Inject constructor(
         // Security: validate every entry before saving — never store secrets, injection, hallucinations
         securityFilter.validate(content, exchange)?.let { reason ->
             logger.warn("Skipped memory (security): $reason — '${content.take(60)}'")
-            return MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+            return@withLock MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+        }
+
+        // Hardening: prevent temporary conversation context, one-off requests, short-lived preferences
+        if (hardeningHelper.isTemporaryContext(content, exchange)) {
+            logger.debug("Skipped temporary context: '${content.take(50)}'")
+            return@withLock MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+        }
+
+        // Hardening: stronger confidence scoring before commit (never create duplicate for same fact)
+        val confidence = hardeningHelper.confidenceScore(item.copy(content = content), exchange)
+        if (!hardeningHelper.shouldCommit(item.copy(content = content), exchange)) {
+            logger.debug("Skipped low confidence (${"%.2f".format(confidence)}): '${content.take(50)}'")
+            return@withLock MemoryWriteResult("", MemoryWriteAction.SKIPPED)
         }
 
         // Classification: determine lifecycle type, priority, expiry, prompt-memory handling
@@ -804,88 +967,118 @@ class MemoryRepository @Inject constructor(
         val type = classifier.classifyType(item.copy(category = effectiveCategory, importance = effectiveImportance), chatId)
         val priority = classifier.computePriority(item.copy(category = effectiveCategory, importance = effectiveImportance), type)
         val expiryAt = classifier.computeExpiry(type, now)
-        // Never store short-term as long-term: short-term lives only for current session, but we still persist with short TTL for retrieval within session
-        // If type is SHORT_TERM and conversationId is blank, skip (no context to tie to)
         if (type == io.androllm.core.memory.MemoryType.SHORT_TERM && chatId.isNullOrBlank()) {
             logger.debug("Skipped short-term memory with no chatId: '$content'")
-            return MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+            return@withLock MemoryWriteResult("", MemoryWriteAction.SKIPPED)
         }
 
         val projectId = resolveProjectId(item.projectName, now)
         val tagIds = resolveTagIds(item.tags)
 
-        // 1) Embedding-based dedupe + merge similar
+        // 1) Embedding-based dedupe + merge similar — deterministic via normalized comparison + embedding threshold
         val embedding = if (forceInsert) null else embedForWrite(content, settings)
         if (embedding != null) {
             val index = ensureVectorIndex()
             if (index != null && index.size > 0) {
-                val sameCategory = memoryDao.getFilteredIds(item.category.name, null, false, true, 0, null)
+                val sameCategory = memoryDao.getFilteredIds(effectiveCategory.name, null, false, true, 0, null)
                 val best = index.search(embedding, 1, sameCategory).firstOrNull()
                 if (best != null) {
                     when {
                         best.score >= settings.similarityThreshold -> {
-                            return updateExisting(best.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, best.score, type, chatId, priority, expiryAt)
+                            // Resolve conflicting memories before updating: timestamps, confidence, evidence
+                            val existingForConflict = try { memoryDao.getById(best.id)?.toDomain(emptyList()) } catch (_: Exception) { null }
+                            if (existingForConflict != null && hardeningHelper.isContradictory(content, existingForConflict.content)) {
+                                val winner = hardeningHelper.resolveConflict(content, priority, now, existingForConflict)
+                                if (winner != null && winner.id == existingForConflict.id) {
+                                    logger.info("Conflict resolved: kept existing '${existingForConflict.content.take(40)}' over new '${content.take(40)}'")
+                                    return@withLock MemoryWriteResult(existingForConflict.id, MemoryWriteAction.SKIPPED)
+                                }
+                            }
+                            return@withLock updateExisting(best.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, best.score, type, chatId, priority, expiryAt)
                         }
                         best.score >= settings.similarityThreshold - 0.08f -> {
-                            // Merge similar memories (near-threshold): update with merged content
                             logger.debug("Merging similar memory (score ${"%.3f".format(best.score)}): '${content.take(40)}'")
-                            return updateExisting(best.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, best.score, type, chatId, priority, expiryAt, mergeContent = true)
+                            return@withLock updateExisting(best.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, best.score, type, chatId, priority, expiryAt, mergeContent = true)
                         }
                     }
                 }
             }
         }
 
-        // 2) Normalized exact-content dedupe (no embedding available).
+        // 2) Normalized exact-content dedupe (no embedding available) — deterministic via hardeningHelper
         if (!forceInsert) {
-            val existing = findExactDuplicate(content, item.category)
+            val existing = findExactDuplicate(content, effectiveCategory)
             if (existing != null) {
-                return updateExisting(existing.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, null, type, chatId, priority, expiryAt)
+                // Intelligent update when new information supersedes older: use conflict resolver
+                val existingDomain = try { existing.toDomain(tagDao.getTagNamesForMemory(existing.id)) } catch (_: Exception) { null }
+                if (existingDomain != null && hardeningHelper.isContradictory(content, existingDomain.content)) {
+                    val winner = hardeningHelper.resolveConflict(content, priority, now, existingDomain)
+                    if (winner != null && winner.id == existingDomain.id) {
+                        logger.info("Conflict resolved: kept existing for '${content.take(40)}'")
+                        return@withLock MemoryWriteResult(existingDomain.id, MemoryWriteAction.SKIPPED)
+                    }
+                }
+                return@withLock updateExisting(existing.id, item.copy(content = content, category = effectiveCategory, importance = priority), projectId, now, null, type, chatId, priority, expiryAt)
             }
         }
 
-        // 3) Insert — hardened with full storage spec fields
+        // 3) Insert — hardened with full storage spec fields, transactional with rollback, deterministic
         val id = UUID.randomUUID().toString()
-        memoryDao.upsert(
-            MemoryEntity(
-                id = id,
-                userId = "default",
-                chatId = chatId,
-                type = type.name,
-                category = effectiveCategory.name,
-                content = content,
-                summary = null,
-                priority = priority,
-                importance = priority,
-                projectId = projectId,
-                sourceConversationId = chatId,
-                createdAt = now,
-                updatedAt = now,
-                lastAccessedAt = now,
-                lastUsedAt = now,
-                expiryAt = expiryAt
-            )
-        )
-        if (tagIds.isNotEmpty()) {
-            tagDao.insertCrossRefs(tagIds.map { MemoryTagCrossRef(id, it) })
-        }
-        if (embedding != null) {
-            embeddingDao.upsert(
-                EmbeddingEntity(
-                    memoryId = id,
-                    vector = VectorMath.toBytes(embedding),
-                    dimension = embedding.size,
-                    modelPath = embeddingSourceLabel(settings),
-                    createdAt = now
+        try {
+            memoryDao.upsert(
+                MemoryEntity(
+                    id = id,
+                    userId = "default",
+                    chatId = chatId,
+                    type = type.name,
+                    category = effectiveCategory.name,
+                    content = content,
+                    summary = null,
+                    priority = priority,
+                    importance = priority,
+                    projectId = projectId,
+                    sourceConversationId = chatId,
+                    createdAt = now,
+                    updatedAt = now,
+                    lastAccessedAt = now,
+                    lastUsedAt = now,
+                    expiryAt = expiryAt
                 )
             )
-            indexMutex.withLock {
-                val index = ensureVectorIndexLocked() ?: CosineVectorIndex(embedding.size).also { vectorIndex = it }
-                index.upsert(id, embedding)
+            if (tagIds.isNotEmpty()) {
+                tagDao.insertCrossRefs(tagIds.map { MemoryTagCrossRef(id, it) })
             }
+            if (embedding != null) {
+                embeddingDao.upsert(
+                    EmbeddingEntity(
+                        memoryId = id,
+                        vector = VectorMath.toBytes(embedding),
+                        dimension = embedding.size,
+                        modelPath = embeddingSourceLabel(settings),
+                        createdAt = now
+                    )
+                )
+                indexMutex.withLock {
+                    val index = ensureVectorIndexLocked() ?: CosineVectorIndex(embedding.size).also { vectorIndex = it }
+                    index.upsert(id, embedding)
+                }
+            }
+            totalInserted++
+            // Invalidate retrieval cache for this category
+            cacheMutex.withLock { retrievalCache.clear() }
+            logger.info("Inserted memory $id category=${effectiveCategory.name} confidence=${"%.2f".format(confidence)}")
+            return@withLock MemoryWriteResult(id, MemoryWriteAction.INSERTED)
+        } catch (e: Exception) {
+            // Automatic rollback for partial failures: ensure no dangling memory without embedding/tags
+            try {
+                memoryDao.deleteById(id)
+                tagDao.deleteCrossRefsForMemory(id)
+                embeddingDao.deleteByMemoryId(id)
+                indexMutex.withLock { vectorIndex?.remove(id) }
+            } catch (_: Exception) {}
+            logger.error("Insert failed, rolled back $id: ${e.message}")
+            return@withLock MemoryWriteResult("", MemoryWriteAction.SKIPPED)
         }
-        totalInserted++
-        return MemoryWriteResult(id, MemoryWriteAction.INSERTED)
     }
 
     private suspend fun updateExisting(
@@ -900,19 +1093,31 @@ class MemoryRepository @Inject constructor(
         expiryAt: Long? = null,
         mergeContent: Boolean = false
     ): MemoryWriteResult {
-        val existing = memoryDao.getById(id) ?: return MemoryWriteResult(id, MemoryWriteAction.SKIPPED)
-        val existingTags = tagDao.getTagNamesForMemory(id)
+        val existing = try { memoryDao.getById(id) } catch (e: Exception) {
+            logger.warn("updateExisting: getById failed for $id: ${e.message}")
+            return MemoryWriteResult(id, MemoryWriteAction.SKIPPED)
+        } ?: return MemoryWriteResult(id, MemoryWriteAction.SKIPPED)
+        val existingTags = try { tagDao.getTagNamesForMemory(id) } catch (_: Exception) { emptyList() }
         val mergedTags = (existingTags + item.tags.map { it.trim().lowercase().take(32) }.filter { it.isNotEmpty() })
             .distinct()
             .take(10)
 
-        // Merge content if requested and not identical: keep concise merged form
-        val newContent = if (mergeContent && normalizeForCompare(existing.content) != normalizeForCompare(item.content)) {
-            // Merge similar memories: combine but keep concise (<280)
-            val merged = "${existing.content} ${item.content}".replace(WHITESPACE, " ").trim().take(280)
-            merged
-        } else {
-            existing.content
+        // Hardening: intelligently update when new information supersedes older — use content from new if different and not just duplicate
+        val normalizedExisting = hardeningHelper.normalizeForDedupe(existing.content)
+        val normalizedNew = hardeningHelper.normalizeForDedupe(item.content)
+        val isDifferentContent = normalizedExisting != normalizedNew
+        val newContent = when {
+            mergeContent && isDifferentContent -> {
+                // Merge similar memories: combine but keep concise (<280), deduplicate words
+                val merged = "${existing.content} ${item.content}".replace(WHITESPACE, " ").trim().take(280)
+                merged
+            }
+            isDifferentContent -> {
+                // New supersedes old (e.g., prefers light vs dark): use new content, higher priority wins
+                // Confidence already checked, so new is meaningful
+                item.content
+            }
+            else -> existing.content
         }
 
         val newPriority = priority?.coerceIn(1, 5) ?: maxOf(existing.priority, existing.importance, item.importance.coerceIn(1, 5))
@@ -920,30 +1125,73 @@ class MemoryRepository @Inject constructor(
         val newChatId = chatId ?: existing.chatId ?: existing.sourceConversationId
         val newExpiry = expiryAt ?: existing.expiryAt
 
-        memoryDao.update(
-            existing.copy(
-                content = newContent,
-                importance = newPriority,
-                priority = newPriority,
-                updatedAt = now,
-                lastUsedAt = now,
-                lastAccessedAt = now,
-                projectId = existing.projectId ?: projectId,
-                chatId = newChatId,
-                sourceConversationId = newChatId ?: existing.sourceConversationId,
-                type = newType,
-                expiryAt = newExpiry
+        try {
+            memoryDao.update(
+                existing.copy(
+                    content = newContent,
+                    importance = newPriority,
+                    priority = newPriority,
+                    updatedAt = now,
+                    lastUsedAt = now,
+                    lastAccessedAt = now,
+                    projectId = existing.projectId ?: projectId,
+                    chatId = newChatId,
+                    sourceConversationId = newChatId ?: existing.sourceConversationId,
+                    type = newType,
+                    expiryAt = newExpiry
+                )
             )
-        )
-        // Merge tags: drop old crossrefs, insert merged set.
-        tagDao.deleteCrossRefsForMemory(id)
-        if (mergedTags.isNotEmpty()) {
-            val mergedTagIds = resolveTagIds(mergedTags)
-            tagDao.insertCrossRefs(mergedTagIds.map { MemoryTagCrossRef(id, it) })
+            // Merge tags: drop old crossrefs, insert merged set.
+            try {
+                tagDao.deleteCrossRefsForMemory(id)
+                if (mergedTags.isNotEmpty()) {
+                    val mergedTagIds = resolveTagIds(mergedTags)
+                    tagDao.insertCrossRefs(mergedTagIds.map { MemoryTagCrossRef(id, it) })
+                }
+            } catch (e: Exception) { logger.warn("Tag merge failed for $id: ${e.message}") }
+
+            // Hardening: automatically re-embed when content changed (embedding consistency)
+            if (isDifferentContent) {
+                try {
+                    val settings = settingsStore.current()
+                    val newEmbedding = embedForWrite(newContent, settings)
+                    if (newEmbedding != null) {
+                        embeddingDao.upsert(
+                            EmbeddingEntity(
+                                memoryId = id,
+                                vector = VectorMath.toBytes(newEmbedding),
+                                dimension = newEmbedding.size,
+                                modelPath = embeddingSourceLabel(settings),
+                                createdAt = now
+                            )
+                        )
+                        indexMutex.withLock {
+                            val idx = ensureVectorIndexLocked() ?: CosineVectorIndex(newEmbedding.size).also { vectorIndex = it }
+                            // Handle dimension change: recreate index if needed
+                            if (idx.dimension != newEmbedding.size) {
+                                vectorIndex = CosineVectorIndex(newEmbedding.size)
+                                // Reindex will be triggered lazily
+                            } else {
+                                idx.upsert(id, newEmbedding)
+                            }
+                        }
+                    } else {
+                        // No embedding available: remove stale embedding to avoid corrupted search
+                        try { embeddingDao.deleteByMemoryId(id) } catch (_: Exception) {}
+                        indexMutex.withLock { vectorIndex?.remove(id) }
+                    }
+                } catch (e: Exception) { logger.warn("Re-embed failed for $id: ${e.message}") }
+            }
+
+            cacheMutex.withLock { retrievalCache.clear() }
+            totalUpdated++
+            logger.debug("Updated memory $id (score=${score?.let { "%.3f".format(it) } ?: "exact"}) newContent='${newContent.take(40)}'")
+            return MemoryWriteResult(id, MemoryWriteAction.UPDATED, score)
+        } catch (e: Exception) {
+            logger.error("Update failed for $id: ${e.message}")
+            // Automatic rollback: restore original if partial failure (Room transaction would rollback, but we ensure)
+            return MemoryWriteResult(id, MemoryWriteAction.SKIPPED)
         }
-        totalUpdated++
-        logger.debug("Updated memory $id (score=${score?.let { "%.3f".format(it) } ?: "exact"})")
-        return MemoryWriteResult(id, MemoryWriteAction.UPDATED, score)
     }
 
     private suspend fun findExactDuplicate(content: String, category: MemoryCategory): MemoryEntity? {

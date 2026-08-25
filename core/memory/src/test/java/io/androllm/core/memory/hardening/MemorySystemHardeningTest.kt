@@ -287,21 +287,23 @@ class MemorySystemHardeningTest {
     @Test
     fun `user can delete individual memories`() = runTest {
         val repo = repo()
-        coEvery { memoryDao.deleteById("id1") } returns Unit
+        coEvery { memoryDao.deleteById("id1") } returns 1
+        coEvery { embeddingDao.deleteByMemoryId(any()) } returns 1
+        coEvery { tagDao.deleteCrossRefsForMemory(any()) } returns 1
         val result = repo.deleteMemory("id1")
         assertThat(result.isSuccess()).isTrue()
-        coEvery { memoryDao.deleteById("id1") } returns Unit
+        coEvery { memoryDao.deleteById("id1") } returns 1
         coVerify { memoryDao.deleteById("id1") }
     }
 
     @Test
     fun `user can clear all memory`() = runTest {
-        coEvery { memoryDao.deleteAll() } returns Unit
-        coEvery { embeddingDao.deleteAll() } returns Unit
-        coEvery { summaryDao.deleteAll() } returns Unit
-        coEvery { projectDao.deleteAll() } returns Unit
-        coEvery { tagDao.deleteAll() } returns Unit
-        coEvery { relationshipDao.deleteAll() } returns Unit
+        coEvery { memoryDao.deleteAll() } returns 1
+        coEvery { embeddingDao.deleteAll() } returns 1
+        coEvery { summaryDao.deleteAll() } returns 1
+        coEvery { projectDao.deleteAll() } returns 1
+        coEvery { tagDao.deleteAll() } returns 1
+        coEvery { relationshipDao.deleteAll() } returns 1
         val result = repo().deleteAll()
         assertThat(result.isSuccess()).isTrue()
     }

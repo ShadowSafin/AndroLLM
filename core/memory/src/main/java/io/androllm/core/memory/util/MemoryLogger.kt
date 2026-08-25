@@ -24,8 +24,21 @@ class MemoryLogger @Inject constructor() {
     }
 
     fun log(level: MemoryLogLevel, message: String) {
-        entries.add(MemoryLogEntry(System.currentTimeMillis(), level, message))
+        // Hardening: sanitize logs — never expose sensitive user data, secrets, or full memory content
+        val sanitized = sanitizeForLog(message)
+        entries.add(MemoryLogEntry(System.currentTimeMillis(), level, sanitized))
         while (entries.size > maxEntries) entries.removeAt(0)
+    }
+
+    private fun sanitizeForLog(msg: String): String {
+        var s = msg
+        // Mask potential secrets/tokens (keep first 4 chars for debugging)
+        s = s.replace(Regex("""\b(sk-[A-Za-z0-9]{8,})\w*""")) { it.groupValues[1] + "***" }
+        s = s.replace(Regex("""\b(ghp_[A-Za-z0-9]{4,})\w*""")) { it.groupValues[1] + "***" }
+        s = s.replace(Regex("""(?i)(password|passwd|pwd|secret|token)\s*[:=]\s*\S+""")) { "${it.groupValues[1]}=***" }
+        // Truncate long content
+        if (s.length > 400) s = s.take(400) + "…"
+        return s
     }
 
     fun info(message: String) = log(MemoryLogLevel.INFO, message)

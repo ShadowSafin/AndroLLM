@@ -57,7 +57,8 @@ AndroLLM/
     ├── cloud/
     │   └── cloud-providers.md     # Cloud provider architecture
     ├── memory/
-    │   └── memory-architecture.md # Memory system deep dive
+    │   ├── memory-architecture.md # Memory system deep dive (hardened)
+    │   └── hardening.md           # Production hardening: dedupe, confidence, merging, conflicts, thread-safety
     ├── features/
     │   └── chat-attachments.md # Chat Attachments (cloud-only, conversation-scoped)
     ├── ui/

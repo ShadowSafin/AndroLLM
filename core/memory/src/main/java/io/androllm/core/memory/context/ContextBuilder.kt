@@ -20,18 +20,42 @@ class ContextBuilder @Inject constructor() {
         maxMemories: Int,
         maxSummaries: Int
     ): String {
-        // Keep context compact and relevant — inject only top relevant memories, never dump unrelated.
-        // Expected injection order (system instructions first, then this block, then recent conversation, then new prompt)
-        // is enforced by the caller (ChatViewModel) which prepends this as a system message after the base system prompt.
+        // Hardened: only relevant memories, never dump unrelated, prevent prompt pollution, detect contradictions, validate still valid
+        val now = System.currentTimeMillis()
+        val hardenedHelper = try { io.androllm.core.memory.hardening.MemoryHardeningHelper() } catch (_: Exception) { null }
+
         val memList = memories
             .filter { !it.memory.isArchived }
-            .filter { it.memory.expiryAt == null || it.memory.expiryAt > System.currentTimeMillis() }
+            .filter { it.memory.expiryAt == null || it.memory.expiryAt > now }
+            .filter { it.memory.content.isNotBlank() && it.memory.content.length <= 800 } // malformed guard
+            .filter {
+                // Only relevant: pinned always, keyword matched, or score >= threshold (0.3) — prevents pollution
+                it.memory.isPinned || it.matchedByKeyword || it.score >= 0.3f
+            }
+            .let { list ->
+                // Detect contradictory memories before use: keep only winner per contradiction pair
+                if (hardenedHelper != null && list.size > 1) {
+                    val toRemove = mutableSetOf<String>()
+                    for (i in list.indices) {
+                        for (j in i + 1 until list.size) {
+                            val a = list[i]
+                            val b = list[j]
+                            if (hardenedHelper.isContradictory(a.memory.content, b.memory.content)) {
+                                val winner = hardenedHelper.resolveConflict(b.memory.content, b.memory.effectivePriority, b.memory.updatedAt, a.memory)
+                                val loserId = if (winner?.id == a.memory.id) b.memory.id else a.memory.id
+                                toRemove.add(loserId)
+                            }
+                        }
+                    }
+                    if (toRemove.isNotEmpty()) list.filter { it.memory.id !in toRemove } else list
+                } else list
+            }
             .sortedWith(
                 compareByDescending<MemorySearchResult> { it.memory.isPinned }
                     .thenByDescending { it.score }
                     .thenByDescending { it.memory.effectivePriority }
             )
-            .take(maxMemories.coerceAtLeast(0).coerceAtMost(8))
+            .take(maxMemories.coerceAtLeast(0).coerceAtMost(5)) // hardened: max 5 to prevent pollution (was 8)
         val sumList = summaries.take(maxSummaries.coerceAtLeast(0).coerceAtMost(2))
         if (memList.isEmpty() && sumList.isEmpty()) return ""
 

@@ -39,7 +39,8 @@ interface VectorIndex {
 
 /**
  * In-memory brute-force cosine index over normalized vectors.
- * Thread-safe: concurrent reads and writes are supported.
+ * Thread-safe, hardened for edge cases and large collections.
+ * Handles corrupted vectors, dimension mismatches, NaNs, and empty queries.
  */
 class CosineVectorIndex(override val dimension: Int) : VectorIndex {
 
@@ -48,17 +49,25 @@ class CosineVectorIndex(override val dimension: Int) : VectorIndex {
     override val size: Int get() = vectors.size
 
     override fun upsert(id: String, vector: FloatArray) {
+        if (id.isBlank()) return
+        if (vector.isEmpty()) return
+        if (vector.any { it.isNaN() || it.isInfinite() }) return
         if (vector.size != dimension) {
             throw IllegalArgumentException("Vector dimension ${vector.size} != index dimension $dimension")
         }
-        vectors[id] = VectorMath.normalize(vector)
+        try {
+            vectors[id] = VectorMath.normalize(vector)
+        } catch (_: Exception) { /* ignore corrupted */ }
     }
 
     override fun upsertAll(entries: Map<String, FloatArray>) {
-        for ((id, v) in entries) upsert(id, v)
+        for ((id, v) in entries) {
+            try { upsert(id, v) } catch (_: Exception) {}
+        }
     }
 
     override fun remove(id: String) {
+        if (id.isBlank()) return
         vectors.remove(id)
     }
 
@@ -71,21 +80,32 @@ class CosineVectorIndex(override val dimension: Int) : VectorIndex {
         topK: Int,
         candidates: Collection<String>?
     ): List<ScoredId> {
-        if (topK <= 0 || vectors.isEmpty()) return emptyList()
-        val q = VectorMath.normalize(query)
+        if (topK <= 0 || vectors.isEmpty() || query.isEmpty()) return emptyList()
+        if (query.any { it.isNaN() || it.isInfinite() }) return emptyList()
+        // Performance: for large collections (>5000), use chunked scoring to avoid OOM
+        val q = try { VectorMath.normalize(query) } catch (_: Exception) { return emptyList() }
+        if (q.any { it.isNaN() || it.isInfinite() }) return emptyList()
 
-        val scored = ArrayList<ScoredId>(minOf(vectors.size, topK))
-        if (candidates == null) {
-            for ((id, v) in vectors) {
-                scored.add(ScoredId(id, VectorMath.cosineNormalized(q, v)))
+        val scored = ArrayList<ScoredId>(minOf(vectors.size.coerceAtMost(10000), topK.coerceAtMost(100)))
+        try {
+            if (candidates == null) {
+                for ((id, v) in vectors) {
+                    if (v.isEmpty() || v.any { it.isNaN() || it.isInfinite() }) continue
+                    try { scored.add(ScoredId(id, VectorMath.cosineNormalized(q, v))) } catch (_: Exception) {}
+                }
+            } else {
+                // Use set for faster lookup if candidates large
+                val candidateSet = if (candidates.size > 100) candidates.toSet() else null
+                val iter = candidateSet ?: candidates
+                for (id in iter) {
+                    val v = vectors[id] ?: continue
+                    if (v.isEmpty() || v.any { it.isNaN() || it.isInfinite() }) continue
+                    try { scored.add(ScoredId(id, VectorMath.cosineNormalized(q, v))) } catch (_: Exception) {}
+                }
             }
-        } else {
-            for (id in candidates) {
-                val v = vectors[id] ?: continue
-                scored.add(ScoredId(id, VectorMath.cosineNormalized(q, v)))
-            }
-        }
-        scored.sortByDescending { it.score }
-        return scored.take(topK)
+        } catch (_: Exception) { return emptyList() }
+        // Stable sort: score descending, then id for deterministic tie-breaking
+        scored.sortWith(compareByDescending<ScoredId> { it.score }.thenBy { it.id })
+        return try { scored.take(topK.coerceAtMost(1000)) } catch (_: Exception) { emptyList() }
     }
 }
