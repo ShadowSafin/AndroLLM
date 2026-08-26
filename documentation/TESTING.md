@@ -11,8 +11,8 @@ Comprehensive guide to the testing strategy, frameworks, and practices in AndroL
        /  \      Instrumented Tests (Espresso + Compose UI)
       /----\     ~4 test classes
      /      \
-    /========\    Unit Tests (JUnit 4 + mockk + Turbine)
-   / ~66 tests \  ~62 test classes
+    /========\    Unit Tests (JUnit 4 + mockk + Turbine + MockWebServer)
+   / ~75 classes \  500+ tests across all modules
   /______________\
 ```
 
@@ -134,12 +134,61 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 }
 ```
 
+#### Cloud Pipeline Tests (gateway, cache, usage)
+
+Gateway-level behavior (provider fallback, validation rejection, cache
+reuse, tool-call counting) is tested end-to-end with **MockWebServer** —
+see `CloudGatewayPipelineTest`. Patterns that matter:
+
+```kotlin
+// Deterministic single-attempt behavior: CloudSettings.retryCount defaults
+// to 3, which would retry inside the client against an empty MockWebServer.
+// Gateway pipeline tests pass retries = 0 explicitly.
+gateway.streamChat(request, retries = 0)
+
+// Primary returns 500/429 before any SSE event → gateway must replay the
+// same request on the fallback provider; both attempts are usage-recorded.
+```
+
+Dashboard ViewModel tests (`CloudUsageDashboardViewModelTest`) combine:
+
+```kotlin
+@get:Rule val instantExecutor = InstantTaskExecutorRule()
+@get:Rule val tempFolder = TemporaryFolder()
+
+@Before fun setUp() {
+    Dispatchers.setMain(StandardTestDispatcher())  // virtual time for viewModelScope
+    ...
+}
+
+// Create the ViewModel FIRST and advanceUntilIdle() so init() loads the
+// (empty) store, THEN record usage — matching production order. Recording
+// before init races the meter's debounced persistence and is flaky.
+val vm = createViewModel(); advanceUntilIdle()
+meter.record(meter.buildRecord(...)); advanceUntilIdle()
+```
+
+Two environment gotchas encoded in these tests:
+
+- **Never mock Android objects with deep relaxed mocks on a path that runs
+  real androidx code.** `FileProvider.getUriForFile` walks
+  `PackageManager` → `XmlResourceParser` metadata; a relaxed
+  `XmlResourceParser` returns `0` from `next()` forever and the parse loop
+  never terminates (observed as a 1+ GB heap spiral). Stub the
+  `PackageManager` to fail fast instead.
+- **Windows + JDK 21 + Gradle 9 worker shutdown deadlock**: after all tests
+  pass, the worker JVM can hang in Gradle's `MessageHub.stop()` (socket
+  select never wakes) while the daemon waits for it to exit.
+  `feature:cloud` tests arm `TestWorkerShutdownWatchdog` (one daemon thread
+  per worker JVM that force-exits long after the run completes) so the
+  build can finish. Remove it if Gradle fixes the shutdown deadlock.
+
 ### Test Coverage by Module
 
 | Module | Test Classes | Key Areas Tested |
 |---|---|---|
 | `core:common` | 1 | `Result` sealed class behavior |
-| `core:cloud` | 5 | Provider manager, health monitor, streaming parser, codec |
+| `core:cloud` | 16 | Provider manager, health monitor, streaming parser, codec, message serializer, usage meter + pricing + metrics, prompt cache + cache hints, request validator, request planner, result observer, fallback tool parser, gateway pipeline (fallback chain, cache reuse, validation) against MockWebServer |
 | `core:database` | 1 | Entity mapping correctness |
 | `core:datastore` | 1 | Preference key type safety |
 | `core:memory` | 4 | Vector math, vector index, extraction parser, routing intelligence |
@@ -147,9 +196,11 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | `core:navigation` | 1 | Route constant consistency |
 | `core:network` | 2 | DTO serialization, HuggingFace API response parsing |
 | `core:telemetry` | 1 | Telemetry history storage |
+| `core:tools` | 17 | Tool hardening/validation, confirmation manager, loop guard, run coordinator, planner, prompt builder, registry, router, variable store, contact resolver, calculator, web-search parser, app search, cloud tool router + conditional execution |
 | `core:utils` | 1 | Storage utility functions |
 | `engine` | 20 | Engine repository + stress, compat layer (container metadata reader, chat template renderer, family registry/compatibility, stop-sequence tracker, output decoder), tool-call scanning, memory estimation, resource guard, coherence checker, thread manager, tokenizer, config serialization |
-| `feature:chat` | 3 | ViewModel state management, stabilization, conversation export |
+| `feature:chat` | 5 | ViewModel state management, stabilization, conversation export, history trimmer, link utils |
+| `feature:cloud` | 1 | Usage dashboard ViewModel (snapshot exposure, filters, cache stats, clear/export) |
 | `feature:home` | 1 | Home ViewModel |
 | `feature:models` | 3 | Models ViewModel, download manager, compatibility analyzer |
 | `feature:onboarding` | 1 | Onboarding ViewModel |
@@ -157,7 +208,7 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | `feature:prompts` | 1 | Prompt library ViewModel |
 | `feature:settings` | 1 | Settings ViewModel |
 | `feature:splash` | 1 | Splash screen timing |
-| **Total** | **~62** | |
+| **Total** | **~75** | |
 
 ---
 

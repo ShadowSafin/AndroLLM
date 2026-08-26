@@ -33,10 +33,14 @@ This document tracks the planned development direction for AndroLLM. Items are m
 - [x] Conversation export and share
 - [x] Developer diagnostics screen
 - [x] Performance telemetry system
-- [x] ~62 test classes across all modules
+- [x] ~75 test classes across all modules
 - [x] Adaptive navigation (phone/tablet)
 - [x] Model parameter sheet (temperature, top-p, etc.)
 - [x] **Chat Attachments** — conversation-scoped file attachments for cloud models (PDF/DOCX/PPTX/XLSX/TXT/MD/CSV/JSON/HTML/images/OCR), paperclip picker, composer chips, history cards, cloud-only gating
+- [x] **Cloud tool calling upgrade** — robust multi-step tool use for cloud models: native `tools` requests, fallback text parser for providers without tool-call syntax, argument validation, confirmation gates for sensitive actions, conditional workflows ("if it rains → SMS", "if results found → email")
+- [x] **Cloud usage dashboard** — requests, tokens, estimated cost, latency (avg + first token), success/error rates, retries, rate-limit hits, cache stats, provider health & quotas, alerts, filters, CSV export, request history
+- [x] **Prompt caching** — stable-prefix fingerprinting (system prompts + tool schemas), provider-aware cache hints (`cache_control` for Anthropic-family, byte-stable prefixes for automatic prefix caching), invalidation tracking, savings diagnostics
+- [x] **Multi-provider fallback chaining** — automatic failover to other enabled providers when the primary fails before the first token
 
 ---
 

@@ -182,7 +182,29 @@ Go to Settings → Cloud Providers → Add Provider. Enter:
 - API key (encrypted and stored locally)
 
 ### Can I use multiple providers?
-Yes. You can configure multiple providers and switch between them. The app monitors health and can fall back to an alternative provider on failure.
+Yes. You can configure multiple providers and switch between them. The app monitors provider health, and if the active provider fails **before producing any output** (timeout, rate limit, server error), the request is automatically retried on your other enabled providers. Failures that happen mid-response are shown as-is so partial output is preserved.
+
+---
+
+## Cloud Tools, Usage & Caching
+
+### Can cloud models run tools on my device?
+Yes. Cloud models can call the same built-in tools as local models — web search, weather, contacts, calculator, SMS, email, calls, calendar, notes, navigation, and more. Tool arguments are validated before execution, and **sensitive actions (SMS, email, calls, calendar, device operations) always require your confirmation** before they run.
+
+### What are conditional tool workflows?
+You can give instructions like *"check the weather, and if it rains, message Mom"* or *"search for X and if you find anything, email it to me"*. The app evaluates the condition against the actual tool result and skips the follow-up action when the condition clearly isn't met — then tells you what happened instead of silently doing the wrong thing.
+
+### Why did my cloud request use a different provider?
+If your primary provider failed before returning any output (rate limit, timeout, outage), the app automatically fell back to another enabled provider. Every fallback is recorded and visible in the usage dashboard.
+
+### What is the Cloud Usage Dashboard?
+A built-in view of your cloud activity: **Settings → Cloud Usage Dashboard** (also via the chart icon on the Cloud Providers screen). It shows requests, tokens, estimated cost, latency, success/error rates, rate-limit hits, cache performance, provider health and quotas, alerts, and a detailed request history — with date/provider/model filters and CSV export.
+
+### Are the cost figures exact?
+No — they are **estimates** computed from a built-in per-model price table. Unknown models fall back to a family-based heuristic. Treat them as relative guidance, not billing.
+
+### Does AndroLLM cache my prompts?
+Only the **stable, non-private parts**: system prompts and tool schemas. The cache is used to (a) let providers reuse their server-side prompt caches (Anthropic-style `cache_control` or automatic prefix caching) and (b) report savings. Your personal messages and dynamic content are never cached. The cache invalidates automatically when the system prompt, tool set, model, or provider changes, and its hit/miss/savings stats appear in the usage dashboard.
 
 ---
 

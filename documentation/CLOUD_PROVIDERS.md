@@ -63,6 +63,45 @@ The app monitors provider health automatically:
 
 ---
 
+## Cloud Tool Calling
+
+Cloud models can run tools on your device — search, weather, contacts,
+calculator, SMS, email, calendar, notes, navigation and more:
+
+- Requests use native function calling when the provider supports it, with
+  an automatic fallback parser for providers that write tool calls as text
+- Arguments are validated before execution; sensitive actions (SMS, email,
+  calls, calendar, device operations) ask for confirmation first
+- Multi-step conditional workflows work out of the box: *"check the weather
+  and if it rains, message Mom"*
+
+---
+
+## Usage Dashboard
+
+Track what your cloud usage does: **Settings → Cloud Usage Dashboard**
+(or the chart icon on the Cloud Providers screen).
+
+- Requests, tokens, estimated cost, latency, success/error rates
+- Rate-limit hits, retries, provider fallbacks, cache performance
+- Provider health + quota warnings, alerts, request history
+- Date/provider/model filters and CSV export
+
+Costs are estimates from a built-in price table — guidance, not billing.
+
+---
+
+## Prompt Caching
+
+To cut cost and latency, AndroLLM keeps the **stable part** of your prompts
+(system prompt + tool schemas) byte-stable and marks it for provider-side
+caching where supported (Anthropic-style `cache_control` via LiteLLM, or
+automatic prefix caching on OpenAI/Gemini/DeepSeek-family models). Your
+personal messages are never cached. Hit/miss/savings stats appear in the
+usage dashboard.
+
+---
+
 ## Custom Providers
 
 You can add any LiteLLM-compatible endpoint:
@@ -80,4 +119,5 @@ Custom models can be specified per-model with alternate keys or headers.
 ## See Also
 
 - [Cloud Providers Architecture](cloud/cloud-providers.md) — Full technical deep dive
+- [Cloud Pipeline](cloud/cloud-pipeline.md) — Tool calling, usage dashboard & prompt caching internals
 - [README](../README.md) — Feature overview

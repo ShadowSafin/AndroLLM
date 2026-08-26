@@ -8,6 +8,7 @@ AndroLLM is a high-performance, private, offline-first mobile AI client for Andr
 - **Atmospheric Elegance**: Cloud Intelligence Design System offering a weightless, premium, VisionOS-inspired floating aesthetic.
 - **High Performance**: LiteRT-LM engine acceleration targeting rapid token generation and 60-120 FPS UI.
 - **Effortless Auth**: Firebase-backed sync (optional) with non-blocking guest mode fallback.
+- **Optional Cloud, On Your Terms**: Bring-your-key cloud providers (via LiteLLM) with device tool calling, multi-provider fallback, prompt caching, and a built-in usage & cost dashboard — without compromising the offline-first core.
 
 ## Target Experience
 "This is the most beautiful offline AI application I've ever used."
