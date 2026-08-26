@@ -92,6 +92,7 @@ Deep technical documentation lives in this `documentation/` folder.
 | Document | Description |
 |---|---|
 | [cloud-providers.md](cloud/cloud-providers.md) | LiteLLM integration, provider management, streaming |
+| [cloud-pipeline.md](cloud/cloud-pipeline.md) | Cloud request pipeline: tool calling, usage dashboard, prompt caching, fallback chain |
 
 ### Memory
 
@@ -159,6 +160,7 @@ Deep technical documentation lives in this `documentation/` folder.
 | MCP servers? | [agent/mcp.md](agent/mcp.md) |
 | Controlling other apps? | [agent/accessibility-automation.md](agent/accessibility-automation.md) |
 | Cloud providers? | [cloud/cloud-providers.md](cloud/cloud-providers.md) |
+| Cloud tools, usage & caching? | [cloud/cloud-pipeline.md](cloud/cloud-pipeline.md) |
 | Memory system? | [memory/memory-architecture.md](memory/memory-architecture.md) |
 | Memory hardening? | [memory/hardening.md](memory/hardening.md) |
 | Firebase auth? | [backend/firebase-auth.md](backend/firebase-auth.md) |

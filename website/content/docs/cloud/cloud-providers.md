@@ -21,7 +21,17 @@ capability; local models never expose them. See
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Cloud Gateway                             │
-│               (singleton facade — chat facade)                   │
+│   (singleton facade — plan, validate, fallback, observe, log)    │
+├─────────────────────────────────────────────────────────────────┤
+│                     Request Pipeline                             │
+│   ┌────────────┐ ┌─────────────┐ ┌────────────┐ ┌────────────┐ │
+│   │ Validator  │ │ Request     │ │ PromptCache│ │ Result     │ │
+│   │            │ │ Planner     │ │ + Cache    │ │ Observer   │ │
+│   │            │ │             │ │ Hints      │ │            │ │
+│   └────────────┘ └─────────────┘ └────────────┘ └────────────┘ │
+│   ┌────────────────────────┐  ┌──────────────────────────────┐  │
+│   │ Fallback Tool Parser   │  │ Usage Meter (+ pricing)      │  │
+│   └────────────────────────┘  └──────────────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────┤
 │                     ProviderManager                              │
 │   ┌──────────┐  ┌───────────┐  ┌─────────────┐  ┌──────────┐  │
@@ -43,6 +53,10 @@ capability; local models never expose them. See
 │   └──────────────────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+The request pipeline (validation, prompt caching, tool-call fallback
+parsing, result observation, usage metering) is described in depth in
+[Cloud Pipeline](cloud-pipeline.md).
 
 ---
 
@@ -175,9 +189,14 @@ fun streamChat(
     messages: List<ChatMessage>,
     config: GenerationConfig,
     retries: Int = 3,
-    modelId: String? = null
+    modelId: String? = null,
+    sessionId: String? = null   // groups requests into sessions for usage stats
 ): Flow<CloudStreamEvent>
 ```
+
+Every call passes through the request pipeline first: validation → prompt
+cache lookup → provider selection (with fallback chain) → result
+observation → usage logging. See [Cloud Pipeline](cloud-pipeline.md).
 
 ### SSE Parsing
 
@@ -269,7 +288,7 @@ Some providers expose OpenAI-compatible endpoints directly:
 | Provider | Base URL | Notes |
 |---|---|---|
 | OpenAI | `https://api.openai.com` | Standard |
-| Anthropic (via LiteLLM) | `https://litellm.pro安东尼anthropic.com` | Use LiteLLM proxy |
+| Anthropic (via LiteLLM) | Your LiteLLM proxy URL | Use LiteLLM proxy for the native Anthropic API |
 | Google Gemini (via LiteLLM) | Same as above | Use LiteLLM proxy |
 | xAI Grok | `https://api.x.ai` | OpenAI-compatible |
 | Mistral | `https://api.mistral.ai` | OpenAI-compatible |
@@ -301,6 +320,13 @@ The selection is persisted in `CloudSettings.defaultProviderId`.
 | `IOException` | Network failure | Retry with backoff |
 | SSE parse error | Malformed response | Surface as `CloudException`; do not retry |
 
+In addition to per-request retries, the gateway runs a **provider fallback
+chain**: when the primary provider fails *before the first streamed event*
+(timeout, rate limit, 5xx, transport error), the same request is retried on
+the other enabled providers. Mid-stream failures are not retried so partial
+output is preserved. Fallback attempts and outcomes are recorded in the
+[usage dashboard](cloud-pipeline.md#usage-dashboard).
+
 ---
 
 ## Provider Health Monitor
@@ -327,17 +353,19 @@ Health status is displayed in the Cloud Providers screen. Failed providers are a
 1. **API keys are never logged** — Timber tags avoid leaking `apiKeyEncrypted` values
 2. **HTTPS enforced** — OkHttp client rejects cleartext connections
 3. **Key rotation** — Deleting a provider removes its encrypted key from Keystore
-4. **No shared keys** — Each provider has its own独立 API key
+4. **No shared keys** — Each provider has its own independent API key
 5. **Guest mode safe** — Cloud features are disabled when not authenticated
 
 ---
 
-## Planned Cloud Features
+## Cloud Feature Status
 
 | Feature | Status | Notes |
 |---|---|---|
 | Provider-specific settings presets | 🚧 Planned | One-click setup for common providers |
-| Usage tracking and cost estimation | 🚧 Planned | Per-provider token usage dashboard |
-| Multi-provider fallback chaining | 🚧 Planned | Auto-failover between providers |
+| Usage tracking and cost estimation | ✅ Implemented | `CloudUsageMeter` + [usage dashboard](cloud-pipeline.md#usage-dashboard) |
+| Multi-provider fallback chaining | ✅ Implemented | Auto-failover before the first token (see [Cloud Pipeline](cloud-pipeline.md)) |
+| Prompt caching (prefix + `cache_control`) | ✅ Implemented | Provider-aware hints, invalidation tracking, savings diagnostics |
+| Robust cloud tool calling | ✅ Implemented | Native `tools` + fallback text parser, conditional multi-step workflows |
 | Cloud memory embeddings | ✅ Implemented | Via `CloudEmbeddingProvider` |
 | Provider-specific model prompts | 🔮 Future | Tuned system prompts per provider |

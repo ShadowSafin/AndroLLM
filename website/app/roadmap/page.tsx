@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "Roadmap — AndroLLM",
   description:
-    "The AndroLLM development roadmap: 28 shipped foundation items, 7 in progress, and the near-term, medium-term, and long-term plans — straight from the roadmap document.",
+    "The AndroLLM development roadmap: 32 shipped foundation items, 7 in progress, and the near-term, medium-term, and long-term plans — straight from the roadmap document.",
   alternates: { canonical: "/roadmap" },
 };
 
@@ -33,6 +33,10 @@ const done = [
   "Cloud provider abstraction via LiteLLM",
   "SSE streaming with retry policy",
   "Encrypted API key storage (Android Keystore AES-256/GCM)",
+  "Robust cloud tool calling (native tools + fallback parser, conditional workflows)",
+  "Cloud usage dashboard with token and cost tracking",
+  "Prompt caching with provider-aware cache hints",
+  "Multi-provider fallback chaining",
   "Persistent memory system (vector embeddings + hybrid retrieval)",
   "Offline voice assistant (wake word, ASR, TTS via sherpa-onnx)",
   "Foreground voice service with overlay and barge-in",
@@ -40,7 +44,7 @@ const done = [
   "Conversation export and share",
   "Developer diagnostics screen",
   "Performance telemetry system",
-  "51 test classes across all modules",
+  "75 test classes across all modules",
   "Adaptive navigation (phone/tablet)",
   "Model parameter sheet (temperature, top-p, etc.)",
 ];
@@ -108,7 +112,7 @@ export default function RoadmapPage() {
         <SectionHeading
           eyebrow="Roadmap"
           title="The ledger is never closed."
-          description="This is the official roadmap document, reproduced faithfully. The foundation is done — 28 items shipped — and the field is wide open for 25 more."
+          description="This is the official roadmap document, reproduced faithfully. The foundation is done — 32 items shipped — and the field is wide open for 25 more."
         />
 
         <Reveal className="mx-auto mt-12 max-w-3xl rounded-card border border-[color-mix(in_srgb,var(--ok)_35%,var(--line))] bg-[color-mix(in_srgb,var(--ok)_5%,var(--surface))] p-6">
@@ -199,7 +203,7 @@ export default function RoadmapPage() {
         <TickerTape
           className="mt-16"
           speed={45}
-          items={["28 shipped", "7 in progress", "6 near term", "7 medium term", "6 long term"]}
+          items={["32 shipped", "7 in progress", "6 near term", "7 medium term", "6 long term"]}
         />
 
         <div className="mt-16 text-center">

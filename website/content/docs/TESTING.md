@@ -11,8 +11,8 @@ Comprehensive guide to the testing strategy, frameworks, and practices in AndroL
        /  \      Instrumented Tests (Espresso + Compose UI)
       /----\     ~4 test classes
      /      \
-    /========\    Unit Tests (JUnit 4 + mockk + Turbine)
-   /  51 tests \  ~47 test classes
+    /========\    Unit Tests (JUnit 4 + mockk + Turbine + MockWebServer)
+   / ~75 classes \  500+ tests across all modules
   /______________\
 ```
 
@@ -46,7 +46,7 @@ Comprehensive guide to the testing strategy, frameworks, and practices in AndroL
 ./gradlew :feature:chat:test
 
 # Specific test class
-./gradlew :engine:test --tests "*.LiteRtValidatorTest"
+./gradlew :engine:test --tests "*.ContainerMetadataReaderTest"
 ```
 
 ### Test Conventions
@@ -106,9 +106,9 @@ class MemoryRepositoryTest {
     @Test
     fun `retrieve returns empty list when no memories match`() = runTest {
         coEvery { mockDao.searchMemories(any(), any()) } returns emptyList()
-        
+
         val result = repository.retrieve("query", emptyMap(), topK = 5)
-        
+
         assertTrue(result is Result.Success)
         assertThat(result.data!!.memories).isEmpty()
     }
@@ -134,12 +134,61 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 }
 ```
 
+#### Cloud Pipeline Tests (gateway, cache, usage)
+
+Gateway-level behavior (provider fallback, validation rejection, cache
+reuse, tool-call counting) is tested end-to-end with **MockWebServer** —
+see `CloudGatewayPipelineTest`. Patterns that matter:
+
+```kotlin
+// Deterministic single-attempt behavior: CloudSettings.retryCount defaults
+// to 3, which would retry inside the client against an empty MockWebServer.
+// Gateway pipeline tests pass retries = 0 explicitly.
+gateway.streamChat(request, retries = 0)
+
+// Primary returns 500/429 before any SSE event → gateway must replay the
+// same request on the fallback provider; both attempts are usage-recorded.
+```
+
+Dashboard ViewModel tests (`CloudUsageDashboardViewModelTest`) combine:
+
+```kotlin
+@get:Rule val instantExecutor = InstantTaskExecutorRule()
+@get:Rule val tempFolder = TemporaryFolder()
+
+@Before fun setUp() {
+    Dispatchers.setMain(StandardTestDispatcher())  // virtual time for viewModelScope
+    ...
+}
+
+// Create the ViewModel FIRST and advanceUntilIdle() so init() loads the
+// (empty) store, THEN record usage — matching production order. Recording
+// before init races the meter's debounced persistence and is flaky.
+val vm = createViewModel(); advanceUntilIdle()
+meter.record(meter.buildRecord(...)); advanceUntilIdle()
+```
+
+Two environment gotchas encoded in these tests:
+
+- **Never mock Android objects with deep relaxed mocks on a path that runs
+  real androidx code.** `FileProvider.getUriForFile` walks
+  `PackageManager` → `XmlResourceParser` metadata; a relaxed
+  `XmlResourceParser` returns `0` from `next()` forever and the parse loop
+  never terminates (observed as a 1+ GB heap spiral). Stub the
+  `PackageManager` to fail fast instead.
+- **Windows + JDK 21 + Gradle 9 worker shutdown deadlock**: after all tests
+  pass, the worker JVM can hang in Gradle's `MessageHub.stop()` (socket
+  select never wakes) while the daemon waits for it to exit.
+  `feature:cloud` tests arm `TestWorkerShutdownWatchdog` (one daemon thread
+  per worker JVM that force-exits long after the run completes) so the
+  build can finish. Remove it if Gradle fixes the shutdown deadlock.
+
 ### Test Coverage by Module
 
-| Module | Test Count | Key Areas Tested |
+| Module | Test Classes | Key Areas Tested |
 |---|---|---|
 | `core:common` | 1 | `Result` sealed class behavior |
-| `core:cloud` | 5 | Provider manager, health monitor, streaming parser, codec |
+| `core:cloud` | 16 | Provider manager, health monitor, streaming parser, codec, message serializer, usage meter + pricing + metrics, prompt cache + cache hints, request validator, request planner, result observer, fallback tool parser, gateway pipeline (fallback chain, cache reuse, validation) against MockWebServer |
 | `core:database` | 1 | Entity mapping correctness |
 | `core:datastore` | 1 | Preference key type safety |
 | `core:memory` | 4 | Vector math, vector index, extraction parser, routing intelligence |
@@ -147,9 +196,11 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | `core:navigation` | 1 | Route constant consistency |
 | `core:network` | 2 | DTO serialization, HuggingFace API response parsing |
 | `core:telemetry` | 1 | Telemetry history storage |
+| `core:tools` | 17 | Tool hardening/validation, confirmation manager, loop guard, run coordinator, planner, prompt builder, registry, router, variable store, contact resolver, calculator, web-search parser, app search, cloud tool router + conditional execution |
 | `core:utils` | 1 | Storage utility functions |
-| `engine` | 5 | Engine repository, LiteRT container validation, memory estimation, config serialization |
-| `feature:chat` | 3 | ViewModel state management, stabilization, conversation export |
+| `engine` | 20 | Engine repository + stress, compat layer (container metadata reader, chat template renderer, family registry/compatibility, stop-sequence tracker, output decoder), tool-call scanning, memory estimation, resource guard, coherence checker, thread manager, tokenizer, config serialization |
+| `feature:chat` | 5 | ViewModel state management, stabilization, conversation export, history trimmer, link utils |
+| `feature:cloud` | 1 | Usage dashboard ViewModel (snapshot exposure, filters, cache stats, clear/export) |
 | `feature:home` | 1 | Home ViewModel |
 | `feature:models` | 3 | Models ViewModel, download manager, compatibility analyzer |
 | `feature:onboarding` | 1 | Onboarding ViewModel |
@@ -157,7 +208,7 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | `feature:prompts` | 1 | Prompt library ViewModel |
 | `feature:settings` | 1 | Settings ViewModel |
 | `feature:splash` | 1 | Splash screen timing |
-| **Total** | **51** | |
+| **Total** | **~75** | |
 
 ---
 
@@ -181,9 +232,32 @@ class FakeCloudSettingsRepository : CloudSettingsStore {
 | Test Class | Location | What It Tests |
 |---|---|---|
 | `ExampleInstrumentedTest` | `app/src/androidTest/` | Basic app launch |
-| `EngineStressInstrumentedTest` | `engine/src/androidTest/` | Engine lifecycle under stress |
+| `EngineStressInstrumentedTest` | `engine/src/androidTest/` | LiteRT-LM engine lifecycle under stress (requires a model on the device) |
 | `ChatScreenUiTest` | `feature/chat/src/androidTest/` | Compose UI: message bubbles, input, scrolling |
 | `MigrationTest` | `core/memory/src/androidTest/` | Room database migration correctness |
+
+### Engine Stress Test (Real Model Required)
+
+`EngineStressInstrumentedTest` runs the real LiteRT-LM engine against a
+`.litertlm` model file on the device. Provide the model path via the
+instrumentation argument; the test **skips** when no model is provided:
+
+```bash
+# Push a model to the device first, e.g.:
+adb push gemma3-270m-it-q8.litertlm /sdcard/Download/
+
+# Pass the path via instrumentation argument
+./gradlew :engine:connectedAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.modelPath=/sdcard/Download/gemma3-270m-it-q8.litertlm
+
+# Or via adb directly
+adb shell am instrument -w \
+  -e modelPath /sdcard/Download/gemma3-270m-it-q8.litertlm \
+  io.androllm.engine.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The test verifies load → generate → unload cycles, streaming correctness, and
+cancel behavior on real hardware.
 
 ### Compose UI Test Example
 
@@ -216,9 +290,11 @@ class ChatScreenUiTest {
 
 ## Testing the Engine
 
-The engine is tested through the Kotlin `EngineRepository` layer; engine tests
-that exercise real loading/generation run as **instrumented tests with model
-files** on physical arm64 devices (the app ships arm64-v8a only):
+The engine is a pure Kotlin/Java module, so the entire compat layer is testable
+in JVM unit tests without a device. Only the actual LiteRT-LM runtime requires
+an instrumented test (above).
+
+Engine-level logic is tested through the Kotlin `EngineRepository` layer:
 
 ```kotlin
 // Engine tests use a FakeEngine that implements InferenceEngine
@@ -236,12 +312,11 @@ private inner class FakeEngine : InferenceEngine {
 ### Stress Testing the Engine
 
 ```kotlin
-@AndroidTest
 class DefaultEngineRepositoryStressTest {
     @Test
-    fun `concurrent generation calls are serialized by mutex`() {
+    fun `concurrent generation calls are serialized by mutex`() = runTest {
         // Spawn 10 concurrent generate calls
-        // Verify only one is in-flight at a time
+        // Verify only one is in-flight at a time (Mutex serialization)
         // Verify all 10 complete successfully
     }
 }
@@ -261,10 +336,11 @@ class DefaultEngineRepositoryStressTest {
 - Catalog parsing and validation logic
 - Vector math operations (cosine similarity)
 - Navigation route construction
+- Engine compat layer: container metadata parsing, chat template rendering, stop-sequence tracking, output decoding, tool-call scanning
 
 ❌ **Do not test:**
 - Android framework internals (let Android test them)
-- Third-party library behavior (Timber, Hilt, Room)
+- Third-party library behavior (Timber, Hilt, Room, LiteRT-LM runtime itself)
 - Trivial getters/setters
 - Composable rendering of static content (use screenshot tests instead)
 
@@ -340,12 +416,6 @@ Mock catalog JSON is stored in test resources:
 
 | Model ID | Name | Parameters | Format | Quantization |
 |---|---|---|---|---|
-| `test-gemma-1b` | Gemma 1B Test | 1B | LITERTLM | Q4 |
-| `test-qwen-0.6b` | Qwen 0.6B Test | 0.6B | LITERTLM | mixed int4 |
-| `test-qwen2.5-1.5b` | Qwen2.5 1.5B Test | 1.5B | LITERTLM | mixed |
-
-Instrumented engine tests load small `.litertlm` files from `androidTest`
-assets or the test device's model directory, covering: container validation
-(`LiteRtValidator`), family detection (`ContainerMetadataReader`), template
-rendering, stop-sequence handling, and context-overflow failures
-(`Input token ids are too long`).
+| `test-qwen3-0.6b` | Qwen3 0.6B Test | 0.6B | LITERTLM | MIXED (int4) |
+| `test-gemma3-1b` | Gemma 3 1B Test | 1B | LITERTLM | Q4 |
+| `test-qwen2.5-1.5b` | Qwen2.5 1.5B Test | 1.5B | LITERTLM | Q8 |
