@@ -36,6 +36,7 @@ import io.androllm.engine.compat.TokenizerFiles
 import io.androllm.engine.diagnostics.EngineCrashGuard
 import io.androllm.engine.diagnostics.EnginePerformanceMonitor
 import io.androllm.engine.diagnostics.RuntimeLogger
+import io.androllm.engine.diagnostics.StartupProfiler
 import io.androllm.engine.core.PrefixCache
 import io.androllm.engine.core.BufferPool
 import io.androllm.engine.models.BackendType
@@ -221,6 +222,21 @@ class LiteRtLmEngine @Inject constructor(
      */
     private val generationActive = AtomicBoolean(false)
 
+    /**
+     * Last aggressive-fit diagnostics — produced during the most recent
+     * [loadModel] attempt (success or refusal). Exposed through
+     * [getDebugInfo] and [fetchMemoryStats] so diagnostics UI can show
+     * what was reduced (context, batch, backend) before refusing.
+     */
+    @Volatile
+    private var lastFitDiagnostics: io.androllm.engine.utils.MemoryFitDiagnostics? = null
+
+    /** Effective context chosen by aggressive-fit (null = no reduction). */
+    @Volatile
+    private var fitEffectiveContext: Int? = null
+    @Volatile
+    private var fitEffectiveBackend: BackendType? = null
+
     override suspend fun initialize(config: EngineConfig): Result<Unit> = io.androllm.core.common.runCatching {
         // LiteRT-LM loads its native library on first Engine construction; no
         // global initialization is required. The startup HARDWARE PROBE runs
@@ -317,12 +333,100 @@ class LiteRtLmEngine @Inject constructor(
     override suspend fun loadModel(model: Model, config: ModelLoadConfig): Result<EngineModelInfo> =
         io.androllm.core.common.runCatching {
             val modelLoadStartedAt = System.currentTimeMillis()
+            StartupProfiler.mark("modelLoadStart")
+            StartupProfiler.logStage("ModelLoad requested", modelLoadStartedAt, "model=${model.name} size=${model.fileSize / (1024*1024)}MB")
             try {
                 val path = model.filePath
                 check(!path.isNullOrBlank()) { "Model file path is empty" }
                 val file = File(path)
                 check(file.exists()) { "Model file not found: $path" }
                 check(file.length() > 0) { "Model file is empty: $path" }
+
+                // ── Load-time memory hygiene: free transient caches before large-model mmap ──
+                // Spec: free any unnecessary temporary memory before load, avoid keeping old sessions,
+                // reuse buffers aggressively, free transient buffers as early as possible,
+                // reuse buffers, pool temporary arrays, avoid duplicate copies, minimize native allocations.
+                runCatching { BufferPool.trimForLowMemory() }
+                runCatching { BufferPool.clear() }
+                runCatching { PrefixCache.invalidateAll() }
+                // Hint GC to release Java heap held by previous model metadata/decoder
+                runCatching { System.gc() }
+                if (engine != null || conversation != null) {
+                    logger.i("PRE-LOAD CLEANUP: releasing stale session before new model")
+                    runCatching { conversation?.close() }
+                    conversation = null
+                }
+                // Evict stale container metadata cache entry for this path if present
+                runCatching { ContainerMetadataReader.evictCache(file) }
+
+                // --- Pre-load resource guard (aggressive-fit): try hard to fit large models like Qwen3 8B ---
+                // Replaces the overly-conservative single-estimate refusal. Before rejecting, the guard:
+                //   1) lower runtime context size  2) reduce batch/prefill memory  3) compact tokenizer/backend
+                //   4) try most memory-efficient backend (NPU→GPU→CPU chain when AUTO)  5) recompute
+                // Only when the smallest safe configuration (512-1024 ctx, aggressive scratch, CPU) still
+                // cannot fit is the load refused — with detailed diagnostics naming every reduction attempted.
+                val resourceGuard = io.androllm.engine.utils.ModelResourceGuard(context)
+                val requestedCtxForGuard = config.contextLength.takeIf { it > 0 } ?: 4096
+                val requestedBackendForGuard: BackendType = config.backend
+                    ?: if (config.gpuLayers == 0) BackendType.CPU else BackendType.AUTO
+                val footprintBackend = when (requestedBackendForGuard) {
+                    BackendType.GPU -> BackendType.GPU
+                    BackendType.NPU -> BackendType.NPU
+                    BackendType.CPU -> BackendType.CPU
+                    BackendType.AUTO -> BackendType.GPU
+                    else -> BackendType.CPU
+                }
+                val availableBefore = resourceGuard.availableRamBytes()
+                val lowMemBefore = resourceGuard.isSystemLowMemory()
+                val fitResult = resourceGuard.attemptAggressiveFit(
+                    fileSizeBytes = file.length(),
+                    contextLength = requestedCtxForGuard,
+                    availableBytes = availableBefore,
+                    lowMemory = lowMemBefore,
+                    requestedBackend = footprintBackend
+                )
+                // Surface detailed diagnostics for UI / logs (see MemoryFitDiagnostics)
+                lastFitDiagnostics = when (fitResult) {
+                    is io.androllm.engine.utils.AggressiveFitResult.Fit -> fitResult.diagnostics
+                    is io.androllm.engine.utils.AggressiveFitResult.NoFit -> fitResult.diagnostics
+                }
+                // Remember the aggressive-fit effective values so later stages (container limit,
+                // backend chain, warmup) use them instead of the original request.
+                var effectiveContextFromFit: Int? = null
+                var effectiveBatchFromFit: Int? = null
+                var effectiveBackendFromFit: BackendType? = null
+                var effectiveModeFromFit: io.androllm.engine.utils.MemoryMode? = null
+                when (fitResult) {
+                    is io.androllm.engine.utils.AggressiveFitResult.Fit -> {
+                        effectiveContextFromFit = fitResult.effectiveContext
+                        effectiveBackendFromFit = fitResult.effectiveBackend
+                        effectiveBatchFromFit = fitResult.effectiveBatchSize
+                        effectiveModeFromFit = fitResult.effectiveMode
+                        fitEffectiveContext = fitResult.effectiveContext
+                        fitEffectiveBackend = fitResult.effectiveBackend
+                        if (fitResult.diagnostics.wasContextLowered || fitResult.diagnostics.wasBackendChanged) {
+                            logger.i("AGGRESSIVE-FIT APPLIED: ${fitResult.diagnostics.toLogLine()} reductions=${fitResult.reductions}")
+                            StartupProfiler.logStage(
+                                "ResourceGuard:AggressiveFit",
+                                modelLoadStartedAt,
+                                "reduced ctx ${requestedCtxForGuard}→${fitResult.effectiveContext} backend ${requestedBackendForGuard}→${fitResult.effectiveBackend} mode=${fitResult.effectiveMode.label} need=${fitResult.diagnostics.estimatedTotalBytes / (1024*1024)}MB avail=${availableBefore / (1024*1024)}MB"
+                            )
+                        } else {
+                            StartupProfiler.logStage(
+                                "ResourceGuard",
+                                modelLoadStartedAt,
+                                "allowed ~${resourceGuard.estimateFootprint(file.length(), requestedCtxForGuard) / (1024*1024)} MB mode=${fitResult.effectiveMode.label}"
+                            )
+                        }
+                    }
+                    is io.androllm.engine.utils.AggressiveFitResult.NoFit -> {
+                        logger.w("AGGRESSIVE-FIT REFUSAL after exhaustive reduction: ${fitResult.diagnostics.toLogLine()} attempted=${fitResult.attemptedConfigs.take(5)}")
+                        throw ModelCompatibilityException(
+                            fitResult.diagnostics.rejectionReason +
+                                " (available ~${fitResult.diagnostics.totalAvailableBytes / (1024*1024)} MB, smallest need ~${fitResult.diagnostics.estimatedTotalBytes / (1024*1024)} MB)"
+                        )
+                    }
+                }
 
                 // --- Pre-load artifact validation (cheap, before any native work) ---
                 // The LiteRT runtime rejects a wrong file only after minutes of
@@ -366,11 +470,39 @@ class LiteRtLmEngine @Inject constructor(
             // cannot initialize on this device/driver must fail safely and
             // silently, never crash the app (local-LLM spec). Model
             // compatibility flags prune candidates before any attempt.
-            val preference = config.backend
+            // Aggressive-fit may have selected a more memory-efficient backend
+            // (CPU) for AUTO requests under memory pressure — honor it to avoid
+            // an OOM during GPU delegate init, while explicit requests remain strict.
+            val basePreference = config.backend
                 ?: if (config.gpuLayers == 0) BackendType.CPU else BackendType.AUTO
+            val preference = if (effectiveBackendFromFit != null && basePreference == BackendType.AUTO) {
+                // If the fit planner found CPU fits but GPU doesn't, prefer the fitting backend.
+                // NPU is still tried first when it was the original best; GPU→CPU fallback remains.
+                when (effectiveBackendFromFit) {
+                    BackendType.CPU -> {
+                        if (effectiveModeFromFit?.label == "aggressive-fit" || effectiveModeFromFit?.label == "low-memory") {
+                            logger.i("BACKEND MEMORY ADJUST: AUTO→CPU for this load (aggressive-fit chose CPU for RAM)")
+                            BackendType.CPU
+                        } else basePreference
+                    }
+                    else -> basePreference
+                }
+            } else basePreference
             val candidates = BackendSelector.orderedCandidates(preference, _backendCapabilities.value, model)
             check(candidates.isNotEmpty()) {
                 "No backend available for this model (all declared backends unusable)"
+            }
+
+            // Clamp container's maxNumTokens to the aggressive-fit effective context
+            // so the engine never allocates a KV cache larger than the fitting budget.
+            val clampedMaxNumTokens = when {
+                metadataMaxContext != null && effectiveContextFromFit != null -> minOf(metadataMaxContext, effectiveContextFromFit)
+                metadataMaxContext != null -> metadataMaxContext
+                effectiveContextFromFit != null -> effectiveContextFromFit
+                else -> null
+            }
+            if (clampedMaxNumTokens != null && clampedMaxNumTokens != metadataMaxContext) {
+                logger.i("CONTEXT CLAMPED by aggressive-fit: container=${metadataMaxContext ?: "n/a"}→${clampedMaxNumTokens}")
             }
 
             val cacheDir = runCatching { context.cacheDir.absolutePath }.getOrNull()
@@ -378,19 +510,56 @@ class LiteRtLmEngine @Inject constructor(
             // (`libLiteRtDispatch_*.so`); passed to Backend.NPU(nativeLibraryDir).
             val npuLibDir = runCatching { context.applicationInfo.nativeLibraryDir }.getOrNull()
 
-            val (selectedBackend, initMs) = withContext(Dispatchers.Default) {
-                ThreadManager.withBackgroundInferencePriority {
-                    EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.MODEL_INIT) {
-                        createEngineWithFallback(
-                            path = path,
-                            cacheDir = cacheDir,
-                            candidates = candidates,
-                            threads = config.threads,
-                            npuLibDir = npuLibDir,
-                            maxNumTokens = metadataMaxContext
-                        )
+            // Tune thread count for memory pressure: aggressive/low-memory modes reserve cores for OS
+            val effectiveThreads = when (effectiveModeFromFit) {
+                is io.androllm.engine.utils.MemoryMode -> {
+                    when (effectiveModeFromFit.label) {
+                        "low-memory" -> minOf(config.threads, 2)
+                        "aggressive-fit" -> minOf(config.threads, 3)
+                        else -> config.threads
                     }
                 }
+                else -> config.threads
+            }
+            if (effectiveThreads != config.threads) {
+                logger.i("THREADS TUNED for memory: ${config.threads}→${effectiveThreads} (mode ${effectiveModeFromFit?.label})")
+            }
+
+            val (selectedBackend, initMs) = try {
+                withContext(Dispatchers.Default) {
+                    ThreadManager.withBackgroundInferencePriority {
+                        EnginePerformanceMonitor.measure(EnginePerformanceMonitor.Stages.MODEL_INIT) {
+                            createEngineWithFallback(
+                                path = path,
+                                cacheDir = cacheDir,
+                                candidates = candidates,
+                                threads = effectiveThreads,
+                                npuLibDir = npuLibDir,
+                                maxNumTokens = clampedMaxNumTokens
+                            )
+                        }
+                    }
+                }
+            } catch (oom: OutOfMemoryError) {
+                // Crash safety: clean partial allocations and surface a structured failure
+                EngineCrashGuard.recordCrash("model_load_oom", candidates.firstOrNull()?.displayName ?: "", oom)
+                logger.e("OOM during engine creation — releasing transient buffers and aborting load")
+                runCatching { BufferPool.clear() }
+                runCatching { System.gc() }
+                throw ModelCompatibilityException(
+                    "This model still exceeds safe memory limits after optimization. " +
+                        "Reduced-context mode was attempted, but the model still needs more RAM. " +
+                        "Try a lower quantization or a smaller context length. (OOM during allocation)"
+                )
+            } catch (e: Throwable) {
+                // Detect native allocation failures early (e.g. mmap failed) and clean up
+                if (e.message?.contains("mmap", ignoreCase = true) == true ||
+                    e.message?.contains("allocation", ignoreCase = true) == true ||
+                    e.message?.contains("out of memory", ignoreCase = true) == true) {
+                    EngineCrashGuard.recordCrash("model_load_alloc", candidates.firstOrNull()?.displayName ?: "", e)
+                    runCatching { BufferPool.clear() }
+                }
+                throw e
             }
 
             // --- Model-family resolution (the compatibility contract) ---
@@ -405,7 +574,16 @@ class LiteRtLmEngine @Inject constructor(
             // the container's own embedded template — a model can never fail
             // the load for lack of a family match.
             val family = ModelFamilyRegistry.resolve(container?.metadata, model.name, model.family)
-            val sidecars = TokenizerFiles.loadFrom(file)
+            // Fast-path: when the container already embeds a tokenizer, sidecars are never required.
+            // Avoid the 5x File.exists filesystem probes entirely (90%+ of LiteRT containers).
+            // TokenizerFiles.loadFrom also has its own fast-path + LRU cache as defense-in-depth,
+            // but skipping the call here saves even the canonicalPath/cache lookup.
+            val sidecars = if (container?.hasAnyTokenizer == true) {
+                logger.i("TokenizerFiles fast-path: container has embedded tokenizer — skipping sidecar reads")
+                io.androllm.engine.compat.SidecarTokenizers()
+            } else {
+                TokenizerFiles.loadFrom(file, container)
+            }
             // Sidecar tokenizer files complement the tokenizer the container
             // embeds (which the native runtime reads). They are REQUIRED only
             // when the container carries no tokenizer of its own — a container
@@ -472,19 +650,26 @@ class LiteRtLmEngine @Inject constructor(
             conversation = null
 
             // The container metadata is first-party LiteRT-LM data and wins
-            // over every catalog or user-provided value. Only older/malformed
-            // containers fall back to the runtime limit probe and finally the
-            // requested compatibility value.
+            // over every catalog or user-provided value, BUT it is still clamped
+            // to the aggressive-fit budget so a 32768-train 8B model does not
+            // allocate a 32k KV cache when only 2k fits. This is the "smallest
+            // safe context" requirement.
+            val requestedRaw = config.contextLength.takeIf { it > 0 } ?: DEFAULT_MAX_CONTEXT
+            val clampedRequest = effectiveContextFromFit?.let { minOf(requestedRaw, it) } ?: requestedRaw
+            if (effectiveContextFromFit != null && clampedRequest != requestedRaw) {
+                logger.i("CONTEXT ADJUSTED by aggressive-fit: requested $requestedRaw → $clampedRequest")
+            }
             val detectedMaxContext = if (metadataMaxContext == null) {
                 withContext(Dispatchers.Default) { detectMaxContext(eng()) }
             } else {
                 0
             }
-            val contextLength = metadataMaxContext
-                ?: detectedMaxContext.takeIf { it > 0 }
-                ?: config.contextLength.takeIf { it > 0 }
-                ?: DEFAULT_MAX_CONTEXT
-            logger.i("LiteRT-LM max context: $contextLength tokens (${if (metadataMaxContext != null) "container metadata" else "runtime fallback"})")
+            val contextLength = when {
+                metadataMaxContext != null -> minOf(metadataMaxContext, clampedRequest)
+                detectedMaxContext > 0 -> minOf(detectedMaxContext, clampedRequest)
+                else -> clampedRequest
+            }
+            logger.i("LiteRT-LM max context: $contextLength tokens (${if (metadataMaxContext != null) "container metadata" else "runtime fallback"}${if (effectiveContextFromFit != null) " with aggressive-fit clamp $effectiveContextFromFit" else ""})")
 
             loadedModel = EngineModelInfo(
                 id = model.id,
@@ -509,7 +694,7 @@ class LiteRtLmEngine @Inject constructor(
                     else -> "official (family registry)"
                 },
                 templateReady = true,
-                nThreads = config.threads
+                nThreads = effectiveThreads
             )
             _capabilities = _capabilities.copy(maxContextLength = contextLength)
 
@@ -557,13 +742,24 @@ class LiteRtLmEngine @Inject constructor(
                     "delegate=${selectedBackend.delegate} init=${initMs}ms " +
                     "warmup=${if (lastWarmupMs > 0) "${lastWarmupMs}ms" else "incomplete"} totalLoad=${lastModelLoadMs}ms"
             )
+            // Release transient warmup buffers early — spec: free transient buffers as early as possible
+            runCatching { System.gc() }
             loadedModel!!
-            } catch (e: Exception) {
-                // A load failure must NEVER leave the engine in Loading or leak
-                // a half-built native engine: transition to a structured Failed
-                // state (stage, suggestion, retryable) and free native state.
-                failModelLoad(model, e)
-                throw e
+            } catch (e: Throwable) {
+                // Crash safety: catch OOM/allocation failures, clean partial allocations, reset state.
+                if (e is OutOfMemoryError || e.message?.contains("out of memory", ignoreCase = true) == true) {
+                    EngineCrashGuard.recordCrash("load_oom", "", e)
+                    logger.e("LOAD OOM — releasing buffers and failing cleanly: ${e.message}")
+                    runCatching { BufferPool.clear() }
+                    runCatching { PrefixCache.invalidateAll() }
+                    runCatching { System.gc() }
+                } else if (e is kotlinx.coroutines.CancellationException) {
+                    throw e
+                }
+                // Wrap non-Exception Throwables (OOMError) into an Exception for failModelLoad
+                val ex = if (e is Exception) e else Exception(e.message ?: "Load failed: ${e.javaClass.simpleName}", e)
+                failModelLoad(model, ex)
+                throw ex
             }
         }
 
@@ -593,15 +789,29 @@ class LiteRtLmEngine @Inject constructor(
             outputDecoder = null
             generationActive.set(false)
             stopRuntimeMetricsRefresh()
+            // Aggressive cleanup for OOM safety: free pooled arrays, prefix cache, hint GC
+            runCatching { BufferPool.clear() }
+            runCatching { PrefixCache.invalidateAll() }
+            runCatching { System.gc() }
+            // Preserve lastFitDiagnostics for the Failed state's diagnostics (do NOT null it)
+            // but clear live memory stats
             _memoryStats.value = null
+            // If the failure was an OOM even after aggressive fit, enrich the message
+            val enrichedMessage = if (e is OutOfMemoryError || e.message?.contains("OOM", ignoreCase = true) == true) {
+                "This model still exceeds safe memory limits after optimization. Reduced-context mode was attempted, but the model still needs more RAM. Try a lower quantization or a smaller context length."
+            } else failure.message
+            // Attach fit diagnostics to the failure suggestion when available
+            val enrichedSuggestion = failure.suggestion ?: lastFitDiagnostics?.let {
+                if (it.isAggressiveFit) "Aggressive-fit tried: ${it.reductionsApplied.joinToString(", ")} → still insufficient. ${it.rejectionReason}" else null
+            }
             _engineState.value = EngineState.Failed(
-                message = failure.message,
+                message = enrichedMessage,
                 stage = failure.stage,
-                suggestion = failure.suggestion,
+                suggestion = enrichedSuggestion,
                 retryable = failure.retryable
             )
             logger.w(
-                "LiteRT-LM load failed (stage=${failure.stage}, retryable=${failure.retryable}): ${failure.message}"
+                "LiteRT-LM load failed (stage=${failure.stage}, retryable=${failure.retryable}): ${failure.message} fit=${lastFitDiagnostics?.toLogLine() ?: "n/a"}"
             )
         } catch (t: Throwable) {
             logger.w("Load-failure handling failed: ${t.message}")
@@ -2216,6 +2426,7 @@ class LiteRtLmEngine @Inject constructor(
         val stats = _stats.value
         val isGpu = backend?.type == BackendType.GPU
         val isNpu = backend?.type == BackendType.NPU
+        val fit = lastFitDiagnostics
         EngineDebugInfo(
             desc = "LiteRT-LM (${LITERTLM_VERSION})",
             generalName = model.generalName,
@@ -2244,7 +2455,15 @@ class LiteRtLmEngine @Inject constructor(
             promptTokens = 0,
             generatedTokens = stats?.generatedTokens ?: 0,
             firstTokenMs = stats?.firstTokenMs ?: 0,
-            stopReason = stats?.stopReason ?: ""
+            stopReason = stats?.stopReason ?: "",
+            memoryMode = fit?.memoryMode ?: "",
+            isAggressiveFit = fit?.isAggressiveFit ?: false,
+            wasContextLowered = fit?.wasContextLowered ?: false,
+            wasBackendChanged = fit?.wasBackendChanged ?: false,
+            effectiveContext = fit?.effectiveContext ?: model.contextLength,
+            requestedContext = fit?.requestedContext ?: model.contextLength,
+            memoryReductions = fit?.reductionsApplied?.joinToString(", ") ?: "",
+            fitDiagnostics = fit?.toLogLine() ?: ""
         )
     }
 
@@ -2331,25 +2550,52 @@ peakProcessPssBytes = maxOf(peakProcessPssBytes, processPss)
             conversation?.getTokenCount()?.toLong() ?: 0L
         }.getOrDefault(-1L)
 
+        // Enrich with aggressive-fit diagnostics for the diagnostics panel
+        val fit = lastFitDiagnostics
+        val kvBytesEst = if (loadedModel != null) {
+            io.androllm.engine.utils.MemoryEstimator.estimateKvCacheBytes(
+                loadedModel!!.contextLength, 0, 0, 0, fileSize
+            )
+        } else 0L
+        val weightsEst = io.androllm.engine.utils.MemoryEstimator.estimateWeightsMemory(fileSize)
+        val availableEst = runCatching {
+            val am = context.getSystemService(ActivityManager::class.java)
+            val mi = ActivityManager.MemoryInfo()
+            am?.getMemoryInfo(mi)
+            mi.availMem
+        }.getOrDefault(0L)
+
         return MemoryStats(
             modelSizeBytes = fileSize,
-            contextSizeBytes = 0L,
+            contextSizeBytes = kvBytesEst,
             peakMemoryBytes = peakProcessPssBytes,
             backend = type.name.lowercase(),
             backendReason = when (type) {
                 BackendType.NPU -> "LiteRT NPU delegate active"
                 BackendType.GPU -> "LiteRT GPU delegate active"
                 else -> "CPU (XNNPACK)"
-            },
+            } + if (fit?.isAggressiveFit == true) " (aggressive-fit: ${fit.memoryMode})" else "",
             gpuName = if (type == BackendType.GPU) gpuName else "",
             gpuInferenceVerified = type == BackendType.GPU,
             nativeHeapAllocatedBytes = nativeAllocated,
             nativeHeapSizeBytes = nativeHeapSize,
-javaHeapUsedBytes = javaUsed,
+            javaHeapUsedBytes = javaUsed,
             javaHeapCommittedBytes = javaCommitted,
             processPssBytes = processPss,
             kvCacheTokens = kvCacheTokens,
-            loadedSinceMs = modelLoadedAtMs
+            loadedSinceMs = modelLoadedAtMs,
+            memoryMode = fit?.memoryMode ?: "",
+            isAggressiveFit = fit?.isAggressiveFit ?: false,
+            wasContextLowered = fit?.wasContextLowered ?: false,
+            wasBackendChanged = fit?.wasBackendChanged ?: false,
+            effectiveContext = fit?.effectiveContext ?: loadedModel?.contextLength ?: 0,
+            requestedContext = fit?.requestedContext ?: loadedModel?.contextLength ?: 0,
+            memoryReductions = fit?.reductionsApplied?.joinToString(", ") ?: "",
+            fitDiagnostics = fit?.toLogLine() ?: "",
+            estimatedWeightsMb = weightsEst / (1024f * 1024f),
+            estimatedKvMb = kvBytesEst / (1024f * 1024f),
+            estimatedTotalMb = (weightsEst + kvBytesEst) / (1024f * 1024f),
+            availableRamMb = availableEst / (1024f * 1024f)
         )
     }
 

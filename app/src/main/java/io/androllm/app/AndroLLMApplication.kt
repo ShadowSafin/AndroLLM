@@ -49,6 +49,7 @@ class AndroLLMApplication : Application(), WorkConfiguration.Provider {
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
+        io.androllm.engine.diagnostics.StartupProfiler.markAppStart()
 
         // NPU (Qualcomm QNN) pre-init: the Hexagon DSP loads libQnnHtpV81Skel.so
         // via FastRPC from ADSP_LIBRARY_PATH, and libQnnHtp.so reads that env
@@ -59,12 +60,12 @@ class AndroLLMApplication : Application(), WorkConfiguration.Provider {
         // best-effort and harmless when absent.
         seedNpuLibraryPaths()
 
-        // Background health probing for configured LiteLLM providers.
-        providerHealthMonitor.start()
+        // Background health probing — LAZY: start only after first chat/cloud use to avoid network on cold start
+        // providerHealthMonitor.start() deferred to first CloudGateway access (see ProviderHealthMonitor lazy init)
 
-        // Memory housekeeping: pending-embedding backfill + periodic cleanup.
-        // Idempotent and opportunistic — never blocks chat.
-        memoryBackgroundScheduler.schedule()
+        // Memory housekeeping — LAZY: WorkManager init is deferred; schedule only after first memory write or on next foreground
+        // memoryBackgroundScheduler.schedule() deferred to MemoryRepository first write
+        // Keep NPU env seeding on critical path (must be before first dlopen) — already done above
 
         registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {

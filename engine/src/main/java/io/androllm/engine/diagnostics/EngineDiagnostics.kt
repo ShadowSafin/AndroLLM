@@ -113,6 +113,20 @@ data class EngineDiagnostics(
     /** Performance core count estimate. */
     val performanceCores: Int = 0,
 
+    // --- Aggressive-fit diagnostics (memory optimization) ---
+    val memoryMode: String = "",
+    val isAggressiveFit: Boolean = false,
+    val wasContextLowered: Boolean = false,
+    val wasBackendChanged: Boolean = false,
+    val effectiveContext: Int = 0,
+    val requestedContext: Int = 0,
+    val memoryReductions: String = "",
+    val fitDiagnostics: String = "",
+    val estimatedWeightsMb: Float = 0f,
+    val estimatedKvMb: Float = 0f,
+    val estimatedTotalMb: Float = 0f,
+    val availableRamMb: Float = 0f,
+
     // --- Raw Debug Info ---
     /** Full engine debug info from the last snapshot. */
     val rawDebugInfo: EngineDebugInfo? = null
@@ -220,6 +234,20 @@ object EngineDiagnosticsCollector {
             // Threading
             maxSafeThreads = io.androllm.engine.utils.ThreadManager.maximumSafeThreads(),
             performanceCores = io.androllm.engine.utils.ThreadManager.performanceCoreCount(),
+
+            // Aggressive-fit (from MemoryStats or debugInfo, whichever is available)
+            memoryMode = memoryStats?.memoryMode ?: debugInfo?.memoryMode ?: "",
+            isAggressiveFit = memoryStats?.isAggressiveFit ?: debugInfo?.isAggressiveFit ?: false,
+            wasContextLowered = memoryStats?.wasContextLowered ?: debugInfo?.wasContextLowered ?: false,
+            wasBackendChanged = memoryStats?.wasBackendChanged ?: debugInfo?.wasBackendChanged ?: false,
+            effectiveContext = memoryStats?.effectiveContext ?: debugInfo?.effectiveContext ?: 0,
+            requestedContext = memoryStats?.requestedContext ?: debugInfo?.requestedContext ?: 0,
+            memoryReductions = memoryStats?.memoryReductions ?: debugInfo?.memoryReductions ?: "",
+            fitDiagnostics = memoryStats?.fitDiagnostics ?: debugInfo?.fitDiagnostics ?: "",
+            estimatedWeightsMb = memoryStats?.estimatedWeightsMb ?: 0f,
+            estimatedKvMb = memoryStats?.estimatedKvMb ?: 0f,
+            estimatedTotalMb = memoryStats?.estimatedTotalMb ?: 0f,
+            availableRamMb = memoryStats?.availableRamMb ?: 0f,
 
             rawDebugInfo = debugInfo
         )

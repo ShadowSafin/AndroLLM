@@ -32,17 +32,216 @@ import java.util.PriorityQueue
  * sentencepiece implementation. It supports the BPE model type and assumes
  * identity normalization (which is what the Gemma 3 / EmbeddingGemma tokenizer
  * model ships with).
+ *
+ * Optimization: static LRU cache of parsed models (hash -> ParsedModel) avoids
+ * re-parsing 262k vocab on every embedding engine init. The tokenizer.model
+ * is immutable per app install; parsing is ~O(vocab) and dominates load time.
  */
 class SentencePieceTokenizer(modelBytes: ByteArray) {
 
+    private data class ParsedModel(
+        val pieceToId: HashMap<String, Int>,
+        val scores: FloatArray,
+        val types: IntArray,
+        val bosId: Int,
+        val eosId: Int,
+        val unkId: Int,
+    )
+
     // Piece types (SentencePiece.Type enum).
-    private companion object {
+    companion object {
         const val TYPE_NORMAL = 1
         const val TYPE_UNKNOWN = 2
         const val TYPE_CONTROL = 3
         const val TYPE_USER_DEFINED = 4
         const val TYPE_UNUSED = 5
         const val TYPE_BYTE = 6
+
+        /**
+         * Static LRU cache of parsed SentencePiece models (hash -> ParsedModel).
+         * Avoids re-parsing 262k vocab per embedding init. Thread-safe, max 4
+         * entries (typically only one model per device, but allows A/B testing).
+         */
+        private const val MAX_CACHED_MODELS = 4
+        private val parsedCacheLock = Any()
+        private val parsedCache = object : LinkedHashMap<Int, ParsedModel>(MAX_CACHED_MODELS, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, ParsedModel>?): Boolean {
+                return size > MAX_CACHED_MODELS
+            }
+        }
+
+        /** Diagnostics — exposed for testing/profiling. */
+        fun cacheStats(): String = synchronized(parsedCacheLock) { "size=${parsedCache.size}/$MAX_CACHED_MODELS" }
+        fun clearCache() = synchronized(parsedCacheLock) { parsedCache.clear() }
+
+        private fun getOrParse(modelBytes: ByteArray): ParsedModel {
+            val hash = modelBytes.contentHashCode()
+            synchronized(parsedCacheLock) { parsedCache[hash]?.let { return it } }
+            val parsed = parseModelProtoStatic(modelBytes)
+            synchronized(parsedCacheLock) { parsedCache[hash] = parsed }
+            return parsed
+        }
+
+        private fun parseModelProtoStatic(data: ByteArray): ParsedModel {
+            val pieces = ArrayList<String>(262144)
+            val pieceScores = ArrayList<Float>(262144)
+            val pieceTypes = ArrayList<Int>(262144)
+            var bos = -1
+            var eos = -1
+            var unk = -1
+
+            var pos = 0
+            while (pos < data.size) {
+                val tag = readVarintStatic(data, pos)
+                pos = tag.second
+                val field = tag.first ushr 3
+                val wire = tag.first and 7
+                when (wire) {
+                    2 -> {
+                        val len = readVarintStatic(data, pos)
+                        pos = len.second
+                        val value = data.copyOfRange(pos, pos + len.first)
+                        pos += len.first
+                        when (field) {
+                            1 -> { // SentencePiece message
+                                val p = parseSentencePieceStatic(value)
+                                pieces.add(p.piece)
+                                pieceScores.add(p.score)
+                                pieceTypes.add(p.type)
+                            }
+                            2 -> { // trainer_spec (unk/bos/eos ids)
+                                val spec = parseTrainerSpecStatic(value)
+                                if (spec.unkId >= 0) unk = spec.unkId
+                                if (spec.bosId >= 0) bos = spec.bosId
+                                if (spec.eosId >= 0) eos = spec.eosId
+                            }
+                            else -> { /* normalizer_spec (3) and friends ignored */ }
+                        }
+                    }
+                    else -> {
+                        // skip varint / fixed32 / fixed64
+                        pos = when (wire) {
+                            0 -> readVarintStatic(data, pos).second
+                            5 -> pos + 4
+                            1 -> pos + 8
+                            else -> throw IllegalArgumentException("Unsupported protobuf wire type $wire")
+                        }
+                    }
+                }
+            }
+
+            val pieceMap = HashMap<String, Int>(pieces.size)
+            val scoreArray = FloatArray(pieces.size)
+            val typeArray = IntArray(pieces.size) { TYPE_NORMAL }
+            for ((index, p) in pieces.withIndex()) {
+                pieceMap[p] = index
+                scoreArray[index] = pieceScores[index]
+                typeArray[index] = pieceTypes[index]
+            }
+            return ParsedModel(pieceMap, scoreArray, typeArray, bos, eos, unk)
+        }
+
+        private data class SentencePiece(val piece: String, val score: Float, val type: Int)
+
+        private fun parseSentencePieceStatic(data: ByteArray): SentencePiece {
+            var piece = ""
+            var score = 0f
+            var type = TYPE_NORMAL
+            var pos = 0
+            while (pos < data.size) {
+                val tag = readVarintStatic(data, pos)
+                pos = tag.second
+                when (tag.first ushr 3) {
+                    1 -> { // piece (string)
+                        val len = readVarintStatic(data, pos)
+                        pos = len.second
+                        piece = String(data, pos, len.first, Charsets.UTF_8)
+                        pos += len.first
+                    }
+                    2 -> { // score (float, wire type 5)
+                        score = ByteBuffer.wrap(data, pos, 4).order(ByteOrder.LITTLE_ENDIAN).float
+                        pos += 4
+                    }
+                    3 -> { // type (enum, varint)
+                        val v = readVarintStatic(data, pos)
+                        pos = v.second
+                        type = v.first
+                    }
+                    else -> {
+                        val wire = tag.first and 7
+                        pos = when (wire) {
+                            0 -> readVarintStatic(data, pos).second
+                            2 -> {
+                                val len = readVarintStatic(data, pos)
+                                len.second + len.first
+                            }
+                            5 -> pos + 4
+                            1 -> pos + 8
+                            else -> pos
+                        }
+                    }
+                }
+            }
+            return SentencePiece(piece, score, type)
+        }
+
+        private data class TrainerSpec(val unkId: Int, val bosId: Int, val eosId: Int)
+
+        private fun parseTrainerSpecStatic(data: ByteArray): TrainerSpec {
+            var unk = -1
+            var bos = -1
+            var eos = -1
+            var pos = 0
+            while (pos < data.size) {
+                val tag = readVarintStatic(data, pos)
+                pos = tag.second
+                when (tag.first ushr 3) {
+                    40 -> { // unk_id
+                        val v = readVarintStatic(data, pos)
+                        pos = v.second
+                        unk = v.first
+                    }
+                    41 -> { // bos_id
+                        val v = readVarintStatic(data, pos)
+                        pos = v.second
+                        bos = v.first
+                    }
+                    42 -> { // eos_id
+                        val v = readVarintStatic(data, pos)
+                        pos = v.second
+                        eos = v.first
+                    }
+                    else -> {
+                        val wire = tag.first and 7
+                        pos = when (wire) {
+                            0 -> readVarintStatic(data, pos).second
+                            2 -> {
+                                val len = readVarintStatic(data, pos)
+                                len.second + len.first
+                            }
+                            5 -> pos + 4
+                            1 -> pos + 8
+                            else -> pos
+                        }
+                    }
+                }
+            }
+            return TrainerSpec(unk, bos, eos)
+        }
+
+        private fun readVarintStatic(data: ByteArray, pos: Int): Pair<Int, Int> {
+            var result = 0
+            var shift = 0
+            var p = pos
+            while (p < data.size) {
+                val b = data[p].toInt() and 0xFF
+                p++
+                result = result or ((b and 0x7F) shl shift)
+                if (b and 0x80 == 0) break
+                shift += 7
+            }
+            return Pair(result, p)
+        }
     }
 
     /** piece string -> piece id. */
@@ -59,7 +258,7 @@ class SentencePieceTokenizer(modelBytes: ByteArray) {
     private val unkId: Int
 
     init {
-        val parsed = parseModelProto(modelBytes)
+        val parsed = getOrParse(modelBytes)
         pieceToId = parsed.pieceToId
         scores = parsed.scores
         types = parsed.types
@@ -262,177 +461,6 @@ class SentencePieceTokenizer(modelBytes: ByteArray) {
         return t != TYPE_NORMAL && t != TYPE_USER_DEFINED && t != TYPE_UNUSED
     }
 
-    // ------------------------------------------------------------------
-    // Minimal protobuf wire-format reader for ModelProto
-    // ------------------------------------------------------------------
-
-    private data class ParsedModel(
-        val pieceToId: HashMap<String, Int>,
-        val scores: FloatArray,
-        val types: IntArray,
-        val bosId: Int,
-        val eosId: Int,
-        val unkId: Int,
-    )
-
-    private fun parseModelProto(data: ByteArray): ParsedModel {
-        val pieces = ArrayList<String>(262144)
-        val pieceScores = ArrayList<Float>(262144)
-        val pieceTypes = ArrayList<Int>(262144)
-        var bos = -1
-        var eos = -1
-        var unk = -1
-
-        var pos = 0
-        while (pos < data.size) {
-            val tag = readVarint(data, pos)
-            pos = tag.second
-            val field = tag.first ushr 3
-            val wire = tag.first and 7
-            when (wire) {
-                2 -> {
-                    val len = readVarint(data, pos)
-                    pos = len.second
-                    val value = data.copyOfRange(pos, pos + len.first)
-                    pos += len.first
-                    when (field) {
-                        1 -> { // SentencePiece message
-                            val p = parseSentencePiece(value)
-                            pieces.add(p.piece)
-                            pieceScores.add(p.score)
-                            pieceTypes.add(p.type)
-                        }
-                        2 -> { // trainer_spec (unk/bos/eos ids)
-                            val spec = parseTrainerSpec(value)
-                            if (spec.unkId >= 0) unk = spec.unkId
-                            if (spec.bosId >= 0) bos = spec.bosId
-                            if (spec.eosId >= 0) eos = spec.eosId
-                        }
-                        else -> { /* normalizer_spec (3) and friends ignored */ }
-                    }
-                }
-                else -> {
-                    // skip varint / fixed32 / fixed64
-                    pos = when (wire) {
-                        0 -> readVarint(data, pos).second
-                        5 -> pos + 4
-                        1 -> pos + 8
-                        else -> throw IllegalArgumentException("Unsupported protobuf wire type $wire")
-                    }
-                }
-            }
-        }
-
-        val pieceMap = HashMap<String, Int>(pieces.size)
-        val scoreArray = FloatArray(pieces.size)
-        val typeArray = IntArray(pieces.size) { TYPE_NORMAL }
-        for ((index, p) in pieces.withIndex()) {
-            pieceMap[p] = index
-            scoreArray[index] = pieceScores[index]
-            typeArray[index] = pieceTypes[index]
-        }
-        return ParsedModel(pieceMap, scoreArray, typeArray, bos, eos, unk)
-    }
-
-    private data class SentencePiece(val piece: String, val score: Float, val type: Int)
-
-    private fun parseSentencePiece(data: ByteArray): SentencePiece {
-        var piece = ""
-        var score = 0f
-        var type = TYPE_NORMAL
-        var pos = 0
-        while (pos < data.size) {
-            val tag = readVarint(data, pos)
-            pos = tag.second
-            when (tag.first ushr 3) {
-                1 -> { // piece (string)
-                    val len = readVarint(data, pos)
-                    pos = len.second
-                    piece = String(data, pos, len.first, Charsets.UTF_8)
-                    pos += len.first
-                }
-                2 -> { // score (float, wire type 5)
-                    score = ByteBuffer.wrap(data, pos, 4).order(ByteOrder.LITTLE_ENDIAN).float
-                    pos += 4
-                }
-                3 -> { // type (enum, varint)
-                    val v = readVarint(data, pos)
-                    pos = v.second
-                    type = v.first
-                }
-                else -> {
-                    val wire = tag.first and 7
-                    pos = when (wire) {
-                        0 -> readVarint(data, pos).second
-                        2 -> {
-                            val len = readVarint(data, pos)
-                            len.second + len.first
-                        }
-                        5 -> pos + 4
-                        1 -> pos + 8
-                        else -> pos
-                    }
-                }
-            }
-        }
-        return SentencePiece(piece, score, type)
-    }
-
-    private data class TrainerSpec(val unkId: Int, val bosId: Int, val eosId: Int)
-
-    private fun parseTrainerSpec(data: ByteArray): TrainerSpec {
-        var unk = -1
-        var bos = -1
-        var eos = -1
-        var pos = 0
-        while (pos < data.size) {
-            val tag = readVarint(data, pos)
-            pos = tag.second
-            when (tag.first ushr 3) {
-                40 -> { // unk_id
-                    val v = readVarint(data, pos)
-                    pos = v.second
-                    unk = v.first
-                }
-                41 -> { // bos_id
-                    val v = readVarint(data, pos)
-                    pos = v.second
-                    bos = v.first
-                }
-                42 -> { // eos_id
-                    val v = readVarint(data, pos)
-                    pos = v.second
-                    eos = v.first
-                }
-                else -> {
-                    val wire = tag.first and 7
-                    pos = when (wire) {
-                        0 -> readVarint(data, pos).second
-                        2 -> {
-                            val len = readVarint(data, pos)
-                            len.second + len.first
-                        }
-                        5 -> pos + 4
-                        1 -> pos + 8
-                        else -> pos
-                    }
-                }
-            }
-        }
-        return TrainerSpec(unk, bos, eos)
-    }
-
-    private fun readVarint(data: ByteArray, pos: Int): Pair<Int, Int> {
-        var result = 0
-        var shift = 0
-        var p = pos
-        while (p < data.size) {
-            val b = data[p].toInt() and 0xFF
-            p++
-            result = result or ((b and 0x7F) shl shift)
-            if (b and 0x80 == 0) break
-            shift += 7
-        }
-        return Pair(result, p)
-    }
+    // Instance helper — delegates to cached static parser for compatibility
+    private fun parseModelProto(data: ByteArray): ParsedModel = getOrParse(data)
 }

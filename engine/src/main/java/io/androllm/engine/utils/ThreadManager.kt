@@ -179,17 +179,27 @@ object ThreadManager {
 
     /**
      * Total device RAM in GB (cached). Used for memory budget decisions.
+     * Hardened for 7B-8B: uses ActivityManager.MemoryInfo.totalMem when
+     * available (accurate), falls back to maxMemory heuristic only on error.
      */
-    fun totalRamGb(): Int {
+    fun totalRamGb(context: android.content.Context? = null): Int {
         if (cachedRamGb > 0) return cachedRamGb
-        val bytes = Runtime.getRuntime().maxMemory()
-        // maxMemory() returns Java heap limit, not total device RAM.
-        // Use a conservative estimate based on the heap limit.
-        // Real device RAM is typically 2-4x the max heap.
-        val estimatedRamBytes = bytes * 3
-        cachedRamGb = (estimatedRamBytes / (1024L * 1024L * 1024L)).toInt().coerceAtLeast(2)
+        val totalMem = runCatching {
+            val ctx = context ?: throw IllegalStateException("no context")
+            val am = ctx.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val info = android.app.ActivityManager.MemoryInfo()
+            am.getMemoryInfo(info)
+            info.totalMem
+        }.getOrElse {
+            // Fallback: Java heap heuristic (conservative)
+            Runtime.getRuntime().maxMemory() * 3
+        }
+        cachedRamGb = (totalMem / (1024L * 1024L * 1024L)).toInt().coerceAtLeast(2)
         return cachedRamGb
     }
+
+    /** Overload without context for legacy callers (uses heuristic). */
+    fun totalRamGbLegacy(): Int = totalRamGb(null)
 
     /**
      * Memory budget fraction: what fraction of available RAM the engine

@@ -71,7 +71,20 @@ data class MemoryStats(
     val lastCleanupMs: Long = 0,
     val decodeCount: Long = 0,
     val decodeAvgMs: Long = 0,
-    val vulkanDeviceLostRecoveries: Int = 0
+    val vulkanDeviceLostRecoveries: Int = 0,
+    // Aggressive-fit diagnostics
+    val memoryMode: String = "",
+    val isAggressiveFit: Boolean = false,
+    val wasContextLowered: Boolean = false,
+    val wasBackendChanged: Boolean = false,
+    val effectiveContext: Int = 0,
+    val requestedContext: Int = 0,
+    val memoryReductions: String = "",
+    val fitDiagnostics: String = "",
+    val estimatedWeightsMb: Float = 0f,
+    val estimatedKvMb: Float = 0f,
+    val estimatedTotalMb: Float = 0f,
+    val availableRamMb: Float = 0f
 ) {
     /** Live native allocation when Android exposes it; otherwise legacy total. */
     val totalNativeBytes: Long get() = nativeHeapAllocatedBytes.takeIf { it > 0L }

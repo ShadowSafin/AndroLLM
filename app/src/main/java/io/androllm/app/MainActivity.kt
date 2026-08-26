@@ -44,11 +44,13 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.mutableStateOf(pendingRoute)
             }
             pendingRouteSetter = { routeState.value = it }
-            val themeMode by preferencesDataStore.theme.collectAsState(initial = ThemeMode.SYSTEM)
-            val accentHex by preferencesDataStore.accentColor.collectAsState(initial = null)
-            val dynamicColor by preferencesDataStore.dynamicColor.collectAsState(initial = true)
-            val uiDensity by preferencesDataStore.uiDensity.collectAsState(initial = io.androllm.core.models.UiDensity.DEFAULT)
-            val fontSize by preferencesDataStore.fontSize.collectAsState(initial = io.androllm.core.models.ChatFontSize.MEDIUM)
+            // Startup optimization: single collection of UserPreferences (was 5 separate DataStore collectors deserializing same file 5x)
+            val prefs by preferencesDataStore.userPreferences.collectAsState(initial = io.androllm.core.datastore.UserPreferences())
+            val themeMode = prefs.theme
+            val accentHex = prefs.accentColor
+            val dynamicColor = prefs.dynamicColor
+            val uiDensity = prefs.uiDensity
+            val fontSize = prefs.fontSize
             val accentColor = accentHex?.takeIf { it.isNotBlank() }?.let { hex ->
                 runCatching { Color(hex.toLong(16)) }.getOrNull()
             }

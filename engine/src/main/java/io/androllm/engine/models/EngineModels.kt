@@ -307,7 +307,16 @@ data class EngineDebugInfo(
     val lastCleanupMs: Long = 0,
     val decodeCount: Long = 0,
     val decodeAvgMs: Long = 0,
-    val vulkanDeviceLostRecoveries: Int = 0
+    val vulkanDeviceLostRecoveries: Int = 0,
+    // Aggressive memory fit diagnostics (Qwen3 8B optimization)
+    val memoryMode: String = "",
+    val isAggressiveFit: Boolean = false,
+    val wasContextLowered: Boolean = false,
+    val wasBackendChanged: Boolean = false,
+    val effectiveContext: Int = 0,
+    val requestedContext: Int = 0,
+    val memoryReductions: String = "",
+    val fitDiagnostics: String = ""
 )
 
 /**

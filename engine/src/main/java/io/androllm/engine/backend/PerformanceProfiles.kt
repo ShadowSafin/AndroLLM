@@ -107,6 +107,46 @@ object PerformanceProfiles {
         cacheDecodedOutput = true
     )
 
+    // ── Aggressive-fit / memory-saving profiles (large models like Qwen3 8B) ──
+    /** Aggressive-fit: smaller context, smaller batch, compact buffers — tries hard to fit 7B/8B. */
+    val AGGRESSIVE_FIT = Profile(
+        name = "aggressive-fit",
+        threadCount = 2,
+        batchSize = 512,
+        contextLength = 2048,
+        memoryBudgetFraction = 0.60f,
+        streamingUpdateIntervalMs = 32L,
+        maxStreamingTokens = 4096,
+        enableWarmup = true,
+        cacheDecodedOutput = true
+    )
+
+    /** Low-memory: minimal context and batch, minimal pre-allocated caches. */
+    val LOW_MEMORY = Profile(
+        name = "low-memory",
+        threadCount = 2,
+        batchSize = 256,
+        contextLength = 1024,
+        memoryBudgetFraction = 0.55f,
+        streamingUpdateIntervalMs = 32L,
+        maxStreamingTokens = 2048,
+        enableWarmup = false,
+        cacheDecodedOutput = false
+    )
+
+    /** Balanced memory-saving (default for large models when aggressive not needed). */
+    val BALANCED_MEMORY = Profile(
+        name = "balanced-memory",
+        threadCount = ThreadManager.recommendedThreads().coerceAtMost(4),
+        batchSize = 1024,
+        contextLength = 3072,
+        memoryBudgetFraction = 0.60f,
+        streamingUpdateIntervalMs = 16L,
+        maxStreamingTokens = 4096,
+        enableWarmup = true,
+        cacheDecodedOutput = true
+    )
+
     /**
      * Returns the best profile for the current device based on the
      * device tier and the active backend.
@@ -148,5 +188,33 @@ object PerformanceProfiles {
             streamingUpdateIntervalMs = backendProfile.streamingUpdateIntervalMs,
             maxStreamingTokens = backendProfile.maxStreamingTokens
         )
+    }
+
+    /**
+     * Returns a memory profile tailored to a model file size.
+     * Large models (7B/8B) default to aggressive-fit → balanced → performance,
+     * trying the smallest safe context first.
+     */
+    fun forModelSize(fileSizeBytes: Long, backend: io.androllm.engine.models.BackendType = io.androllm.engine.models.BackendType.CPU): Profile {
+        val isXLarge = fileSizeBytes >= 4_500L * 1024 * 1024
+        val isLarge = fileSizeBytes >= 3_800L * 1024 * 1024
+        return when {
+            isXLarge -> AGGRESSIVE_FIT
+            isLarge -> BALANCED_MEMORY
+            else -> forDevice()
+        }
+    }
+
+    /**
+     * Resolves the mode name for a given file size — used by diagnostics.
+     */
+    fun modeForFileSize(fileSizeBytes: Long): String = forModelSize(fileSizeBytes).name
+
+    /** Effective profile used for a load — device + backend + model size. */
+    fun effectiveForLoad(fileSizeBytes: Long, backend: io.androllm.engine.models.BackendType): Profile {
+        val modelProfile = forModelSize(fileSizeBytes, backend)
+        // Large-model profile wins when it is more conservative than device default
+        if (modelProfile.contextLength < forDevice().contextLength) return modelProfile
+        return optimal(backend)
     }
 }

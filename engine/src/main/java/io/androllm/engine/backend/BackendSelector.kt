@@ -102,6 +102,57 @@ object BackendSelector {
     }
 
     /**
+     * Memory-aware backend choice: prefers the backend that fits best in
+     * available memory while remaining stable. GPU/NPU delegate overhead
+     * (~128–192MB) can tip an 8B model over budget; CPU (~24MB) is the most
+     * memory-efficient fallback. Returns the preferred backend that also fits
+     * the memory budget when [availableBytes] is provided.
+     */
+    fun bestAvailableForMemory(
+        caps: BackendCapabilities,
+        model: Model,
+        fileSizeBytes: Long,
+        contextLength: Int,
+        availableBytes: Long
+    ): BackendType {
+        if (availableBytes <= 0L) return bestAvailable(caps)
+        val candidates = orderedCandidates(BackendType.AUTO, caps, model)
+        if (candidates.isEmpty()) return BackendType.CPU
+        // Score each candidate by whether it fits + its speed rank (NPU > GPU > CPU)
+        val scored = candidates.map { backend ->
+            val overhead = io.androllm.engine.utils.MemoryEstimator.estimateBackendOverhead(backend.type, false)
+            val footprint = io.androllm.engine.utils.MemoryEstimator.estimateDetailedFootprint(
+                fileSizeBytes = fileSizeBytes,
+                contextLength = contextLength,
+                backend = backend.type,
+                scratchFraction = 0.11f
+            )
+            val budget = (availableBytes * 0.85).toLong()
+            val fits = footprint <= budget
+            val speedRank = when (backend.type) {
+                BackendType.NPU -> 3
+                BackendType.GPU -> 2
+                else -> 1
+            }
+            // Fits bonus outweighs speed; among fits, prefer faster.
+            val score = (if (fits) 100 else 0) + speedRank - (if (overhead > 100 * 1024 * 1024) 1 else 0)
+            Triple(backend, fits, score)
+        }
+        return scored.maxByOrNull { it.third }?.first?.type ?: BackendType.CPU
+    }
+
+    /**
+     * Returns the most memory-efficient backend among AUTO candidates.
+     * CPU is always the most efficient; GPU next if CPU not allowed.
+     */
+    fun mostMemoryEfficient(caps: BackendCapabilities, model: Model): BackendType {
+        val candidates = orderedCandidates(BackendType.AUTO, caps, model)
+        return candidates.minByOrNull {
+            io.androllm.engine.utils.MemoryEstimator.estimateBackendOverhead(it.type, false)
+        }?.type ?: BackendType.CPU
+    }
+
+    /**
      * Normalizes a persisted/legacy preference into one of the user-selectable
      * values (AUTO/GPU/CPU/NPU). Legacy llama.cpp-era values collapse to CPU.
      */

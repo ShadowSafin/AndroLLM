@@ -64,19 +64,77 @@ data class SidecarTokenizers(
  * Loads the sidecar tokenizer files for a model file, and parses the added
  * special tokens out of them so the decode rules can be enriched with the
  * model's ACTUAL tokens (not just the family's catalog).
+ *
+ * Optimizations:
+ *  - Fast-path: when the container already embeds a tokenizer ([ContainerMetadataReader.ContainerContents.hasAnyTokenizer]),
+ *    no sidecar files are needed — return empty without touching the filesystem (saves 5x File.exists).
+ *  - LRU cache (max 8) by canonical path: repeated loads of the same model (backend fallback, retries)
+ *    reuse the ByteArrays without re-reading the filesystem.
  */
 object TokenizerFiles {
 
     private const val MB = 1024 * 1024
+
+    private const val MAX_CACHE_SIZE = 16
+
+    private val cacheLock = Any()
+    private val cache = object : LinkedHashMap<String, SidecarTokenizers>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, SidecarTokenizers>?): Boolean {
+            return size > MAX_CACHE_SIZE
+        }
+    }
 
     /**
      * Reads the sidecar files for [modelFile] and returns them. Files that are
      * absent are simply null in the result — call [SidecarTokenizers.missingRequired]
      * to fail with the exact missing name when they are required.
      *
+     * Fast-path: if the container already has an embedded tokenizer, the sidecars
+     * are not needed — return empty without 5x File.exists checks. The caller
+     * (LiteRtLmEngine) should prefer the overload that passes the already-read
+     * container to avoid re-reading the header; this fallback peeks the container
+     * cache best-effort.
+     *
      * @throws ModelCompatibilityException if a file exists but cannot be read.
      */
     fun loadFrom(modelFile: File): SidecarTokenizers {
+        // Best-effort fast-path via already-cached container metadata (no I/O if miss)
+        // — the canonical path is the cache key for ContainerMetadataReader, so this
+        // is a cheap synchronized map lookup when the container was already read
+        // during loadModel. If the container has an embedded tokenizer, skip all
+        // filesystem checks.
+        runCatching {
+            val container = ContainerMetadataReader.read(modelFile)
+            if (container.hasAnyTokenizer) return SidecarTokenizers()
+        }
+
+        val key = runCatching { modelFile.canonicalPath }.getOrElse { modelFile.absolutePath }
+        synchronized(cacheLock) { cache[key]?.let { return it } }
+
+        val result = loadFromUncached(modelFile)
+        synchronized(cacheLock) { cache[key] = result }
+        return result
+    }
+
+    /**
+     * Optimized overload: caller already has the parsed container (the common
+     * case in [io.androllm.engine.core.LiteRtLmEngine.loadModel]). When
+     * [container] has any embedded tokenizer, return empty immediately without
+     * any filesystem access.
+     */
+    fun loadFrom(modelFile: File, container: ContainerMetadataReader.ContainerContents?): SidecarTokenizers {
+        if (container?.hasAnyTokenizer == true) {
+            return SidecarTokenizers()
+        }
+        val key = runCatching { modelFile.canonicalPath }.getOrElse { modelFile.absolutePath }
+        synchronized(cacheLock) { cache[key]?.let { return it } }
+
+        val result = loadFromUncached(modelFile)
+        synchronized(cacheLock) { cache[key] = result }
+        return result
+    }
+
+    private fun loadFromUncached(modelFile: File): SidecarTokenizers {
         val dir = modelFile.parentFile ?: throw ModelCompatibilityException("model file has no parent directory: ${modelFile.path}")
         val baseName = modelFile.name.substringBeforeLast('.', modelFile.name)
         return SidecarTokenizers(
@@ -99,6 +157,20 @@ object TokenizerFiles {
             throw ModelCompatibilityException("cannot read tokenizer file: ${file.path}", e)
         }
     }
+
+    /** Clears the sidecar cache (e.g. on engine release). */
+    fun clearCache() {
+        synchronized(cacheLock) { cache.clear() }
+    }
+
+    /** Evicts the cache entry for the given model file. */
+    fun evictCache(modelFile: File) {
+        val key = runCatching { modelFile.canonicalPath }.getOrElse { modelFile.absolutePath }
+        synchronized(cacheLock) { cache.remove(key) }
+    }
+
+    /** Diagnostics: cache occupancy. */
+    fun cacheStats(): String = synchronized(cacheLock) { "size=${cache.size}/$MAX_CACHE_SIZE" }
 
     /**
      * Parses the list of added-token strings from a `tokenizer.json` or

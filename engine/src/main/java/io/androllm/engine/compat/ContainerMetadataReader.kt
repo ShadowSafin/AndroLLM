@@ -47,12 +47,13 @@ object ContainerMetadataReader {
      * Uses a synchronized LinkedHashMap for LRU eviction without circular
      * references.
      */
-    private val metadataCache = object : LinkedHashMap<String, ContainerContents>(8, 0.75f, true) {
+    private val cacheLock = Any()
+    private val metadataCache = object : LinkedHashMap<String, ContainerContents>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ContainerContents>?): Boolean {
             return size > MAX_CACHE_SIZE
         }
     }
-    private const val MAX_CACHE_SIZE = 4
+    private const val MAX_CACHE_SIZE = 16 // increased from 4 for large-model workflows (7B/8B reuse)
 
     data class ContainerContents(
         val metadata: ContainerMetadata,
@@ -75,9 +76,9 @@ object ContainerMetadataReader {
      * is never touched.
      */
     fun read(file: File): ContainerContents {
-        // Check cache first (avoids re-parsing the header for repeated loads)
+        // Check cache first (avoids re-parsing the header for repeated loads) — now LRU 16 and thread-safe
         val canonicalPath = file.canonicalPath
-        metadataCache[canonicalPath]?.let { return it }
+        synchronized(cacheLock) { metadataCache[canonicalPath]?.let { return it } }
 
         if (!file.exists()) {
             throw ModelCompatibilityException("Model file not found: ${file.absolutePath}")
@@ -116,20 +117,23 @@ object ContainerMetadataReader {
         val spTokenizer = spBytes?.let { EmbeddedTokenizer(TokenizerKind.SENTENCEPIECE, it) }
         val result = ContainerContents(metadata, hfTokenizer, spTokenizer)
 
-        // Cache the result for subsequent loads of the same file
-        metadataCache[canonicalPath] = result
+        // Cache the result for subsequent loads of the same file — thread-safe, LRU 16
+        synchronized(cacheLock) { metadataCache[canonicalPath] = result }
         return result
     }
 
     /** Evicts the metadata cache entry for the given file. */
     fun evictCache(file: File) {
-        metadataCache.remove(file.canonicalPath)
+        synchronized(cacheLock) { metadataCache.remove(file.canonicalPath) }
     }
 
     /** Clears the entire metadata cache. */
     fun clearCache() {
-        metadataCache.clear()
+        synchronized(cacheLock) { metadataCache.clear() }
     }
+
+    /** Diagnostics: cache hit rate for startup profiler */
+    fun cacheStats(): String = synchronized(cacheLock) { "size=${metadataCache.size}/$MAX_CACHE_SIZE" }
 
     /**
      * Parses the flatbuffer header from a small bounded read of [file]. If the

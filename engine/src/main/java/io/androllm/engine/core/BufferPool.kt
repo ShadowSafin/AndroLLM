@@ -28,8 +28,7 @@ object BufferPool {
     private val charArrays = ConcurrentLinkedDeque<PooledCharArray>()
 
     /** Total borrows minus returns — should be <= pool size at all times. */
-    @Volatile
-    private var outstandingBuffers = 0
+    private val outstandingBuffers = java.util.concurrent.atomic.AtomicInteger(0)
 
     /**
      * Borrows a [StringBuilder] from the pool with at least [minCapacity]
@@ -42,7 +41,7 @@ object BufferPool {
         if (pooled.builder.capacity() < minCapacity) {
             pooled.builder = StringBuilder(minCapacity)
         }
-        outstandingBuffers++
+        outstandingBuffers.incrementAndGet()
         return pooled
     }
 
@@ -54,7 +53,7 @@ object BufferPool {
         if (stringBuilders.size < MAX_STRING_BUILDERS) {
             stringBuilders.addFirst(builder)
         }
-        outstandingBuffers--
+        outstandingBuffers.decrementAndGet()
     }
 
     /**
@@ -67,7 +66,7 @@ object BufferPool {
         if (pooled.array.size < minSize) {
             pooled.array = ByteArray(minSize)
         }
-        outstandingBuffers++
+        outstandingBuffers.incrementAndGet()
         return pooled
     }
 
@@ -78,7 +77,7 @@ object BufferPool {
         if (byteArrays.size < MAX_BYTE_ARRAYS) {
             byteArrays.addFirst(bytes)
         }
-        outstandingBuffers--
+        outstandingBuffers.decrementAndGet()
     }
 
     /**
@@ -91,7 +90,7 @@ object BufferPool {
         if (pooled.array.size < minSize) {
             pooled.array = CharArray(minSize)
         }
-        outstandingBuffers++
+        outstandingBuffers.incrementAndGet()
         return pooled
     }
 
@@ -102,7 +101,7 @@ object BufferPool {
         if (charArrays.size < MAX_CHAR_ARRAYS) {
             charArrays.addFirst(chars)
         }
-        outstandingBuffers--
+        outstandingBuffers.decrementAndGet()
     }
 
     /**
@@ -112,7 +111,30 @@ object BufferPool {
         stringBuilders.clear()
         byteArrays.clear()
         charArrays.clear()
-        outstandingBuffers = 0
+        outstandingBuffers.set(0)
+    }
+
+    /**
+     * Aggressive-fit: trim pooled buffers to minimum to free RAM before
+     * loading a large model. Keeps at most 2 builders and clears all byte arrays.
+     */
+    fun trimForLowMemory() {
+        synchronized(stringBuilders) {
+            while (stringBuilders.size > 2) stringBuilders.pollLast()
+        }
+        byteArrays.clear()
+        charArrays.clear()
+    }
+
+    /**
+     * Hint that buffers should be released promptly after each prompt when
+     * the model is in aggressive-fit mode (compact, no lingering caches).
+     */
+    fun releaseAggressively() {
+        // Keep pool small under memory pressure — reuse still works, but we avoid holding large arrays.
+        if (stringBuilders.size > 4) {
+            while (stringBuilders.size > 2) stringBuilders.pollLast()
+        }
     }
 
     /**
@@ -122,7 +144,7 @@ object BufferPool {
         stringBuilderCount = stringBuilders.size,
         byteArrayCount = byteArrays.size,
         charArrayCount = charArrays.size,
-        outstandingBuffers = outstandingBuffers,
+        outstandingBuffers = outstandingBuffers.get(),
         maxStringBuilders = MAX_STRING_BUILDERS,
         maxByteArrays = MAX_BYTE_ARRAYS,
         maxCharArrays = MAX_CHAR_ARRAYS
