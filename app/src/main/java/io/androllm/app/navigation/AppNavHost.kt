@@ -216,6 +216,10 @@ fun AppNavHost(
             io.androllm.feature.cloud.CloudProvidersScreen(navController = navController)
         }
 
+        composable(Routes.CLOUD_USAGE) {
+            io.androllm.feature.cloud.CloudUsageDashboardScreen(navController = navController)
+        }
+
         composable(
             route = Routes.CLOUD_MODELS,
             arguments = listOf(navArgument(Routes.ARG_PROVIDER_ID) { type = NavType.StringType })

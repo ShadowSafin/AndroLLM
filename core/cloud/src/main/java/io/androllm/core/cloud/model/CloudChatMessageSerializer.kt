@@ -58,6 +58,11 @@ object CloudChatMessageSerializer : KSerializer<CloudChatMessage> {
             value.toolCalls?.let {
                 put("tool_calls", json.encodeToJsonElement(ListSerializer(CloudToolCall.serializer()), it))
             }
+            // Prompt-caching marker: only emitted when set, so providers that
+            // don't know `cache_control` never see an unknown field.
+            value.cacheControl?.let {
+                put("cache_control", buildJsonObject { put("type", JsonPrimitive(it.type)) })
+            }
         }
         encoder.encodeSerializableValue(JsonObject.serializer(), objectJson)
     }
@@ -82,6 +87,12 @@ object CloudChatMessageSerializer : KSerializer<CloudChatMessage> {
             toolCalls = obj["tool_calls"]?.let {
                 runCatching {
                     json.decodeFromJsonElement(ListSerializer(CloudToolCall.serializer()), it)
+                }.getOrNull()
+            },
+            cacheControl = obj["cache_control"]?.let { el ->
+                runCatching {
+                    val type = el.jsonObject["type"]?.jsonPrimitive?.content
+                    if (type.isNullOrBlank()) null else CloudCacheControl(type)
                 }.getOrNull()
             }
         )

@@ -69,7 +69,13 @@ class LiteLLMClient(
         retries: Int = 3,
         overrides: CloudModelOverrides? = null
     ): Flow<CloudStreamEvent> = flow {
-        val body = request.copy(stream = true)
+        // Ask for a final usage chunk so streaming requests are metered with
+        // real provider token counts (providers that don't support
+        // stream_options simply ignore the field).
+        val body = request.copy(
+            stream = true,
+            stream_options = request.stream_options ?: io.androllm.core.cloud.model.CloudStreamOptions()
+        )
         val url = chatUrl(provider, overrides)
         val headers = streamHeaders(provider, apiKey, overrides)
         var attempt = 0

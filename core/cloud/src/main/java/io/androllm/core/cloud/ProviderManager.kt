@@ -426,6 +426,28 @@ class ProviderManager @Inject constructor(
         val resolvedModelId = if (modelId.isNullOrBlank()) {
             resolveModel(provider) ?: return null
         } else modelId
+        return resolveOnProviderInternal(provider, resolvedModelId)
+    }
+
+    /**
+     * Resolves a chat target on a SPECIFIC provider — used by the gateway's
+     * fallback chain when the primary provider fails before producing any
+     * output. [preferredModelId] is used when that provider offers it (same
+     * model across providers keeps the conversation coherent); otherwise the
+     * provider's own default model is selected.
+     */
+    suspend fun resolveOnProvider(providerId: String, preferredModelId: String? = null): ResolvedCloudModel? {
+        val settings = store.current()
+        val provider = settings.providers.find { it.id == providerId && it.enabled } ?: return null
+        val modelId = preferredModelId
+            ?.takeIf { id -> id in provider.modelIds || provider.customModels.any { m -> m.modelId == id } }
+            ?: resolveModel(provider)
+            ?: return null
+        return resolveOnProviderInternal(provider, modelId)
+    }
+
+    /** Shared key/override resolution for [resolveChatModel] and [resolveOnProvider]. */
+    private suspend fun resolveOnProviderInternal(provider: CloudProvider, resolvedModelId: String): ResolvedCloudModel {
         val apiKey = getApiKey(provider)
         val custom = provider.customModels.firstOrNull { it.modelId == resolvedModelId }
         if (custom != null) {

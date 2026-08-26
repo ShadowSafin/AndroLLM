@@ -227,7 +227,8 @@ class ChatManager @Inject constructor(
                             // own maximum output instead of an 8k ceiling.
                             maxTokens = null,
                             tools = tools
-                        )
+                        ),
+                        sessionId = "voice-assistant"
                     ).collect { event ->
                         when (event) {
                             is CloudStreamEvent.Delta -> roundBuffer.append(event.text)
@@ -238,7 +239,24 @@ class ChatManager @Inject constructor(
                             else -> Unit
                         }
                     }
-                    val bufferedCalls = toolBuffer.flushOnFinish()
+                    var bufferedCalls = toolBuffer.flushOnFinish()
+                    // Fallback for providers without native tool_calls: recover
+                    // calls written into the answer text, strip the raw syntax.
+                    if (bufferedCalls.isEmpty() && tools.isNotEmpty()) {
+                        val roundText = roundBuffer.toString()
+                        val fallback = io.androllm.core.cloud.pipeline.CloudFallbackToolParser.parse(roundText)
+                        if (fallback.isNotEmpty()) {
+                            val cleaned = io.androllm.core.cloud.pipeline.CloudFallbackToolParser.stripToolSyntax(roundText)
+                            roundBuffer.setLength(0)
+                            roundBuffer.append(cleaned)
+                            bufferedCalls = fallback.mapIndexed { index, call ->
+                                io.androllm.core.tools.validation.StreamingToolCallBuffer.BufferedToolCall(
+                                    index = index, id = null, name = call.name, argumentsJson = call.argumentsJson
+                                )
+                            }
+                            Timber.i("ChatManager: recovered %d tool call(s) from plain text (fallback parser)", fallback.size)
+                        }
+                    }
                     if (bufferedCalls.isNotEmpty()) {
                         if (tools.isEmpty()) {
                             // NO tool executor exists: discard the calls and
@@ -342,7 +360,8 @@ class ChatManager @Inject constructor(
                         topP = 0.95,
                         maxTokens = null,
                         tools = emptyList()
-                    )
+                    ),
+                    sessionId = "voice-assistant"
                 ).collect { event ->
                     if (event is CloudStreamEvent.Delta) retryBuffer.append(event.text)
                 }

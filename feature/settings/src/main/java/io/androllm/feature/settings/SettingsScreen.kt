@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
@@ -571,6 +572,12 @@ fun SettingsScreen(
                                 title = "LiteLLM Gateway",
                                 value = "Manage providers & models",
                                 onClick = { navController.navigate(io.androllm.core.navigation.Routes.CLOUD_PROVIDERS) }
+                            )
+                            SettingRow(
+                                icon = Icons.Filled.Insights,
+                                title = "Cloud Usage Dashboard",
+                                value = "Tokens, cost, latency, cache & health",
+                                onClick = { navController.navigate(io.androllm.core.navigation.Routes.CLOUD_USAGE) }
                             )
                         }
                     }

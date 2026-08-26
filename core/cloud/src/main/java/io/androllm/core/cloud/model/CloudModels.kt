@@ -169,6 +169,19 @@ data class CloudToolCallFunction(
 )
 
 /**
+ * Provider prompt-caching marker (Anthropic-style `cache_control`). When set
+ * on a message, [CloudChatMessageSerializer] emits
+ * `"cache_control": {"type": "ephemeral"}` so LiteLLM can pass the marker
+ * through to providers with explicit prompt caching. Providers with automatic
+ * prefix caching (OpenAI, Gemini, DeepSeek...) need no marker — they benefit
+ * from a byte-stable prompt prefix instead (see the prompt cache layer).
+ */
+@Serializable
+data class CloudCacheControl(
+    val type: String = "ephemeral"
+)
+
+/**
  * A multimodal content block (OpenAI-compatible `content` array element).
  * Not serializable on its own — [CloudChatMessage] (de)serializes it via
  * [CloudChatMessageSerializer].
@@ -198,7 +211,13 @@ data class CloudChatMessage(
     /** Set for `role = "assistant"` messages that invoked tools. */
     val toolCalls: List<CloudToolCall>? = null,
     /** Optional author name for `role = "function"`/`"tool"` messages. */
-    val name: String? = null
+    val name: String? = null,
+    /**
+     * Optional prompt-caching marker (Anthropic-style `cache_control`). Only
+     * emitted on the wire when non-null; the prompt cache layer sets it on
+     * stable system/tool-schema prefixes for providers that honor it.
+     */
+    val cacheControl: CloudCacheControl? = null
 ) {
     companion object {
         /** Builds a vision message: text plus an image (URL or data URI). */
@@ -228,8 +247,20 @@ data class CloudChatRequest(
     val seed: Long? = null,
     val stop: List<String> = emptyList(),
     val stream: Boolean = false,
+    /**
+     * Asks the provider to include a final `usage` chunk on streaming calls
+     * (`{"include_usage": true}`). Only set when [stream] is true; providers
+     * that ignore it simply keep their current behavior.
+     */
+    val stream_options: CloudStreamOptions? = null,
     val response_format: CloudResponseFormat? = null,
     val tools: List<CloudTool> = emptyList()
+)
+
+/** `stream_options` for streaming usage accounting. */
+@Serializable
+data class CloudStreamOptions(
+    val include_usage: Boolean = true
 )
 
 /** `response_format`: `{"type":"json_object"}` or `{"type":"json_schema","json_schema":{...}}`. */
@@ -284,7 +315,23 @@ data class CloudChatDelta(
 data class CloudUsage(
     val prompt_tokens: Long = 0,
     val completion_tokens: Long = 0,
-    val total_tokens: Long = 0
+    val total_tokens: Long = 0,
+    /**
+     * Provider-reported prompt caching breakdown (OpenAI `prompt_tokens_details`,
+     * Anthropic/Gemini equivalents normalized by LiteLLM). Null when the
+     * provider does not report it — the prompt cache layer then falls back to
+     * its own saved-token estimates.
+     */
+    val prompt_tokens_details: CloudPromptTokensDetails? = null
+) {
+    /** Tokens served from the provider's prompt cache, 0 when unreported. */
+    val cachedTokens: Long get() = prompt_tokens_details?.cached_tokens ?: 0
+}
+
+/** Provider-reported cached-prompt-token breakdown. */
+@Serializable
+data class CloudPromptTokensDetails(
+    val cached_tokens: Long = 0
 )
 
 /** /v1/models response. */

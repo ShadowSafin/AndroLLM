@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -121,6 +122,15 @@ fun CloudProvidersScreen(
                     navigationIcon = {
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.ledger.deskPaper)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { navController.navigate(Routes.CLOUD_USAGE) }) {
+                            Icon(
+                                Icons.Filled.Insights,
+                                contentDescription = "Usage dashboard",
+                                tint = MaterialTheme.ledger.deskPaper
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -377,6 +387,15 @@ private fun ProviderCard(
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
+                Spacer(Modifier.width(10.dp))
+                // Tool-calling support: native OpenAI-compatible function
+                // calling through the proxy, plus text-fallback parsing for
+                // models that emit tool calls inside the answer text.
+                Text(
+                    text = "✓ tools",
+                    color = MaterialTheme.ledger.revolutNeonEmerald,
+                    style = MaterialTheme.typography.labelMedium
+                )
                 if (isDefault) {
                     Spacer(Modifier.width(10.dp))
                     Text(

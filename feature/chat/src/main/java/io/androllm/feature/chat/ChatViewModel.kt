@@ -1363,7 +1363,8 @@ class ChatViewModel @Inject constructor(
             val toolBuffer = io.androllm.core.tools.validation.StreamingToolCallBuffer()
             cloudGateway.streamChat(
                 messages = history,
-                config = cloudGenerationConfig(tools = tools, providerMaxTokens = providerMaxTokens)
+                config = cloudGenerationConfig(tools = tools, providerMaxTokens = providerMaxTokens),
+                sessionId = _currentConversationId.value.takeIf { it.isNotBlank() }
             ).collect { event ->
                 when (event) {
                     is CloudStreamEvent.Delta -> {
@@ -1391,7 +1392,28 @@ class ChatViewModel @Inject constructor(
                 }
             }
             // Flush buffered tool calls — only complete, valid JSON is emitted, never partial
-            val bufferedCalls = toolBuffer.flushOnFinish()
+            var bufferedCalls = toolBuffer.flushOnFinish()
+            // Fallback for providers/models that do NOT emit native tool_calls
+            // and instead write the call into the answer text. Recover those
+            // calls and strip the raw syntax so it never leaks into the UI.
+            if (bufferedCalls.isEmpty() && tools.isNotEmpty()) {
+                val roundText = roundBuffer.toString()
+                val fallback = io.androllm.core.cloud.pipeline.CloudFallbackToolParser.parse(roundText)
+                if (fallback.isNotEmpty()) {
+                    val cleaned = io.androllm.core.cloud.pipeline.CloudFallbackToolParser.stripToolSyntax(roundText)
+                    roundBuffer.setLength(0)
+                    roundBuffer.append(cleaned)
+                    bufferedCalls = fallback.mapIndexed { index, call ->
+                        io.androllm.core.tools.validation.StreamingToolCallBuffer.BufferedToolCall(
+                            index = index,
+                            id = null,
+                            name = call.name,
+                            argumentsJson = call.argumentsJson
+                        )
+                    }
+                    android.util.Log.i(TAG, "CLOUD: recovered ${fallback.size} tool call(s) from plain text (fallback parser)")
+                }
+            }
             if (bufferedCalls.isNotEmpty()) {
                 if (tools.isEmpty()) {
                     // The model attempted a tool call but NO tool executor
