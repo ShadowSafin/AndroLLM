@@ -180,6 +180,22 @@ scratch/
 # Bundled voice models (sherpa-onnx) — downloaded by downloadVoiceModels
 app/src/main/assets/voice/
 
+# Coding-agent Linux base (proot + Debian trixie). The rootfs tarball is
+# downloaded on-device at first provisioning (~90 MB, SHA-256 pinned in
+# DebianRootfsDownloader) — nothing is bundled in the repo. The proot/loader/
+# libtalloc/shmem binaries AND the guest shim (libguestshim.so) in
+# feature/coding/src/main/jniLibs/ ARE committed (small, patched by hand);
+# the global *.so rule would otherwise hide them.
+!feature/coding/src/main/jniLibs/
+!feature/coding/src/main/jniLibs/**
+
+# Local copy of the Debian rootfs tarball used to seed/test the device
+# (see RealRootfsExtractionTest) — 90 MB, never commit.
+tools/debian-rootfs/
+
+# Local fetch/patch scratch space for the proot binaries (see tools/proot-fetch)
+tools/proot-fetch/
+
 # Oryon-SoC workaround binaries — REQUIRED for wake-word/ASR on Snapdragon
 # 8 Elite / 8s Gen 4 (k2-fsa/sherpa-onnx#3845). Overrides the AAR's
 # libonnxruntime.so with 1.28.0 + version-patched sherpa libs; see
