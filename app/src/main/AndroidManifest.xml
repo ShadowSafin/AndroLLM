@@ -15,6 +15,24 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!--
+        Coding agent workspaces live in shared storage (/storage/emulated/0/...)
+        so users can open their own project folders and browse created
+        workspaces with any file manager. MANAGE_EXTERNAL_STORAGE (All files
+        access, granted through Settings on Android 11+) lets the agent read
+        and write those folders directly; the legacy permissions cover
+        Android 9/10.
+    -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!--
         Android 11+ package visibility: without <queries>, getInstalledApplications()
         and queryIntentActivities() only see system packages — third-party apps
         (Discord, Spotify, …) would be invisible to the automation tools. These
@@ -62,6 +80,8 @@
     <application
         android:name=".AndroLLMApplication"
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
