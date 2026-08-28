@@ -227,5 +227,24 @@ fun AppNavHost(
             io.androllm.feature.cloud.CloudModelsScreen(navController = navController)
         }
 
+        // ── AI Agent Coding Chat (dedicated cloud-only coding mode) ──────────
+        composable(Routes.CODING) {
+            io.androllm.feature.coding.ui.CodingWorkspaceSelectorScreen(
+                onBack = { navController.navigateUp() },
+                onWorkspaceSelected = {
+                    navController.navigate(Routes.CODING_CHAT) { launchSingleTop = true }
+                }
+            )
+        }
+
+        composable(Routes.CODING_CHAT) {
+            io.androllm.feature.coding.ui.CodingChatScreen(
+                onBack = { navController.navigateUp() },
+                onChangeWorkspace = {
+                    navController.navigate(Routes.CODING) { launchSingleTop = true }
+                }
+            )
+        }
+
     }
 }
