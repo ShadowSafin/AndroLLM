@@ -34,6 +34,12 @@ object Routes {
     /** Cloud usage dashboard: tokens, cost, latency, cache, provider health. */
     const val CLOUD_USAGE = AppConstants.Navigation.CLOUD_USAGE_ROUTE
 
+    /** AI Agent Coding Chat: workspace selector entry. */
+    const val CODING = AppConstants.Navigation.CODING_ROUTE
+
+    /** AI Agent Coding Chat: the dedicated coding conversation. */
+    const val CODING_CHAT = AppConstants.Navigation.CODING_CHAT_ROUTE
+
     /** Tool Debug: per-call execution log (prompt → tool → result → LLM output). */
     const val TOOL_DEBUG = "tool-debug"
 
