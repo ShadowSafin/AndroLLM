@@ -154,6 +154,7 @@ dependencies {
     implementation(project(":feature:developer"))
     implementation(project(":feature:cloud"))
     implementation(project(":feature:voice"))
+    implementation(project(":feature:coding"))
 
     // Engine & Docs
     api(project(":engine"))
