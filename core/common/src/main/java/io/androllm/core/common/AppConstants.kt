@@ -48,6 +48,8 @@ object AppConstants {
         const val CLOUD_PROVIDERS_ROUTE = "cloud/providers"
         const val CLOUD_MODELS_ROUTE = "cloud/models/{providerId}"
         const val CLOUD_USAGE_ROUTE = "cloud/usage"
+        const val CODING_ROUTE = "coding"
+        const val CODING_CHAT_ROUTE = "coding/chat"
     }
 
     object Intents {
