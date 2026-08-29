@@ -4,6 +4,11 @@ import io.androllm.feature.coding.agent.CodingGate
 import io.androllm.feature.coding.agent.CodingTaskMode
 import io.androllm.feature.coding.environment.CommandResult
 import io.androllm.feature.coding.environment.InstallProgress
+import io.androllm.feature.coding.task.CheckpointRef
+import io.androllm.feature.coding.task.CodingTaskState
+import io.androllm.feature.coding.task.FileChangeRecord
+import io.androllm.feature.coding.task.RecoveryRecord
+import io.androllm.feature.coding.task.TestResultRecord
 import io.androllm.feature.coding.tools.ChangeKind
 import io.androllm.feature.coding.tools.PlanStep
 import io.androllm.feature.coding.workspace.CodingWorkspace
@@ -100,9 +105,22 @@ data class CodingUiState(
     val pendingAddonInstall: String? = null,
     /** Major file change awaiting diff review (approve/reject). */
     val pendingEditReview: PendingEditReviewUi? = null,
+    /**
+     * The plan the agent just proposed (NOT yet approved). When non-null, the
+     * PlanApprovalCard is shown with Edit / Reorder / Approve / Reject controls.
+     */
+    val pendingPlanApproval: List<PlanStep>? = null,
     val fileTree: FileTreeNode? = null,
     /** The agent's visible task plan (maintained via the update_plan tool). */
     val plan: List<PlanStep> = emptyList(),
+    /** Recent file activity (most recent first), shown in the file activity panel. */
+    val fileActivity: List<FileChangeRecord> = emptyList(),
+    /** Available checkpoints for the active workspace, newest first. */
+    val checkpoints: List<CheckpointRef> = emptyList(),
+    /** The most recent auto-test result (for the test status strip / panel). */
+    val lastTestResult: TestResultRecord? = null,
+    /** The most recent recovery attempt (for the activity feed / status strip). */
+    val lastRecovery: RecoveryRecord? = null,
     /** Active task mode (tailors the agent's working method). */
     val taskMode: CodingTaskMode = CodingTaskMode.GENERAL,
     /** When true, major file changes require the user's diff approval. */
@@ -111,7 +129,17 @@ data class CodingUiState(
     val previewUrl: String = "",
     val preview: PreviewUiState = PreviewUiState(),
     val showMarketplace: Boolean = false,
-    val showEnvironment: Boolean = false
+    val showEnvironment: Boolean = false,
+    /** Whether the checkpoints panel is open in the composer toggles row. */
+    val showCheckpoints: Boolean = false,
+    /** Whether the file activity panel is open in the composer toggles row. */
+    val showFileActivity: Boolean = false,
+    /**
+     * A previously persisted task for the active workspace awaiting a
+     * resume / discard decision. When non-null, a banner is shown above the
+     * chat asking what to do. Cleared once the user acts.
+     */
+    val pendingResumeTask: CodingTaskState? = null
 )
 
 /** A terminal line for the dedicated terminal panel (raw output preserved). */

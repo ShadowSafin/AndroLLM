@@ -29,6 +29,18 @@ import io.androllm.feature.coding.tools.CodingToolContext
 import io.androllm.feature.coding.tools.CodingToolExecutor
 import io.androllm.feature.coding.tools.CodingToolRegistry
 import io.androllm.feature.coding.tools.CodingToolResult
+import io.androllm.feature.coding.task.AutoTestRunner
+import io.androllm.feature.coding.task.CheckpointRef
+import io.androllm.feature.coding.task.CheckpointStore
+import io.androllm.feature.coding.task.CodingTaskState
+import io.androllm.feature.coding.task.CommandRecovery
+import io.androllm.feature.coding.task.FileChangeRecord
+import io.androllm.feature.coding.task.RecoveryRecord
+import io.androllm.feature.coding.task.TaskStateRepository
+import io.androllm.feature.coding.task.TestResultRecord
+import io.androllm.feature.coding.task.TestRunResult
+import io.androllm.feature.coding.task.WorkspaceContext
+import io.androllm.feature.coding.task.WorkspaceContextLoader
 import io.androllm.feature.coding.workspace.ChatTranscriptStore
 import io.androllm.feature.coding.workspace.CodingSessionState
 import io.androllm.feature.coding.workspace.CodingTranscript
@@ -83,7 +95,10 @@ class CodingChatViewModel @Inject constructor(
     private val cloudClient: CodingCloudClient,
     private val toolRegistry: CodingToolRegistry,
     private val availabilityChecker: CodingAvailabilityChecker,
-    private val transcriptStore: ChatTranscriptStore
+    private val transcriptStore: ChatTranscriptStore,
+    private val checkpointStore: CheckpointStore,
+    private val taskStateRepository: TaskStateRepository,
+    private val contextLoader: WorkspaceContextLoader
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CodingUiState())
@@ -125,6 +140,22 @@ class CodingChatViewModel @Inject constructor(
     // Diff-review gate: major file changes suspend here until the user approves
     // or rejects the shown diff (OpenCode-style review before apply).
     private val editReviewDeferred = MutableStateFlow<CompletableDeferred<Boolean>?>(null)
+
+    // Plan approval gate: when the agent first emits a plan for a new task, the
+    // draft is held here for the user to review / edit / approve / reject before
+    // any code is touched. Once approved, the plan commits to state.plan and the
+    // agent proceeds; on reject the agent is told the plan was rejected and asked
+    // to revise.
+    private val planApprovalDeferred = MutableStateFlow<CompletableDeferred<Boolean>?>(null)
+
+    // Cached context summary for the active workspace, injected into the system
+    // prompt on each fresh request so the model knows the stack before it asks.
+    private var workspaceContext: WorkspaceContext? = null
+
+    // Latest persisted task state for the active workspace (in-memory mirror
+    // of the JSON file). Updated on every plan change, file change, log update,
+    // server-status change, recovery, and test result.
+    private var currentTaskState: CodingTaskState? = null
 
     // ── Preview server lifecycle ─────────────────────────────────────────────
     // The preview is ALWAYS served over a local HTTP server (never file://).
@@ -379,9 +410,20 @@ class CodingChatViewModel @Inject constructor(
             services = backgroundServices,
             onCommandOutput = { line -> toolOutputSink.value?.invoke(line) },
             editReviewGate = editReviewGate,
+            planApprovalGate = { draft -> onPlanProposed(draft) },
             onPlanUpdated = { steps -> onPlanUpdated(steps) },
-            onFileTouched = { path ->
+            onFileTouched = { path, kind ->
                 persistSession { it.withRecentFile(path) }
+                // File activity feed: keep the most recent ~50 entries, newest first.
+                // Reads are tracked in "recent files" (above) but NOT shown in the
+                // activity feed — only real mutations (create / edit / delete) are.
+                if (kind != "read") {
+                    val record = FileChangeRecord(path = path, kind = kind)
+                    val activity = (listOf(record) + _uiState.value.fileActivity).take(50)
+                    _uiState.update { it.copy(fileActivity = activity) }
+                    currentTaskState = currentTaskState?.copy(changedFiles = activity)
+                    currentTaskState?.let { saveTaskState(it) }
+                }
                 // File touched — schedule a preview re-scan (debounced) so that
                 // newly created / updated pages auto-open and refresh.
                 viewModelScope.launch { scanPreview(trigger = "file_touched:$path", isRefresh = true) }
@@ -406,19 +448,47 @@ class CodingChatViewModel @Inject constructor(
             }
         }
 
+        // Smart context: cache a compact project summary for the system prompt.
+        viewModelScope.launch {
+            val ctx = runCatching { contextLoader.load(root) }.getOrNull()
+            if (ctx != null) {
+                workspaceContext = ctx
+                refreshSystemMessage()
+            }
+        }
+        // Task state: if a prior task was persisted for this workspace, surface
+        // a Resume / Discard prompt above the chat.
+        viewModelScope.launch {
+            val saved = loadTaskState(workspace.id)
+            if (saved != null && saved.isResumable) {
+                _uiState.update { it.copy(pendingResumeTask = saved) }
+            }
+        }
+        // Checkpoints: load the list for the checkpoints panel.
+        viewModelScope.launch {
+            val list = runCatching { checkpointStore.list() }.getOrDefault(emptyList())
+            _uiState.update { it.copy(checkpoints = list) }
+        }
+
         refreshFileTree()
         // Initial preview scan for this workspace.
         viewModelScope.launch { scanPreview(trigger = "workspace_attached") }
     }
 
-    private fun buildSystemPrompt(workspace: CodingWorkspace): String = CodingSystemPrompt.build(
-        workspace = workspace,
-        environment = environmentManager,
-        toolNames = toolRegistry.names(),
-        objective = _uiState.value.objective,
-        linuxBaseReady = linuxBaseManager.isInstalled(),
-        taskMode = _uiState.value.taskMode
-    )
+    private fun buildSystemPrompt(workspace: CodingWorkspace): String {
+        val base = CodingSystemPrompt.build(
+            workspace = workspace,
+            environment = environmentManager,
+            toolNames = toolRegistry.names(),
+            objective = _uiState.value.objective,
+            linuxBaseReady = linuxBaseManager.isInstalled(),
+            taskMode = _uiState.value.taskMode
+        )
+        // Smart context: a compact project summary so the model understands the
+        // stack from the first turn without having to read every file.
+        val ctx = workspaceContext
+        return if (ctx == null) base else base + "\n\nPROJECT CONTEXT\n" + ctx.oneLiner()
+    }
 
     /** Replaces the system message (index 0) after mode/objective changes. */
     private fun refreshSystemMessage() {
@@ -808,6 +878,20 @@ class CodingChatViewModel @Inject constructor(
                 if (changedFiles.isNotEmpty()) {
                     turnChangedFiles.clear()
                     addSystemMessage("📝 Changed: " + changedFiles.joinToString(", "))
+                    // Auto-test: when the project has a recognisable test command,
+                    // run it once after a turn that changed files. The user sees
+                    // the result in chat and the test panel.
+                    val ws = _uiState.value.workspace
+                    if (ws != null) {
+                        val detected = runCatching {
+                            AutoTestRunner { _, _ -> TestRunResult(0, "") }
+                                .detect(File(ws.absolutePath))
+                        }.getOrNull()
+                        if (detected != null) {
+                            addSystemMessage("🧪 Running ${detected.label}…")
+                            runAutoTests()
+                        }
+                    }
                 }
                 // After every turn: re-scan the preview target, then (when nothing
                 // is serving yet) start the right local HTTP server automatically —
@@ -902,7 +986,7 @@ class CodingChatViewModel @Inject constructor(
     fun runManualCommand(command: String) {
         val executor = commandExecutor ?: return
         viewModelScope.launch {
-            val result = executor.execute(command)
+            val result = runWithRecovery(command)
             persistSession { it.withCommand(command) }
             if (result.missingDependency != null) {
                 addSystemMessage(result.missingDependency.reason)
@@ -1041,11 +1125,285 @@ class CodingChatViewModel @Inject constructor(
 
     // ── Plan ─────────────────────────────────────────────────────────────────
 
+    /**
+     * True after the user has approved the first plan for the current task.
+     * Subsequent `update_plan` calls bypass the approval gate until a new task
+     * is started (see [newTask]).
+     */
+    private var planApprovedForTask: Boolean = false
+
+    /**
+     * Gate invoked by [UpdatePlanTool] the first time the agent emits a plan
+     * for a fresh task. Surfaces the draft as `pendingPlanApproval`, suspends
+     * on a deferred, and returns the user's verdict. After approval, the
+     * committed plan is reflected in `state.plan` by the time control returns.
+     */
+    private suspend fun onPlanProposed(draft: List<io.androllm.feature.coding.tools.PlanStep>): Boolean {
+        if (planApprovedForTask) return true
+        val deferred = CompletableDeferred<Boolean>()
+        planApprovalDeferred.value = deferred
+        _uiState.update { it.copy(pendingPlanApproval = draft) }
+        addSystemMessage("📋 Plan proposed (" + draft.size + " steps) — review and approve to continue.")
+        val verdict = runCatching { deferred.await() }.getOrDefault(false)
+        planApprovalDeferred.value = null
+        _uiState.update { it.copy(pendingPlanApproval = null) }
+        if (verdict) planApprovedForTask = true
+        return verdict
+    }
+
     private fun onPlanUpdated(steps: List<io.androllm.feature.coding.tools.PlanStep>) {
         _uiState.update { it.copy(plan = steps) }
         persistSession {
             it.copy(plan = steps.map { s -> "[${s.status.wire}] ${s.text}" })
         }
+        currentTaskState = currentTaskState?.copy(
+            plan = steps,
+            currentStepIndex = steps.indexOfFirst { it.status == io.androllm.feature.coding.tools.PlanStepStatus.IN_PROGRESS }
+                .coerceAtLeast(if (steps.all { it.status == io.androllm.feature.coding.tools.PlanStepStatus.DONE }) steps.lastIndex + 1 else 0)
+        )
+        currentTaskState?.let { saveTaskState(it) }
+    }
+
+    /** Approve the pending plan (the user can edit it first via [editPlanStep] etc.). */
+    fun approvePlan(editedDraft: List<io.androllm.feature.coding.tools.PlanStep>? = null) {
+        val draft = editedDraft ?: _uiState.value.pendingPlanApproval ?: return
+        val normalized = draft.map { step ->
+            if (step.status == io.androllm.feature.coding.tools.PlanStepStatus.IN_PROGRESS) {
+                step.copy(status = io.androllm.feature.coding.tools.PlanStepStatus.PENDING)
+            } else step
+        }
+        // Mark exactly one step in_progress (the first) so the model can start.
+        val launched = normalized.mapIndexed { i, s ->
+            if (i == 0) s.copy(status = io.androllm.feature.coding.tools.PlanStepStatus.IN_PROGRESS) else s
+        }
+        onPlanUpdated(launched)
+        planApprovalDeferred.value?.complete(true)
+    }
+
+    fun rejectPlan() {
+        planApprovalDeferred.value?.complete(false)
+    }
+
+    /** User-edited a pending plan step text. Only the pending draft is affected. */
+    fun editPlanStep(stepId: String, newText: String) {
+        val draft = _uiState.value.pendingPlanApproval ?: return
+        val next = draft.map { if (it.id == stepId) it.copy(text = newText) else it }
+        _uiState.update { it.copy(pendingPlanApproval = next) }
+    }
+
+    fun addPlanStep(text: String) {
+        val trimmed = text.trim().ifBlank { return }
+        val draft = _uiState.value.pendingPlanApproval ?: return
+        _uiState.update {
+            it.copy(pendingPlanApproval = draft + io.androllm.feature.coding.tools.PlanStep.pending(trimmed))
+        }
+    }
+
+    fun removePlanStep(stepId: String) {
+        val draft = _uiState.value.pendingPlanApproval ?: return
+        _uiState.update { it.copy(pendingPlanApproval = draft.filterNot { it.id == stepId }) }
+    }
+
+    fun movePlanStep(stepId: String, delta: Int) {
+        val draft = _uiState.value.pendingPlanApproval ?: return
+        val idx = draft.indexOfFirst { it.id == stepId }
+        if (idx < 0) return
+        val newIdx = (idx + delta).coerceIn(0, draft.lastIndex)
+        if (newIdx == idx) return
+        val mutable = draft.toMutableList()
+        val moved = mutable.removeAt(idx)
+        mutable.add(newIdx, moved)
+        _uiState.update { it.copy(pendingPlanApproval = mutable.toList()) }
+    }
+
+    // ── Checkpoints ──────────────────────────────────────────────────────────
+
+    fun toggleCheckpoints() = _uiState.update { it.copy(showCheckpoints = !it.showCheckpoints) }
+    fun toggleFileActivity() = _uiState.update { it.copy(showFileActivity = !it.showFileActivity) }
+
+    /**
+     * Creates a named checkpoint of the current workspace contents. Snapshots
+     * the workspace on the IO dispatcher and persists a [CheckpointRef] in the
+     * current task state. The user sees the new checkpoint at the top of the
+     * checkpoints panel.
+     */
+    fun createCheckpoint(name: String, onDone: (Boolean) -> Unit = {}) {
+        val root = toolContext?.fileOps?.root() ?: run { onDone(false); return }
+        viewModelScope.launch {
+            val resolvedName = name.ifBlank { "Checkpoint ${System.currentTimeMillis() / 1000}" }
+            val snapshot = runCatching { checkpointStore.snapshot(root) }.getOrElse { emptyList() }
+            if (snapshot.isEmpty()) { onDone(false); return@launch }
+            val ref = runCatching { checkpointStore.create(resolvedName, snapshot) }.getOrNull()
+            if (ref == null) { onDone(false); return@launch }
+            val newList = listOf(ref) + _uiState.value.checkpoints
+            _uiState.update { it.copy(checkpoints = newList) }
+            currentTaskState = currentTaskState?.copy(checkpoints = newList)
+            currentTaskState?.let { saveTaskState(it) }
+            addSystemMessage("📸 Checkpoint '${ref.name}' saved (${ref.fileCount} files).")
+            onDone(true)
+        }
+    }
+
+    /** Restores a checkpoint: overwrites the workspace with the snapshot's contents. */
+    fun restoreCheckpoint(checkpointId: String) {
+        val root = toolContext?.fileOps?.root() ?: return
+        viewModelScope.launch {
+            val written = runCatching { checkpointStore.restore(checkpointId, root) }.getOrDefault(0)
+            if (written == 0) {
+                addSystemMessage("⚠️ Checkpoint restore failed or empty.")
+                return@launch
+            }
+            addSystemMessage("↩️ Restored checkpoint — $written files written. Workspace re-scanning…")
+            refreshFileTree()
+            scanPreview(trigger = "checkpoint_restored", isRefresh = true)
+        }
+    }
+
+    fun deleteCheckpoint(checkpointId: String) {
+        viewModelScope.launch {
+            runCatching { checkpointStore.delete(checkpointId) }
+            val newList = _uiState.value.checkpoints.filterNot { it.id == checkpointId }
+            _uiState.update { it.copy(checkpoints = newList) }
+            currentTaskState = currentTaskState?.copy(checkpoints = newList)
+            currentTaskState?.let { saveTaskState(it) }
+        }
+    }
+
+    fun refreshCheckpoints() {
+        viewModelScope.launch {
+            val list = runCatching { checkpointStore.list() }.getOrDefault(emptyList())
+            _uiState.update { it.copy(checkpoints = list) }
+            currentTaskState = currentTaskState?.copy(checkpoints = list)
+            currentTaskState?.let { saveTaskState(it) }
+        }
+    }
+
+    // ── Auto-recovery (manual commands) ──────────────────────────────────────
+
+    /**
+     * Wraps the manual command path with one safe auto-recovery attempt. When
+     * a command fails and `CommandRecovery` recognises the failure (peer-dep
+     * conflict, port collision, missing Python module, etc.), the recovery
+     * command is run and the original is re-issued once. The user always sees
+     * what happened via system messages.
+     */
+    private suspend fun runWithRecovery(command: String, workingDir: String = ""): io.androllm.feature.coding.environment.CommandResult {
+        val executor = commandExecutor ?: error("No workspace attached")
+        val first = executor.execute(command, workingDir)
+        if (first.isSuccess) return first
+        if (first.cancelled) return first
+        if (first.missingDependency != null) return first
+        val plan = CommandRecovery.suggest(command, first.combinedOutput.takeLast(4_000))
+            ?: return first
+        addSystemMessage("🛠 Auto-recovery (${plan.category}): ${plan.rationale}")
+        val recovery = executor.execute(plan.command, plan.workingDir ?: workingDir)
+        val succeeded = recovery.isSuccess
+        val record = RecoveryRecord(
+            originalCommand = command,
+            recoveryCommand = plan.command,
+            category = plan.category,
+            succeeded = succeeded
+        )
+        _uiState.update { it.copy(lastRecovery = record) }
+        addSystemMessage(
+            if (succeeded) "✅ Auto-recovery succeeded — re-running the original command."
+            else "❌ Auto-recovery did not fix the failure — surfacing to the agent."
+        )
+        if (!succeeded) return first
+        val retry = executor.execute(command, workingDir)
+        return retry
+    }
+
+    // ── Auto-test runner ─────────────────────────────────────────────────────
+
+    /**
+     * Runs the project's test command (if a known marker is present), records
+     * the result, and surfaces a system message. Called automatically after
+     * each turn that contains file changes, and also exposed as a button in
+     * the test panel. Returns synchronously; the actual run happens on the
+     * viewModel scope.
+     */
+    fun runAutoTests() {
+        val workspace = _uiState.value.workspace ?: return
+        val root = File(workspace.absolutePath)
+        val runner = AutoTestRunner { command, workingDir ->
+            val exec = commandExecutor ?: return@AutoTestRunner TestRunResult(exitCode = -1, combinedOutput = "no executor")
+            val r = runWithRecovery(command, workingDir.path)
+            TestRunResult(exitCode = r.exitCode, combinedOutput = r.combinedOutput)
+        }
+        viewModelScope.launch {
+            val result = runCatching { runner.run(root) }.getOrNull() ?: return@launch
+            _uiState.update { it.copy(lastTestResult = result) }
+            currentTaskState = currentTaskState?.copy(lastTestResult = result)
+            currentTaskState?.let { saveTaskState(it) }
+            addSystemMessage(
+                if (result.isPass) "✅ Tests passed (${result.framework}, ${result.passed} passed)."
+                else "❌ Tests failed (${result.framework}, ${result.passed} passed, ${result.failed} failed)."
+            )
+        }
+    }
+
+    // ── Mid-course interrupt ─────────────────────────────────────────────────
+
+    /**
+     * Pauses the running generation, appends the user's message as a new
+     * directive step at the END of the current plan (so the agent picks it up
+     * without losing context), and lets the loop resume from the current
+     * step. The user's message is also pushed to the chat and to the cloud
+     * history so the model sees it.
+     */
+    fun sendInterrupt(message: String) {
+        val trimmed = message.trim()
+        if (trimmed.isEmpty()) return
+        // The user is taking control — flip the plan gate so a future
+        // update_plan is treated as a revision (not a new approval cycle).
+        planApprovedForTask = true
+        addSystemMessage("⏸ Interrupt: " + trimmed)
+        // Append as a directive in the plan, after the current step.
+        val plan = _uiState.value.plan
+        val cur = plan.indexOfFirst { it.status == io.androllm.feature.coding.tools.PlanStepStatus.IN_PROGRESS }
+        val directive = io.androllm.feature.coding.tools.PlanStep.pending("User directive: $trimmed")
+        val next = plan.toMutableList()
+        val insertAt = if (cur < 0) plan.size else cur + 1
+        next.add(insertAt, directive)
+        _uiState.update { it.copy(plan = next) }
+        cloudHistory += CloudChatMessage(role = "user", content = "DIRECTIVE: $trimmed")
+    }
+
+    // ── Task state persistence ──────────────────────────────────────────────
+
+    private fun saveTaskState(state: CodingTaskState) {
+        currentTaskState = state
+        viewModelScope.launch { runCatching { taskStateRepository.save(state) } }
+    }
+
+    private suspend fun loadTaskState(workspaceId: String): CodingTaskState? =
+        runCatching { taskStateRepository.load(workspaceId) }.getOrNull()
+
+    /** Resume a saved task: restore its plan + file activity to the UI. */
+    fun resumeTask(task: CodingTaskState) {
+        _uiState.update {
+            it.copy(
+                plan = task.plan,
+                fileActivity = task.changedFiles,
+                pendingResumeTask = null
+            )
+        }
+        currentTaskState = task
+        planApprovedForTask = task.plan.isNotEmpty()
+        addSystemMessage("▶ Resumed task from ${formatTimestamp(task.lastUpdatedMs)}.")
+    }
+
+    /** Discard a saved task and clear its persisted file. */
+    fun discardPendingTask(task: CodingTaskState) {
+        viewModelScope.launch { runCatching { taskStateRepository.clear(task.workspaceId) } }
+        _uiState.update { it.copy(pendingResumeTask = null) }
+    }
+
+    private fun formatTimestamp(ms: Long): String {
+        if (ms <= 0) return "earlier"
+        val sdf = java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.US)
+        return sdf.format(java.util.Date(ms))
     }
 
     // ── Preview auto-detection + lifecycle ─────────────────────────────────
@@ -1113,8 +1471,11 @@ class CodingChatViewModel @Inject constructor(
             PreviewDetector.PreviewKind.DEV_COMMAND
         )
 
+        // The preview is ONLY available while a local server is actually
+        // running: a detected target without a live server is "startable",
+        // never "ready".
         val newStatus = when {
-            resolvedUrl != null -> PreviewUiStatus.READY
+            resolvedUrl != null && serverRunning -> PreviewUiStatus.READY
             result.status == PreviewDetector.PreviewStatus.FAILED -> PreviewUiStatus.FAILED
             else -> PreviewUiStatus.NOT_AVAILABLE
         }
@@ -1142,7 +1503,9 @@ class CodingChatViewModel @Inject constructor(
                     refreshTick = tick,
                     lastScannedAtMs = System.currentTimeMillis(),
                     error = if (newStatus == PreviewUiStatus.FAILED) result.suggestion else s.preview.error,
-                    canStartServer = startable
+                    canStartServer = startable,
+                    // A dead server invalidates the tracked preview service.
+                    serverServiceId = if (newStatus == PreviewUiStatus.READY) s.preview.serverServiceId else null
                 ),
                 // Keep legacy previewUrl in sync so existing UI that reads it stays correct.
                 previewUrl = if (shouldAutoOpen && resolvedUrl != null) resolvedUrl else s.previewUrl
@@ -1150,8 +1513,8 @@ class CodingChatViewModel @Inject constructor(
         }
 
         if (shouldAutoOpen && resolvedUrl != null) {
-            Timber.i("preview auto-opened: $resolvedUrl (trigger=$trigger)")
-            addSystemMessage("👁️ Preview ready: $resolvedUrl")
+            Timber.i("preview ready: $resolvedUrl (trigger=$trigger)")
+            addSystemMessage("👁️ Preview ready: $resolvedUrl — tap Preview to open it in your browser.")
         }
     }
 
@@ -1161,10 +1524,10 @@ class CodingChatViewModel @Inject constructor(
             PreviewDetector.PreviewKind.DEV_COMMAND ->
                 "Start Preview launches the dev server (" +
                     (result.stackReport?.devCommands?.firstOrNull() ?: "npm run dev") +
-                    "), waits until it responds, then opens the page here."
+                    "), waits until it responds, then you can open the page in your browser."
             PreviewDetector.PreviewKind.STATIC_FILE,
             PreviewDetector.PreviewKind.BUILD_OUTPUT ->
-                "Start Preview serves ${result.target.relativePath} through a local HTTP server and opens it here."
+                "Start Preview serves ${result.target.relativePath} through a local HTTP server — then you can open it in your browser."
             else -> result.suggestion ?: ""
         }
 
@@ -1305,7 +1668,7 @@ class CodingChatViewModel @Inject constructor(
                             previewUrl = url
                         )
                     }
-                    addSystemMessage("👁️ Preview ready at $url")
+                    addSystemMessage("👁️ Preview ready at $url — tap Preview to open it in your browser.")
                 } else {
                     val log = backgroundServices.logTail(serviceId, 2000).orEmpty()
                     setPreviewPhase(null)
@@ -1382,68 +1745,11 @@ class CodingChatViewModel @Inject constructor(
         _uiState.update { it.copy(preview = it.preview.copy(phase = phase)) }
     }
 
-    fun setPreviewUrl(url: String) {
-        val trimmed = url.trim()
-        _uiState.update { it.copy(previewUrl = trimmed) }
-        // Also reflect in preview state so the header badge stays consistent
-        if (trimmed.isNotBlank()) {
-            _uiState.update {
-                it.copy(
-                    preview = it.preview.copy(
-                        status = PreviewUiStatus.READY,
-                        targetUrl = trimmed,
-                        targetTitle = "Manual preview",
-                        autoOpened = false
-                    )
-                )
-            }
-            Timber.i("preview: manual URL set: $trimmed")
-        }
-    }
-
     fun refreshPreview() {
         viewModelScope.launch {
             Timber.i("preview refreshed: manual refresh requested")
             scanPreview(trigger = "manual_refresh", isRefresh = true)
         }
-    }
-
-    fun reportPreviewFailed(error: String) {
-        Timber.w("preview failed: $error")
-        _uiState.update {
-            it.copy(
-                preview = it.preview.copy(
-                    status = PreviewUiStatus.FAILED,
-                    error = error
-                )
-            )
-        }
-    }
-
-    fun reportPreviewOpened(url: String) {
-        Timber.i("preview opened: $url")
-        _uiState.update {
-            it.copy(preview = it.preview.copy(status = PreviewUiStatus.READY, targetUrl = url, error = null))
-        }
-    }
-
-    /** Manual fallback when auto-detection found nothing but user wants to try a URL/path. */
-    fun openManualPreview(urlOrPath: String) {
-        val raw = urlOrPath.trim()
-        if (raw.isBlank()) return
-        // A workspace-relative HTML path is served through the local HTTP server
-        // (never a raw file:// URL).
-        if (raw.endsWith(".html") || raw.endsWith(".htm")) {
-            Timber.i("preview manual fallback: serving $raw via local HTTP server")
-            startPreviewServer("manual_path:$raw")
-            return
-        }
-        val url = when {
-            raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("file://") -> raw
-            else -> raw
-        }
-        Timber.i("preview manual fallback used: $raw -> $url")
-        setPreviewUrl(url)
     }
 
     // ── Retry failed commands ────────────────────────────────────────────────

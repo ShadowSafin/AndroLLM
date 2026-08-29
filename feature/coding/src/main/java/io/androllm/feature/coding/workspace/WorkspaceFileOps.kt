@@ -52,6 +52,9 @@ class WorkspaceFileOps(private val root: File) {
     /** Canonical root used ONLY for relativizing display paths. */
     private val canonicalRoot: File = root.canonicalFile
 
+    /** Public accessor: the workspace root as a [File] in I/O-safe form. */
+    fun root(): File = ioRoot
+
     /** Resolves a model-supplied path into the workspace or throws. */
     private fun resolve(path: String): File =
         WorkspaceSafety.resolveAny(ioRoot, path)
