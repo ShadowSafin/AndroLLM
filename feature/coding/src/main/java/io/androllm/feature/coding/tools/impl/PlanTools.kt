@@ -76,6 +76,20 @@ class UpdatePlanTool : CodingTool {
             )
         }
 
+        // If the task is waiting for plan approval, route the proposal through
+        // the gate and HOLD committing it until the user has approved (the gate
+        // may have edited, reordered or removed steps before returning).
+        val gate = context.planApprovalGate
+        if (gate != null) {
+            val approved = runCatching { gate.approve(steps) }.getOrDefault(false)
+            if (!approved) {
+                return CodingToolResult.Failure(
+                    "The user rejected the proposed plan. Revise the plan and try again — ask the user for guidance if you are unsure what they want.",
+                    retryable = true
+                )
+            }
+        }
+
         context.onPlanUpdated(steps)
         val done = steps.count { it.status == PlanStepStatus.DONE }
         val current = steps.firstOrNull { it.status == PlanStepStatus.IN_PROGRESS }?.text

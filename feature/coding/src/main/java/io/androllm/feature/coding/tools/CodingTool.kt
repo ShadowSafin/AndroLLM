@@ -51,6 +51,10 @@ data class CodingToolSpec(
  *   can stream a command's stdout/stderr in real time while it runs.
  * @param editReviewGate user-approval gate for major file changes (diff review);
  *   null auto-approves everything (tests / review disabled).
+ * @param planApprovalGate user-approval gate for the first plan a task emits.
+ *   When non-null, the first update_plan call for a not-yet-approved task is
+ *   held as a draft and the gate decides whether the plan may be applied. The
+ *   gate implementation is responsible for letting the user edit the plan.
  * @param onPlanUpdated fired when the agent updates its visible task plan.
  */
 class CodingToolContext(
@@ -60,12 +64,25 @@ class CodingToolContext(
     val services: BackgroundServiceManager? = null,
     val onCommandOutput: (String) -> Unit = {},
     val editReviewGate: EditReviewGate? = null,
+    val planApprovalGate: PlanApprovalGate? = null,
     val onPlanUpdated: (List<PlanStep>) -> Unit = {},
-    private val onFileTouched: (String) -> Unit = {},
+    private val onFileTouched: (path: String, kind: String) -> Unit = { _, _ -> },
     private val onToolUsed: (String) -> Unit = {}
 ) {
-    fun recordFile(path: String) = onFileTouched(path)
+    /** Records a touched file for the file-activity feed. [kind] is "read", "create", "edit", or "delete". */
+    fun recordFile(path: String, kind: String = "read") = onFileTouched(path, kind)
     fun recordTool(name: String) = onToolUsed(name)
+}
+
+/**
+ * Asks the user to approve / edit a plan the agent just emitted. When the gate
+ * approves, the orchestrator commits the plan and the agent proceeds; when it
+ * rejects, the agent is told to revise the plan and the visible plan is left
+ * empty. The gate should only block the FIRST plan for a new task — once the
+ * user has approved a plan, subsequent update_plan calls commit directly.
+ */
+fun interface PlanApprovalGate {
+    suspend fun approve(draft: List<PlanStep>): Boolean
 }
 
 /** Outcome of a coding tool invocation (fed back to the model verbatim). */

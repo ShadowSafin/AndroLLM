@@ -177,7 +177,7 @@ class WriteFileTool : CodingTool {
             )?.let { return it }
 
             val f = context.fileOps.writeFile(path, content)
-            context.recordFile(path)
+            context.recordFile(path, kind = if (existed) "edit" else "create")
             val suffix = FileChangeSupport.statsSuffix(oldContent, content)
             CodingToolResult.Success(
                 "Wrote ${content.length} chars to $path (${f.length()} bytes on disk).$suffix",
@@ -222,7 +222,7 @@ class EditFileTool : CodingTool {
                 ?.let { return it }
 
             context.fileOps.writeFile(path, preview.updatedContent)
-            context.recordFile(path)
+            context.recordFile(path, kind = "edit")
             val suffix = FileChangeSupport.statsSuffix(preview.originalContent, preview.updatedContent)
             CodingToolResult.Success(
                 "Edited $path — replaced ${preview.replacements} occurrence${if (preview.replacements == 1) "" else "s"}.$suffix",
@@ -263,7 +263,7 @@ class ReplaceTextTool : CodingTool {
                 ?.let { return it }
 
             context.fileOps.writeFile(path, preview.updatedContent)
-            context.recordFile(path)
+            context.recordFile(path, kind = "edit")
             val suffix = FileChangeSupport.statsSuffix(preview.originalContent, preview.updatedContent)
             CodingToolResult.Success(
                 "Replaced ${preview.replacements} occurrence${if (preview.replacements == 1) "" else "s"} in $path.$suffix",
