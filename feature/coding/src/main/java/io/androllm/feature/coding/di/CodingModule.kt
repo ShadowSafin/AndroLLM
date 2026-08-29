@@ -20,6 +20,11 @@ import io.androllm.feature.coding.environment.proot.AndroidProotFiles
 import io.androllm.feature.coding.environment.proot.DebianRootfsDownloader
 import io.androllm.feature.coding.environment.proot.ProotFiles
 import io.androllm.feature.coding.environment.proot.ProotShellBackend
+import io.androllm.feature.coding.task.CheckpointStore
+import io.androllm.feature.coding.task.FileCheckpointStore
+import io.androllm.feature.coding.task.FileTaskStateRepository
+import io.androllm.feature.coding.task.TaskStateRepository
+import io.androllm.feature.coding.task.WorkspaceContextLoader
 import io.androllm.feature.coding.tools.CodingToolRegistry
 import io.androllm.feature.coding.workspace.AndroidWorkspaceRootProvider
 import io.androllm.feature.coding.workspace.ChatTranscriptStore
@@ -64,6 +69,22 @@ object CodingModule {
     fun provideChatTranscriptStore(
         @ApplicationContext context: Context
     ): ChatTranscriptStore = FileChatTranscriptStore(File(context.filesDir, "coding-sessions"))
+
+    @Provides
+    @Singleton
+    fun provideCheckpointStore(
+        @ApplicationContext context: Context
+    ): CheckpointStore = FileCheckpointStore(File(context.filesDir, "coding-checkpoints"))
+
+    @Provides
+    @Singleton
+    fun provideTaskStateRepository(
+        @ApplicationContext context: Context
+    ): TaskStateRepository = FileTaskStateRepository(File(context.filesDir, "coding-tasks"))
+
+    @Provides
+    @Singleton
+    fun provideWorkspaceContextLoader(): WorkspaceContextLoader = WorkspaceContextLoader()
 
     @Provides
     @Singleton

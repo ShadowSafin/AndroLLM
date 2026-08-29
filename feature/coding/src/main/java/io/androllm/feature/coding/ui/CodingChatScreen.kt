@@ -133,12 +133,15 @@ fun CodingChatScreen(
     val terminal by viewModel.terminal.collectAsStateWithLifecycle()
     val installed by viewModel.installedAddons.collectAsStateWithLifecycle()
     val services by viewModel.services.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var input by remember { mutableStateOf("") }
     var showTerminal by remember { mutableStateOf(false) }
     var showFileTree by remember { mutableStateOf(false) }
     var showPlan by remember { mutableStateOf(false) }
     var showPreview by remember { mutableStateOf(false) }
+    var showCheckpoints by remember { mutableStateOf(false) }
+    var showFileActivity by remember { mutableStateOf(false) }
     var showModeDialog by remember { mutableStateOf(false) }
 
     // Auto-open the plan the first time the agent creates one.
@@ -207,6 +210,11 @@ fun CodingChatScreen(
                         onFileTree = { viewModel.refreshFileTree(); showFileTree = !showFileTree },
                         onPlan = { showPlan = !showPlan },
                         onPreview = { showPreview = !showPreview },
+                        onCheckpoints = {
+                            if (!showCheckpoints) viewModel.refreshCheckpoints()
+                            showCheckpoints = !showCheckpoints
+                        },
+                        onFileActivity = { showFileActivity = !showFileActivity },
                         onMode = { showModeDialog = true }
                     )
                 }
@@ -258,13 +266,40 @@ fun CodingChatScreen(
                             )
                         }
 
-                        // ── Preview ready banner (when ready but panel is collapsed) ──
+                        // ── Preview ready banner (server running, panel collapsed):
+                        //    tapping opens the URL in the device's default browser. ──
                         if (state.preview.status == PreviewUiStatus.READY && !showPreview) {
+                            val readyUrl = state.preview.targetUrl.orEmpty()
                             PreviewReadyBanner(
                                 title = state.preview.targetTitle ?: "Preview ready",
-                                url = state.preview.targetUrl ?: state.previewUrl,
-                                onOpen = { showPreview = true },
+                                url = readyUrl,
+                                onOpen = { openInDefaultBrowser(context, readyUrl) },
                                 onDismiss = { /* keep ready but hide banner until next scan */ },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        // ── Resume banner: when a saved task is waiting for the user. ──
+                        state.pendingResumeTask?.let { task ->
+                            ResumeTaskBanner(
+                                task = task,
+                                onResume = { viewModel.resumeTask(task) },
+                                onDiscard = { viewModel.discardPendingTask(task) },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        // ── Plan approval card: when the agent has proposed a plan
+                        //    and is waiting for the user to review it before coding. ──
+                        state.pendingPlanApproval?.let { draft ->
+                            PlanApprovalCard(
+                                draft = draft,
+                                onEditStep = { id, text -> viewModel.editPlanStep(id, text) },
+                                onAddStep = { text -> viewModel.addPlanStep(text) },
+                                onRemoveStep = { id -> viewModel.removePlanStep(id) },
+                                onMoveStep = { id, delta -> viewModel.movePlanStep(id, delta) },
+                                onApprove = { edited -> viewModel.approvePlan(edited) },
+                                onReject = { viewModel.rejectPlan() },
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
                         }
@@ -272,7 +307,7 @@ fun CodingChatScreen(
                         // ── Chat + panels split. Both regions are weighted, so the
                         //    layout can NEVER overflow and push the composer away —
                         //    the chat stays reachable while preview/plan/terminal run. ──
-                        val anyPanelOpen = showPlan || showPreview || showTerminal || showFileTree
+                        val anyPanelOpen = showPlan || showPreview || showTerminal || showFileTree || showCheckpoints || showFileActivity
                         MessageList(
                             messages = state.messages,
                             onRetry = { viewModel.retryCommand(it) },
@@ -298,8 +333,7 @@ fun CodingChatScreen(
                                 }
                                 if (showPreview) {
                                     PreviewPanel(
-                                        initialUrl = previewUrlFor(state, services),
-                                        refreshTick = state.preview.refreshTick,
+                                        url = previewUrlFor(state, services),
                                         previewStatus = state.preview.status,
                                         previewTitle = state.preview.targetTitle,
                                         previewSuggestion = state.preview.suggestion,
@@ -313,9 +347,6 @@ fun CodingChatScreen(
                                         onRefresh = { viewModel.refreshPreview() },
                                         onStartServer = { viewModel.startPreviewServer("panel") },
                                         onStopServer = { viewModel.stopPreviewServer() },
-                                        onOpenInBrowser = { url -> viewModel.setPreviewUrl(url) },
-                                        onReportFailed = { viewModel.reportPreviewFailed(it) },
-                                        onReportOpened = { viewModel.reportPreviewOpened(it) },
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(horizontal = 12.dp)
@@ -344,18 +375,37 @@ fun CodingChatScreen(
                                             .padding(horizontal = 12.dp)
                                     )
                                 }
+                                if (showCheckpoints) {
+                                    CheckpointsPanel(
+                                        checkpoints = state.checkpoints,
+                                        onClose = { showCheckpoints = false },
+                                        onCreate = { name -> viewModel.createCheckpoint(name) },
+                                        onRestore = { id -> viewModel.restoreCheckpoint(id) },
+                                        onDelete = { id -> viewModel.deleteCheckpoint(id) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp)
+                                    )
+                                }
+                                if (showFileActivity) {
+                                    FileActivityPanel(
+                                        activity = state.fileActivity,
+                                        onClose = { showFileActivity = false },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp)
+                                    )
+                                }
                             }
                         }
 
-                        // ── Running background services (dev servers) ──
+                        // ── Running background services (dev servers): tapping a
+                        //    URL opens it in the device's default browser. ──
                         if (services.isNotEmpty()) {
                             ServicesStrip(
                                 services = services,
                                 onStop = { viewModel.stopService(it) },
-                                onOpenUrl = { url ->
-                                    viewModel.setPreviewUrl(url)
-                                    showPreview = true
-                                },
+                                onOpenUrl = { url -> openInDefaultBrowser(context, url) },
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
@@ -457,10 +507,15 @@ fun CodingChatScreen(
     }
 }
 
-/** The URL the preview panel should load: explicit choice, else from auto-detected preview, else first running server. */
+/**
+ * The URL the preview opens in the browser. Only server-backed URLs qualify:
+ * the READY target (set exclusively while a server is running) or a running
+ * background service's URL. No server → no preview URL.
+ */
 private fun previewUrlFor(state: CodingUiState, services: List<BackgroundServiceInfo>): String {
-    if (state.preview.targetUrl?.isNotBlank() == true) return state.preview.targetUrl
-    if (state.previewUrl.isNotBlank()) return state.previewUrl
+    if (state.preview.status == PreviewUiStatus.READY && !state.preview.targetUrl.isNullOrBlank()) {
+        return state.preview.targetUrl
+    }
     return services.firstOrNull { it.running && it.urlOnDevice != null }?.urlOnDevice ?: ""
 }
 
@@ -490,6 +545,8 @@ private fun ComposerArea(
     onFileTree: () -> Unit,
     onPlan: () -> Unit,
     onPreview: () -> Unit,
+    onCheckpoints: () -> Unit,
+    onFileActivity: () -> Unit,
     onMode: () -> Unit
 ) {
     Column(
@@ -513,10 +570,14 @@ private fun ComposerArea(
             planOpen = planOpen,
             previewOpen = previewOpen,
             previewReady = previewReady,
+            checkpointsOpen = false,
+            fileActivityOpen = false,
             onTerminal = onTerminal,
             onFileTree = onFileTree,
             onPlan = onPlan,
             onPreview = onPreview,
+            onCheckpoints = onCheckpoints,
+            onFileActivity = onFileActivity,
             onMode = onMode,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         )
@@ -1641,10 +1702,14 @@ private fun PanelToggleRow(
     planOpen: Boolean,
     previewOpen: Boolean,
     previewReady: Boolean,
+    checkpointsOpen: Boolean,
+    fileActivityOpen: Boolean,
     onTerminal: () -> Unit,
     onFileTree: () -> Unit,
     onPlan: () -> Unit,
     onPreview: () -> Unit,
+    onCheckpoints: () -> Unit,
+    onFileActivity: () -> Unit,
     onMode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1667,6 +1732,8 @@ private fun PanelToggleRow(
         )
         PanelChip(label = if (terminalOpen) "Hide terminal" else "Terminal", active = terminalOpen, onClick = onTerminal)
         PanelChip(label = if (fileTreeOpen) "Hide files" else "Files", active = fileTreeOpen, onClick = onFileTree)
+        PanelChip(label = if (checkpointsOpen) "Hide history" else "History", active = checkpointsOpen, onClick = onCheckpoints)
+        PanelChip(label = if (fileActivityOpen) "Hide activity" else "Activity", active = fileActivityOpen, onClick = onFileActivity)
     }
 }
 

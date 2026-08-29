@@ -53,7 +53,7 @@ class CodingToolsTest {
             workspace = workspace,
             fileOps = fileOps,
             executor = executor,
-            onFileTouched = { touchedFiles += it },
+            onFileTouched = { path, _ -> touchedFiles += path },
             onToolUsed = { usedTools += it }
         )
         toolExecutor = CodingToolExecutor(CodingToolRegistry())
