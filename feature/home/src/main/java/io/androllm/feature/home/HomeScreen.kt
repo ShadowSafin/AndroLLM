@@ -18,8 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
@@ -201,7 +199,6 @@ fun HomeScreen(
                         onBrowseModels = { navController.navigate(Routes.MODELS) },
                         onDeveloperMode = { navController.navigate(Routes.DEVELOPER) },
                         onPromptStudio = { navController.navigate(Routes.PROMPTS) },
-                        onCodingAgent = { navController.navigate(Routes.CODING) }
                     )
                 }
 
@@ -416,8 +413,7 @@ private fun QuickActionsRow(
     onNewChat: () -> Unit,
     onBrowseModels: () -> Unit,
     onDeveloperMode: () -> Unit,
-    onPromptStudio: () -> Unit,
-    onCodingAgent: () -> Unit
+    onPromptStudio: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -442,24 +438,12 @@ private fun QuickActionsRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             CloudCapsuleButton(
-                text = "AI Coding Agent",
-                onClick = onCodingAgent,
-                icon = Icons.Filled.Code,
-                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampAmber.copy(alpha = 0.5f), MaterialTheme.ledger.lampDeep.copy(alpha = 0.35f))),
-                modifier = Modifier.weight(1.2f)
-            )
-            CloudCapsuleButton(
                 text = "Prompt Studio",
                 onClick = onPromptStudio,
                 icon = Icons.Filled.Psychology,
                 gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.2f), MaterialTheme.ledger.lampDeep.copy(alpha = 0.35f))),
                 modifier = Modifier.weight(1f)
             )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
             CloudCapsuleButton(
                 text = "Developer Mode",
                 onClick = onDeveloperMode,

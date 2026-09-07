@@ -135,9 +135,6 @@ class AndroidKeyCipher @Inject constructor(context: Context) : KeyCipher {
 | `POST_NOTIFICATIONS` | 33 | Voice assistant notification | ⚠️ Conditional |
 | `SYSTEM_ALERT_WINDOW` | — | Floating voice overlay | ❌ Optional |
 | `CAMERA` | — | Not currently used; declared but unused | ❌ Unused |
-| `READ_EXTERNAL_STORAGE` | 28 | Legacy file access | ⚠️ Legacy |
-| `WRITE_EXTERNAL_STORAGE` | 28 | Legacy file access | ⚠️ Legacy |
-| `MANAGE_EXTERNAL_STORAGE` | — | Not currently used | ❌ Unused |
 | `WAKE_LOCK` | — | Prevent sleep during long generations | ⚠️ Optional |
 
 ### Permission Request Strategy

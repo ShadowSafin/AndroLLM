@@ -10,9 +10,6 @@ Complete reference for all permissions declared in AndroLLM.
 <!-- app/src/main/AndroidManifest.xml -->
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.CAMERA" />
 <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -50,14 +47,11 @@ Complete reference for all permissions declared in AndroLLM.
 | Permission | Runtime? | Purpose | Impact if Denied |
 |---|---|---|---|
 | `SYSTEM_ALERT_WINDOW` | Yes (settings) | Floating voice overlay UI | Overlay hidden; service still runs via notification |
-| `MANAGE_EXTERNAL_STORAGE` | Yes (settings) | Access files outside app sandbox | Limited to app-internal storage |
 
 ### Unused / Legacy
 
 | Permission | Status | Notes |
 |---|---|---|
-| `READ_EXTERNAL_STORAGE` | Legacy | maxSdkVersion=28; not needed on Android 10+ |
-| `WRITE_EXTERNAL_STORAGE` | Legacy | maxSdkVersion=28; not needed on Android 10+ |
 | `CAMERA` | Declared but unused | Kept for potential future vision model support |
 
 ---
@@ -122,9 +116,8 @@ if (!requirePermission(context, RECORD_AUDIO, "Microphone permission...")) {
 
 | Android Version | Permission Behavior |
 |---|---|
-| 9 (API 28) | `READ/WRITE_EXTERNAL_STORAGE` required for file access |
-| 10 (API 29) | Scoped storage; external storage access limited |
-| 11 (API 30) | `MANAGE_EXTERNAL_STORAGE` for full filesystem access |
+| 9 (API 28) | Scoped storage introduced |
+| 10 (API 29) | Scoped storage enforced |
 | 12 (API 31) | `POST_NOTIFICATIONS` not required yet |
 | 13 (API 33) | `POST_NOTIFICATIONS` becomes required for notifications |
 | 14 (API 34) | `FOREGROUND_SERVICE_MICROPHONE` required for mic service |
