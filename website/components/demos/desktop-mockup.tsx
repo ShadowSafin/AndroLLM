@@ -42,10 +42,10 @@ export function DesktopMockup() {
             <span className="size-2.5 rounded-full bg-[var(--dot-minimize)]" />
             <span className="size-2.5 rounded-full bg-[var(--dot-maximize)]" />
           </div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
+          <p className="font-geist text-[10px] uppercase tracking-tight text-[var(--faint)]">
             androllm · engine session
           </p>
-          <span className="inline-flex items-center gap-1.5 rounded-pill border border-[color-mix(in_srgb,var(--ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--ok)_8%,transparent)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-[var(--ok)]">
+          <span className="inline-flex items-center gap-1.5 rounded-3xl border border-[color-mix(in_srgb,var(--ok)_30%,transparent)] bg-[color-mix(in_srgb,var(--ok)_8%,transparent)] px-2.5 py-1 font-geist text-[9px] font-bold uppercase tracking-tight text-[var(--ok)]">
             <Radio className="size-2.5" />
             live
           </span>
@@ -75,7 +75,7 @@ export function DesktopMockup() {
           </div>
 
           <aside className="hidden bg-[var(--surface)] p-5 sm:block">
-            <p className="ledger text-[var(--faint)]">Live telemetry</p>
+            <p className="font-geist inline-flex items-center justify-center gap-1 rounded-3xl border border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-3 py-1 text-[10px] tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Live telemetry</p>
             <div className="mt-4 space-y-3">
               <GaugeRow icon={Zap} label="tokens·s⁻¹" value="32.1" trend="+4.2" />
               <GaugeRow icon={Cpu} label="backend" value="OPENCL" />
@@ -83,7 +83,7 @@ export function DesktopMockup() {
               <GaugeRow icon={ServerOff} label="cloud" value="0 req" />
             </div>
             <div className="mt-5">
-              <div className="mb-1.5 flex justify-between font-mono text-[9px] uppercase tracking-widest text-[var(--faint)]">
+              <div className="mb-1.5 flex justify-between font-geist text-[9px] uppercase tracking-tight text-[var(--faint)]">
                 <span>gpuFree</span>
                 <span>5.1 GB</span>
               </div>

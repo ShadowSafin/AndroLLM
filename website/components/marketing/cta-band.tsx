@@ -17,15 +17,16 @@ export function CtaBand() {
       />
       <div className="container">
         <Reveal className="mx-auto max-w-3xl text-center">
-          <p className="ledger inline-flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+          <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
             <span className="inline-block size-1.5 rounded-full bg-[var(--accent)] animate-pulse" aria-hidden />
             v{site.version} is here
           </p>
-          <h2 className="text-balance mt-5 font-serif text-4xl font-semibold leading-tight tracking-tight text-[var(--ink)] sm:text-5xl">
-            Your models. Your phone.<br />
-            <em className="text-gradient-ember not-italic">Your privacy.</em>
+          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent sm:text-5xl md:text-6xl dark:from-white dark:to-white/40">
+            Your models. Your phone.
+            <br />
+            Your privacy.
           </h2>
-          <p className="mt-5 text-base leading-relaxed text-[var(--muted)] sm:text-lg">
+          <p className="mt-5 text-balance text-lg tracking-tight text-gray-600 dark:text-gray-400 md:text-xl">
             Requires Android 9+ (API 28) and an ARM64 device. A fresh install ships with a curated catalog of
             21 models — the app tells you which ones your RAM can run.
           </p>

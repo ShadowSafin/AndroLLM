@@ -31,15 +31,15 @@ export function ModelsTeaser() {
 
         <div className="mt-14 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
           <Reveal className="rounded-card border border-[var(--line)] bg-[var(--surface)] p-6 shadow-card">
-            <p className="ledger text-[var(--faint)]">Recommended start points</p>
+            <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Recommended start points</p>
             <div className="mt-4 space-y-3">
               {families.map((f) => (
                 <div key={f.name} className="flex items-center justify-between rounded-slip border border-[var(--line-soft)] px-4 py-3">
                   <div>
-                    <p className="text-sm font-semibold text-[var(--ink)]">{f.name}</p>
-                    <p className="text-xs text-[var(--faint)]">{f.note}</p>
+                    <p className="font-geist text-sm font-semibold tracking-tight text-[var(--ink)]">{f.name}</p>
+                    <p className="font-geist text-xs tracking-tight text-[var(--faint)]">{f.note}</p>
                   </div>
-                  <span className="font-mono text-[11px] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.sizes}</span>
+                  <span className="font-mono text-[11px] tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.sizes}</span>
                 </div>
               ))}
             </div>
@@ -49,20 +49,20 @@ export function ModelsTeaser() {
             <Reveal delay={0.08} className="grid grid-cols-2 gap-4">
               {insights.map((i) => (
                 <div key={i.label} className="rounded-card border border-[var(--line)] bg-[var(--surface)] p-5 shadow-card">
-                  <p className="font-serif text-2xl font-semibold text-[var(--ink)]">{i.value}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">{i.label}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">{i.note}</p>
+                  <p className="font-geist text-2xl font-semibold tracking-tighter leading-none text-[var(--ink)]">{i.value}</p>
+                  <p className="mt-1 font-geist text-xs font-semibold uppercase tracking-tight text-[var(--faint)]">{i.label}</p>
+                  <p className="mt-2 font-geist text-xs tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{i.note}</p>
                 </div>
               ))}
             </Reveal>
             <Reveal delay={0.16} className="flex-1 rounded-card border border-dashed border-[var(--line)] bg-[var(--deep)] p-6">
-              <p className="font-mono text-[11px] leading-relaxed text-[var(--muted)]">
+              <p className="font-mono text-[11px] tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 <span className="text-[var(--accent)]">✦</span> .litertlm validation · SHA-256 verify · memory estimation before load ·
                 RAM-filtered catalog · HuggingFace browser · manual import · benchmark tool
               </p>
               <Link
                 href="/models"
-                className="group mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
+                className="group mt-5 inline-flex items-center gap-2 font-geist text-sm font-semibold tracking-tight text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
               >
                 Browse the model guide
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />

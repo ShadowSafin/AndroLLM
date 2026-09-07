@@ -77,11 +77,11 @@ export default function ModelsPage() {
             {catalogFacts.map((f) => (
               <div key={f.label} className="card flex h-full flex-col items-center p-6 text-center">
                 <f.icon className="size-5 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
-                <p className="mt-3 font-serif text-3xl font-semibold text-[var(--ink)]">
+                <p className="mt-3 font-geist text-3xl font-semibold tracking-tighter leading-none text-[var(--ink)]">
                   <AnimatedCounter value={f.value} />
                 </p>
-                <p className="mt-1 text-sm font-medium text-[var(--muted)]">{f.label}</p>
-                <p className="mt-1 text-xs text-[var(--faint)]">{f.note}</p>
+                <p className="mt-1 font-geist text-sm font-medium tracking-tight text-gray-600 dark:text-gray-400">{f.label}</p>
+                <p className="mt-1 font-geist text-xs tracking-tight text-[var(--faint)]">{f.note}</p>
               </div>
             ))}
           </MotionReveal>
@@ -96,14 +96,14 @@ export default function ModelsPage() {
               <Reveal key={m.name} delay={i * 0.04}>
                 <HoverCard className="flex h-full flex-col p-5">
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-serif text-lg font-semibold text-[var(--ink)]">{m.name}</h3>
-                    <span className="shrink-0 rounded-pill border border-[var(--line)] bg-[var(--mutedsurface)] px-2.5 py-1 font-mono text-[10px] font-semibold text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                    <h3 className="font-geist text-balance text-lg font-semibold tracking-tight leading-tight text-[var(--ink)]">{m.name}</h3>
+                    <span className="shrink-0 rounded-pill border border-[var(--line)] bg-[var(--mutedsurface)] px-2.5 py-1 font-mono text-[10px] font-semibold tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                       {m.quant}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-[var(--muted)]">{m.note}</p>
-                  <p className="mt-auto pt-4 text-xs text-[var(--faint)]">
-                    <span className="font-mono text-[var(--ink-dim)]">{m.ram}</span> RAM
+                  <p className="mt-1 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">{m.note}</p>
+                  <p className="mt-auto pt-4 font-geist text-xs tracking-tight text-[var(--faint)]">
+                    <span className="font-mono tracking-tight text-[var(--ink-dim)]">{m.ram}</span> RAM
                   </p>
                 </HoverCard>
               </Reveal>
@@ -120,21 +120,21 @@ export default function ModelsPage() {
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--line)] text-left">
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Format</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Bits/element</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Size reduction</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Quality impact</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Recommendation</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Format</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Bits/element</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Size reduction</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Quality impact</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Recommendation</th>
                 </tr>
               </thead>
               <tbody>
                 {quantRows.map((r) => (
                   <tr key={r.label} className="border-b border-[var(--line-soft)] last:border-0">
-                    <td className="px-5 py-3.5 font-mono font-semibold text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.label}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.bits}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.reduction}</td>
-                    <td className="px-5 py-3.5 text-[var(--ink-dim)]">{r.quality}</td>
-                    <td className="px-5 py-3.5 text-[var(--ink-dim)]">{r.verdict}</td>
+                    <td className="px-5 py-3.5 font-mono font-semibold tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.label}</td>
+                    <td className="px-5 py-3.5 font-mono tracking-tight text-gray-600 dark:text-gray-400">{r.bits}</td>
+                    <td className="px-5 py-3.5 font-mono tracking-tight text-gray-600 dark:text-gray-400">{r.reduction}</td>
+                    <td className="px-5 py-3.5 font-geist tracking-tight text-[var(--ink-dim)]">{r.quality}</td>
+                    <td className="px-5 py-3.5 font-geist tracking-tight text-[var(--ink-dim)]">{r.verdict}</td>
                   </tr>
                 ))}
               </tbody>
@@ -145,21 +145,21 @@ export default function ModelsPage() {
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--line)] text-left">
-<th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Model</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Format</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">File size</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">RAM guidance</th>
-                  <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Best for</th>
+<th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Model</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Format</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">File size</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">RAM guidance</th>
+                  <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Best for</th>
                 </tr>
               </thead>
               <tbody>
                 {sizeGuide.map((r) => (
                   <tr key={r.model} className="border-b border-[var(--line-soft)] last:border-0">
-                    <td className="px-5 py-3.5 font-semibold text-[var(--ink)]">{r.model}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.format}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.size}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.ram}</td>
-                    <td className="px-5 py-3.5 text-[var(--ink-dim)]">{r.best}</td>
+                    <td className="px-5 py-3.5 font-geist font-semibold tracking-tight text-[var(--ink)]">{r.model}</td>
+                    <td className="px-5 py-3.5 font-mono tracking-tight text-gray-600 dark:text-gray-400">{r.format}</td>
+                    <td className="px-5 py-3.5 font-mono tracking-tight text-gray-600 dark:text-gray-400">{r.size}</td>
+                    <td className="px-5 py-3.5 font-mono tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.ram}</td>
+                    <td className="px-5 py-3.5 font-geist tracking-tight text-[var(--ink-dim)]">{r.best}</td>
                   </tr>
                 ))}
               </tbody>
@@ -167,11 +167,11 @@ export default function ModelsPage() {
           </MotionReveal>
 
           <Reveal className="mx-auto mt-10 max-w-3xl rounded-card border border-dashed border-[var(--line)] bg-[var(--deep)] p-6">
-            <p className="ledger flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+            <p className="font-geist inline-flex items-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
               <HardDrive className="size-3.5" aria-hidden />
               The 2–4 GB RAM rule
             </p>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+            <p className="mt-3 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
               2 GB RAM runs the smallest models (SmolLM2 135M/360M). 4 GB unlocks Qwen3 0.6B and vision models.
               6–8 GB hits the sweet spot with Qwen3 1.7B, Gemma 4 E2B, and Phi-4 Mini. 12–16 GB for flagship 8–14B models. The app does this math for you before you download.
             </p>
@@ -186,14 +186,14 @@ export default function ModelsPage() {
             {features.map((f, i) => (
               <Reveal key={f.title} delay={i * 0.04}>
                 <div className="card h-full p-6">
-                  <h3 className="font-serif text-base font-semibold text-[var(--ink)]">{f.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{f.text}</p>
+                  <h3 className="font-geist text-balance text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">{f.title}</h3>
+                  <p className="mt-2 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{f.text}</p>
                 </div>
               </Reveal>
             ))}
           </div>
           <Reveal className="mt-10 flex flex-col items-center gap-3 text-center">
-            <p className="text-sm text-[var(--muted)]">
+            <p className="font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">
               Need the full picture? The model support guide covers formats, architectures, and context lengths in depth.
             </p>
             <div className="flex flex-wrap justify-center gap-3">

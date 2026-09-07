@@ -21,9 +21,9 @@ export function Callout({ message, variant = "note" }: { message: string; varian
       whileInView={reduce ? undefined : { opacity: 1, x: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-      className={cn("rounded-card border px-5 py-4 text-sm leading-relaxed", v.classes)}
+      className={cn("rounded-card border px-5 py-4 font-geist text-sm tracking-tight leading-relaxed", v.classes)}
     >
-      <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
+      <p className="mb-1 flex items-center gap-2 font-geist text-xs font-bold uppercase tracking-tight">
         <v.icon className={cn("size-4", v.iconColor)} aria-hidden />
         {v.label}
       </p>

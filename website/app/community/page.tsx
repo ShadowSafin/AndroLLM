@@ -87,9 +87,9 @@ export default function CommunityPage() {
                   <c.icon className="size-4 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
                   <span className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--faint)]">01</span>
                 </div>
-                <h2 className="mt-5 font-serif text-xl font-semibold text-[var(--ink)]">{c.title}</h2>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{c.text}</p>
-                <p className="mt-4 text-sm font-bold text-[var(--accent-deep)] transition-transform duration-300 group-hover:translate-x-1 dark:text-[var(--accent-soft)]">
+                <h2 className="mt-5 font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">{c.title}</h2>
+                <p className="mt-2 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{c.text}</p>
+                <p className="mt-4 font-geist text-sm font-bold tracking-tight text-[var(--accent-deep)] transition-transform duration-300 group-hover:translate-x-1 dark:text-[var(--accent-soft)]">
                   {c.cta}
                 </p>
               </Link>
@@ -101,16 +101,16 @@ export default function CommunityPage() {
           <div className="card p-7">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h2 className="font-serif text-xl font-semibold text-[var(--ink)]">Looking for support?</h2>
-                <p className="mt-1.5 text-sm text-[var(--muted)]">
+                <h2 className="font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Looking for support?</h2>
+                <p className="mt-1.5 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">
                   Start with the support policy and troubleshooting docs — most questions are answered there already.
                 </p>
               </div>
               <div className="flex gap-3">
-                <Link href={`${site.repo}/blob/main/SUPPORT.md`} target="_blank" rel="noreferrer" className="btn btn-secondary">
+                <Link href={`${site.repo}/blob/main/SUPPORT.md`} target="_blank" rel="noreferrer" className="btn btn-secondary font-geist tracking-tighter">
                   Support policy
                 </Link>
-                <Link href="/docs/troubleshooting" className="btn btn-primary">
+                <Link href="/docs/troubleshooting" className="btn btn-primary font-geist tracking-tighter">
                   Troubleshooting
                 </Link>
               </div>
@@ -121,9 +121,9 @@ export default function CommunityPage() {
         <div className="mt-20 grid items-start gap-12 lg:grid-cols-2">
           <Reveal>
             <div>
-              <p className="ledger">Contributing</p>
-              <h2 className="mt-3 font-serif text-3xl font-semibold text-[var(--ink)]">Start small. Ship real.</h2>
-              <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Contributing</p>
+              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">Start small. Ship real.</h2>
+              <p className="mt-4 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 The contributing guide covers the whole loop: fork, clone, branch, build, and open a PR. Try an
                 &ldquo;engine&rdquo; issue first — nothing beats watching your first token stream out of surrounding
                 symbols you helped compile.
@@ -135,8 +135,8 @@ export default function CommunityPage() {
                   "Install the toolchain (see BUILDING.md) and build the debug APK",
                   "Run the test suite, then open the pull request against main",
                 ].map((step, i) => (
-                  <li key={step} className="flex items-start gap-3 text-sm leading-relaxed text-[var(--ink-dim)]">
-                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] font-mono text-[10px] font-bold text-[var(--accent-deep)] dark:bg-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                  <li key={step} className="flex items-start gap-3 font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] font-mono text-[10px] font-bold tracking-tight text-[var(--accent-deep)] dark:bg-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                       {i + 1}
                     </span>
                     {step}
@@ -145,11 +145,11 @@ export default function CommunityPage() {
               </ol>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Magnetic strength={0.18}>
-                  <Link href={`${site.repo}/blob/main/CONTRIBUTING.md`} target="_blank" rel="noreferrer" className="btn btn-primary">
+                  <Link href={`${site.repo}/blob/main/CONTRIBUTING.md`} target="_blank" rel="noreferrer" className="btn btn-primary font-geist tracking-tighter">
                     <HandHeart className="size-4" aria-hidden /> Read CONTRIBUTING.md
                   </Link>
                 </Magnetic>
-                <Link href={`${site.repo}/blob/main/CODE_OF_CONDUCT.md`} target="_blank" rel="noreferrer" className="btn btn-ghost">
+                <Link href={`${site.repo}/blob/main/CODE_OF_CONDUCT.md`} target="_blank" rel="noreferrer" className="btn btn-ghost font-geist tracking-tighter">
                   Code of conduct
                 </Link>
               </div>
@@ -158,19 +158,19 @@ export default function CommunityPage() {
 
           <Reveal delay={0.1}>
             <div>
-              <p className="ledger">Community principles</p>
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Community principles</p>
               <div className="mt-6 space-y-4">
                 {principles.map((p) => (
                   <HoverCard key={p.title} className="flex items-start gap-4 p-6">
                     <Heart className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
                     <div>
-                      <h3 className="text-sm font-semibold text-[var(--ink)]">{p.title}</h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">{p.text}</p>
+                      <h3 className="font-geist text-sm font-semibold tracking-tight leading-tight text-[var(--ink)]">{p.title}</h3>
+                      <p className="mt-1.5 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{p.text}</p>
                     </div>
                   </HoverCard>
                 ))}
               </div>
-              <p className="mt-5 text-xs leading-relaxed text-[var(--faint)]">
+              <p className="mt-5 font-geist text-xs tracking-tight leading-relaxed text-[var(--faint)]">
                 Security issues are handled privately — see SECURITY.md. Never file vulnerabilities in the public tracker.
               </p>
             </div>

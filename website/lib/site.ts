@@ -25,8 +25,8 @@ export const site = {
   androidRec: "Android 14 (API 34) recommended",
   founded: 2026,
   wakeWord: '"Hey Andro" / "Okay Andro"',
-  theme: "The Parchment Ledger",
-  accent: "#D97757",
+  theme: "Monochrome Ledger",
+  accent: "#FFFFFF",
 };
 
 export const repoShield = (label: string, message: string, color: string) =>

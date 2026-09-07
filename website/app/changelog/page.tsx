@@ -91,13 +91,13 @@ export default function ChangelogPage() {
         <article className="rounded-card border border-[var(--line)] bg-[var(--surface)] shadow-card">
             <header className="border-b border-[var(--line)] px-6 py-5">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="font-serif text-2xl font-semibold text-[var(--ink)]">[Unreleased]</h2>
-                <span className="inline-flex items-center gap-1.5 rounded-pill border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                <h2 className="font-geist text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">[Unreleased]</h2>
+                <span className="inline-flex items-center gap-1.5 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 font-geist text-[10px] font-bold uppercase tracking-tight text-gray-600 dark:border-white/5 dark:text-gray-400">
                   <Pulse size={4} color="var(--accent)" />
                   the product
                 </span>
               </div>
-              <p className="mt-1 text-sm text-[var(--muted)]">Everything that makes AndroLLM “AndroLLM” landed in this section.</p>
+              <p className="mt-1 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">Everything that makes AndroLLM “AndroLLM” landed in this section.</p>
             </header>
             <div className="space-y-8 px-6 py-6">
               <ReleaseList title="Added" kind="added" items={unreleased.added} />
@@ -109,8 +109,8 @@ export default function ChangelogPage() {
 
         <article className="rounded-card border border-[var(--line)] bg-[var(--surface)] shadow-card">
             <header className="border-b border-[var(--line)] px-6 py-5">
-              <h2 className="font-serif text-2xl font-semibold text-[var(--ink)]">[1.0.0] — Initial Release</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">The scaffolding every product needs before it can be a product.</p>
+              <h2 className="font-geist text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">[1.0.0] — Initial Release</h2>
+              <p className="mt-1 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">The scaffolding every product needs before it can be a product.</p>
             </header>
             <div className="px-6 py-6">
               <ReleaseList title="Added" kind="added" items={initialRelease} />
@@ -118,13 +118,13 @@ export default function ChangelogPage() {
           </article>
 
         <article className="rounded-card border border-[var(--line)] bg-[var(--deep)] p-6">
-            <h2 className="ledger text-[var(--faint)]">Version history notes</h2>
+            <h2 className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Version history notes</h2>
             <ul className="mt-4 space-y-3">
               {phases.map((p) => (
                 <li key={p.phase} className="flex items-center justify-between gap-4">
-                  <span className="font-mono text-sm font-semibold text-[var(--ink)]">{p.phase}</span>
-                  <span className="text-sm text-[var(--muted)]">{p.text}</span>
-                  <span className="rounded-pill bg-[color-mix(in_srgb,var(--ok)_12%,transparent)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--ok)]">
+                  <span className="font-mono text-sm font-semibold tracking-tight text-[var(--ink)]">{p.phase}</span>
+                  <span className="font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">{p.text}</span>
+                  <span className="rounded-3xl bg-[color-mix(in_srgb,var(--ok)_12%,transparent)] px-2.5 py-0.5 font-geist text-[10px] font-bold uppercase tracking-tight text-[var(--ok)]">
                     {p.status}
                   </span>
                 </li>
@@ -137,7 +137,7 @@ export default function ChangelogPage() {
             href={site.repo}
             target="_blank"
             rel="noreferrer"
-            className="group inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
+            className="group inline-flex items-center gap-2 font-geist text-sm font-semibold tracking-tight text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
           >
             <GitCommit className="size-4" />
             Follow the history on GitHub
@@ -152,10 +152,10 @@ export default function ChangelogPage() {
 function ReleaseList({ title, kind, items }: { title: string; kind: "added" | "changed" | "fixed" | "removed"; items: string[] }) {
   return (
     <section aria-label={title}>
-      <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--faint)]">{title}</h3>
+      <h3 className="font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">{title}</h3>
       <ul className="mt-3 space-y-2.5">
         {items.map((i) => (
-          <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed text-[var(--ink-dim)]">
+          <li key={i} className="flex items-start gap-2.5 font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">
             <span
               className={
                 kind === "added"

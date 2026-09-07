@@ -64,7 +64,7 @@ export function DocsSidebar() {
       <div className="flex-1 space-y-7 overflow-y-auto pr-1 scrollbar-none">
         {groups.map((g) => (
           <section key={g.id}>
-            <h2 className="ledger mb-3 flex items-center gap-2 text-[var(--faint)]">
+            <h2 className="font-geist mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-tight text-[var(--faint)]">
               <BookOpen className="size-3.5" aria-hidden />
               {g.label}
             </h2>
@@ -76,7 +76,7 @@ export function DocsSidebar() {
                     <Link
                       href={`/docs/${d.slug}`}
                       className={cn(
-                        "group relative flex items-center justify-between gap-2 rounded-slip border border-transparent px-3 py-2 text-sm text-[var(--muted)] transition-all duration-300",
+                        "group relative flex items-center justify-between gap-2 rounded-slip border border-transparent px-3 py-2 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400 transition-all duration-300",
                         active
                           ? "border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] font-semibold text-[var(--ink)]"
                           : "hover:border-[var(--line)] hover:bg-[var(--mutedsurface)] hover:text-[var(--ink)]"

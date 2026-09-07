@@ -14,12 +14,12 @@ function HeadingLink({ level, children }: { level: 1 | 2 | 3 | 4; children: Reac
   const Tag = `h${level}` as "h2" | "h3" | "h4";
   const size =
     level === 2
-      ? "text-2xl font-serif font-semibold mt-12 mb-4"
+      ? "text-2xl font-geist font-semibold tracking-tighter leading-none mt-12 mb-4 text-balance"
       : level === 3
-        ? "text-xl font-serif font-semibold mt-8 mb-3"
-        : "text-base font-semibold mt-6 mb-2";
+        ? "text-xl font-geist font-semibold tracking-tight leading-tight mt-8 mb-3 text-balance"
+        : "text-base font-geist font-semibold tracking-tight leading-tight mt-6 mb-2 text-balance";
   return (
-    <Tag id={id} className={`group flex items-center gap-2 scroll-mt-28 text-[var(--ink)] ${size}`}>
+    <Tag id={id} className={`group flex items-center gap-2 scroll-mt-28 bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text text-transparent dark:from-white dark:to-white/40 ${size}`}>
       <span className="no-anchor">{children}</span>
       <a
         href={`#${id}`}
@@ -50,7 +50,7 @@ function Pre({ children }: { children?: ReactNode }) {
 
 export const mdxComponents: MDXComponents = {
   h1: ({ children }: { children?: ReactNode }) => (
-    <h1 id="top" className="ledger mt-0 text-[var(--ink)]">
+    <h1 id="top" className="mt-0 bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">
       {children}
     </h1>
   ),
@@ -58,7 +58,7 @@ export const mdxComponents: MDXComponents = {
   h3: ({ children }: { children?: ReactNode }) => <HeadingLink level={3}>{children}</HeadingLink>,
   h4: ({ children }: { children?: ReactNode }) => <HeadingLink level={4}>{children}</HeadingLink>,
   p: ({ children }: { children?: ReactNode }) => (
-    <p className="my-4 leading-relaxed text-[var(--ink-dim)]">{children}</p>
+    <p className="my-4 font-geist tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{children}</p>
   ),
   a: ({ href, children }: { href?: string; children?: ReactNode }) => {
     if (href?.startsWith("http")) {
@@ -111,10 +111,10 @@ export const mdxComponents: MDXComponents = {
   tbody: ({ children }: { children?: ReactNode }) => <tbody>{children}</tbody>,
   tr: ({ children }: { children?: ReactNode }) => <tr className="border-b border-[var(--line-soft)] last:border-0">{children}</tr>,
   th: ({ children }: { children?: ReactNode }) => (
-    <th scope="col" className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-[var(--faint)]">{children}</th>
+    <th scope="col" className="px-4 py-3 text-left font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">{children}</th>
   ),
   td: ({ children }: { children?: ReactNode }) => (
-    <td className="px-4 py-3 align-top text-[13px] leading-relaxed text-[var(--ink-dim)]">{children}</td>
+    <td className="px-4 py-3 align-top font-geist text-[13px] tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{children}</td>
   ),
   pre: ({ children }: { children?: ReactNode }) => <Pre>{children}</Pre>,
   code: ({ className, children }: { className?: string; children?: ReactNode }) => {

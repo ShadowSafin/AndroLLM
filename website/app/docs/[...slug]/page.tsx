@@ -65,7 +65,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
         </aside>
 
         <details className="mb-8 rounded-card border border-[var(--line)] bg-[var(--deep)] p-4 lg:hidden">
-          <summary className="cursor-pointer font-serif text-sm font-semibold text-[var(--ink)]">
+          <summary className="cursor-pointer font-geist text-sm font-semibold tracking-tight text-[var(--ink)]">
             Jump to a document
           </summary>
           <div className="mt-4">
@@ -75,14 +75,14 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
 
         <article className="min-w-0 max-w-3xl">
           <header className="border-b border-[var(--line)] pb-8">
-            <p className="ledger inline-flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+            <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
               <span className="inline-block size-1.5 rounded-full bg-[var(--accent)]" aria-hidden />
               {hit.group.label}
             </p>
-            <h1 className="mt-3 font-serif text-4xl font-semibold leading-tight tracking-tight text-[var(--ink)] sm:text-5xl">
+            <h1 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent sm:text-5xl dark:from-white dark:to-white/40">
               {sourceTitle}
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-relaxed text-[var(--muted)]">{hit.entry.description}</p>
+            <p className="mt-4 max-w-2xl font-geist text-base tracking-tight leading-relaxed text-gray-600 dark:text-gray-400 md:text-lg">{hit.entry.description}</p>
           </header>
 
           <div className="prose-ledger mt-4">{content}</div>

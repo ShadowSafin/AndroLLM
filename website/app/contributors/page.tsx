@@ -48,15 +48,15 @@ export default function ContributorsPage() {
         <div className="mt-20 grid gap-10 lg:grid-cols-[1fr_1.3fr]">
           <Reveal>
             <div>
-              <p className="ledger"><ScrambleText text="Standing on shoulders" /></p>
-              <h2 className="mt-3 font-serif text-3xl font-semibold text-[var(--ink)]">Upstream thanks</h2>
-              <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400"><ScrambleText text="Standing on shoulders" /></p>
+              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">Upstream thanks</h2>
+              <p className="mt-4 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 The app binds to a stack that hundreds of maintainers keep alive. AndroLLM could not exist without
                 their years of work — and every one of those projects remains fully credited in the repo.
               </p>
               <ul className="mt-6 space-y-3">
                 {thanks.map((t) => (
-                  <li key={t} className="flex items-start gap-2.5 text-sm leading-relaxed text-[var(--ink-dim)]">
+                  <li key={t} className="flex items-start gap-2.5 font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">
                     <span className="mt-[0.55em] size-1.5 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden />
                     {t}
                   </li>
@@ -69,16 +69,16 @@ export default function ContributorsPage() {
             <Parallax speed={0.1}>
               <div className="card p-7">
                 <Handshake className="size-4 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
-                <h2 className="mt-4 font-serif text-2xl font-semibold text-[var(--ink)]">Want to be on this page?</h2>
-                <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                <h2 className="mt-4 font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Want to be on this page?</h2>
+                <p className="mt-3 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                   Pick an issue labeled engine, docs, or good-first-issue. Read the contributing guide, build locally,
                   and open a pull request. The list above is generated live from the GitHub API the moment you load it.
                 </p>
-                <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
+                <p className="mt-3 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                   Large language models have a well-known appetite for compute — generous machines,
                   patience, and good coffee are recommended.
                 </p>
-                <p className="mt-6 text-xs text-[var(--faint)]">
+                <p className="mt-6 font-geist text-xs tracking-tight text-[var(--faint)]">
                   Contributor data comes from the public contributors endpoint, per-page top 12, cached by the browser.
                 </p>
               </div>

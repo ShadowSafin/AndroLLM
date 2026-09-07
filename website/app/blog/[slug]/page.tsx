@@ -41,22 +41,22 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         </AnimatedUnderline>
 
         <header className="mt-10">
-          <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--faint)]">
+          <p className="flex items-center gap-2 font-geist text-[11px] font-bold uppercase tracking-tight text-[var(--faint)]">
             <Clock className="size-3" aria-hidden />
             {post.date} · {post.readMin} min read
           </p>
-          <h1 className="mt-4 font-serif text-3xl font-semibold leading-tight text-[var(--ink)] md:text-4xl">
+          <h1 className="mt-4 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40">
             <WordByWord text={post.title} />
           </h1>
-          <p className="mt-5 text-lg leading-relaxed text-[var(--muted)]">{post.excerpt}</p>
+          <p className="mt-5 font-geist text-lg tracking-tight leading-relaxed text-gray-600 dark:text-gray-400 md:text-xl">{post.excerpt}</p>
         </header>
 
         <div className="mt-12 border-t border-[var(--line)] pt-10">
           {post.body.map((block, i) => (
             <div key={i} className="mt-8 first:mt-0">
-              {block.h && <h2 className="font-serif text-xl font-semibold text-[var(--ink)]">{block.h}</h2>}
+              {block.h && <h2 className="font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">{block.h}</h2>}
               {block.p.map((para, j) => (
-                <p key={j} className="mt-4 text-[15px] leading-[1.85] text-[var(--ink-dim)]">
+                <p key={j} className="mt-4 font-geist text-[15px] tracking-tight leading-[1.85] text-gray-600 dark:text-gray-400">
                   {para}
                 </p>
               ))}

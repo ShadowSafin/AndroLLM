@@ -14,7 +14,7 @@ export function Marquee({ items, className }: { items: string[]; className?: str
             {items.map((item) => (
               <span
                 key={`${dup}-${item}`}
-                className="whitespace-nowrap font-mono text-xs uppercase tracking-[0.18em] text-[var(--faint)] transition-colors hover:text-[var(--accent-deep)] dark:hover:text-[var(--accent-soft)]"
+                className="whitespace-nowrap font-geist text-xs font-medium uppercase tracking-tight text-[var(--faint)] transition-colors hover:text-[var(--accent-deep)] dark:hover:text-[var(--accent-soft)]"
               >
                 {item}
               </span>

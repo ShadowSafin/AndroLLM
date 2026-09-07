@@ -51,7 +51,7 @@ function AccordionItem({ item, open, onToggle }: { item: Item; open: boolean; on
         aria-expanded={open}
         className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-[var(--mutedsurface)]"
       >
-        <span className="font-serif text-base font-semibold text-[var(--ink)]">{item.title}</span>
+        <span className="font-geist text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">{item.title}</span>
         <span
           className="grid size-7 place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] transition-all duration-300 group-hover:border-[var(--accent)] group-hover:text-[var(--accent-deep)]"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
@@ -69,7 +69,7 @@ function AccordionItem({ item, open, onToggle }: { item: Item; open: boolean; on
         aria-hidden={!open}
       >
         <div className="overflow-hidden">
-          <div ref={innerRef} className="px-5 pb-5 text-sm leading-relaxed text-[var(--muted)]">
+          <div ref={innerRef} className="px-5 pb-5 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
             {item.body}
           </div>
         </div>
@@ -120,8 +120,8 @@ export function Tabs({
             type="button"
             onClick={() => setActive(i)}
             className={cn(
-              "relative z-10 rounded-pill px-4 py-2 text-sm font-semibold transition-colors",
-              active === i ? "text-white" : "text-[var(--muted)] hover:text-[var(--ink)]"
+              "relative z-10 rounded-pill px-4 py-2 font-geist text-sm font-semibold tracking-tight transition-colors",
+              active === i ? "text-white" : "text-gray-600 dark:text-gray-400 hover:text-[var(--ink)]"
             )}
             style={{ color: active === i ? "white" : undefined }}
           >

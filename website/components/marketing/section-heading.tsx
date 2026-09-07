@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Reveal } from "@/animations/reveal";
 
@@ -22,15 +23,27 @@ export function SectionHeading({
         className
       )}
     >
-      <p className="ledger inline-flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
-        <span className="inline-block size-1.5 rounded-full bg-[var(--accent)]" aria-hidden />
+      {/* Eyebrow — prompt typography: font-geist tracking-tight uppercase pill */}
+      <p
+        className={cn(
+          "font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400",
+          align === "center" ? "mx-auto" : ""
+        )}
+      >
         {eyebrow}
+        <ChevronRight className="hidden size-4 opacity-60 sm:inline" aria-hidden />
       </p>
-      <h2 className="text-balance mt-4 font-serif text-3xl font-semibold leading-tight tracking-tight text-[var(--ink)] sm:text-4xl">
+      {/* Title — prompt typography: gradient clipped, tracking-tighter, leading-none, text-balance */}
+      <h2
+        className={cn(
+          "text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40",
+          align === "center" ? "mx-auto" : ""
+        )}
+      >
         {title}
       </h2>
       {description && (
-        <p className="mt-4 text-base leading-relaxed text-[var(--muted)] sm:text-lg">{description}</p>
+        <p className="mt-4 text-balance text-lg tracking-tight text-gray-600 dark:text-gray-400 md:text-xl">{description}</p>
       )}
     </Reveal>
   );

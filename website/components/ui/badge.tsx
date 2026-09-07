@@ -3,15 +3,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-pill border px-3 py-1 text-xs font-semibold transition-colors",
+  "inline-flex items-center gap-1.5 rounded-3xl border-[2px] px-5 py-2 font-geist text-sm font-medium tracking-tight uppercase transition-colors",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-[var(--badge-accent-bg)] text-[var(--badge-accent-text)] dark:text-[var(--badge-accent-text-dark)]",
-        secondary: "border-[var(--line)] bg-[var(--card-bg)] text-[var(--muted)]",
-        outline: "border-[var(--line)] bg-transparent text-[var(--ink-dim)]",
+        default: "border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent text-gray-600 dark:border-white/5 dark:text-gray-400",
+        secondary: "border-[var(--line)] bg-[var(--card-bg)] text-gray-600 dark:text-gray-400",
+        outline: "border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent text-gray-600 dark:border-white/5 dark:text-gray-400",
         ember: "border-transparent bg-[var(--btn-primary-bg)] text-[var(--badge-accent-solid-text)]",
-        glow: "border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[var(--badge-accent-bg)] text-[var(--badge-accent-text)] dark:text-[var(--badge-accent-text-dark)] shadow-[var(--badge-glow-shadow)]",
+        glow: "border-white/5 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent text-gray-600 dark:text-gray-400 shadow-[var(--badge-glow-shadow)]",
       },
     },
     defaultVariants: { variant: "default" },

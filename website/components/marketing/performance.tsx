@@ -17,7 +17,7 @@ export function Performance() {
         <div className="mt-14 grid gap-5 lg:grid-cols-2">
           <Reveal className="overflow-hidden rounded-card border border-[var(--line)] bg-[var(--surface)] shadow-card">
             <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <h3 className="flex items-center gap-2 font-serif text-lg font-semibold text-[var(--ink)]">
+              <h3 className="flex items-center gap-2 font-geist text-lg font-semibold tracking-tight leading-tight text-[var(--ink)]">
                 <Zap className="size-4 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" />
                 Generation speed (7B Q4 class models)
               </h3>
@@ -25,17 +25,17 @@ export function Performance() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--line-soft)] text-left">
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">Device tier</th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">GPU (OpenCL)</th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">CPU only</th>
+                  <th scope="col" className="px-5 py-3 font-geist text-xs font-semibold uppercase tracking-tight text-[var(--faint)]">Device tier</th>
+                  <th scope="col" className="px-5 py-3 font-geist text-xs font-semibold uppercase tracking-tight text-[var(--faint)]">GPU (OpenCL)</th>
+                  <th scope="col" className="px-5 py-3 font-geist text-xs font-semibold uppercase tracking-tight text-[var(--faint)]">CPU only</th>
                 </tr>
               </thead>
               <tbody>
                 {performanceFacts.backends.map((r) => (
                   <tr key={r.device} className="border-b border-[var(--line-soft)] last:border-0">
-                    <td className="px-5 py-3.5 font-medium text-[var(--ink-dim)]">{r.device}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.vulkan}</td>
-                    <td className="px-5 py-3.5 font-mono text-[var(--muted)]">{r.cpu}</td>
+                    <td className="px-5 py-3.5 font-geist font-medium tracking-tight text-[var(--ink-dim)]">{r.device}</td>
+                    <td className="px-5 py-3.5 font-mono tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{r.vulkan}</td>
+                    <td className="px-5 py-3.5 font-mono tracking-tight text-gray-600 dark:text-gray-400">{r.cpu}</td>
                   </tr>
                 ))}
               </tbody>
@@ -44,7 +44,7 @@ export function Performance() {
 
           <Reveal delay={0.1} className="overflow-hidden rounded-card border border-[var(--line)] bg-[var(--surface)] shadow-card">
             <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <h3 className="flex items-center gap-2 font-serif text-lg font-semibold text-[var(--ink)]">
+              <h3 className="flex items-center gap-2 font-geist text-lg font-semibold tracking-tight leading-tight text-[var(--ink)]">
                 <Cpu className="size-4 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" />
                 Model load times
               </h3>
@@ -57,7 +57,7 @@ export function Performance() {
                   right: `GPU ${r.vulkan} · CPU ${r.cpu}`,
                 }))}
               />
-              <p className="mt-5 border-t border-[var(--line-soft)] pt-4 font-mono text-[11px] text-[var(--faint)]">
+              <p className="mt-5 border-t border-[var(--line-soft)] pt-4 font-mono text-[11px] tracking-tight text-[var(--faint)]">
                 Measured on modern flagships with the OpenCL GPU delegate; CPU-only older devices run on XNNPACK.
               </p>
             </div>

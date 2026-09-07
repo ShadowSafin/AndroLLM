@@ -40,12 +40,12 @@ export function Pipeline({ id }: { id: string }) {
     <figure className="card overflow-hidden" aria-label={p.title}>
       <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--deep)] px-5 py-3.5">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">{p.caption}</p>
-          <figcaption className="mt-0.5 font-serif text-lg font-semibold text-[var(--ink)]">{p.title}</figcaption>
+          <p className="font-geist text-[10px] uppercase tracking-tight text-[var(--faint)]">{p.caption}</p>
+          <figcaption className="mt-0.5 font-geist text-lg font-semibold tracking-tight leading-tight text-[var(--ink)]">{p.title}</figcaption>
         </div>
         <div className="hidden gap-1.5 sm:flex">
           {p.flow.map((f, i) => (
-            <span key={f} className="rounded-pill border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-widest text-[var(--muted)]">
+            <span key={f} className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 font-geist text-[9px] font-semibold uppercase tracking-tight text-[var(--muted)]">
               {i > 0 && <span className="mx-0.5 text-[var(--accent)]">→</span>}
               {f}
             </span>
@@ -83,7 +83,7 @@ export function Pipeline({ id }: { id: string }) {
               >
                 {i + 1}
               </span>
-              <span className="rounded-slip border border-[var(--line)] bg-[var(--surface)] px-3.5 py-2 text-[13px] font-medium text-[var(--ink-dim)] shadow-card">
+              <span className="rounded-slip border border-[var(--line)] bg-[var(--surface)] px-3.5 py-2 font-geist text-[13px] font-medium tracking-tight text-[var(--ink-dim)] shadow-card">
                 {node}
               </span>
             </motion.li>

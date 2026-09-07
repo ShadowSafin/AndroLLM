@@ -28,21 +28,21 @@ export default function DocsIndex() {
               <span className="flex size-11 items-center justify-center rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                 <BookOpen className="size-5" aria-hidden />
               </span>
-              <h2 className="mt-5 font-serif text-xl font-semibold tracking-tight text-[var(--ink)]">{g.label}</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">{g.blurb}</p>
+              <h2 className="mt-5 font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">{g.label}</h2>
+              <p className="mt-1 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">{g.blurb}</p>
               <ul className="mt-5 space-y-2">
                 {g.docs.map((d) => (
                   <li key={d.slug}>
-                    <Link
+                      <Link
                       href={`/docs/${d.slug}`}
-                      className="group flex items-center justify-between gap-3 text-sm text-[var(--ink-dim)] transition-colors hover:text-[var(--accent-deep)] dark:hover:text-[var(--accent-soft)]"
+                      className="group flex items-center justify-between gap-3 font-geist text-sm tracking-tight text-[var(--ink-dim)] transition-colors hover:text-[var(--accent-deep)] dark:hover:text-[var(--accent-soft)]"
                     >
                       <span className="truncate">{d.title}</span>
                       <span className="shrink-0 text-[var(--faint)] transition-colors group-hover:text-[var(--accent)]">
                         <ArrowRight className="size-3.5" />
                       </span>
                     </Link>
-                    <p className="mt-0.5 text-xs leading-relaxed text-[var(--faint)]">{d.description}</p>
+                    <p className="mt-0.5 font-geist text-xs tracking-tight leading-relaxed text-[var(--faint)]">{d.description}</p>
                   </li>
                 ))}
               </ul>

@@ -88,15 +88,15 @@ export function GitHubStats() {
           <div key={c.label} className="card p-5">
             <div className="flex items-center gap-2">
               <c.icon className="size-3.5 text-[var(--faint)]" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--faint)]">{c.label}</p>
+              <p className="font-geist text-[11px] font-bold uppercase tracking-tight text-[var(--faint)]">{c.label}</p>
             </div>
-            <p className="mt-2 font-mono text-2xl font-bold text-[var(--ink)]" data-hydration-safe>
+            <p className="mt-2 font-geist text-2xl font-bold tracking-tighter leading-none text-[var(--ink)]" data-hydration-safe>
               {c.value}
             </p>
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs text-[var(--faint)]">
+      <p className="mt-4 font-geist text-xs tracking-tight text-[var(--faint)]">
         {stats.source === "api"
           ? "Live numbers from the GitHub API."
           : error
@@ -104,13 +104,13 @@ export function GitHubStats() {
             : "Fetching live numbers from the GitHub API…"}
       </p>
       <div className="mt-6 flex flex-wrap gap-3">
-        <Link href={site.repo} target="_blank" rel="noreferrer" className="btn btn-primary">
+        <Link href={site.repo} target="_blank" rel="noreferrer" className="btn btn-primary font-geist tracking-tighter text-lg">
           <Star className="size-4" aria-hidden /> Star the repo
         </Link>
-        <Link href={`${site.repo}/pulls`} target="_blank" rel="noreferrer" className="btn btn-secondary">
+        <Link href={`${site.repo}/pulls`} target="_blank" rel="noreferrer" className="btn btn-secondary font-geist tracking-tighter">
           Pull requests
         </Link>
-        <Link href={`${site.repo}/discussions`} target="_blank" rel="noreferrer" className="btn btn-ghost">
+        <Link href={`${site.repo}/discussions`} target="_blank" rel="noreferrer" className="btn btn-ghost font-geist tracking-tighter">
           Discussions
         </Link>
       </div>

@@ -55,7 +55,7 @@ export function CodeBlock({ code, lang, className }: { code: string; lang?: stri
       className={cn("group/code relative overflow-hidden rounded-card border border-[var(--line)] bg-[var(--code-bg)] shadow-card", className)}
     >
       <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--code-bar)] px-4 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--faint)]">
+        <span className="font-geist text-[10px] uppercase tracking-tight text-[var(--faint)]">
           {lang ? `${lang}` : "code"}
         </span>
         <motion.button
@@ -69,21 +69,24 @@ export function CodeBlock({ code, lang, className }: { code: string; lang?: stri
           {copied ? "Copied" : "Copy"}
         </motion.button>
       </div>
-      <SyntaxHighlighter
-        language={language}
-        style={vscDarkPlus}
-        customStyle={{
-          margin: 0,
-          background: "transparent",
-          padding: "1rem 1.25rem",
-          fontSize: "0.8125rem",
-          lineHeight: 1.7,
-        }}
-        codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
-        wrapLongLines
-      >
-        {code}
-      </SyntaxHighlighter>
+      <div style={{ filter: "grayscale(1)" }}>
+        <SyntaxHighlighter
+          language={language}
+          style={vscDarkPlus}
+          customStyle={{
+            margin: 0,
+            background: "transparent",
+            padding: "1rem 1.25rem",
+            fontSize: "0.8125rem",
+            lineHeight: 1.7,
+            filter: "grayscale(1)",
+          }}
+          codeTagProps={{ style: { fontFamily: "var(--font-mono)", filter: "grayscale(1)" } }}
+          wrapLongLines
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--line)] to-transparent opacity-70" aria-hidden />
     </motion.div>
   );

@@ -9,17 +9,17 @@ import { TextCascade } from "@/components/gsap/text-cascade";
 import { ScrollProgress } from "@/components/motion/parallax";
 import { JsonLd } from "@/components/json-ld";
 
-import "@fontsource/public-sans/400.css";
-import "@fontsource/public-sans/500.css";
-import "@fontsource/public-sans/600.css";
-import "@fontsource/public-sans/700.css";
-import "@fontsource/fraunces/500.css";
-import "@fontsource/fraunces/600.css";
-import "@fontsource/fraunces/700.css";
+import { Geist } from "next/font/google";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 import "./globals.css";
+
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
@@ -75,8 +75,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F5F4ED" },
-    { media: "(prefers-color-scheme: dark)", color: "#141414" },
+    { media: "(prefers-color-scheme: light)", color: "#000000" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -108,13 +108,12 @@ const jsonLd = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className="grain min-h-screen font-sans antialiased"
+        className={`${geist.variable} grain min-h-screen bg-black font-sans antialiased`}
         style={
           {
-            "--font-public-sans": "'Public Sans', system-ui, sans-serif",
-            "--font-fraunces": "'Fraunces', Georgia, serif",
+            "--font-geist": geist.style.fontFamily,
             "--font-jetbrains": "'JetBrains Mono', monospace",
           } as React.CSSProperties
         }
@@ -128,7 +127,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             gtag('config', 'G-LZ1H7X4BYD');
           `}
         </Script>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark" disableTransitionOnChange>
           <a
             href="#main"
             className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-pill focus:bg-[var(--accent)] focus:px-5 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]"

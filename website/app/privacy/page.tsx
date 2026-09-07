@@ -68,13 +68,13 @@ export default function PrivacyPage() {
         </CursorGlow>
 
         <Reveal className="mx-auto mt-14 max-w-3xl rounded-card border border-[var(--line)] bg-[var(--surface)] p-6 shadow-card">
-          <p className="ledger flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+          <p className="font-geist inline-flex items-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
             <ShieldCheck className="size-3.5" aria-hidden />
             What we do NOT collect
           </p>
           <ul className="mt-4 space-y-2.5">
             {never.map((n) => (
-              <li key={n} className="flex items-start gap-2.5 text-sm leading-relaxed text-[var(--ink-dim)]">
+              <li key={n} className="flex items-start gap-2.5 font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">
                 <span className="mt-[0.55em] size-1.5 shrink-0 rounded-full bg-[var(--ok)]" aria-hidden />
                 {n}
               </li>
@@ -85,14 +85,14 @@ export default function PrivacyPage() {
         <div className="mt-14 grid gap-8 lg:grid-cols-2">
           <section aria-label="Data that stays on device">
             <Reveal>
-              <h2 className="font-serif text-2xl font-semibold text-[var(--ink)]">Data that stays on your device</h2>
+              <h2 className="font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Data that stays on your device</h2>
               <div className="mt-6 space-y-4">
                 {onDevice.map((c) => (
                   <HoverCard key={c.title} className="flex items-start gap-4 p-5">
                     <c.icon className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
                     <div>
-                      <h3 className="text-sm font-semibold text-[var(--ink)]">{c.title}</h3>
-                      <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{c.text}</p>
+                      <h3 className="font-geist text-sm font-semibold tracking-tight leading-tight text-[var(--ink)]">{c.title}</h3>
+                      <p className="mt-1 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{c.text}</p>
                     </div>
                   </HoverCard>
                 ))}
@@ -102,15 +102,15 @@ export default function PrivacyPage() {
 
           <section aria-label="Data that may leave your device">
             <Reveal delay={0.08}>
-              <h2 className="font-serif text-2xl font-semibold text-[var(--ink)]">Data that may leave your device</h2>
-              <p className="mt-2 text-sm text-[var(--muted)]">Only through explicit, per-provider opt-in. Everything else runs locally.</p>
+              <h2 className="font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Data that may leave your device</h2>
+              <p className="mt-2 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">Only through explicit, per-provider opt-in. Everything else runs locally.</p>
               <div className="mt-6 space-y-4">
                 {mayLeave.map((c) => (
                   <HoverCard key={c.title} className="flex items-start gap-4 p-5">
                     <c.icon className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
                     <div>
-                      <h3 className="text-sm font-semibold text-[var(--ink)]">{c.title}</h3>
-                      <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{c.text}</p>
+                      <h3 className="font-geist text-sm font-semibold tracking-tight leading-tight text-[var(--ink)]">{c.title}</h3>
+                      <p className="mt-1 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{c.text}</p>
                     </div>
                   </HoverCard>
                 ))}
@@ -121,20 +121,20 @@ export default function PrivacyPage() {
 
         <section className="mt-16" aria-label="Your controls">
           <Reveal>
-            <h2 className="font-serif text-2xl font-semibold text-[var(--ink)]">Your rights and controls</h2>
+            <h2 className="font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Your rights and controls</h2>
             <div className="mt-6 overflow-x-auto rounded-card border border-[var(--line)] bg-[var(--surface)] shadow-card">
               <table className="w-full min-w-[540px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left">
-                    <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Control</th>
-                    <th scope="col" className="px-5 py-4 text-xs font-bold uppercase tracking-wider text-[var(--faint)]">Where</th>
+                    <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Control</th>
+                    <th scope="col" className="px-5 py-4 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">Where</th>
                   </tr>
                 </thead>
                 <tbody>
                   {controls.map((c) => (
                     <tr key={c.action} className="border-b border-[var(--line-soft)] last:border-0">
-                      <td className="px-5 py-3.5 font-medium text-[var(--ink-dim)]">{c.action}</td>
-                      <td className="px-5 py-3.5 font-mono text-[12px] text-[var(--muted)]">{c.where}</td>
+                      <td className="px-5 py-3.5 font-geist font-medium tracking-tight text-[var(--ink-dim)]">{c.action}</td>
+                      <td className="px-5 py-3.5 font-mono text-[12px] tracking-tight text-gray-600 dark:text-gray-400">{c.where}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -146,14 +146,14 @@ export default function PrivacyPage() {
         <div className="mt-14 grid gap-8 lg:grid-cols-2">
           <section aria-label="Data retention">
             <Reveal>
-              <h2 className="font-serif text-2xl font-semibold text-[var(--ink)]">Data retention</h2>
+              <h2 className="font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Data retention</h2>
               <div className="mt-6 space-y-3">
                 {retention.map((r) => (
                   <HoverCard key={r.item} className="flex items-start gap-4 p-5">
                     <Trash2 className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
                     <div>
-                      <h3 className="text-sm font-semibold text-[var(--ink)]">{r.item}</h3>
-                      <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{r.text}</p>
+                      <h3 className="font-geist text-sm font-semibold tracking-tight leading-tight text-[var(--ink)]">{r.item}</h3>
+                      <p className="mt-1 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{r.text}</p>
                     </div>
                   </HoverCard>
                 ))}
@@ -163,7 +163,7 @@ export default function PrivacyPage() {
 
           <section aria-label="Security measures">
             <Reveal delay={0.08}>
-              <h2 className="font-serif text-2xl font-semibold text-[var(--ink)]">Security measures</h2>
+              <h2 className="font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Security measures</h2>
               <div className="mt-6 space-y-3">
                 {[
                   "Encryption at rest: API keys use AES-256/GCM via the Android Keystore",
@@ -174,7 +174,7 @@ export default function PrivacyPage() {
                 ].map((s) => (
                   <HoverCard key={s} className="flex items-start gap-4 p-5">
                     <Lock className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
-                    <p className="text-sm leading-relaxed text-[var(--muted)]">{s}</p>
+                    <p className="font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{s}</p>
                   </HoverCard>
                 ))}
               </div>
@@ -183,7 +183,7 @@ export default function PrivacyPage() {
         </div>
 
         <Reveal className="mt-14">
-          <p className="max-w-3xl text-sm leading-relaxed text-[var(--muted)]">
+          <p className="max-w-3xl font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
             AndroLLM is not targeted at children under 13 and knowingly collects no personal information from children.
             This policy may be updated periodically; changes are posted in this file and in the app under Settings → About.
             For privacy questions, open an issue on{" "}

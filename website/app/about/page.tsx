@@ -48,9 +48,9 @@ export default function AboutPage() {
               <HoverCard className="h-full p-6">
                 <div className="flex items-center gap-2.5">
                   <p.icon className="size-4 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
-                  <h2 className="font-serif text-lg font-semibold text-[var(--ink)]">{p.title}</h2>
+                  <h2 className="font-geist text-balance text-lg font-semibold tracking-tight leading-tight text-[var(--ink)]">{p.title}</h2>
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">{p.text}</p>
+                <p className="mt-3 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{p.text}</p>
               </HoverCard>
             </Reveal>
           ))}
@@ -59,9 +59,9 @@ export default function AboutPage() {
         <div className="mt-20 grid gap-12 lg:grid-cols-[1fr_1.2fr]">
           <Reveal>
             <div>
-              <p className="ledger">Stack</p>
-              <h2 className="mt-3 font-serif text-3xl font-semibold text-[var(--ink)]">One phone, one stack, zero servers.</h2>
-              <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Stack</p>
+              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">One phone, one stack, zero servers.</h2>
+              <p className="mt-4 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 The whole project is a single Gradle monorepo: a Compose app, a 100% Kotlin LiteRT-LM inference
                 engine, and OpenCL-backed GPU acceleration. Everything is
                 Apache 2.0 and fully open to audit.
@@ -76,8 +76,8 @@ export default function AboutPage() {
                   { v: "Jetpack Compose", l: "100% Material You UI" },
                 ].map((t) => (
                   <HoverCard key={t.v} className="p-4">
-                    <p className="font-mono text-[13px] font-bold text-[var(--ink)]">{t.v}</p>
-                    <p className="mt-1 text-[12px] leading-snug text-[var(--faint)]">{t.l}</p>
+                    <p className="font-mono text-[13px] font-bold tracking-tight text-[var(--ink)]">{t.v}</p>
+                    <p className="mt-1 font-geist text-[12px] tracking-tight leading-snug text-[var(--faint)]">{t.l}</p>
                   </HoverCard>
                 ))}
               </div>
@@ -86,15 +86,15 @@ export default function AboutPage() {
 
           <Reveal delay={0.1}>
             <div>
-              <p className="ledger">Where it comes from</p>
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Where it comes from</p>
               <div className="mt-6 space-y-0 border-l border-[var(--line)]">
                 {story.map((s, i) => (
                   <div key={s.year} className="relative pb-8 pl-7 last:pb-0">
                     <span className="absolute -left-[4.5px] top-1.5 size-2 rounded-full bg-[var(--accent-deep)] ring-4 ring-[var(--accent-soft)] dark:bg-[var(--accent-soft)] dark:ring-[var(--accent-deep)]" aria-hidden />
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--faint)]">
+                    <p className="font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">
                       {String(i + 1).padStart(2, "0")} · {s.year}
                     </p>
-                    <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">{s.text}</p>
+                    <p className="mt-1.5 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{s.text}</p>
                   </div>
                 ))}
               </div>
@@ -105,8 +105,8 @@ export default function AboutPage() {
         <Reveal className="mx-auto mt-20 max-w-3xl">
           <div className="rounded-card border border-[var(--line)] bg-[var(--surface)] p-8 text-center shadow-card">
             <ShieldCheck className="mx-auto size-5 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
-            <h2 className="mt-4 font-serif text-2xl font-semibold text-[var(--ink)]">Fully open source</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[var(--muted)]">
+            <h2 className="mt-4 font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Fully open source</h2>
+            <p className="mx-auto mt-3 max-w-xl font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
               No binaries hidden behind a walled garden. The app, engine, docs, and this website are all public on
               GitHub under the Apache 2.0 license. You can read every line, build it yourself, or change it.
             </p>
@@ -116,15 +116,15 @@ export default function AboutPage() {
                   href={site.repo}
                   target="_blank"
                   rel="noreferrer"
-                  className="btn btn-primary"
+                  className="btn btn-primary font-geist tracking-tighter"
                 >
                   <PackageOpen className="size-4" aria-hidden /> View the repository
                 </Link>
               </Magnetic>
-              <Link href="/docs" className="btn btn-ghost">
+              <Link href="/docs" className="btn btn-ghost font-geist tracking-tighter">
                 <Cpu className="size-4" aria-hidden /> Read the docs
               </Link>
-              <Link href="/downloads" className="btn btn-ghost">
+              <Link href="/downloads" className="btn btn-ghost font-geist tracking-tighter">
                 <Building2 className="size-4" aria-hidden /> Get the app
               </Link>
             </div>

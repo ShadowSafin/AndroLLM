@@ -31,13 +31,13 @@ export function RoadmapTeaser() {
 
         <div className="mx-auto mt-14 grid max-w-4xl gap-5 sm:grid-cols-2">
           <Reveal className="rounded-card border border-[var(--line)] bg-[var(--surface)] p-6 shadow-card">
-            <p className="ledger flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+            <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
               <Circle className="size-3.5" aria-hidden />
               In progress
             </p>
             <ul className="mt-5 space-y-3">
               {now.map((i) => (
-                <li key={i.text} className="flex items-start gap-3 text-sm leading-relaxed text-[var(--ink-dim)]">
+                <li key={i.text} className="flex items-start gap-3 font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">
                   <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden />
                   {i.text}
                 </li>
@@ -46,13 +46,13 @@ export function RoadmapTeaser() {
           </Reveal>
 
           <Reveal delay={0.08} className="rounded-card border border-[var(--line)] bg-[var(--surface)] p-6 shadow-card">
-            <p className="ledger flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+            <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
               <Sparkles className="size-3.5" aria-hidden />
               Near term
             </p>
             <ul className="mt-5 space-y-3">
               {next.map((i) => (
-                <li key={i.text} className="flex items-start gap-3 text-sm leading-relaxed text-[var(--ink-dim)]">
+                <li key={i.text} className="flex items-start gap-3 font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">
                   <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--line-strong)]" aria-hidden />
                   {i.text}
                 </li>
@@ -62,11 +62,11 @@ export function RoadmapTeaser() {
         </div>
 
         <Reveal delay={0.16} className="mx-auto mt-8 flex max-w-4xl flex-wrap items-center justify-center gap-x-8 gap-y-2">
-          <span className="inline-flex items-center gap-2 text-xs text-[var(--muted)]">
+          <span className="inline-flex items-center gap-2 font-geist text-xs tracking-tight text-gray-600 dark:text-gray-400">
             <CheckCircle2 className="size-3.5 text-[var(--ok)]" aria-hidden />
             28 items already shipped, including the nine pillars on this page
           </span>
-          <span className="inline-flex items-center gap-2 text-xs text-[var(--muted)]">
+          <span className="inline-flex items-center gap-2 font-geist text-xs tracking-tight text-gray-600 dark:text-gray-400">
             <CheckCircle2 className="size-3.5 text-[var(--ok)]" aria-hidden />
             Multi-modal, code interpreter, real-time translation in long term
           </span>
@@ -75,7 +75,7 @@ export function RoadmapTeaser() {
         <div className="mt-10 text-center">
           <Link
             href="/roadmap"
-            className="group inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
+            className="group inline-flex items-center gap-2 font-geist text-sm font-semibold tracking-tight text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
           >
             Open the full roadmap
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />

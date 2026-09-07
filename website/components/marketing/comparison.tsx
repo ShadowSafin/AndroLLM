@@ -25,13 +25,13 @@ export function Comparison() {
           <table className="w-full border-collapse bg-[var(--surface)] text-sm">
             <thead>
               <tr className="border-b border-[var(--line)]">
-                <th scope="col" className="px-5 py-4 text-left font-serif text-base font-semibold text-[var(--ink)]">
+                <th scope="col" className="px-5 py-4 text-left font-geist text-base font-semibold tracking-tight text-[var(--ink)]">
                   &nbsp;
                 </th>
-                <th scope="col" className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[var(--faint)]">
+                <th scope="col" className="px-5 py-4 text-left font-geist text-xs font-semibold uppercase tracking-tight text-[var(--faint)]">
                   Typical mobile AI apps
                 </th>
-                <th scope="col" className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                <th scope="col" className="px-5 py-4 text-left font-geist text-xs font-semibold uppercase tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                   AndroLLM
                 </th>
               </tr>
@@ -39,16 +39,16 @@ export function Comparison() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.label} className="border-b border-[var(--line-soft)] last:border-0">
-                  <th scope="row" className="whitespace-nowrap px-5 py-3.5 text-left font-semibold text-[var(--ink)]">
+                  <th scope="row" className="whitespace-nowrap px-5 py-3.5 text-left font-geist font-semibold tracking-tight text-[var(--ink)]">
                     {row.label}
                   </th>
-                  <td className="px-5 py-3.5 text-[var(--faint)]">
+                  <td className="px-5 py-3.5 font-geist tracking-tight text-[var(--faint)]">
                     <span className="inline-flex items-start gap-2">
                       <Minus className="mt-0.5 size-3.5 shrink-0 text-[var(--faint)]" aria-hidden />
                       {row.typical}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-[var(--ink-dim)]">
+                  <td className="px-5 py-3.5 font-geist tracking-tight text-[var(--ink-dim)]">
                     <span className="inline-flex items-start gap-2">
                       <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--ok)]" aria-hidden />
                       {row.andro}

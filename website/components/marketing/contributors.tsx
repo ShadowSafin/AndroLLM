@@ -48,7 +48,7 @@ export function Contributors() {
 
   return (
     <div>
-      <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.16em] text-[var(--faint)]">
+      <div className="flex items-center gap-2.5 font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">
         <Users className="size-3.5" aria-hidden />
         Contributors{list ? ` (${count})` : failed ? "" : " — loading…"}
       </div>
@@ -72,8 +72,8 @@ export function Contributors() {
                   loading="lazy"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-[var(--ink)]">{c.login}</p>
-                  <p className="text-xs text-[var(--faint)]">{c.contributions} commits</p>
+                  <p className="truncate font-geist text-sm font-semibold tracking-tight text-[var(--ink)]">{c.login}</p>
+                  <p className="font-geist text-xs tracking-tight text-[var(--faint)]">{c.contributions} commits</p>
                 </div>
               </a>
             </li>
@@ -82,7 +82,7 @@ export function Contributors() {
       ) : (
         <div className="card mt-5 flex items-center gap-3 p-5">
           <UserX className="size-4 shrink-0 text-[var(--faint)]" aria-hidden />
-          <p className="text-sm text-[var(--muted)]">
+          <p className="font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">
             {failed
               ? "Couldn’t load the live contributor list. This project is early — you could be first on it. The repo’s commit graph tells the real story."
               : "Loading the live list from GitHub…"}
@@ -94,7 +94,7 @@ export function Contributors() {
         href={`${site.repo}/graphs/contributors`}
         target="_blank"
         rel="noreferrer"
-        className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[var(--accent-deep)] hover:underline dark:text-[var(--accent-soft)]"
+        className="mt-6 inline-flex items-center gap-2 font-geist text-sm font-bold tracking-tight text-[var(--accent-deep)] hover:underline dark:text-[var(--accent-soft)]"
       >
         <Users className="size-3.5" aria-hidden />
         View the full commit graph →

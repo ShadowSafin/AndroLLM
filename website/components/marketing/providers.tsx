@@ -29,8 +29,8 @@ export function Providers() {
                 <span className="flex size-9 items-center justify-center rounded-circle border border-[var(--line)] bg-[var(--deep)] font-mono text-sm text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                   {logos[p.name as keyof typeof logos] ?? "•"}
                 </span>
-                <p className="mt-3 font-serif text-base font-semibold text-[var(--ink)]">{p.name}</p>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--faint)]">{p.via}</p>
+                <p className="mt-3 font-geist text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">{p.name}</p>
+                <p className="mt-1 font-geist text-xs tracking-tight leading-relaxed text-[var(--faint)]">{p.via}</p>
               </div>
             </Reveal>
           ))}
@@ -39,8 +39,8 @@ export function Providers() {
               <span className="flex size-9 items-center justify-center rounded-circle border border-dashed border-[var(--accent)] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                 +
               </span>
-              <p className="mt-3 font-serif text-base font-semibold text-[var(--ink)]">Your endpoint</p>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--faint)]">Any OpenAI-compatible URL — bring your own.</p>
+              <p className="mt-3 font-geist text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">Your endpoint</p>
+              <p className="mt-1 font-geist text-xs tracking-tight leading-relaxed text-[var(--faint)]">Any OpenAI-compatible URL — bring your own.</p>
             </div>
           </Reveal>
         </div>

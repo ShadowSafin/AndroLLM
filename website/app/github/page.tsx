@@ -46,21 +46,21 @@ export default function GitHubPage() {
         <div className="mt-20 grid items-start gap-12 lg:grid-cols-[1fr_1.3fr]">
           <Reveal>
             <div>
-              <p className="ledger">Repo anatomy</p>
-              <h2 className="mt-3 font-serif text-3xl font-semibold text-[var(--ink)]">
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Repo anatomy</p>
+              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">
                 Everything lives in one place
               </h2>
-              <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
+              <p className="mt-4 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 The repository is a Gradle monorepo with the app, a C++ inference engine, memory and voice modules,
                 and full documentation. Fork-friendly branches carry stable and main lines.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Magnetic strength={0.18}>
-                  <Link href={site.repo} target="_blank" rel="noreferrer" className="btn btn-primary">
+                  <Link href={site.repo} target="_blank" rel="noreferrer" className="btn btn-primary font-geist tracking-tighter">
                     <FileCode2 className="size-4" aria-hidden /> Explore the repo
                   </Link>
                 </Magnetic>
-                <Link href={site.issues} target="_blank" rel="noreferrer" className="btn btn-ghost">
+                <Link href={site.issues} target="_blank" rel="noreferrer" className="btn btn-ghost font-geist tracking-tighter">
                   Issues
                 </Link>
               </div>
@@ -85,10 +85,10 @@ export default function GitHubPage() {
                 <ul className="divide-y divide-[var(--line-soft)]">
                   {highlights.map((h) => (
                     <li key={h.file} className="grid gap-1 px-6 py-4 sm:grid-cols-[130px_1fr]">
-                      <code className="text-[12px] font-bold text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                      <code className="font-mono text-[12px] font-bold tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                         {h.file}
                       </code>
-                      <p className="text-sm leading-relaxed text-[var(--muted)]">{h.what}</p>
+                      <p className="font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{h.what}</p>
                     </li>
                   ))}
                 </ul>
@@ -100,14 +100,14 @@ export default function GitHubPage() {
         <div className="mt-20 grid gap-12 lg:grid-cols-2">
           <Reveal>
             <div>
-              <p className="ledger">Release process</p>
-              <h2 className="mt-3 font-serif text-3xl font-semibold text-[var(--ink)]">Versioned, signed, archived</h2>
-              <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Release process</p>
+              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">Versioned, signed, archived</h2>
+              <p className="mt-4 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 Releases are built only from the stable branch and signed with the project keystore. Version stamps,
                 per-ABI artifacts, and release notes all derive from the changelog — so the app, docs, and site report
                 the same version.
               </p>
-              <Link href="/downloads" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[var(--accent-deep)] hover:underline dark:text-[var(--accent-soft)]">
+              <Link href="/downloads" className="mt-6 inline-flex items-center gap-2 font-geist text-sm font-bold tracking-tight text-[var(--accent-deep)] hover:underline dark:text-[var(--accent-soft)]">
                 <GitCommitHorizontal className="size-3.5" aria-hidden /> See the downloads page →
               </Link>
             </div>
@@ -115,7 +115,7 @@ export default function GitHubPage() {
 
           <Reveal delay={0.1}>
             <div>
-              <p className="ledger">Branches</p>
+              <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Branches</p>
               <div className="mt-6 space-y-4">
                 {[
                   { name: "main", text: "Unstable line. Latest in-progress work; not guaranteed to be release-tested." },
@@ -123,10 +123,10 @@ export default function GitHubPage() {
                   { name: "feat/*, fix/*, docs/*", text: "Working branches opened from forks. CI stages compile, test, and lint." },
                 ].map((b) => (
                   <HoverCard key={b.name} className="flex items-start gap-3 p-5">
-                    <code className="mt-0.5 shrink-0 rounded-md bg-[var(--accent-soft)] px-2 py-1 font-mono text-[11px] font-bold text-[var(--accent-deep)] dark:bg-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                    <code className="mt-0.5 shrink-0 rounded-md bg-[var(--accent-soft)] px-2 py-1 font-mono text-[11px] font-bold tracking-tight text-[var(--accent-deep)] dark:bg-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                       {b.name}
                     </code>
-                    <p className="text-sm leading-relaxed text-[var(--muted)]">{b.text}</p>
+                    <p className="font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{b.text}</p>
                   </HoverCard>
                 ))}
               </div>

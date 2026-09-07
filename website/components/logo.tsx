@@ -16,7 +16,7 @@ export function Logo({ className, compact = false }: { className?: string; compa
         />
       </span>
       {!compact && (
-        <span className="flex items-baseline gap-1 font-serif text-xl font-semibold tracking-tight text-[var(--ink)]">
+        <span className="flex items-baseline gap-1 font-geist text-xl font-semibold tracking-tighter leading-none text-[var(--ink)]">
           Andro
           <span className="text-gradient-ember">LLM</span>
         </span>

@@ -44,9 +44,9 @@ export default function DownloadsPage() {
           <span className="mx-auto flex size-14 items-center justify-center rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
             <Archive className="size-6" aria-hidden />
           </span>
-          <h2 className="mt-5 font-serif text-2xl font-semibold text-[var(--ink)]">AndroLLM {site.version}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
-            Package <code className="rounded bg-[var(--mutedsurface)] px-1.5 py-0.5 font-mono text-xs text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{site.appId}</code> ·{" "}
+          <h2 className="mt-5 font-geist text-balance text-2xl font-semibold tracking-tight leading-tight text-[var(--ink)]">AndroLLM {site.version}</h2>
+          <p className="mt-2 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
+            Package <code className="rounded bg-[var(--mutedsurface)] px-1.5 py-0.5 font-mono text-xs tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{site.appId}</code> ·{" "}
             versionCode {site.versionCode} · minSdk {site.minSdk} · targetSdk {site.targetSdk}
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -65,7 +65,7 @@ export default function DownloadsPage() {
               </Link>
             </Button>
           </div>
-          <p className="mt-5 text-xs leading-relaxed text-[var(--faint)]">
+          <p className="mt-5 font-geist text-xs tracking-tight leading-relaxed text-[var(--faint)]">
             APKs are published on GitHub Releases. Verify the SHA-256 checksum after downloading — the app itself also verifies every model file it receives.
           </p>
         </Reveal>
@@ -76,9 +76,9 @@ export default function DownloadsPage() {
               <div className="card flex h-full items-start gap-3 p-5">
                 <r.icon className="mt-0.5 size-4 shrink-0 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-[var(--faint)]">{r.label}</p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--ink)]">{r.value}</p>
-                  <p className="mt-0.5 text-xs text-[var(--muted)]">{r.note}</p>
+                  <p className="font-geist text-xs font-bold uppercase tracking-tight text-[var(--faint)]">{r.label}</p>
+                  <p className="mt-1 font-geist text-sm font-semibold tracking-tight text-[var(--ink)]">{r.value}</p>
+                  <p className="mt-0.5 font-geist text-xs tracking-tight text-gray-600 dark:text-gray-400">{r.note}</p>
                 </div>
               </div>
             </Reveal>
@@ -93,12 +93,12 @@ export default function DownloadsPage() {
             {steps.map((s, i) => (
               <Reveal key={s.n} delay={i * 0.04}>
                 <li className="card flex h-full gap-4 p-6">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] font-mono text-sm font-semibold text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] font-mono text-sm font-semibold tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                     {s.n}
                   </span>
                   <div>
-                    <h3 className="font-serif text-base font-semibold text-[var(--ink)]">{s.title}</h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">{s.text}</p>
+                    <h3 className="font-geist text-balance text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">{s.title}</h3>
+                    <p className="mt-1.5 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{s.text}</p>
                   </div>
                 </li>
               </Reveal>
@@ -124,7 +124,7 @@ export default function DownloadsPage() {
                 "./gradlew assembleDebug",
               ]}
             />
-            <p className="mt-5 flex items-center justify-center gap-2 text-sm text-[var(--muted)]">
+            <p className="mt-5 flex items-center justify-center gap-2 font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400">
               <FileCode2 className="size-4 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]" aria-hidden />
               Full requirements in the building guide — a pure-Kotlin build, no NDK or CMake needed.
             </p>

@@ -20,14 +20,14 @@ export function PrivacyBand() {
       />
       <div className="container">
         <Reveal className="mx-auto max-w-3xl text-center">
-          <p className="ledger inline-flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+          <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
             <ShieldCheck className="size-3.5" aria-hidden />
             The 0-telemetry promise
           </p>
-          <h2 className="text-balance mt-4 font-serif text-3xl font-semibold leading-tight tracking-tight text-[var(--ink)] sm:text-4xl">
+          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40">
             Your intelligence is your business.
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-[var(--muted)] sm:text-lg">
+          <p className="mt-4 text-balance text-lg tracking-tight text-gray-600 dark:text-gray-400 md:text-xl">
             No analytics SDKs, no crash reporters, no tracking. Nothing leaves your phone unless you explicitly
             configure a cloud provider or MCP server.
           </p>

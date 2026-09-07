@@ -47,10 +47,10 @@ export default function FeaturesPage() {
                   <span className="flex size-11 items-center justify-center rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
                     <f.icon className="size-5" aria-hidden />
                   </span>
-                  <h3 className="mt-5 font-serif text-xl font-semibold tracking-tight text-[var(--ink)]">{f.name}</h3>
-                  <p className="mt-1 text-sm text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.tagline}</p>
-                  <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">{f.description}</p>
-                  <ul className="mt-4 space-y-1.5 text-sm text-[var(--ink-dim)]">
+                  <h3 className="mt-5 font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">{f.name}</h3>
+                  <p className="mt-1 font-geist text-sm tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.tagline}</p>
+                  <p className="mt-3 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{f.description}</p>
+                  <ul className="mt-4 space-y-1.5 font-geist text-sm tracking-tight text-[var(--ink-dim)]">
                     {f.bullets.map((b) => (
                       <li key={b} className="flex items-start gap-2">
                         <span className="mt-[0.45em] size-1 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden />
@@ -67,14 +67,14 @@ export default function FeaturesPage() {
 
       <section className="container pt-20 pb-24" aria-label="Go deeper">
         <Reveal className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
-          <p className="ledger inline-flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+          <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
             <BookOpen className="size-3.5" aria-hidden />
             Under the hood
           </p>
-          <h2 className="text-balance font-serif text-3xl font-semibold tracking-tight text-[var(--ink)]">
+          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40">
             The documentation covers every one of these features in depth.
           </h2>
-          <p className="text-base leading-relaxed text-[var(--muted)]">
+          <p className="font-geist text-base tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
             Architecture, build instructions, supported models, performance, testing — the full technical
             documentation is published here, converted from the repository&apos;s own docs.
           </p>

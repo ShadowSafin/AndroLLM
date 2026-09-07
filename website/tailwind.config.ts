@@ -12,50 +12,53 @@ const config: Config = {
     },
     extend: {
       colors: {
+        // Monochrome — black/white/gray only
         parchment: {
-          canvas: "#F5F4ED",
-          raised: "#ECEBE3",
-          deep: "#EFEEE6",
-          surface: "#FBFAF4",
-          elevated: "#FFFFFF",
-          border: "#E8E6DC",
-          borderSoft: "#F0EEE6",
+          canvas: "#000000",
+          raised: "#0A0A0A",
+          deep: "#0A0A0A",
+          surface: "#111111",
+          elevated: "#171717",
+          border: "#262626",
+          borderSoft: "#171717",
         },
         ink: {
-          DEFAULT: "#141413",
-          dim: "#4A4945",
-          muted: "#5E5D59",
-          faint: "#8F8D87",
+          DEFAULT: "#FFFFFF",
+          dim: "#E5E5E5",
+          muted: "#9CA3AF",
+          faint: "#6B7280",
         },
         ember: {
-          DEFAULT: "#D97757",
-          light: "#E69D81",
-          deep: "#B3573E",
-          halo: "#40D97757",
+          DEFAULT: "#FFFFFF",
+          light: "#A3A3A3",
+          deep: "#FFFFFF",
+          halo: "#1AFFFFFF",
         },
         lamp: {
-          DEFAULT: "#C78871",
+          DEFAULT: "#FFFFFF",
         },
         night: {
-          canvas: "#141414",
-          surface: "#1C1C1B",
-          raised: "#272727",
-          border: "#2A2A28",
-          borderSoft: "#232323",
+          canvas: "#000000",
+          surface: "#111111",
+          raised: "#0A0A0A",
+          border: "#262626",
+          borderSoft: "#171717",
         },
-        ok: { DEFAULT: "#52C41A" },
-        warn: { DEFAULT: "#E0A33D" },
-        err: { DEFAULT: "#C7442F" },
+        ok: { DEFAULT: "#E5E5E5" },
+        warn: { DEFAULT: "#9CA3AF" },
+        err: { DEFAULT: "#FFFFFF" },
       },
       fontFamily: {
-        sans: ["var(--font-public-sans)", ...defaultTheme.fontFamily.sans],
-        serif: ["var(--font-fraunces)", ...defaultTheme.fontFamily.serif],
+        sans: ["var(--font-geist)", ...defaultTheme.fontFamily.sans],
+        serif: ["var(--font-geist)", ...defaultTheme.fontFamily.sans],
         mono: ["var(--font-jetbrains)", ...defaultTheme.fontFamily.mono],
+        geist: ["var(--font-geist)", ...defaultTheme.fontFamily.sans],
       },
       fontSize: {
-        "display-xl": ["clamp(2.75rem, 6vw, 5.5rem)", { lineHeight: "1.02", letterSpacing: "-0.03em" }],
-        "display-lg": ["clamp(2.25rem, 4.5vw, 3.75rem)", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
-        "display-md": ["clamp(1.75rem, 3.2vw, 2.5rem)", { lineHeight: "1.12", letterSpacing: "-0.02em" }],
+        // Prompt typography: tight tracking, leading-none, 5xl→8xl hero scale
+        "display-xl": ["clamp(3rem, 7vw, 6rem)", { lineHeight: "1", letterSpacing: "-0.05em" }],
+        "display-lg": ["clamp(2.25rem, 5vw, 4.5rem)", { lineHeight: "1", letterSpacing: "-0.05em" }],
+        "display-md": ["clamp(1.875rem, 4vw, 3rem)", { lineHeight: "1.05", letterSpacing: "-0.025em" }],
       },
       borderRadius: {
         card: "16px",
@@ -72,9 +75,9 @@ const config: Config = {
         nav: "var(--nav-shadow)",
       },
       backgroundImage: {
-        "ember-glow": "radial-gradient(1200px 600px at 50% -10%, rgba(217,119,87,0.16), transparent 60%)",
+        "ember-glow": "radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.08), transparent 60%)",
         "grid-parchment":
-          "linear-gradient(to right, rgba(20,20,19,0.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(20,20,19,0.045) 1px, transparent 1px)",
+          "linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)",
       },
       keyframes: {
         "blob-drift": {
@@ -130,8 +133,13 @@ const config: Config = {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-100%)" },
         },
+        // Prompt typography motion — fade-in / fade-up
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(20px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
         "fade-up": {
-          "0%": { opacity: "0", transform: "translateY(12px)" },
+          "0%": { opacity: "0", transform: "translateY(40px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
       },
@@ -146,6 +154,7 @@ const config: Config = {
         "progress-scan": "progress-scan 2.4s ease-in-out infinite",
         "pulse-ring": "pulse-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite",
         "grain": "grain 8s steps(10) infinite",
+        "fade-in": "fade-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) both",
         "fade-up": "fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },

@@ -62,8 +62,8 @@ export function Showcase() {
                     <q.icon className="size-5" aria-hidden />
                   </span>
                   <div>
-                    <h3 className="font-serif text-lg font-semibold text-[var(--ink)]">{q.title}</h3>
-                    <p className="mt-1 max-w-md text-sm leading-relaxed text-[var(--muted)]">{q.text}</p>
+                    <h3 className="font-geist text-balance text-lg font-semibold leading-none tracking-tight text-[var(--ink)]">{q.title}</h3>
+                    <p className="mt-1 max-w-md text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{q.text}</p>
                   </div>
                 </div>
               </Reveal>
@@ -72,7 +72,7 @@ export function Showcase() {
           <Reveal delay={0.3} className="mt-10">
             <Link
               href="/features"
-              className="group inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
+              className="group inline-flex items-center gap-2 font-geist text-sm font-semibold tracking-tight text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
             >
               Read the full architecture
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />

@@ -98,7 +98,7 @@ const future = [
 
 function GroupHead({ icon: Icon, label, count }: { icon: typeof Circle; label: string; count: string }) {
   return (
-    <p className="ledger inline-flex items-center gap-2 text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+    <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
       <Icon className="size-3.5" aria-hidden />
       {label} <span className="text-[var(--faint)]">· {count}</span>
     </p>
@@ -116,12 +116,12 @@ export default function RoadmapPage() {
         />
 
         <Reveal className="mx-auto mt-12 max-w-3xl rounded-card border border-[color-mix(in_srgb,var(--ok)_35%,var(--line))] bg-[color-mix(in_srgb,var(--ok)_5%,var(--surface))] p-6">
-          <p className="flex items-start gap-3 text-sm leading-relaxed text-[var(--ink-dim)]">
+          <p className="flex items-start gap-3 font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">
             <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--ok)_15%,transparent)]">
               <CheckCircle2 className="size-3.5 text-[var(--ok)]" aria-hidden />
             </span>
             <span>
-              <strong className="font-semibold text-[var(--ink)]">Already live in v1.0:</strong> the roadmap document
+              <strong className="font-geist font-semibold tracking-tight text-[var(--ink)]">Already live in v1.0:</strong> the roadmap document
               predates a shipped capability. The <Link href="/features#agent" className="underline decoration-[color-mix(in_srgb,var(--accent)_40%,transparent)] underline-offset-4">agent platform</Link>{" "}
               (50+ tools, planning, safety gates) is not “planned” — it ships in the app today. Function calling is likewise already exercised as grammar-constrained tool use on local models.
             </span>
@@ -135,7 +135,7 @@ export default function RoadmapPage() {
               <Reveal key={i} delay={idx * 0.03}>
                 <div className="card flex items-start gap-3 p-5">
                   <Pulse color="var(--accent)" size={8} className="mt-1 shrink-0" />
-                  <p className="text-sm leading-relaxed text-[var(--ink-dim)]">{i}</p>
+                  <p className="font-geist text-sm tracking-tight leading-relaxed text-[var(--ink-dim)]">{i}</p>
                 </div>
               </Reveal>
             ))}
@@ -149,8 +149,8 @@ export default function RoadmapPage() {
               {nearTerm.map((i, idx) => (
                 <Reveal key={i.name} delay={idx * 0.03}>
                   <li className="card flex h-full flex-col p-5">
-                    <p className="font-serif text-base font-semibold text-[var(--ink)]">{i.name}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{i.text}</p>
+                    <p className="font-geist text-balance text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">{i.name}</p>
+                    <p className="mt-1 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{i.text}</p>
                   </li>
                 </Reveal>
               ))}
@@ -163,8 +163,8 @@ export default function RoadmapPage() {
               {mediumTerm.map((i, idx) => (
                 <Reveal key={i.name} delay={idx * 0.03}>
                   <li className="card flex h-full flex-col p-5">
-                    <p className="font-serif text-base font-semibold text-[var(--ink)]">{i.name}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{i.text}</p>
+                    <p className="font-geist text-balance text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">{i.name}</p>
+                    <p className="mt-1 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{i.text}</p>
                   </li>
                 </Reveal>
               ))}
@@ -178,8 +178,8 @@ export default function RoadmapPage() {
             {longTerm.map((i, idx) => (
               <Reveal key={i.name} delay={idx * 0.03}>
                 <div className="card flex h-full flex-col p-5">
-                  <p className="font-serif text-base font-semibold text-[var(--ink)]">{i.name}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{i.text}</p>
+                  <p className="font-geist text-balance text-base font-semibold tracking-tight leading-tight text-[var(--ink)]">{i.name}</p>
+                  <p className="mt-1 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{i.text}</p>
                 </div>
               </Reveal>
             ))}
@@ -193,7 +193,7 @@ export default function RoadmapPage() {
               <StaggerItem key={i}>
                 <div className="flex h-full items-start gap-3 rounded-card border border-dashed border-[var(--line)] bg-[var(--deep)] p-5">
                   <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--faint)]" aria-hidden />
-                  <p className="text-sm leading-relaxed text-[var(--muted)]">{i}</p>
+                  <p className="font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{i}</p>
                 </div>
               </StaggerItem>
             ))}

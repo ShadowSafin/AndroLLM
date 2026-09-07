@@ -56,10 +56,10 @@ export function Footer() {
         <div className="grid gap-12 lg:grid-cols-[1.4fr_2fr]">
           <div>
             <Logo />
-            <p className="mt-5 max-w-sm text-sm leading-relaxed text-[var(--muted)]">
+            <p className="mt-5 max-w-sm font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
               {site.description}
             </p>
-            <p className="mt-4 text-sm text-[var(--faint)]">
+            <p className="mt-4 font-geist text-sm tracking-tight text-[var(--faint)]">
               Zero cloud dependency. Zero data leaves your phone — unless you choose otherwise.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -112,7 +112,7 @@ export function Footer() {
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
             {columns.map((col) => (
               <nav key={col.title} aria-label={col.title}>
-                <h3 className="ledger text-[var(--faint)]">{col.title}</h3>
+                <h3 className="font-geist text-xs font-semibold uppercase tracking-tight text-[var(--faint)]">{col.title}</h3>
                 <ul className="mt-4 space-y-2.5">
                   {col.links.map((link) => (
                     <li key={link.label}>
@@ -121,7 +121,7 @@ export function Footer() {
                           href={link.href}
                           target={link.href.startsWith("http") ? "_blank" : undefined}
                           rel={link.href.startsWith("http") ? "noreferrer" : undefined}
-                          className="text-sm text-[var(--muted)] transition-colors hover:text-[var(--accent-deep)] dark:hover:text-[var(--accent-soft)]"
+                          className="font-geist text-sm tracking-tight text-gray-600 dark:text-gray-400 transition-colors hover:text-[var(--accent-deep)] dark:hover:text-[var(--accent-soft)]"
                         >
                           {link.label}
                         </Link>
@@ -134,7 +134,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-[var(--line)] pt-8 text-xs text-[var(--faint)] sm:flex-row sm:items-center">
+        <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-[var(--line)] pt-8 font-geist text-xs tracking-tight text-[var(--faint)] sm:flex-row sm:items-center">
           <p>
             © {new Date().getFullYear()} AndroLLM · Licensed under Apache License 2.0. Third-party licenses in{" "}
             <a href={site.license} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-[var(--accent-deep)]">

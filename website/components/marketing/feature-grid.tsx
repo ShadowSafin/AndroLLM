@@ -26,18 +26,18 @@ export function FeatureGrid({ features = pillars, detailed = true }: { features?
                     <f.icon className="size-5" aria-hidden />
                   </span>
                   {f.stat && (
-                    <span className="ledger text-right text-[var(--faint)]">
-                      <span className={cn("block text-sm not-italic tracking-normal text-[var(--accent-deep)] dark:text-[var(--accent-soft)]")}>
+                    <span className="font-geist inline-flex items-center justify-center gap-1 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-3 py-1 text-right text-[10px] tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">
+                      <span className={cn("block text-sm not-italic tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]")}>
                         {f.stat.value}
                       </span>
                       {f.stat.value ? "fact" : ""}
                     </span>
                   )}
                 </div>
-                <h3 className="mt-5 font-serif text-xl font-semibold tracking-tight text-[var(--ink)]">{f.name}</h3>
-                <p className="mt-1 text-sm text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.tagline}</p>
-                <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">{f.description}</p>
-                <ul className="mt-4 space-y-1.5 text-sm text-[var(--ink-dim)]">
+                <h3 className="mt-5 font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">{f.name}</h3>
+                <p className="mt-1 font-geist text-sm tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.tagline}</p>
+                <p className="mt-3 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{f.description}</p>
+                <ul className="mt-4 space-y-1.5 font-geist text-sm tracking-tight text-[var(--ink-dim)]">
                   {f.bullets.slice(0, detailed ? f.bullets.length : 3).map((b) => (
                     <li key={b} className="flex items-start gap-2">
                       <span className="mt-[0.45em] size-1 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden />
@@ -47,7 +47,7 @@ export function FeatureGrid({ features = pillars, detailed = true }: { features?
                 </ul>
                 {detailed && f.stat && (
                   <p className="mt-auto pt-4">
-                    <span className="block rounded-slip border border-[var(--line-soft)] bg-[var(--deep)] px-3 py-2 font-mono text-[10px] leading-relaxed text-[var(--muted)]">
+                    <span className="block rounded-slip border border-[var(--line-soft)] bg-[var(--deep)] px-3 py-2 font-mono text-[10px] tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                       {f.stat.value} — {f.stat.label}
                     </span>
                   </p>
@@ -59,7 +59,7 @@ export function FeatureGrid({ features = pillars, detailed = true }: { features?
         <div className="mt-12 text-center">
           <Link
             href="/features"
-            className="group inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
+            className="group inline-flex items-center gap-2 font-geist text-sm font-semibold tracking-tight text-[var(--accent-deep)] transition-colors hover:text-[var(--ink)] dark:text-[var(--accent-soft)]"
           >
             Explore every feature in detail
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />

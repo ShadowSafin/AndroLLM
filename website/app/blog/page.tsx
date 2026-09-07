@@ -30,15 +30,15 @@ export default function BlogIndexPage() {
                 href={`/blog/${post.slug}`}
                 className="card group flex h-full flex-col p-7 transition-colors hover:border-[var(--accent)]"
               >
-                <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--faint)]">
+                <p className="flex items-center gap-2 font-geist text-[11px] font-bold uppercase tracking-tight text-[var(--faint)]">
                   <Clock className="size-3" aria-hidden />
                   {post.date} · {post.readMin} min
                 </p>
-                <h2 className="mt-4 font-serif text-xl font-semibold leading-snug text-[var(--ink)] transition-colors group-hover:text-[var(--accent-deep)] dark:group-hover:text-[var(--accent-soft)]">
+                <h2 className="mt-4 font-geist text-balance text-xl font-semibold leading-tight tracking-tight text-[var(--ink)] transition-colors group-hover:text-[var(--accent-deep)] dark:group-hover:text-[var(--accent-soft)]">
                   {post.title}
                 </h2>
-                <p className="mt-3 flex-1 text-sm leading-relaxed text-[var(--muted)]">{post.excerpt}</p>
-                <p className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[var(--accent-deep)] transition-transform duration-300 group-hover:translate-x-1 dark:text-[var(--accent-soft)]">
+                <p className="mt-3 flex-1 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{post.excerpt}</p>
+                <p className="mt-5 inline-flex items-center gap-2 font-geist text-sm font-bold tracking-tight text-[var(--accent-deep)] transition-transform duration-300 group-hover:translate-x-1 dark:text-[var(--accent-soft)]">
                   Read the post <ArrowRight className="size-3.5" aria-hidden />
                 </p>
               </Link>
@@ -48,16 +48,16 @@ export default function BlogIndexPage() {
 
         <Reveal className="mx-auto mt-16 max-w-5xl">
           <div className="rounded-card border border-[var(--line)] bg-[var(--surface)] p-7 text-center shadow-card">
-            <h2 className="font-serif text-xl font-semibold text-[var(--ink)]">Want project news instead?</h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm text-[var(--muted)]">
+            <h2 className="font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">Want project news instead?</h2>
+            <p className="mx-auto mt-2 max-w-xl font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
               The changelog tracks every release; the roadmap lists what&rsquo;s next. Both stay in sync with the main branch.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <Magnetic strength={0.18}>
-                <Link href="/changelog" className="btn btn-primary">Changelog</Link>
+                <Link href="/changelog" className="btn btn-primary font-geist tracking-tighter">Changelog</Link>
               </Magnetic>
               <Magnetic strength={0.18}>
-                <Link href="/roadmap" className="btn btn-ghost">Roadmap</Link>
+                <Link href="/roadmap" className="btn btn-ghost font-geist tracking-tighter">Roadmap</Link>
               </Magnetic>
             </div>
           </div>
