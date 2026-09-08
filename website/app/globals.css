@@ -1,31 +1,31 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   DESIGN TOKENS — The Parchment Ledger
-   ───────────────────────────────────────────────────────────────────────────
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   DESIGN TOKENS â€” The Parchment Ledger
+   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Three-layer architecture (never skip a layer, never use a primitive in a
    component):
 
-     LAYER 1 · PRIMITIVES   raw values (palettes, spacing, radii, type) —
+     LAYER 1 Â· PRIMITIVES   raw values (palettes, spacing, radii, type) â€”
                             the single source of truth. Defined once in :root.
-     LAYER 2 · SEMANTIC     purpose aliases (--surface, --accent, --ink …) —
+     LAYER 2 Â· SEMANTIC     purpose aliases (--surface, --accent, --ink â€¦) â€”
                             themed per light/dark; the only layer components
                             may reference for colors, shadows and type.
-     LAYER 3 · COMPONENT    component-scoped tokens (--btn-*, --card-*,
-                            --callout-* …) — one place to retune a component
+     LAYER 3 Â· COMPONENT    component-scoped tokens (--btn-*, --card-*,
+                            --callout-* â€¦) â€” one place to retune a component
                             without touching its markup.
 
    Rule: components must only ever reference LAYER 2/3 tokens. Raw hex inside
    a component is a design-system violation.
-   ═══════════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 @layer base {
-  /* ── LAYER 1 · PRIMITIVES ── MONOCHROME ─────────────────────────────────────
+  /* â”€â”€ LAYER 1 Â· PRIMITIVES â”€â”€ MONOCHROME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
      Only black / white / neutral grays. No terracotta, no color. */
   :root {
-    /* Parchment (light) palette — mapped to monochrome */
+    /* Parchment (light) palette â€” mapped to monochrome */
     --prm-parchment-050: #ffffff;
     --prm-parchment-100: #000000;
     --prm-parchment-200: #171717;
@@ -36,22 +36,22 @@
     --prm-parchment-700: #111111;
     --prm-white: #ffffff;
 
-    /* Ink palette — grayscale */
+    /* Ink palette â€” grayscale */
     --prm-ink-900: #ffffff;
     --prm-ink-800: #e5e5e5;
     --prm-ink-700: #a3a3a3;
     --prm-ink-600: #737373;
 
-    /* Ember — remapped to white */
+    /* Ember â€” remapped to white */
     --prm-ember-700: #ffffff;
     --prm-ember-600: #ffffff;
     --prm-ember-500: #a3a3a3;
 
-    /* Lamp — remapped to white */
+    /* Lamp â€” remapped to white */
     --prm-lamp-600: #ffffff;
     --prm-lamp-500: #a3a3a3;
 
-    /* Night (dark) palette — pure grayscale */
+    /* Night (dark) palette â€” pure grayscale */
     --prm-night-950: #000000;
     --prm-night-900: #0a0a0a;
     --prm-night-850: #111111;
@@ -69,7 +69,7 @@
     --prm-night-025: #000000;
     --prm-night-020: #000000;
 
-    /* Status palette — monochrome */
+    /* Status palette â€” monochrome */
     --prm-ok-600: #e5e5e5;
     --prm-ok-300: #a3a3a3;
     --prm-warn-600: #a3a3a3;
@@ -79,12 +79,12 @@
     --prm-info-500: #e5e5e5;
     --prm-info-300: #a3a3a3;
 
-    /* System chrome — grayscale */
+    /* System chrome â€” grayscale */
     --prm-dot-close: #404040;
     --prm-dot-minimize: #525252;
     --prm-dot-maximize: #737373;
 
-    /* Spacing scale · 4 px base grid */
+    /* Spacing scale Â· 4 px base grid */
     --prm-space-1: 0.25rem;
     --prm-space-2: 0.5rem;
     --prm-space-3: 0.75rem;
@@ -106,15 +106,19 @@
     --prm-radius-pill: 32px;   /* terracotta stamp */
     --prm-radius-full: 9999px;
 
+    /* Font variables â€” fallbacks if next/font hasn't injected yet (prevents hydration mismatch) */
+    --font-geist: "Geist", "Geist Fallback", system-ui, sans-serif;
+    --font-jetbrains: "JetBrains Mono", monospace;
+
     /* Type scale */
-    --prm-text-2xs: 0.5rem;    /* 8  · mockups, badges */
-    --prm-text-xs: 0.625rem;   /* 10 · captions, ledger meta */
-    --prm-text-sm: 0.6875rem;  /* 11 · small body, bubbles */
-    --prm-text-base: 0.875rem; /* 14 · body */
-    --prm-text-md: 1rem;       /* 16 · lead */
-    --prm-text-lg: 1.125rem;   /* 18 · section intro */
-    --prm-text-xl: 1.5rem;     /* 24 · h3 */
-    --prm-text-2xl: 2rem;      /* 32 · h2 */
+    --prm-text-2xs: 0.5rem;    /* 8  Â· mockups, badges */
+    --prm-text-xs: 0.625rem;   /* 10 Â· captions, ledger meta */
+    --prm-text-sm: 0.6875rem;  /* 11 Â· small body, bubbles */
+    --prm-text-base: 0.875rem; /* 14 Â· body */
+    --prm-text-md: 1rem;       /* 16 Â· lead */
+    --prm-text-lg: 1.125rem;   /* 18 Â· section intro */
+    --prm-text-xl: 1.5rem;     /* 24 Â· h3 */
+    --prm-text-2xl: 2rem;      /* 32 Â· h2 */
     --prm-display-md: clamp(1.75rem, 3.2vw, 2.5rem);
     --prm-display-lg: clamp(2.25rem, 4.5vw, 3.75rem);
     --prm-display-xl: clamp(2.75rem, 6vw, 5.5rem);
@@ -126,9 +130,9 @@
     --prm-duration-slow: 0.5s;
   }
 
-  /* ── LAYER 2 · SEMANTIC — light theme ── MONOCHROME ──────────────────────── */
+  /* â”€â”€ LAYER 2 Â· SEMANTIC â€” light theme â”€â”€ MONOCHROME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   :root {
-    /* Surfaces — monochrome */
+    /* Surfaces â€” monochrome */
     --canvas: #000000;
     --raised: #0a0a0a;
     --deep: #0a0a0a;
@@ -136,24 +140,24 @@
     --elevated: #171717;
     --mutedsurface: #111111;
 
-    /* Ink — text hierarchy — white/gray */
+    /* Ink â€” text hierarchy â€” white/gray */
     --ink: #ffffff;
     --ink-dim: #e5e5e5;
     --muted: #9ca3af;
     --faint: #6b7280;
 
-    /* Accent — monochrome white */
+    /* Accent â€” monochrome white */
     --accent: #ffffff;
     --accent-soft: #a3a3a3;
     --accent-deep: #ffffff;
     --accent-contrast: #000000;
 
-    /* Lines & hairline — gray */
+    /* Lines & hairline â€” gray */
     --line: #262626;
     --line-soft: #171717;
     --line-strong: #333333;
 
-    /* Status — grayscale */
+    /* Status â€” grayscale */
     --ok: #e5e5e5;
     --success: #e5e5e5;
     --warn: #9ca3af;
@@ -162,7 +166,7 @@
     --error: #ffffff;
     --info: #e5e5e5;
 
-    /* Code surfaces — dark */
+    /* Code surfaces â€” dark */
     --code-bg: #0a0a0a;
     --code-border: #262626;
     --code-bar: #111111;
@@ -173,7 +177,7 @@
     --nav-bg: color-mix(in srgb, var(--canvas) 72%, transparent);
     --toc-line: color-mix(in srgb, var(--ink) 8%, transparent);
 
-    /* System chrome — window traffic lights (theme-independent) */
+    /* System chrome â€” window traffic lights (theme-independent) */
     --dot-close: var(--prm-dot-close);
     --dot-minimize: var(--prm-dot-minimize);
     --dot-maximize: var(--prm-dot-maximize);
@@ -191,8 +195,8 @@
     --mockup-shadow-desktop: 0 44px 90px -28px color-mix(in srgb, var(--ink) 40%, transparent);
   }
 
-  /* ── LAYER 2 · SEMANTIC — dark theme ─────────────────────────────────────
-     Black mode — matches hero image: pure black canvas (#000) with gray haze */
+  /* â”€â”€ LAYER 2 Â· SEMANTIC â€” dark theme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+     Black mode â€” matches hero image: pure black canvas (#000) with gray haze */
   .dark {
     --canvas: #000000;
     --raised: #0a0a0a;
@@ -203,7 +207,7 @@
 
     --ink: #ffffff;
     --ink-dim: #e5e5e5;
-    --muted: #9ca3af; /* gray-400 — image subtitle */
+    --muted: #9ca3af; /* gray-400 â€” image subtitle */
     --faint: #6b7280;
 
     --accent: #ffffff;
@@ -242,9 +246,9 @@
     --mockup-shadow-desktop: 0 44px 90px -28px rgba(0,0,0,0.85);
   }
 
-  /* ── LAYER 3 · COMPONENT ── MONOCHROME ────────────────────────────────────── */
+  /* â”€â”€ LAYER 3 Â· COMPONENT â”€â”€ MONOCHROME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   :root {
-    /* Button — monochrome white on black */
+    /* Button â€” monochrome white on black */
     --btn-primary-bg: #ffffff;
     --btn-primary-bg-hover: #e5e5e5;
     --btn-primary-text: #000000;
@@ -252,24 +256,24 @@
     --btn-ghost-bg-hover: rgba(255,255,255,0.08);
     --btn-outline-bg-hover: rgba(255,255,255,0.08);
 
-    /* Card — index card — monochrome */
+    /* Card â€” index card â€” monochrome */
     --card-bg: #111111;
     --card-border: #262626;
     --card-radius: var(--prm-radius-lg);
     --card-elevation: var(--card-shadow);
     --card-elevation-hover: var(--card-shadow-hover);
 
-    /* Badge — monochrome pill */
+    /* Badge â€” monochrome pill */
     --badge-accent-bg: rgba(255,255,255,0.08);
     --badge-accent-text: #ffffff;
     --badge-accent-text-dark: #e5e5e5;
     --badge-accent-solid-text: #000000;
     --badge-glow-shadow: 0 0 24px -6px rgba(255,255,255,0.12);
 
-    /* Feature icon chip — monochrome */
+    /* Feature icon chip â€” monochrome */
     --feature-icon-bg: #171717;
 
-    /* Callout — monochrome */
+    /* Callout â€” monochrome */
     --callout-note-border: #333333;
     --callout-note-bg: rgba(255,255,255,0.06);
     --callout-note-text: #e5e5e5;
@@ -283,7 +287,7 @@
     --callout-tip-bg: rgba(255,255,255,0.06);
     --callout-tip-text: #e5e5e5;
 
-    /* Device mockups — frames (light) */
+    /* Device mockups â€” frames (light) */
     --frame-phone-border: var(--line);
     --frame-phone-bg: var(--elevated);
     --frame-phone-shadow: var(--mockup-shadow);
@@ -303,7 +307,7 @@
     --callout-danger-border: color-mix(in srgb, var(--error) 50%, transparent);
     --callout-tip-border: color-mix(in srgb, var(--success) 45%, transparent);
 
-    /* Device mockups — frames (dark) */
+    /* Device mockups â€” frames (dark) */
     --frame-phone-border: #262626;
     --frame-phone-bg: #0a0a0a;
     --frame-phone-shadow: 0 40px 80px -24px color-mix(in srgb, #000 80%, transparent);
@@ -320,6 +324,24 @@
     scroll-behavior: smooth;
     scroll-padding-top: 6rem;
     -webkit-text-size-adjust: 100%;
+  }
+  html.is-smooth {
+    scroll-behavior: auto;
+  }
+  /* Smooth-scroll shell â€” only when JS lerped mode is active */
+  html.is-smooth body {
+    overscroll-behavior-y: none;
+  }
+  [data-smooth-wrapper] {
+    overflow: clip;
+  }
+  [data-smooth-content] {
+    will-change: transform;
+  }
+  /* Invalidate ScrollTrigger scrollbar width when smooth is off on mobile */
+  html.native-scroll [data-smooth-wrapper],
+  html.native-scroll [data-smooth-content] {
+    will-change: auto;
   }
 
   body {
@@ -366,7 +388,7 @@
     display: none;
   }
 
-  /* Prompt typography — whole site, matches hero image */
+  /* Prompt typography â€” whole site, matches hero image */
   h1 {
     font-family: var(--font-geist);
     letter-spacing: -0.05em; /* tracking-tighter */
@@ -389,7 +411,7 @@
     text-wrap: balance;
   }
 
-  /* Dark gradient text for primary headings — image: white → white/40
+  /* Dark gradient text for primary headings â€” image: white â†’ white/40
      Applied when heading has no explicit color class; respects text-transparent */
   .dark h1:not([class*="text-"]), .dark h2:not([class*="text-"]) {
     background-image: linear-gradient(to bottom right, #fff 30%, rgba(255, 255, 255, 0.4));
@@ -398,7 +420,7 @@
     color: transparent;
   }
 
-  /* Body — prompt subtitle style everywhere: Geist + tracking-tight */
+  /* Body â€” prompt subtitle style everywhere: Geist + tracking-tight */
   body {
     font-family: var(--font-geist);
     letter-spacing: -0.015em;
@@ -407,7 +429,7 @@
     letter-spacing: -0.015em;
   }
 
-  /* Prompt keyframes — fade-in (20px) / fade-up (40px) */
+  /* Prompt keyframes â€” fade-in (20px) / fade-up (40px) */
   @keyframes fade-in {
     0% {
       opacity: 0;
@@ -433,6 +455,10 @@
     html {
       scroll-behavior: auto;
     }
+    html.is-smooth { scroll-behavior: auto; }
+    [data-smooth-wrapper] { position: static !important; width: auto !important; }
+    [data-smooth-content] { transform: none !important; will-change: auto !important; }
+    html.is-smooth body { height: auto !important; }
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
@@ -507,7 +533,7 @@
     color: transparent;
   }
 
-  /* Prompt typography gradient — black→40% light, white→40% dark, clipped text */
+  /* Prompt typography gradient â€” blackâ†’40% light, whiteâ†’40% dark, clipped text */
   .text-gradient-prompt {
     background-image: linear-gradient(to bottom right, #000 30%, rgba(0, 0, 0, 0.4));
     -webkit-background-clip: text;
@@ -535,7 +561,7 @@
   }
 }
 
-/* ── Prose (docs & articles) ─────────────────────────────────────────────── */
+/* â”€â”€ Prose (docs & articles) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .prose-ledger {
   --tw-prose-body: var(--ink-dim);
   --tw-prose-headings: var(--ink);
@@ -711,7 +737,7 @@
   }
 }
 
-/* ── Radial Orbital Timeline — monochrome, black/white only ────────────────
+/* â”€â”€ Radial Orbital Timeline â€” monochrome, black/white only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Adapted from prompt: gradients and pulses forced to grayscale to respect
    site-wide monochrome (no purple/blue/teal). */
 @keyframes pulse {
@@ -732,7 +758,7 @@
 
 .backdrop-blur-lg { backdrop-filter: blur(16px); }
 
-/* Monochrome orbital gradient — was #6366f1→#3b82f6→#14b8a6 */
+/* Monochrome orbital gradient â€” was #6366f1â†’#3b82f6â†’#14b8a6 */
 .bg-gradient-orbital { background: linear-gradient(to bottom right, #ffffff, #a3a3a3, #525252); }
 
 .z-10 { z-index: 10; }
@@ -755,3 +781,4 @@
 
 .text-white\/70 { color: rgba(255,255,255,0.7); }
 .text-white\/80 { color: rgba(255,255,255,0.8); }
+

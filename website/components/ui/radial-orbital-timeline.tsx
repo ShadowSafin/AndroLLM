@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, useRef } from "react";
 import { ArrowRight, Link, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -36,9 +36,14 @@ export default function RadialOrbitalTimeline({
     y: 0,
   });
   const [activeNodeId, setActiveNodeId] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === containerRef.current || e.target === orbitRef.current) {
@@ -82,9 +87,11 @@ export default function RadialOrbitalTimeline({
     });
   };
 
+  // Defer auto-rotation until after hydration â€” prevents server (angle=0)
+  // vs first client tick mismatch.
   useEffect(() => {
-    let rotationTimer: NodeJS.Timeout;
-
+    if (!mounted) return;
+    let rotationTimer: NodeJS.Timeout | undefined;
     if (autoRotate && viewMode === "orbital") {
       rotationTimer = setInterval(() => {
         setRotationAngle((prev) => {
@@ -93,13 +100,10 @@ export default function RadialOrbitalTimeline({
         });
       }, 50);
     }
-
     return () => {
-      if (rotationTimer) {
-        clearInterval(rotationTimer);
-      }
+      if (rotationTimer) clearInterval(rotationTimer);
     };
-  }, [autoRotate, viewMode]);
+  }, [autoRotate, viewMode, mounted]);
 
   const centerViewOnNode = (nodeId: number) => {
     if (viewMode !== "orbital" || !nodeRefs.current[nodeId]) return;
@@ -112,18 +116,18 @@ export default function RadialOrbitalTimeline({
   };
 
   const calculateNodePosition = (index: number, total: number) => {
-    const angle = ((index / total) * 360 + rotationAngle) % 360;
+    // Before hydration, force angle = 0 so server + first client render match exactly.
+    const effectiveRotation = mounted ? rotationAngle : 0;
+    const angle = ((index / total) * 360 + effectiveRotation) % 360;
     const radius = 200;
     const radian = (angle * Math.PI) / 180;
 
-    const x = radius * Math.cos(radian) + centerOffset.x;
-    const y = radius * Math.sin(radian) + centerOffset.y;
+    const x = Math.round(radius * Math.cos(radian) * 1000) / 1000;
+    const y = Math.round(radius * Math.sin(radian) * 1000) / 1000;
 
     const zIndex = Math.round(100 + 50 * Math.cos(radian));
-    const opacity = Math.max(
-      0.4,
-      Math.min(1, 0.4 + 0.6 * ((1 + Math.sin(radian)) / 2))
-    );
+    const rawOpacity = 0.4 + 0.6 * ((1 + Math.sin(radian)) / 2);
+    const opacity = Math.round(Math.max(0.4, Math.min(1, rawOpacity)) * 1e6) / 1e6;
 
     return { x, y, angle, zIndex, opacity };
   };
@@ -167,7 +171,7 @@ export default function RadialOrbitalTimeline({
             transform: `translate(${centerOffset.x}px, ${centerOffset.y}px)`,
           }}
         >
-          {/* Center — monochrome: white → gray gradient (was purple→blue→teal) */}
+          {/* Center â€” monochrome: white â†’ gray gradient (was purpleâ†’blueâ†’teal) */}
           <div className="absolute w-16 h-16 rounded-full bg-gradient-to-br from-white via-zinc-200 to-zinc-500 animate-pulse flex items-center justify-center z-10">
             <div className="absolute w-20 h-20 rounded-full border border-white/20 animate-ping opacity-70"></div>
             <div
@@ -290,7 +294,7 @@ export default function RadialOrbitalTimeline({
                           <span className="font-mono">{item.energy}%</span>
                         </div>
                         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                          {/* Monochrome progress — white→gray (was blue→purple) */}
+                          {/* Monochrome progress â€” whiteâ†’gray (was blueâ†’purple) */}
                           <div
                             className="h-full bg-gradient-to-r from-white to-zinc-400"
                             style={{ width: `${item.energy}%` }}
@@ -344,3 +348,5 @@ export default function RadialOrbitalTimeline({
     </div>
   );
 }
+
+

@@ -7,6 +7,8 @@ import { Footer } from "@/components/layout/footer";
 import { PageTransition } from "@/components/page-transition";
 import { TextCascade } from "@/components/gsap/text-cascade";
 import { ScrollProgress } from "@/components/motion/parallax";
+import { SmoothScroll } from "@/components/motion/smooth-scroll";
+import { WebGLField } from "@/components/motion/webgl-field";
 import { JsonLd } from "@/components/json-ld";
 
 import { Geist } from "next/font/google";
@@ -111,12 +113,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         className={`${geist.variable} grain min-h-screen bg-black font-sans antialiased`}
-        style={
-          {
-            "--font-geist": geist.style.fontFamily,
-            "--font-jetbrains": "'JetBrains Mono', monospace",
-          } as React.CSSProperties
-        }
+        suppressHydrationWarning
       >
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-LZ1H7X4BYD" strategy="afterInteractive" />
         <Script id="google-analytics" strategy="afterInteractive">
@@ -128,6 +125,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           `}
         </Script>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark" disableTransitionOnChange>
+          {/* Fixed WebGL veil — outside SmoothScroll so it never translates */}
+          <WebGLField opacity={0.34} />
+          {/* Top progress + scroll hintting */}
+          <ScrollProgress />
           <a
             href="#main"
             className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-pill focus:bg-[var(--accent)] focus:px-5 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-[var(--accent-contrast)]"
@@ -135,12 +136,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             Skip to content
           </a>
           <Navbar />
-          <PageTransition>
-            <TextCascade>{children}</TextCascade>
-          </PageTransition>
-          <Footer />
+          <SmoothScroll>
+            <PageTransition>
+              <TextCascade>{children}</TextCascade>
+            </PageTransition>
+            <Footer />
+          </SmoothScroll>
           <JsonLd data={jsonLd} />
-          <ScrollProgress />
         </ThemeProvider>
       </body>
     </html>

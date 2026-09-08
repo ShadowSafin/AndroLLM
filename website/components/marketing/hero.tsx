@@ -13,6 +13,9 @@ export function Hero() {
   const videoBRef = useRef<HTMLVideoElement>(null);
   const activeRef = useRef<"A" | "B">("A");
   const tickRef = useRef<number>(0);
+  const mediaRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const cueRef = useRef<HTMLDivElement>(null);
 
   // Seamless loop — crossfade two instances to mask the hard cut
   // Keeps the black-hole accretion motion premium and uninterrupted
@@ -80,6 +83,42 @@ export function Hero() {
     return () => cancelAnimationFrame(tickRef.current);
   }, [reduce]);
 
+  // Scroll-linked parallax — video drifts opposite, text lifts, cue fades
+  useEffect(() => {
+    if (reduce) return;
+    const media = mediaRef.current;
+    const content = contentRef.current;
+    const cue = cueRef.current;
+    if (!media || !content) return;
+    let raf = 0;
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      // Prefer lerped scroll when SmoothScroll is active, fall back to window.scrollY
+      const y = (window as any).__lerpedScrollY ?? window.scrollY;
+      const p = Math.min(1, Math.max(0, y / (window.innerHeight * 0.92)));
+      media.style.transform = `translate3d(0, ${p * 28}px, 0) scale(${1 + p * 0.015})`;
+      content.style.transform = `translate3d(0, ${-p * 18}px, 0)`;
+      content.style.opacity = String(1 - p * 0.22);
+      if (cue) cue.style.opacity = String(Math.max(0, 1 - p * 2.2));
+    };
+    const onLerped = (e: Event) => {
+      (window as any).__lerpedScrollY = (e as CustomEvent).detail;
+      if (!ticking) { ticking = true; raf = requestAnimationFrame(update); }
+    };
+    const onScroll = () => {
+      (window as any).__lerpedScrollY = window.scrollY;
+      if (!ticking) { ticking = true; raf = requestAnimationFrame(update); }
+    };
+    window.addEventListener("smooth-scroll:lerped", onLerped as EventListener);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("smooth-scroll:lerped", onLerped as EventListener);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [reduce]);
+
   const fade = (delay: number) => ({
     initial: reduce ? { opacity: 1 } : { opacity: 0, y: 18 },
     animate: { opacity: 1, y: 0 },
@@ -92,8 +131,8 @@ export function Hero() {
       aria-label="AndroLLM — private AI for Android"
       className="relative flex min-h-[92vh] w-full items-center overflow-hidden bg-black lg:min-h-[96vh]"
     >
-      {/* Full-bleed hero video — seamless loop via two-layer crossfade */}
-      <div className="absolute inset-0" aria-hidden>
+      {/* Media layer — parallax drifts on scroll */}
+      <div ref={mediaRef} className="absolute inset-0 will-change-transform" aria-hidden style={{ willChange: "transform" }}>
         <video
           ref={videoARef}
           className="absolute inset-0 h-full w-full object-cover object-center [object-position:58%_50%]"
@@ -140,8 +179,8 @@ export function Hero() {
         className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/65 to-transparent"
       />
 
-      {/* Content — left aligned, same typography as reference but app-viable */}
-      <div className="container relative z-10 flex w-full items-center py-20 lg:py-0">
+      {/* Content — left aligned, subtle lift on scroll */}
+      <div ref={contentRef} className="container relative z-10 flex w-full items-center py-20 will-change-transform lg:py-0">
         <div className="max-w-[560px]">
           <motion.h1
             {...fade(0.12)}
@@ -200,6 +239,17 @@ export function Hero() {
 
       {/* Bottom hairline */}
       <div aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-white/[0.07]" />
+
+      {/* Scroll cue — fades on scroll */}
+      <div
+        ref={cueRef}
+        aria-hidden
+        className="absolute inset-x-0 bottom-8 z-10 hidden flex-col items-center gap-2 sm:flex"
+        style={{ willChange: "opacity" }}
+      >
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/35">Scroll</span>
+        <span className="h-8 w-px bg-gradient-to-b from-white/30 to-transparent" />
+      </div>
     </section>
   );
 }
