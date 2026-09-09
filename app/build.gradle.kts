@@ -9,6 +9,8 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+import org.gradle.process.ExecOutput
+
 android {
     namespace = "io.androllm.app"
     compileSdk = 36
@@ -266,18 +268,41 @@ ksp {
 }
 
 // ── Voice models (sherpa-onnx) ───────────────────────────────────────────────
-// The wake word / ASR / TTS ONNX models are bundled into the APK. They are
+// The wake word / TTS ONNX models are bundled into the APK. They are
 // large, so they live in app/src/main/assets/voice/ (gitignored) and are
 // fetched by this task on machines where they are missing. The task is wired
 // into preBuild so a fresh clone still produces a complete APK.
+//
+// NOTE (2026-09-09 incident): the up-to-date check used to be
+// `onlyIf { !voiceAssetsDir.exists() }` — a bare directory-exists test. Any
+// partial state (empty dirs, deleted *.onnx, a run whose tarball extraction
+// silently copied nothing) permanently disabled the download, and every later
+// build shipped an APK without models ("Wake word model missing"). The check
+// below is per-FILE, and the task fails loudly if verification fails, so a
+// broken tree can never again produce a silently broken APK.
 val voiceAssetsDir = file("src/main/assets/voice")
 val voiceKwsDir = file("$voiceAssetsDir/kws")
 val voiceTtsDir = file("$voiceAssetsDir/tts")
+// Must stay in sync with io.androllm.core.voice.model.VoiceModels
+// (KWS_* + TTS_*; streaming ASR was replaced by whisper.cpp in 601046e and
+// its SherpaOnnxStreamingRecognizer path degrades gracefully when absent).
+val requiredVoiceFiles = listOf(
+    "kws/encoder.onnx",
+    "kws/decoder.onnx",
+    "kws/joiner.onnx",
+    "kws/tokens.txt",
+    "kws/keywords.txt",
+    "tts/model.onnx",
+    "tts/tokens.txt",
+    "tts/lexicon.txt"
+)
 
 tasks.register("downloadVoiceModels") {
     group = "voice"
     description = "Downloads + extracts the bundled sherpa-onnx voice models (wake word, TTS). Speech-to-text uses whisper.cpp, whose ggml models are downloaded in-app."
-    onlyIf { !voiceAssetsDir.exists() }
+    onlyIf("voice models missing") {
+        requiredVoiceFiles.any { !file("$voiceAssetsDir/$it").exists() }
+    }
 
     doLast {
         val kwsTarball = "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2"
@@ -290,18 +315,38 @@ tasks.register("downloadVoiceModels") {
         fun download(url: String, target: File) {
             if (target.exists() && target.length() > 1000) return
             logger.lifecycle("downloadVoiceModels: fetching ${url.substringAfterLast('/')}")
-            providers.exec { commandLine("curl", "-sL", "--retry", "3", "-o", target.absolutePath, url) }
+            // NOTE: `providers.exec` is LAZY — the process only runs when
+            // `.result` is realized. A bare `providers.exec { ... }` statement
+            // (as commit 87867e8 left behind) never executes anything.
+            // `.result.get()` runs it eagerly here at execution time and
+            // `assertNormalExitValue()` throws on nonzero exit.
+            val curl: ExecOutput =
+                providers.exec { commandLine("curl", "-sL", "--retry", "3", "-o", target.absolutePath, url) }
+            curl.result.get().assertNormalExitValue()
         }
 
         // KWS + TTS — release tarballs, extract the files we need.
         val kwsTar = File(tmp, "kws.tar.bz2")
         download(kwsTarball, kwsTar)
-        providers.exec { commandLine("tar", "-xjf", kwsTar.absolutePath, "-C", tmp.absolutePath) }
+        val untarKws: ExecOutput =
+            providers.exec { commandLine("tar", "-xjf", kwsTar.absolutePath, "-C", tmp.absolutePath) }
+        untarKws.result.get().assertNormalExitValue()
         val kwsDir = File(tmp, "sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20")
+        if (!kwsDir.isDirectory) {
+            throw GradleException(
+                "downloadVoiceModels: KWS tarball extracted without the expected top-level dir " +
+                    "'sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20' in $tmp " +
+                    "(upstream layout changed?). Contents: ${tmp.list()?.joinToString()}")
+        }
         fun copyFrom(src: File, target: File, vararg names: String) {
             names.forEach { n ->
                 val f = File(src, n)
-                if (f.exists()) f.copyTo(File(target, f.name), overwrite = true)
+                if (!f.exists()) {
+                    throw GradleException(
+                        "downloadVoiceModels: expected file '$n' not found in $src " +
+                            "(upstream tarball layout changed?). Contents: ${src.list()?.joinToString()}")
+                }
+                f.copyTo(File(target, f.name), overwrite = true)
             }
         }
         // Int8 encoder/joiner + fp32 decoder (official pairing). NOTE: this
@@ -316,9 +361,18 @@ tasks.register("downloadVoiceModels") {
             "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx",
             "tokens.txt")
         // Normalize to the names the app code references.
-        File(voiceKwsDir, "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx").renameTo(File(voiceKwsDir, "encoder.onnx"))
-        File(voiceKwsDir, "decoder-epoch-13-avg-2-chunk-16-left-64.onnx").renameTo(File(voiceKwsDir, "decoder.onnx"))
-        File(voiceKwsDir, "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx").renameTo(File(voiceKwsDir, "joiner.onnx"))
+        fun renameOrFail(dir: File, from: String, to: String) {
+            val src = File(dir, from)
+            if (!src.exists()) {
+                throw GradleException("downloadVoiceModels: cannot rename missing $src to $to")
+            }
+            if (!src.renameTo(File(dir, to))) {
+                throw GradleException("downloadVoiceModels: rename of $src to $to failed")
+            }
+        }
+        renameOrFail(voiceKwsDir, "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx", "encoder.onnx")
+        renameOrFail(voiceKwsDir, "decoder-epoch-13-avg-2-chunk-16-left-64.onnx", "decoder.onnx")
+        renameOrFail(voiceKwsDir, "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx", "joiner.onnx")
         // The zh-en KWS model uses ARPABET phoneme tokens: ship the keywords
         // already tokenized ("HEY ANDRO" / "OKAY ANDRO" / "ANDRO" /
         // "HEY ANDROID" / "OKAY ANDROID" -> phones + @name). Several
@@ -364,11 +418,29 @@ tasks.register("downloadVoiceModels") {
 
         val ttsTar = File(tmp, "tts.tar.bz2")
         download(ttsTarball, ttsTar)
-        providers.exec { commandLine("tar", "-xjf", ttsTar.absolutePath, "-C", tmp.absolutePath) }
-        copyFrom(File(tmp, "vits-ljs"), voiceTtsDir, "vits-ljs.onnx", "tokens.txt", "lexicon.txt")
-        File(voiceTtsDir, "vits-ljs.onnx").renameTo(File(voiceTtsDir, "model.onnx"))
+        val untarTts: ExecOutput =
+            providers.exec { commandLine("tar", "-xjf", ttsTar.absolutePath, "-C", tmp.absolutePath) }
+        untarTts.result.get().assertNormalExitValue()
+        val ttsDir = File(tmp, "vits-ljs")
+        if (!ttsDir.isDirectory) {
+            throw GradleException(
+                "downloadVoiceModels: TTS tarball extracted without the expected top-level dir " +
+                    "'vits-ljs' in $tmp (upstream layout changed?). Contents: ${tmp.list()?.joinToString()}")
+        }
+        copyFrom(ttsDir, voiceTtsDir, "vits-ljs.onnx", "tokens.txt", "lexicon.txt")
+        renameOrFail(voiceTtsDir, "vits-ljs.onnx", "model.onnx")
 
-        logger.lifecycle("downloadVoiceModels: done (${voiceAssetsDir.walkTopDown().filter { it.isFile }.count()} files)")
+        // Verification gate: never let a partial tree produce a silently
+        // model-less APK again. Every file VoiceModels references must exist.
+        val missing = requiredVoiceFiles.filter { !file("$voiceAssetsDir/$it").exists() }
+        if (missing.isNotEmpty()) {
+            throw GradleException("downloadVoiceModels: still missing after fetch: $missing")
+        }
+        requiredVoiceFiles.forEach {
+            val f = file("$voiceAssetsDir/$it")
+            logger.lifecycle("downloadVoiceModels: bundled $it (${f.length()} bytes)")
+        }
+        logger.lifecycle("downloadVoiceModels: done (${requiredVoiceFiles.size} files)")
     }
 }
 
