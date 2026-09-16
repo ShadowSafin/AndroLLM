@@ -121,7 +121,6 @@ fun ModelWalletCard(
                         Text(
                             text = "${model.parameters.ifBlank { "7B" }} · ${model.quantization.ifBlank { "Q4_K_M" }}",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                letterSpacing = 1.sp,
                                 color = if (isActive) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInk
                             ),
                             maxLines = 1,
@@ -189,7 +188,6 @@ fun ModelWalletCard(
                 Text(
                     text = if (isActive) "LOADED · in memory" else if (isDownloaded) "INSTALLED · on device" else "NOT DOWNLOADED",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.2.sp,
                         color = if (isActive) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint
                     ),
                     maxLines = 1,
@@ -229,7 +227,6 @@ private fun ModelSpecPill(label: String, value: String) {
         Text(
             text = "$label $value",
             style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 0.8.sp,
                 color = MaterialTheme.ledger.deskInk
             ),
             maxLines = 1,
