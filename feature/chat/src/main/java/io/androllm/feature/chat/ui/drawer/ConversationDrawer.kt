@@ -151,8 +151,7 @@ fun ConversationDrawerContent(
                             text = "PINNED CHATS",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = MaterialTheme.ledger.lampDeep,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.4.sp
+                                fontWeight = FontWeight.Bold
                             ),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -180,8 +179,7 @@ fun ConversationDrawerContent(
                         text = "RECENT CHATS",
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = MaterialTheme.ledger.deskInk,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.4.sp
+                            fontWeight = FontWeight.Bold
                         ),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
@@ -192,7 +190,7 @@ fun ConversationDrawerContent(
                         Text(
                             text = "No recent chats",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline,
+                            color = MaterialTheme.ledger.deskInk,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
@@ -212,7 +210,7 @@ fun ConversationDrawerContent(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
             Spacer(modifier = Modifier.height(12.dp))
 
             // Footer System Info & Settings
@@ -235,8 +233,7 @@ fun ConversationDrawerContent(
                                 text = currentModelName ?: "No model loaded",
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     color = MaterialTheme.ledger.deskPaper,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 0.6.sp
+                                    fontWeight = FontWeight.SemiBold
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -307,7 +304,7 @@ private fun ConversationDrawerItem(
             Icon(
                 imageVector = if (conversation.isPinned) Icons.Default.PushPin else Icons.Outlined.ChatBubbleOutline,
                 contentDescription = null,
-                tint = if (conversation.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (conversation.isPinned) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInk,
                 modifier = Modifier.size(20.dp)
             )
         },
@@ -320,7 +317,7 @@ private fun ConversationDrawerItem(
                     Icon(
                         Icons.Default.MoreVert,
                         contentDescription = "Options",
-                        tint = MaterialTheme.colorScheme.outline,
+                        tint = MaterialTheme.ledger.deskInk,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -354,19 +351,19 @@ private fun ConversationDrawerItem(
                         leadingIcon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                        text = { Text("Delete", color = MaterialTheme.ledger.emberRed) },
                         onClick = {
                             menuExpanded = false
                             onDelete()
                         },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.ledger.emberRed) }
                     )
                 }
             }
         },
         shape = RoundedCornerShape(8.dp),
         colors = NavigationDrawerItemDefaults.colors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+            selectedContainerColor = MaterialTheme.ledger.deskWalnutRaised,
             unselectedContainerColor = Color.Transparent
         ),
         modifier = Modifier.height(44.dp)
