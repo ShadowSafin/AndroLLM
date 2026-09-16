@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.androllm.core.permissions.PermissionState
 import io.androllm.core.ui.components.CloudAtmosphericBackground
+import io.androllm.core.ui.components.StaggeredEntrance
 import timber.log.Timber
 import io.androllm.core.ui.theme.ledger
 
@@ -115,15 +116,17 @@ fun PermissionsAccessScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    Text(
-                        text = "Each row explains what the permission is used for. " +
-                            "Nothing is required to use AndroLLM — enable only what you want.",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.ledger.deskInk,
-                            lineHeight = 17.sp
+                    StaggeredEntrance(0) {
+                        Text(
+                            text = "Each row explains what the permission is used for. " +
+                                "Nothing is required to use AndroLLM — enable only what you want.",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.ledger.deskInk,
+                                lineHeight = 17.sp
+                            )
                         )
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
+                    }
                 }
 
                 if (handlers.isEmpty()) {
@@ -131,39 +134,43 @@ fun PermissionsAccessScreen(
                     // Hilt aggregation the user gets a message, never a blank
                     // page. (Regression guard — see app/build.gradle.kts.)
                     item {
-                        Text(
-                            text = "No permission gates are available on this device.",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.ledger.deskInk
-                            ),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 24.dp)
-                        )
+                        StaggeredEntrance(1) {
+                            Text(
+                                text = "No permission gates are available on this device.",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.ledger.deskInk
+                                ),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp)
+                            )
+                        }
                     }
                 } else {
                 items(handlers, key = { it.id }) { handler ->
-                    PermissionSetupCard(
-                        handler = handler,
-                        state = states.getValue(handler),
-                        onRequest = {
-                            viewModel.onRequested(handler)
-                            val perms = viewModel.runtimePermissions(handler)
-                            if (perms.isNotEmpty()) {
-                                permissionLauncher.launch(perms.toTypedArray())
-                            } else {
-                                refreshTick++
+                    StaggeredEntrance(0, instant = true) {
+                        PermissionSetupCard(
+                            handler = handler,
+                            state = states.getValue(handler),
+                            onRequest = {
+                                viewModel.onRequested(handler)
+                                val perms = viewModel.runtimePermissions(handler)
+                                if (perms.isNotEmpty()) {
+                                    permissionLauncher.launch(perms.toTypedArray())
+                                } else {
+                                    refreshTick++
+                                }
+                            },
+                            onOpenSettings = {
+                                val opened = viewModel.openSettings(handler)
+                                if (!opened) {
+                                    Timber.w("[Permissions] no system screen available for ${handler.id}")
+                                    refreshTick++
+                                }
                             }
-                        },
-                        onOpenSettings = {
-                            val opened = viewModel.openSettings(handler)
-                            if (!opened) {
-                                Timber.w("[Permissions] no system screen available for ${handler.id}")
-                                refreshTick++
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
                 }
 
