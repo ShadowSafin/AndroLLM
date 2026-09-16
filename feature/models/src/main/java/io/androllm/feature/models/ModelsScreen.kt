@@ -2398,13 +2398,13 @@ private fun RuntimeRecoveryDiagnostics(
     var expanded by remember { mutableStateOf(false) }
 
     Surface(
-        color = if (cpuSessionFallback) Color(0xFFC7442F).copy(alpha = 0.10f)
-                else Color(0xFFE0A33D).copy(alpha = 0.12f),
+        color = if (cpuSessionFallback) MaterialTheme.ledger.emberRed.copy(alpha = 0.12f)
+                else MaterialTheme.ledger.cloudWhite.copy(alpha = 0.08f),
         shape = RoundedCornerShape(10.dp),
         border = BorderStroke(
             1.dp,
-            if (cpuSessionFallback) Color(0xFFC7442F).copy(alpha = 0.4f)
-            else Color(0xFFE0A33D).copy(alpha = 0.4f)
+            if (cpuSessionFallback) MaterialTheme.ledger.emberRed.copy(alpha = 0.4f)
+            else MaterialTheme.ledger.cloudWhite.copy(alpha = 0.2f)
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -2422,7 +2422,7 @@ private fun RuntimeRecoveryDiagnostics(
                                else "⚠ Runtime recovery occurred",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (cpuSessionFallback) Color(0xFFB3261E) else Color(0xFFB3573E)
+                        color = if (cpuSessionFallback) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.lampAmber
                     )
                     Text(
                         text = if (cpuSessionFallback)
@@ -2430,7 +2430,7 @@ private fun RuntimeRecoveryDiagnostics(
                         else
                             "A corrupted inference run was detected and automatically recovered (context recreated, backend reloaded).",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8A5A00),
+                        color = MaterialTheme.ledger.lampDeep,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -2439,7 +2439,7 @@ private fun RuntimeRecoveryDiagnostics(
                     text = if (expanded) "Hide Details ▲" else "Show Details ▾",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFB3573E)
+                    color = if (cpuSessionFallback) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.lampAmber
                 )
             }
             if (expanded) {
@@ -2460,9 +2460,9 @@ private fun VulkanValidationDiagnostics(detail: String) {
     var expanded by remember { mutableStateOf(false) }
 
     Surface(
-        color = Color(0xFFE0A33D).copy(alpha = 0.12f),
+        color = MaterialTheme.ledger.cloudWhite.copy(alpha = 0.08f),
         shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, Color(0xFFE0A33D).copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.ledger.cloudWhite.copy(alpha = 0.2f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -2478,12 +2478,12 @@ private fun VulkanValidationDiagnostics(detail: String) {
                         text = "⚠ Vulkan validation mismatch",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFB3573E)
+                        color = MaterialTheme.ledger.lampAmber
                     )
                     Text(
                         text = "This only affects the validation self-test. Inference continues using Vulkan.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8A5A00),
+                        color = MaterialTheme.ledger.lampDeep,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -2492,7 +2492,7 @@ private fun VulkanValidationDiagnostics(detail: String) {
                     text = if (expanded) "Hide Details ▲" else "Show Details ▾",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFB3573E)
+                    color = MaterialTheme.ledger.lampAmber
                 )
             }
             if (expanded) {
