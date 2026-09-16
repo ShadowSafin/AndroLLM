@@ -30,9 +30,6 @@ import io.androllm.core.common.AppConstants
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.rememberReduceMotion
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampDeep
 import io.androllm.feature.splash.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -127,9 +124,8 @@ fun SplashScreen(
                 Text(
                     text = "AndroLLM",
                     style = MaterialTheme.typography.displayMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.ledger.deskPaper,
-                        letterSpacing = 2.sp
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.ledger.deskPaper
                     ),
                     modifier = Modifier.alpha(taglineAlpha.value)
                 )
@@ -140,8 +136,7 @@ fun SplashScreen(
                     text = stringResource(R.string.splash_tagline),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.ledger.lampDeep,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 1.sp
+                        fontWeight = FontWeight.SemiBold
                     ),
                     modifier = Modifier.alpha(taglineAlpha.value)
                 )
@@ -151,8 +146,7 @@ fun SplashScreen(
                 Text(
                     text = stringResource(R.string.splash_loading),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = MaterialTheme.ledger.deskInk,
-                        letterSpacing = 1.5.sp
+                        color = MaterialTheme.ledger.deskInk
                     ),
                     modifier = Modifier.alpha(loadingAlpha.value)
                 )
