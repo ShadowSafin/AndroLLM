@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.androllm.core.models.Conversation
 import io.androllm.core.models.Message
+import io.androllm.core.ui.theme.ledger
 
 /**
  * Search Dialog/Overlay for searching conversation titles and message content.
@@ -94,7 +95,7 @@ fun SearchOverlay(
                     Text(
                         text = "Type to search titles or message content",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             } else if (matchingConversations.isEmpty() && matchingMessages.isEmpty()) {
@@ -105,7 +106,7 @@ fun SearchOverlay(
                     Text(
                         text = "No matching results found for '$query'",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             } else {
@@ -140,7 +141,7 @@ fun SearchOverlay(
                                         Text(
                                             text = preview,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.outline,
+                                            color = MaterialTheme.ledger.deskInk,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -203,8 +204,8 @@ private fun highlightText(text: String, query: String) = buildAnnotatedString {
             val endIndex = startIndex + query.length
             addStyle(
                 SpanStyle(
-                    background = androidx.compose.ui.graphics.Color(0xFFF6DF9E),
-                    color = androidx.compose.ui.graphics.Color(0xFF141413),
+                    background = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+                    color = androidx.compose.ui.graphics.Color(0xFF000000),
                     fontWeight = FontWeight.Bold
                 ),
                 startIndex,
