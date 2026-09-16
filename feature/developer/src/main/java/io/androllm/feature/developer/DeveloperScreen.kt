@@ -200,22 +200,25 @@ fun DeveloperScreen(
 
                 // RAM pressure
                 item {
-                    ChartCard(
-                        title = "RAM Pressure",
-                        liveValue = "${data.history.lastOrNull()?.ramUsedMb?.toInt() ?: 0} MB",
-                        subtitle = "of ${data.deviceMetrics?.totalRamMb ?: 0} MB device RAM"
-                    ) {
-                        CloudLineChart(
-                            dataPoints = data.ramHistory.ifEmpty { listOf(0f, 0f) },
-                            accent = MaterialTheme.ledger.lampAmber,
-                            height = 110.dp
-                        )
+                    StaggeredEntrance(index = 4) {
+                        ChartCard(
+                            title = "RAM Pressure",
+                            liveValue = "${data.history.lastOrNull()?.ramUsedMb?.toInt() ?: 0} MB",
+                            subtitle = "of ${data.deviceMetrics?.totalRamMb ?: 0} MB device RAM"
+                        ) {
+                            CloudLineChart(
+                                dataPoints = data.ramHistory.ifEmpty { listOf(0f, 0f) },
+                                accent = MaterialTheme.ledger.lampAmber,
+                                height = 110.dp
+                            )
+                        }
                     }
                 }
 
                 // GPU & KV cache
                 item {
-                    ChartCard(
+                    StaggeredEntrance(index = 5) {
+                        ChartCard(
                         title = "GPU & KV Cache",
                         liveValue = data.memoryStats?.let { "${it.gpuMemoryMb().toInt()} MB GPU" } ?: "—",
                         subtitle = data.memoryStats?.let { "${it.contextSizeMb().toInt()} MB KV cache • ${it.gpuBufferCount} buffers" } ?: "Idle — load a model"
@@ -240,11 +243,13 @@ fun DeveloperScreen(
                             )
                         }
                     }
+                    }
                 }
 
                 // Context window
                 item {
-                    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                    StaggeredEntrance(index = 6) {
+                        CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -284,11 +289,13 @@ fun DeveloperScreen(
                             )
                         }
                     }
+                    }
                 }
 
                 // Generation history
                 item {
-                    SectionHeader(
+                    StaggeredEntrance(index = 7) {
+                        SectionHeader(
                         title = "Generation History",
                         subtitle = "${data.generations.size} runs this session"
                     )
@@ -324,26 +331,31 @@ fun DeveloperScreen(
                             )
                         }
                     }
+                    }
                 }
 
                 // Backend diagnostics
                 item {
-                    BackendDiagnosticsCard(
-                        data = data,
-                        onRefresh = { viewModel.refreshDebugInfo() },
-                        debugInfo = debugInfo,
-                        systemMemory = systemMemory
-                    )
+                    StaggeredEntrance(index = 8) {
+                        BackendDiagnosticsCard(
+                            data = data,
+                            onRefresh = { viewModel.refreshDebugInfo() },
+                            debugInfo = debugInfo,
+                            systemMemory = systemMemory
+                        )
+                    }
                 }
 
                 // Benchmark Backends — identical prompt through CPU / GPU / NPU
                 item {
-                    BenchmarkBackendsCard(
-                        capabilities = backendCapabilities,
-                        results = backendBenchmark,
-                        isBenchmarking = isBenchmarking,
-                        onRun = { viewModel.runBackendBenchmark() }
-                    )
+                    StaggeredEntrance(index = 9) {
+                        BenchmarkBackendsCard(
+                            capabilities = backendCapabilities,
+                            results = backendBenchmark,
+                            isBenchmarking = isBenchmarking,
+                            onRun = { viewModel.runBackendBenchmark() }
+                        )
+                    }
                 }
 
                 // Memory Inspector
