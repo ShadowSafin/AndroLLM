@@ -2092,9 +2092,9 @@ private fun ModelStatusDashboard(
                         },
                         colors = AssistChipDefaults.assistChipColors(
                             containerColor = if (isNpu || isVulkan)
-                                Color(0xFF52C41A).copy(alpha = 0.15f)
+                                successGreen.copy(alpha = 0.15f)
                             else
-                                Color(0xFFE0A33D).copy(alpha = 0.18f)
+                                MaterialTheme.ledger.cloudWhite.copy(alpha = 0.08f)
                         )
                     )
                     if (stats.gpuLayersOffloaded > 0) {
@@ -2207,14 +2207,15 @@ LedgerStatRow("Vulkan delegate", UNAVAILABLE_ON_DEVICE)
                 if (stats.isCpuFallback) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Surface(
-                        color = Color(0xFFE0A33D).copy(alpha = 0.15f),
+                        color = MaterialTheme.ledger.cloudWhite.copy(alpha = 0.08f),
                         shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.ledger.cloudWhite.copy(alpha = 0.20f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "⚠ Running on CPU — ${stats.backendReason}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF8A5A00),
+                            color = MaterialTheme.ledger.lampAmber,
                             modifier = Modifier.padding(10.dp)
                         )
                     }
@@ -2233,7 +2234,7 @@ LedgerStatRow("Vulkan delegate", UNAVAILABLE_ON_DEVICE)
                         color = when {
                             stats.gpuInferenceVerified -> successGreen
                             stats.vulkanValidationFailed -> MaterialTheme.ledger.lampDeep
-                            else -> MaterialTheme.colorScheme.outline
+                            else -> MaterialTheme.ledger.deskInk
                         }
                     )
                 }
@@ -2289,7 +2290,7 @@ MemoryStatRow("GPU peak", if (stats.hasGpuPeakMetric) formatBytesOrUnavailable(s
                     Text(
                         text = "Prompts served: ${engineState.promptCount}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
                 if (engineState.loadedSinceMs > 0) {
@@ -2297,7 +2298,7 @@ MemoryStatRow("GPU peak", if (stats.hasGpuPeakMetric) formatBytesOrUnavailable(s
                     Text(
                         text = if (elapsedMin < 1) "Loaded just now" else "Loaded ${elapsedMin}m ago",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             }
@@ -2339,7 +2340,7 @@ private fun MemoryStatRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline
+            color = MaterialTheme.ledger.deskInk
         )
         Text(
             text = value,
@@ -2368,7 +2369,7 @@ private fun LedgerStatRow(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.ledger.deskInk,
             modifier = Modifier.weight(1f)
         )
         Text(
