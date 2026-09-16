@@ -83,8 +83,11 @@ fun RevolutResourceGaugeCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(listOf(MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampGlow))
+                            .background(Color(0xFF111111))
+                            .border(
+                                width = 1.dp,
+                                color = Color(0xFF333333),
+                                shape = CircleShape
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -109,7 +112,7 @@ fun RevolutResourceGaugeCard(
                         Text(
                             text = if (vulkanEnabled) "Vulkan GPU Acceleration Active" else "CPU Multi-Thread Mode",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (vulkanEnabled) MaterialTheme.ledger.revolutNeonEmerald else MaterialTheme.ledger.deskInkFaint
+                                color = if (vulkanEnabled) MaterialTheme.ledger.revolutNeonEmerald else MaterialTheme.ledger.deskInk
                             ),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -264,7 +267,6 @@ fun RevolutHardwareBadge(isVulkan: Boolean) {
                 text = if (isVulkan) "VULKAN ULTRA" else "NEON CPU",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 0.8.sp,
                 color = if (isVulkan) MaterialTheme.ledger.revolutGoldTier else MaterialTheme.ledger.deskInk
             )
         }
