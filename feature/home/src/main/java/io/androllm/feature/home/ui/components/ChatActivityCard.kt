@@ -1,6 +1,7 @@
 package io.androllm.feature.home.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,19 +27,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.androllm.core.models.Conversation
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -69,15 +63,13 @@ fun ChatActivityCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(listOf(MaterialTheme.ledger.lampDeep.copy(alpha = 0.45f), MaterialTheme.ledger.lampAmber.copy(alpha = 0.2f)))
-                    ),
+                    .background(Color.White.copy(alpha = 0.08f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.ChatBubbleOutline,
                     contentDescription = null,
-                    tint = MaterialTheme.ledger.lampDeep,
+                    tint = MaterialTheme.ledger.lampGlow,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -104,7 +96,7 @@ fun ChatActivityCard(
                     Text(
                         text = formattedTime,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = MaterialTheme.ledger.deskInkFaint
+                            color = MaterialTheme.ledger.deskInk
                         )
                     )
                 }
@@ -119,7 +111,8 @@ fun ChatActivityCard(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.14f))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
@@ -127,7 +120,7 @@ fun ChatActivityCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.4.sp,
-                            color = MaterialTheme.ledger.lampDeep
+                            color = MaterialTheme.ledger.deskPaperDim
                         )
                     }
 
@@ -146,7 +139,7 @@ fun ChatActivityCard(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "Options",
-                    tint = MaterialTheme.ledger.deskInkFaint
+                    tint = MaterialTheme.ledger.deskInk
                 )
             }
         }
