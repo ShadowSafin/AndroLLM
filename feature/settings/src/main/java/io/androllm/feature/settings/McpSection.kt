@@ -39,12 +39,6 @@ import io.androllm.core.mcp.McpConnectionManager
 import io.androllm.core.mcp.McpServer
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.CloudCapsuleButton
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.ledger
 
 /**
@@ -93,7 +87,7 @@ fun McpSection(
                 )
             } else {
                 servers.forEachIndexed { index, server ->
-                    if (index > 0) HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+                    if (index > 0) HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
                     McpServerRow(
                         server = server,
                         state = states[server.id],
@@ -103,7 +97,7 @@ fun McpSection(
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
             CloudCapsuleButton(
                 text = "Add MCP Server",
@@ -153,7 +147,7 @@ private fun McpServerRow(
             )
             Text(
                 server.url,
-                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint),
+                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -165,13 +159,20 @@ private fun McpServerRow(
         Switch(
             checked = server.enabled,
             onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                checkedTrackColor = Color(0xFF525252),
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                uncheckedTrackColor = Color(0xFF333333),
+                uncheckedBorderColor = Color(0xFF333333)
+            )
         )
         IconButton(onClick = onRemove) {
             Icon(
                 Icons.Filled.Delete,
                 contentDescription = "Remove ${server.name}",
-                tint = MaterialTheme.ledger.deskInkFaint,
+                tint = MaterialTheme.ledger.deskInk,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -187,10 +188,10 @@ private fun stateLabel(state: McpConnectionManager.State?): String = when (state
 
 @Composable
 private fun stateColor(state: McpConnectionManager.State?): Color = when (state) {
-    is McpConnectionManager.State.Connected -> MaterialTheme.ledger.lampDeep
-    McpConnectionManager.State.Connecting -> MaterialTheme.ledger.lampAmber
-    is McpConnectionManager.State.Failed -> MaterialTheme.ledger.lampAmber
-    else -> MaterialTheme.ledger.deskInkFaint
+    is McpConnectionManager.State.Connected -> MaterialTheme.ledger.revolutNeonEmerald
+    McpConnectionManager.State.Connecting -> MaterialTheme.ledger.deskInk
+    is McpConnectionManager.State.Failed -> MaterialTheme.ledger.emberRed
+    else -> MaterialTheme.ledger.deskInk
 }
 
 @Composable
@@ -242,11 +243,11 @@ private fun AddMcpServerDialog(
                 enabled = name.isNotBlank() && url.isNotBlank(),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Connect", color = MaterialTheme.ledger.deskPaper)
+                Text("Connect", color = MaterialTheme.ledger.inkOnLamp)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInk) }
         }
     )
 }
