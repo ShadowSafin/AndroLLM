@@ -43,7 +43,7 @@ import io.androllm.feature.chat.ToolInvocationStatus
 import io.androllm.feature.chat.ToolInvocationUi
 import io.androllm.core.ui.theme.ledger
 
-private val SuccessGreen = Color(0xFF52C41A)
+private val SuccessGreen = Color(0xFF4ADE80)
 
 /**
  * Column of live tool-invocation cards for the current turn. Each card shows
@@ -108,8 +108,8 @@ private fun ToolInvocationCard(
     val statusColor = when (event.status) {
         ToolInvocationStatus.RUNNING -> MaterialTheme.ledger.lampAmber
         ToolInvocationStatus.SUCCESS -> SuccessGreen
-        ToolInvocationStatus.FAILED -> MaterialTheme.ledger.lampDeep
-        ToolInvocationStatus.DECLINED -> MaterialTheme.ledger.deskInkFaint
+        ToolInvocationStatus.FAILED -> MaterialTheme.ledger.emberRed
+        ToolInvocationStatus.DECLINED -> MaterialTheme.ledger.deskInk
     }
     val statusLabel = when (event.status) {
         ToolInvocationStatus.RUNNING -> "Running…"
@@ -161,7 +161,7 @@ private fun ToolInvocationCard(
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = if (expanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.ledger.deskInkFaint,
+                    tint = MaterialTheme.ledger.deskInk,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -194,8 +194,7 @@ private fun DetailSection(label: String, value: String) {
             text = label.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.ledger.lampGlow,
-                letterSpacing = 0.8.sp
+                color = MaterialTheme.ledger.lampGlow
             )
         )
         Surface(
