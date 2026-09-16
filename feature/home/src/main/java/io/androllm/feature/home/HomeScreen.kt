@@ -228,7 +228,7 @@ fun HomeScreen(
                     item {
                         EmptyChatsIsland(
                             onStartChat = { navController.navigate(Routes.CHAT) }
-                        )
+                            )
                     }
                 } else {
                     items(conversations, key = { it.id }) { conversation ->
@@ -307,7 +307,7 @@ private fun ModelStatusIsland(
             Icon(
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
-                tint = if (telemetry.isModelLoaded) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInkFaint,
+                tint = if (telemetry.isModelLoaded) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk,
                 modifier = Modifier.size(40.dp)
             )
         }
@@ -394,7 +394,7 @@ private fun StatusMiniCard(
                 .fillMaxWidth()
                 .height(6.dp),
             color = accent,
-            trackColor = accent.copy(alpha = 0.15f)
+            trackColor = Color(0xFF333333)
         )
     }
 }
@@ -420,7 +420,6 @@ private fun QuickActionsRow(
             CloudCapsuleButton(
                 text = stringResource(R.string.action_browse_models),
                 onClick = onBrowseModels,
-                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.2f), MaterialTheme.ledger.lampAmber.copy(alpha = 0.45f))),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -432,14 +431,12 @@ private fun QuickActionsRow(
                 text = "Prompt Studio",
                 onClick = onPromptStudio,
                 icon = Icons.Filled.Psychology,
-                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.2f), MaterialTheme.ledger.lampDeep.copy(alpha = 0.35f))),
                 modifier = Modifier.weight(1f)
             )
             CloudCapsuleButton(
                 text = "Developer Mode",
                 onClick = onDeveloperMode,
                 icon = Icons.Filled.Speed,
-                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.35f), MaterialTheme.ledger.lampGlow.copy(alpha = 0.15f))),
                 modifier = Modifier.weight(1f)
             )
         }
