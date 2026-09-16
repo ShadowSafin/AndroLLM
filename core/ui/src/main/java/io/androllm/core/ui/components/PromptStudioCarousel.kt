@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -118,7 +120,10 @@ fun PromptStudioCarousel(
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Category Filter Pills
+        val chipsState = rememberLazyListState()
         LazyRow(
+            state = chipsState,
+            flingBehavior = rememberSnapFlingBehavior(chipsState),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 4.dp)
         ) {
@@ -135,7 +140,7 @@ fun PromptStudioCarousel(
                         text = cat,
                         fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) MaterialTheme.ledger.cloudWhite else MaterialTheme.ledger.deskInk
+                        color = if (isSelected) MaterialTheme.ledger.inkOnLamp else MaterialTheme.ledger.deskInk
                     )
                 }
             }
@@ -143,8 +148,11 @@ fun PromptStudioCarousel(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Cards Carousel
+        // Cards Carousel — snaps card-to-card so flings never strand mid-card.
+        val cardsState = rememberLazyListState()
         LazyRow(
+            state = cardsState,
+            flingBehavior = rememberSnapFlingBehavior(cardsState),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 4.dp)
         ) {
@@ -207,7 +215,7 @@ fun PromptStudioCarousel(
                         Text(
                             text = item.promptText,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.ledger.deskInkFaint
+                                color = MaterialTheme.ledger.deskInk
                             ),
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
