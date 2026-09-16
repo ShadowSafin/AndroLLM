@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -39,11 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.voice.model.VoiceSettings
 import io.androllm.core.voice.stt.WhisperModel
 import io.androllm.core.ui.theme.ledger
@@ -75,7 +71,7 @@ fun SpeechRecognitionSection(
             subtitle = "Engine: whisper.cpp (offline) · ${activeModel?.displayName ?: "no model installed"}"
         )
 
-        HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+        HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
         // ── Model download / select ──
         models.forEachIndexed { index, model ->
@@ -94,7 +90,7 @@ fun SpeechRecognitionSection(
                     Icon(
                         imageVector = if (active) Icons.Filled.CheckCircle else Icons.Filled.GraphicEq,
                         contentDescription = null,
-                        tint = if (active) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint,
+                        tint = if (active) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInk,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(12.dp))
@@ -143,7 +139,7 @@ fun SpeechRecognitionSection(
                             Text(
                                 text = "Delete",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFFF8A80),
+                                color = MaterialTheme.ledger.emberRed,
                                 maxLines = 1
                             )
                         }
@@ -156,12 +152,14 @@ fun SpeechRecognitionSection(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .height(6.dp)
-                            .clip(CircleShape)
+                            .clip(CircleShape),
+                        color = MaterialTheme.ledger.lampGlow,
+                        trackColor = Color(0xFF333333)
                     )
                 }
                 if (index < models.lastIndex) {
                     HorizontalDivider(
-                        color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f),
+                        color = MaterialTheme.ledger.deskHairline,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
@@ -177,7 +175,7 @@ fun SpeechRecognitionSection(
             )
         }
 
-        HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+        HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
         // ── Language ──
         ToggleRowStt(
@@ -204,7 +202,7 @@ fun SpeechRecognitionSection(
             onCheckedChange = { onUpdate(settings.copy(sttStreaming = it)) }
         )
 
-        HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+        HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
         SliderRow(
             label = { "CPU threads  ${if (settings.sttThreads < 0) "auto" else settings.sttThreads}" },
@@ -288,7 +286,12 @@ private fun SliderRow(
         Slider(
             value = value.coerceIn(range.start, range.endInclusive),
             onValueChange = onValue,
-            valueRange = range
+            valueRange = range,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.ledger.lampGlow,
+                activeTrackColor = MaterialTheme.ledger.lampAmber,
+                inactiveTrackColor = Color(0xFF333333)
+            )
         )
     }
 }
@@ -317,7 +320,14 @@ private fun ToggleRowStt(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                checkedTrackColor = Color(0xFF525252),
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                uncheckedTrackColor = Color(0xFF333333),
+                uncheckedBorderColor = Color(0xFF333333)
+            )
         )
     }
 }
