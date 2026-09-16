@@ -1143,13 +1143,13 @@ private fun CatalogCardBody(
                         Icons.Outlined.Download,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.outline
+                        tint = MaterialTheme.ledger.deskInk
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = model.downloads.toString(),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1163,7 +1163,7 @@ private fun CatalogCardBody(
                     Text(
                         text = model.likes.toString(),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             }
@@ -1171,7 +1171,7 @@ private fun CatalogCardBody(
                 Text(
                     text = model.license,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.ledger.deskInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End
@@ -1217,49 +1217,31 @@ private fun ModelMetaPill(
     }
 }
 
-/** Tint pair for a compact badge pill: soft container + readable content color. */
-private data class BadgeTint(val container: Color, val content: Color)
+/** Tint triple for a compact badge pill: tinted container + readable content + hairline border. */
+private data class BadgeTint(val container: Color, val content: Color, val border: Color)
 
-private val RecommendationGreen = Color(0xFF4CAF50)
-private val RecommendationGreenDeep = Color(0xFF2E7D32)
-
-/** Per-badge soft tints — orange accent, green recommendation/NPU, subtle hues. */
+/** Monochrome badge tints — white-tint chips; success green for recommendation, error red for medical. */
 @Composable
 private fun badgeTint(badge: String): BadgeTint {
-    // Pastel chips glow too bright on the night desk; the same hue is dipped
-    // to a translucent wash over the dark ground, with a lighter ink on top.
-    val isDark = MaterialTheme.ledger.deskNight.luminance() < 0.5f
+    // Blackout design: no hue per badge type. Every chip is a translucent wash
+    // over the dark card with a hairline border; only recommendation (success)
+    // and medical (error) carry a status color. Identical in every theme mode.
     return when {
-        badge.contains("Recommended") || badge.contains("NPU") ->
-            if (isDark) BadgeTint(Color(0x331B5E20), Color(0xFF81C784))
-            else BadgeTint(RecommendationGreen.copy(alpha = 0.14f), RecommendationGreenDeep)
-        badge.contains("Trending") || badge.contains("Vulkan") ->
-            BadgeTint(MaterialTheme.ledger.lampAmber.copy(alpha = if (isDark) 0.22f else 0.16f), MaterialTheme.ledger.lampDeep)
-        badge.contains("Fast") || badge.contains("Beginner") || badge.contains("Low RAM") ->
-            if (isDark) BadgeTint(Color(0x2E2F6FDB), Color(0xFF8AB4F8))
-            else BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
-        badge.contains("Reasoning") || badge.contains("Agentic") || badge.contains("Memory") ->
-            if (isDark) BadgeTint(Color(0x2E7A4FD0), Color(0xFFCE93D8))
-            else BadgeTint(Color(0xFFEFE6FF), Color(0xFF7A4FD0))
-        badge.contains("Speech") || badge.contains("Tool Calling") ->
-            if (isDark) BadgeTint(Color(0x2E0E8A72), Color(0xFF80CBC4))
-            else BadgeTint(Color(0xFFDCF5F0), Color(0xFF0E8A72))
-        badge.contains("Vision") || badge.contains("Multimodal") || badge.contains("Code") ->
-            if (isDark) BadgeTint(Color(0x2E4056D6), Color(0xFF9FA8DA))
-            else BadgeTint(Color(0xFFE5E9FF), Color(0xFF4056D6))
-        badge.contains("Medical") ->
-            if (isDark) BadgeTint(Color(0x2EC0392B), Color(0xFFEF9A9A))
-            else BadgeTint(Color(0xFFFFE7E7), Color(0xFFC0392B))
-        badge.contains("Mobile Optimized") ->
-            if (isDark) BadgeTint(Color(0x2E007E93), Color(0xFF80DEEA))
-            else BadgeTint(Color(0xFFDFF6FA), Color(0xFF007E93))
-        badge.contains("Embedding") ->
-            if (isDark) BadgeTint(Color(0x2E7B1FA2), Color(0xFFB39DDB))
-            else BadgeTint(Color(0xFFF1E8FC), Color(0xFF7B1FA2))
-        badge.contains("Multilingual") || badge.contains("Translation") ->
-            if (isDark) BadgeTint(Color(0x2E2F6FDB), Color(0xFF8AB4F8))
-            else BadgeTint(Color(0xFFDCEBFF), Color(0xFF2F6FDB))
-        else -> BadgeTint(MaterialTheme.ledger.deskWalnutDeep, MaterialTheme.ledger.deskInk)
+        badge.contains("Recommended") || badge.contains("NPU") -> BadgeTint(
+            container = MaterialTheme.ledger.revolutNeonEmerald.copy(alpha = 0.14f),
+            content = MaterialTheme.ledger.revolutNeonEmerald,
+            border = MaterialTheme.ledger.revolutNeonEmerald.copy(alpha = 0.40f)
+        )
+        badge.contains("Medical") -> BadgeTint(
+            container = MaterialTheme.ledger.emberRed.copy(alpha = 0.12f),
+            content = MaterialTheme.ledger.emberRed,
+            border = MaterialTheme.ledger.emberRed.copy(alpha = 0.40f)
+        )
+        else -> BadgeTint(
+            container = MaterialTheme.ledger.cloudWhite.copy(alpha = 0.08f),
+            content = MaterialTheme.ledger.lampAmber,
+            border = MaterialTheme.ledger.cloudWhite.copy(alpha = 0.20f)
+        )
     }
 }
 
@@ -1270,7 +1252,8 @@ private fun CatalogBadgePill(badge: String) {
     Surface(
         shape = RoundedCornerShape(999.dp),
         color = tint.container,
-        contentColor = tint.content
+        contentColor = tint.content,
+        border = BorderStroke(1.dp, tint.border)
     ) {
         Text(
             text = badge,
@@ -1453,7 +1436,7 @@ private fun HuggingFaceTab(
         }
     } else if (remoteModels.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No LiteRT models found on Hugging Face Hub.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+            Text("No LiteRT models found on Hugging Face Hub.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskInk)
         }
     } else {
         LazyColumn(
@@ -1496,7 +1479,7 @@ private fun HuggingFaceTab(
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
+                                Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.ledger.deskInk)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("${remote.downloads}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                             }
