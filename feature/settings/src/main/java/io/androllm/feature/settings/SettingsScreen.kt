@@ -1097,7 +1097,7 @@ private fun MemorySettingsCard(
                     onClick = onCloudEmbeddingClick
                 )
 
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
                 SettingRow(
                     icon = Icons.Filled.IosShare,
@@ -1161,11 +1161,11 @@ private fun ModelPathDialog(
                 onClick = { onSave(path.trim()) },
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Save", color = MaterialTheme.ledger.deskPaper)
+                Text("Save", color = MaterialTheme.ledger.inkOnLamp)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInk) }
         }
     )
 }
@@ -1205,20 +1205,13 @@ private fun CloudEmbeddingModelDialog(
                 onClick = { onSave(model.trim()) },
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Save", color = MaterialTheme.ledger.deskPaper)
+                Text("Save", color = MaterialTheme.ledger.inkOnLamp)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInk) }
         }
     )
-}
-
-private fun ThemeMode.displayName(): String = when (this) {
-    ThemeMode.SYSTEM -> "System"
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
-    ThemeMode.AMOLED -> "AMOLED"
 }
 
 private fun UiDensity.displayName(): String = when (this) {
@@ -1231,51 +1224,6 @@ private fun ChatFontSize.displayName(): String = when (this) {
     ChatFontSize.SMALL -> "Small"
     ChatFontSize.MEDIUM -> "Medium"
     ChatFontSize.LARGE -> "Large"
-}
-
-/**
- * Six terracotta-family accents, one per row, with the active one ringed in
- * lamp glow. Tapping writes the hex straight to preferences; the theme
- * recomposes app-wide from MainActivity.
- */
-@Composable
-private fun AccentSwatches(
-    selectedHex: String,
-    onSelect: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        CloudAccentOptions.forEach { accent ->
-            val isSelected = selectedHex.equals(accent.argbHex, ignoreCase = true) ||
-                (selectedHex.isBlank() && accent.argbHex == "FFD97757")
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(accent.color)
-                    .border(
-                        width = if (isSelected) 3.dp else 1.dp,
-                        color = if (isSelected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskHairline,
-                        shape = CircleShape
-                    )
-                    .clickable { onSelect(accent.argbHex) },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-    }
 }
 
 private fun Boolean.displayYesNo(): String = if (this) "Yes" else "No"
@@ -1337,7 +1285,7 @@ private fun AttachmentSettingsCard(
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
             if (feedback != null) {
                 Text(
@@ -1359,7 +1307,12 @@ private fun AttachmentSettingsCard(
                     valueRange = io.androllm.core.attachments.model.AttachmentSettings.IMAGE_QUALITY_MIN.toFloat()..
                         io.androllm.core.attachments.model.AttachmentSettings.IMAGE_QUALITY_MAX.toFloat(),
                     steps = 10,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.ledger.lampGlow,
+                        activeTrackColor = MaterialTheme.ledger.lampAmber,
+                        inactiveTrackColor = Color(0xFF333333)
+                    )
                 )
             }
 
@@ -1408,7 +1361,12 @@ private fun AttachmentSettingsCard(
                     onValueChange = { onMaxSizeChange((it.toLong() * 1024 * 1024)) },
                     valueRange = 1f..50f,
                     steps = 9,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.ledger.lampGlow,
+                        activeTrackColor = MaterialTheme.ledger.lampAmber,
+                        inactiveTrackColor = Color(0xFF333333)
+                    )
                 )
             }
 
