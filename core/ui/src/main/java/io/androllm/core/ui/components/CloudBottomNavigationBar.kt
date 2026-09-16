@@ -228,7 +228,6 @@ fun CloudBottomNavigationBar(
                             overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 9.sp,
-                                letterSpacing = 1.4.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = labelColor
                             ),
