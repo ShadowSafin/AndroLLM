@@ -158,13 +158,13 @@ fun FirebaseAuthScreen(
 
     /** User-facing handling of a Google credential problem. */
     fun handleGoogleFailure(message: String) {
-        isLoading = false
+        pendingAction = null
         toast(context, message)
     }
 
     /** Last-resort handler — never leaves the UI stuck in a loading state. */
     fun unexpectedGoogleError(e: Exception) {
-        isLoading = false
+        pendingAction = null
         Timber.e(e, "[Auth] Google Sign-In failed (unexpected error: ${e::class.java.simpleName})")
         toast(context, "Google Play Services unavailable")
     }
@@ -205,7 +205,7 @@ fun FirebaseAuthScreen(
         Timber.d("[Auth] Google credential received — exchanging for Firebase credential")
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         auth?.signInWithCredential(credential)?.addOnCompleteListener { task ->
-            isLoading = false
+            pendingAction = null
             if (task.isSuccessful) {
                 Timber.i("[Auth] Authentication success (Google) — uid=${auth?.currentUser?.uid}")
                 onAuthSuccess(task.result?.additionalUserInfo?.isNewUser == true)
@@ -250,7 +250,7 @@ fun FirebaseAuthScreen(
         }
 
         Timber.d("[Auth] Google Sign-In started (Credential Manager)")
-        isLoading = true
+        pendingAction = AuthAction.GOOGLE
         scope.launch {
             try {
                 // First attempt: only accounts previously authorized for this app.
@@ -285,7 +285,7 @@ fun FirebaseAuthScreen(
                     handleGoogleCredential(result)
                 } catch (e2: GetCredentialCancellationException) {
                     Timber.i("[Auth] Google Sign-In cancelled by user")
-                    isLoading = false
+                    pendingAction = null
                     toast(context, "Sign-in cancelled")
                 } catch (e2: GetCredentialException) {
                     failGetCredential(e2)
@@ -296,7 +296,7 @@ fun FirebaseAuthScreen(
                 }
             } catch (e: GetCredentialCancellationException) {
                 Timber.i("[Auth] Google Sign-In cancelled by user")
-                isLoading = false
+                pendingAction = null
                 toast(context, "Sign-in cancelled")
             } catch (e: GetCredentialException) {
                 failGetCredential(e)
@@ -311,13 +311,13 @@ fun FirebaseAuthScreen(
     // ── GitHub Sign-In (Firebase OAuth provider, per official Firebase docs) ──
 
     fun githubSuccess(result: AuthResult, toastContext: Context) {
-        isLoading = false
+        pendingAction = null
         Timber.i("[Auth] Authentication success (GitHub) — uid=${auth?.currentUser?.uid}")
         onAuthSuccess(result.additionalUserInfo?.isNewUser == true)
     }
 
     fun githubFailure(e: Exception, toastContext: Context) {
-        isLoading = false
+        pendingAction = null
         val errorCode = (e as? FirebaseAuthException)?.errorCode
         Timber.e(e, "[Auth] Authentication failure (GitHub): ${e.message} (errorCode=$errorCode)")
         when (e) {
@@ -364,7 +364,7 @@ fun FirebaseAuthScreen(
         val appContext = context.applicationContext
 
         Timber.d("[Auth] GitHub OAuth launched (scopes: read:user, user:email)")
-        isLoading = true
+        pendingAction = AuthAction.GITHUB
         val provider = OAuthProvider.newBuilder("github.com")
             .setScopes(listOf("read:user", "user:email"))
             .build()
@@ -392,7 +392,42 @@ fun FirebaseAuthScreen(
             .addOnFailureListener { e -> githubFailure(e, appContext) }
     }
 
-    CloudAtmosphericBackground {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        // WebGL dot canvas.
+        DotGridBackground(modifier = Modifier.fillMaxSize())
+
+        // Vignette.
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val density = LocalDensity.current
+            val centerPx = with(density) {
+                Offset(maxWidth.toPx() / 2f, maxHeight.toPx() / 2f)
+            }
+            val radiusPx = with(density) {
+                val hw = maxWidth.toPx() / 2f
+                val hh = maxHeight.toPx() / 2f
+                sqrt(hw * hw + hh * hh)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.75f),
+                                Color.Transparent
+                            ),
+                            center = centerPx,
+                            radius = radiusPx
+                        )
+                    )
+            )
+        }
+
+        // Modal card.
         Column(
             modifier = Modifier
                 .fillMaxSize()
