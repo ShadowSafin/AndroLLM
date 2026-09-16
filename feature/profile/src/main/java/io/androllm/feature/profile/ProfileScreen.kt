@@ -70,13 +70,8 @@ import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.CloudUsageBar
 import io.androllm.core.ui.components.SectionHeader
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.EmberRed
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.components.bounceClick
+import io.androllm.core.ui.components.bounceClick
 import io.androllm.core.utils.StorageUtils
 import io.androllm.core.ui.theme.ledger
 
@@ -125,12 +120,12 @@ fun ProfileScreen(
                         Text(
                             text = "Profile",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.ledger.deskPaper
                             )
                         )
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.ledger.deskNight)
                 )
             }
         ) { padding ->
@@ -153,21 +148,21 @@ fun ProfileScreen(
 
                 item {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                        CloudUsageBar(
-                            label = "Model Storage",
-                            valueText = if (data.storageFreeBytes > 0) {
-                                "${StorageUtils.formatBytes(data.storageFreeBytes)} free"
-                            } else {
-                                "${StorageUtils.formatBytes(data.storageUsedBytes)} of ${StorageUtils.formatBytes(data.storageTotalBytes)}"
-                            },
-                            fraction = if (data.storageTotalBytes > 0) {
-                                data.storageFreeBytes.toFloat() / data.storageTotalBytes
-                            } else {
-                                0f
-                            },
-                            accent = MaterialTheme.ledger.lampAmber
-                        )
-                    }
+                            CloudUsageBar(
+                                label = "Model Storage",
+                                valueText = if (data.storageFreeBytes > 0) {
+                                    "${StorageUtils.formatBytes(data.storageFreeBytes)} free"
+                                } else {
+                                    "${StorageUtils.formatBytes(data.storageUsedBytes)} of ${StorageUtils.formatBytes(data.storageTotalBytes)}"
+                                },
+                                fraction = if (data.storageTotalBytes > 0) {
+                                    data.storageFreeBytes.toFloat() / data.storageTotalBytes
+                                } else {
+                                    0f
+                                },
+                                accent = MaterialTheme.ledger.lampAmber
+                            )
+                        }
                 }
 
                 if (data.favoriteModels.isNotEmpty()) {
@@ -183,56 +178,56 @@ fun ProfileScreen(
                     SectionHeader(title = "Spaces & Account", subtitle = "Everything about your AI")
                     Spacer(modifier = Modifier.height(10.dp))
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            ActionRow(
-                                icon = Icons.Filled.Code,
-                                title = "Prompt Studio",
-                                subtitle = "Curated prompt templates",
-                                accent = MaterialTheme.ledger.lampGlow,
-                                onClick = { navController.navigate(Routes.PROMPTS) }
-                            )
-                            ActionRow(
-                                icon = Icons.Filled.Speed,
-                                title = "Developer Mode",
-                                subtitle = "Live engine & device telemetry",
-                                accent = MaterialTheme.ledger.lampAmber,
-                                onClick = { navController.navigate(Routes.DEVELOPER) }
-                            )
-                            ActionRow(
-                                icon = Icons.Filled.Tune,
-                                title = "Settings",
-                                subtitle = "Appearance, generation, privacy",
-                                accent = MaterialTheme.ledger.lampGlow,
-                                onClick = { navController.navigate(Routes.SETTINGS) }
-                            )
-                            if (user != null && user?.isGuest == false) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 ActionRow(
-                                    icon = Icons.Filled.Star,
-                                    title = "Edit Profile",
-                                    subtitle = "Display name & avatar",
+                                    icon = Icons.Filled.Code,
+                                    title = "Prompt Studio",
+                                    subtitle = "Curated prompt templates",
+                                    accent = MaterialTheme.ledger.lampGlow,
+                                    onClick = { navController.navigate(Routes.PROMPTS) }
+                                )
+                                ActionRow(
+                                    icon = Icons.Filled.Speed,
+                                    title = "Developer Mode",
+                                    subtitle = "Live engine & device telemetry",
                                     accent = MaterialTheme.ledger.lampAmber,
-                                    onClick = {
-                                        editNameText = user?.displayName ?: ""
-                                        showEditDialog = true
-                                    }
+                                    onClick = { navController.navigate(Routes.DEVELOPER) }
                                 )
                                 ActionRow(
-                                    icon = Icons.Filled.Logout,
-                                    title = "Sign Out",
-                                    subtitle = "Return to local-only mode",
-                                    accent = MaterialTheme.ledger.lampDeep,
-                                    onClick = { viewModel.signOut() }
+                                    icon = Icons.Filled.Tune,
+                                    title = "Settings",
+                                    subtitle = "Appearance, generation, privacy",
+                                    accent = MaterialTheme.ledger.lampGlow,
+                                    onClick = { navController.navigate(Routes.SETTINGS) }
                                 )
-                                ActionRow(
-                                    icon = Icons.Filled.Delete,
-                                    title = "Delete Account",
-                                    subtitle = "Permanently remove account data",
-                                    accent = MaterialTheme.ledger.emberRed,
-                                    onClick = { showDeleteDialog = true }
-                                )
+                                if (user != null && user?.isGuest == false) {
+                                    ActionRow(
+                                        icon = Icons.Filled.Star,
+                                        title = "Edit Profile",
+                                        subtitle = "Display name & avatar",
+                                        accent = MaterialTheme.ledger.lampAmber,
+                                        onClick = {
+                                            editNameText = user?.displayName ?: ""
+                                            showEditDialog = true
+                                        }
+                                    )
+                                    ActionRow(
+                                        icon = Icons.Filled.Logout,
+                                        title = "Sign Out",
+                                        subtitle = "Return to local-only mode",
+                                        accent = MaterialTheme.ledger.lampDeep,
+                                        onClick = { viewModel.signOut() }
+                                    )
+                                    ActionRow(
+                                        icon = Icons.Filled.Delete,
+                                        title = "Delete Account",
+                                        subtitle = "Permanently remove account data",
+                                        accent = MaterialTheme.ledger.emberRed,
+                                        onClick = { showDeleteDialog = true }
+                                    )
+                                }
                             }
                         }
-                    }
                 }
 
                 item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -255,14 +250,14 @@ fun ProfileScreen(
                                     listOf(MaterialTheme.ledger.lampGlow, MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampDeep)
                                 )
                             )
-                            .clickable {
+                            .bounceClick {
                                 avatarPicker.launch("image/*")
                             },
                         contentAlignment = Alignment.Center
                     ) {
                         if (isAvatarUploading) {
                             CircularProgressIndicator(
-                                color = MaterialTheme.ledger.deskPaper,
+                                color = MaterialTheme.ledger.inkOnLamp,
                                 strokeWidth = 3.dp,
                                 modifier = Modifier.size(28.dp)
                             )
@@ -271,7 +266,7 @@ fun ProfileScreen(
                                 text = "Upload\navatar",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.ledger.deskPaper
+                                    color = MaterialTheme.ledger.inkOnLamp
                                 ),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -358,8 +353,8 @@ private fun IdentityHeader(
                             ?: (user?.email?.firstOrNull()?.uppercase()?.toString())
                             ?: "AI",
                         style = MaterialTheme.typography.headlineLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.ledger.deskPaper
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.ledger.inkOnLamp
                         )
                     )
                 }
@@ -370,7 +365,7 @@ private fun IdentityHeader(
             Text(
                 text = user?.displayName ?: "Local Intelligence",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.ledger.deskPaper
                 )
             )
@@ -389,7 +384,7 @@ private fun IdentityHeader(
                 } else {
                     CloudChip(
                         text = if (user?.isEmailVerified == true) "Verified" else "Not verified",
-                        accentColor = if (user?.isEmailVerified == true) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber,
+                        accentColor = if (user?.isEmailVerified == true) MaterialTheme.ledger.revolutNeonEmerald else MaterialTheme.ledger.deskInk,
                         icon = Icons.Filled.VerifiedUser
                     )
                     CloudChip(text = "Synced", accentColor = MaterialTheme.ledger.lampAmber, icon = Icons.Filled.Storage)
@@ -444,7 +439,7 @@ private fun StatCell(
             Text(
                 text = value,
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.Bold,
                     color = accent
                 )
             )
@@ -484,7 +479,7 @@ private fun FavoriteModelRow(model: Model) {
                 Text(
                     text = "${model.quantization.ifBlank { "GGUF" }} • ${model.contextLength} ctx",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = MaterialTheme.ledger.deskInkFaint
+                        color = MaterialTheme.ledger.deskInk
                     )
                 )
             }
@@ -503,7 +498,7 @@ private fun ActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .bounceClick(onClick = onClick)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
