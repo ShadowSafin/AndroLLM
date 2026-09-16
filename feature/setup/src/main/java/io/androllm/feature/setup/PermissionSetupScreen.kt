@@ -65,14 +65,7 @@ import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.CloudCapsuleButton
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.EmberRed
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
-import io.androllm.core.ui.theme.LampHalo
+import io.androllm.core.ui.components.StaggeredEntrance
 import timber.log.Timber
 import io.androllm.core.ui.theme.ledger
 
@@ -152,7 +145,7 @@ fun PermissionSetupScreen(
                 Text(
                     text = "AndroLLM",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.ledger.deskPaper
                     )
                 )
@@ -174,7 +167,7 @@ fun PermissionSetupScreen(
                 Text(
                     text = "Let's set up AndroLLM",
                     style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.ledger.deskPaper
                     )
                 )
@@ -196,9 +189,8 @@ fun PermissionSetupScreen(
                         text = if (grantable.isEmpty()) "Nothing to grant — you're all set" else
                             "$enabled of ${grantable.size} enabled",
                         style = MaterialTheme.typography.labelMedium.copy(
-                            color = MaterialTheme.ledger.deskInkFaint,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 0.6.sp
+                            color = MaterialTheme.ledger.deskInk,
+                            fontWeight = FontWeight.SemiBold
                         )
                     )
                     if (grantable.isNotEmpty()) {
@@ -220,7 +212,7 @@ fun PermissionSetupScreen(
                             .height(6.dp)
                             .clip(CircleShape),
                         color = MaterialTheme.ledger.lampAmber,
-                        trackColor = MaterialTheme.ledger.lampHalo.copy(alpha = 0.35f)
+                        trackColor = Color(0xFF333333)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -239,55 +231,65 @@ fun PermissionSetupScreen(
                 val optional = states.filterValues { it != PermissionState.NOT_REQUIRED }
                 if (optional.isNotEmpty()) {
                     item {
-                        SectionLabel("OPTIONAL — ENABLE WHAT YOU'LL USE")
+                        StaggeredEntrance(0) {
+                            SectionLabel("OPTIONAL — ENABLE WHAT YOU'LL USE")
+                        }
                     }
                     items(optional.keys.toList(), key = { it.id }) { handler ->
-                        PermissionSetupCard(
-                            handler = handler,
-                            state = states.getValue(handler),
-                            onRequest = {
-                                viewModel.onRequested(handler)
-                                val perms = viewModel.runtimePermissions(handler)
-                                if (perms.isNotEmpty()) {
-                                    permissionLauncher.launch(perms.toTypedArray())
-                                } else {
-                                    refreshTick++
+                        StaggeredEntrance(0, instant = true) {
+                            PermissionSetupCard(
+                                handler = handler,
+                                state = states.getValue(handler),
+                                onRequest = {
+                                    viewModel.onRequested(handler)
+                                    val perms = viewModel.runtimePermissions(handler)
+                                    if (perms.isNotEmpty()) {
+                                        permissionLauncher.launch(perms.toTypedArray())
+                                    } else {
+                                        refreshTick++
+                                    }
+                                },
+                                onOpenSettings = {
+                                    val opened = viewModel.openSettings(handler)
+                                    if (!opened) {
+                                        Timber.w("[Setup] no system screen available for ${handler.id}")
+                                        refreshTick++
+                                    }
                                 }
-                            },
-                            onOpenSettings = {
-                                val opened = viewModel.openSettings(handler)
-                                if (!opened) {
-                                    Timber.w("[Setup] no system screen available for ${handler.id}")
-                                    refreshTick++
-                                }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
 
                 val notRequired = states.filterValues { it == PermissionState.NOT_REQUIRED }
                 if (notRequired.isNotEmpty()) {
                     item {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        SectionLabel("NOT REQUIRED ON THIS DEVICE")
+                        StaggeredEntrance(1) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            SectionLabel("NOT REQUIRED ON THIS DEVICE")
+                        }
                     }
                     items(notRequired.keys.toList(), key = { it.id }) { handler ->
-                        NotRequiredCard(handler = handler)
+                        StaggeredEntrance(0, instant = true) {
+                            NotRequiredCard(handler = handler)
+                        }
                     }
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Everything stays on your device. You can change these any time in " +
-                            "Settings → Permissions & Access, and revoke accessibility whenever you like.",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.ledger.deskInkFaint,
-                            lineHeight = 17.sp
-                        ),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
+                    StaggeredEntrance(2) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Everything stays on your device. You can change these any time in " +
+                                "Settings → Permissions & Access, and revoke accessibility whenever you like.",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.ledger.deskInk,
+                                lineHeight = 17.sp
+                            ),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                    }
                 }
             }
 
@@ -350,7 +352,7 @@ internal fun PermissionSetupCard(
             Text(
                 text = handler.explanation,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.ledger.deskInkFaint,
+                    color = MaterialTheme.ledger.deskInk,
                     lineHeight = 17.sp
                 )
             )
@@ -382,9 +384,6 @@ internal fun PermissionSetupCard(
                             CloudCapsuleButton(
                                 text = "Open Settings",
                                 onClick = onOpenSettings,
-                                gradient = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                    listOf(MaterialTheme.ledger.lampGlow.copy(alpha = 0.3f), MaterialTheme.ledger.lampAmber.copy(alpha = 0.5f))
-                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -392,7 +391,7 @@ internal fun PermissionSetupCard(
                         Text(
                             text = "Not enabled — some features may not work.",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.ledger.deskInkFaint
+                                color = MaterialTheme.ledger.deskInk
                             )
                         )
                     }
@@ -457,7 +456,7 @@ private fun NotRequiredCard(handler: PermissionHandler) {
                 Text(
                     text = handler.explanation,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.ledger.deskInkFaint,
+                        color = MaterialTheme.ledger.deskInk,
                         lineHeight = 15.sp
                     )
                 )
@@ -465,7 +464,7 @@ private fun NotRequiredCard(handler: PermissionHandler) {
             Spacer(modifier = Modifier.width(10.dp))
             CloudChip(
                 text = "Not required",
-                accentColor = MaterialTheme.ledger.deskInkFaint
+                accentColor = MaterialTheme.ledger.deskInk
             )
         }
     }
@@ -478,8 +477,7 @@ private fun SectionLabel(text: String) {
         text = text,
         style = MaterialTheme.typography.labelSmall.copy(
             color = MaterialTheme.ledger.deskInk,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.4.sp
+            fontWeight = FontWeight.Bold
         ),
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
     )
@@ -493,8 +491,8 @@ private fun StatusChip(state: PermissionState) {
         PermissionState.DENIED -> "○ Not enabled" to MaterialTheme.ledger.lampAmber
         PermissionState.PERMANENTLY_DENIED -> "⚠ Blocked" to MaterialTheme.ledger.emberRed
         PermissionState.NEEDS_SETTINGS -> "○ Needs settings" to MaterialTheme.ledger.lampAmber
-        PermissionState.NOT_REQUIRED -> "Not required" to MaterialTheme.ledger.deskInkFaint
-        PermissionState.UNAVAILABLE -> "Unavailable" to MaterialTheme.ledger.deskInkFaint
+        PermissionState.NOT_REQUIRED -> "Not required" to MaterialTheme.ledger.deskInk
+        PermissionState.UNAVAILABLE -> "Unavailable" to MaterialTheme.ledger.deskInk
     }
     CloudChip(text = text, accentColor = color)
 }
