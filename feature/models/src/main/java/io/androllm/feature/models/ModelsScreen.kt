@@ -103,7 +103,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -251,9 +250,9 @@ fun ModelsScreen(
                     unfocusedContainerColor = MaterialTheme.ledger.deskWalnutRaised,
                     cursorColor = MaterialTheme.ledger.lampDeep,
                     focusedLeadingIconColor = MaterialTheme.ledger.deskInk,
-                    unfocusedLeadingIconColor = MaterialTheme.ledger.deskInkFaint,
+                    unfocusedLeadingIconColor = MaterialTheme.ledger.deskInk,
                     focusedTrailingIconColor = MaterialTheme.ledger.deskInk,
-                    unfocusedTrailingIconColor = MaterialTheme.ledger.deskInkFaint,
+                    unfocusedTrailingIconColor = MaterialTheme.ledger.deskInk,
                     focusedTextColor = MaterialTheme.ledger.deskPaper,
                     unfocusedTextColor = MaterialTheme.ledger.deskPaper
                 )
@@ -397,7 +396,7 @@ private fun InstalledModelsTab(
                 Icon(
                     imageVector = Icons.Default.Memory,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.outline,
+                    tint = MaterialTheme.ledger.deskInk,
                     modifier = Modifier.size(48.dp)
                 )
                 Text(
@@ -408,7 +407,7 @@ private fun InstalledModelsTab(
                 Text(
                     text = "Import a local .litertlm / .tflite file from storage or download from the Catalog.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.ledger.deskInk
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(onClick = onImportClick) {
@@ -529,7 +528,7 @@ private fun DownloadsTab(
                 Icon(
                     imageVector = Icons.Default.Download,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.outline,
+                    tint = MaterialTheme.ledger.deskInk,
                     modifier = Modifier.size(48.dp)
                 )
                 Text(
@@ -540,7 +539,7 @@ private fun DownloadsTab(
                 Text(
                     text = "Browse the Catalog to download LiteRT models.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.ledger.deskInk
                 )
             }
         }
@@ -760,7 +759,7 @@ private fun CatalogTab(
                 Text(
                     text = state.message,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.ledger.deskInk
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = { viewModel.refreshCatalog() }) {
@@ -889,7 +888,7 @@ private fun CatalogList(
                 )
             }
             item(key = "divider") {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
             }
         }
 
@@ -955,7 +954,7 @@ private fun CatalogList(
             Text(
                 text = "${visibleModels.size + recommendedShown.size} models",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.ledger.deskInk
             )
         }
 
@@ -970,7 +969,7 @@ private fun CatalogList(
                     Text(
                         text = "No models match your search.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             }
