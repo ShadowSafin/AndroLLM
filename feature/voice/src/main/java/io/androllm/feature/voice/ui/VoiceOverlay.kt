@@ -108,7 +108,7 @@ fun VoiceOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0B12).copy(alpha = scrimAlpha))
+            .background(Color(0xFF000000).copy(alpha = scrimAlpha))
     ) {
         AuroraBackground(
             color = display.color,
@@ -188,13 +188,13 @@ internal enum class OverlayDisplayState(
     val color: Color,
     val isTurnInProgress: Boolean
 ) {
-    LISTENING("Start speaking", "🎤", Color(0xFF4FC3F7), true),
-    TRANSCRIBING("Transcribing", "📝", Color(0xFF4DD0E1), true),
-    THINKING("Thinking", "🧠", Color(0xFFB39DDB), true),
-    GENERATING("Responding", "✨", Color(0xFFFFD54F), true),
-    SPEAKING("Speaking", "🔊", Color(0xFF81C784), true),
-    DONE("Done", "✅", Color(0xFF90A4AE), false),
-    IDLE("Idle", "✅", Color(0xFF90A4AE), false);
+    LISTENING("Start speaking", "🎤", Color(0xFFFFFFFF), true),
+    TRANSCRIBING("Transcribing", "📝", Color(0xFFA3A3A3), true),
+    THINKING("Thinking", "🧠", Color(0xFFEDEDED), true),
+    GENERATING("Responding", "✨", Color(0xFFFFFFFF), true),
+    SPEAKING("Speaking", "🔊", Color(0xFF4ADE80), true),
+    DONE("Done", "✅", Color(0xFF888888), false),
+    IDLE("Idle", "✅", Color(0xFF888888), false);
 
     companion object {
         fun of(phase: VoicePhase): OverlayDisplayState = when (phase) {
@@ -277,14 +277,14 @@ private fun AuroraBackground(color: Color, speed: Float, transparency: Float) {
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF7C5CFF).copy(alpha = 0.18f * transparency), Color.Transparent),
+                    colors = listOf(Color.White.copy(alpha = 0.10f * transparency), Color.Transparent),
                     center = Offset(w * (0.75f - drift * 0.15f), h * 0.6f),
                     radius = w * 0.55f
                 )
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF1B1F2E).copy(alpha = 0.5f * transparency), Color.Transparent),
+                    colors = listOf(Color(0xFF1A1A1A).copy(alpha = 0.5f * transparency), Color.Transparent),
                     center = Offset(w * 0.5f, h * 1.05f),
                     radius = w * 0.7f
                 )
@@ -705,8 +705,7 @@ private fun SpokenCaption(state: VoiceUiState, display: OverlayDisplay, speed: F
                         text = "NOW SPEAKING",
                         color = display.color,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Spacer(modifier = Modifier.height(14.dp))
@@ -995,12 +994,12 @@ private fun ControlRow(
         ) {
             Button(
                 onClick = onOpenConversation,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C5CFF)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEDEDED)),
                 shape = RoundedCornerShape(50)
             ) {
-                Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = Color.White)
+                Icon(Icons.Filled.GraphicEq, contentDescription = null, tint = Color(0xFF000000))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Open Conversation", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Open Conversation", color = Color(0xFF000000), fontWeight = FontWeight.SemiBold)
             }
         }
 
@@ -1017,8 +1016,8 @@ private fun ControlRow(
             ) {
                 RoundIconButton(
                     icon = Icons.Filled.Close,
-                    tint = Color(0xFFFF8A80),
-                    background = Color(0x33FF8A80),
+                    tint = Color(0xFFF0665F),
+                    background = Color(0x24F0665F),
                     contentDescription = "Cancel",
                     onClick = onCancel
                 )
@@ -1026,8 +1025,8 @@ private fun ControlRow(
             // Mute
             RoundIconButton(
                 icon = if (state.muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                tint = if (state.muted) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.9f),
-                background = if (state.muted) Color(0x33FFD54F) else Color.White.copy(alpha = 0.12f),
+                tint = if (state.muted) Color(0xFFEDEDED) else Color.White.copy(alpha = 0.9f),
+                background = Color.White.copy(alpha = 0.12f),
                 contentDescription = if (state.muted) "Unmute" else "Mute",
                 onClick = onToggleMute
             )
