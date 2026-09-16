@@ -623,11 +623,11 @@ private fun FieldRenderer(
                 modifier = Modifier.weight(1f)
             )
             if (field.isAdvanced) {
-                CloudChip(text = "Advanced", accentColor = MaterialTheme.ledger.deskInkFaint)
+                CloudChip(text = "Advanced", accentColor = MaterialTheme.ledger.deskInk)
             }
         }
         if (field.helperText.isNotBlank()) {
-            Text(text = field.helperText, style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint))
+            Text(text = field.helperText, style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
         }
         when (field.type) {
             PromptFieldType.SELECT -> {
@@ -684,7 +684,7 @@ private fun FieldRenderer(
                     Text("Choose file")
                 }
                 if (value.isNotBlank()) {
-                    Text(text = "Selected: ${value.take(40)}", style = MaterialTheme.typography.labelSmall)
+                    Text(text = "Selected: ${value.take(40)}", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
                 }
             }
             else -> {
@@ -730,13 +730,14 @@ private fun PreviewStep(
     ) {
         if (template != null) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.lampAmber.copy(alpha = 0.1f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnut),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text(text = "Template: ${template.title}", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                    Text(text = "Category: ${template.category.label}", style = MaterialTheme.typography.bodySmall)
-                    Text(text = "Quality: ${template.qualityScore} • ${template.usefulnessTag}", style = MaterialTheme.typography.labelSmall)
+                    Text(text = "Template: ${template.title}", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper))
+                    Text(text = "Category: ${template.category.label}", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk))
+                    Text(text = "Quality: ${template.qualityScore} • ${template.usefulnessTag}", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
                 }
             }
         }
@@ -854,8 +855,9 @@ private fun PreviewStep(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { viewModel.duplicateSession(session) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnut.copy(alpha = 0.6f))
+                        .bounceClick { viewModel.duplicateSession(session) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnut),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.ledger.deskHairline)
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(text = session.templateTitle, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
@@ -893,19 +895,63 @@ private fun StudioSettingsCard(
             Text(text = "Prompt Studio settings", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Auto-preview", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = settings.autoPreviewOn, onCheckedChange = { onUpdate(settings.copy(autoPreviewOn = it)) })
+                Switch(
+                    checked = settings.autoPreviewOn,
+                    onCheckedChange = { onUpdate(settings.copy(autoPreviewOn = it)) },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                        checkedTrackColor = Color(0xFF525252),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                        uncheckedTrackColor = Color(0xFF333333),
+                        uncheckedBorderColor = Color(0xFF333333)
+                    )
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Show advanced fields", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = settings.showAdvancedFields, onCheckedChange = { onUpdate(settings.copy(showAdvancedFields = it)) })
+                Switch(
+                    checked = settings.showAdvancedFields,
+                    onCheckedChange = { onUpdate(settings.copy(showAdvancedFields = it)) },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                        checkedTrackColor = Color(0xFF525252),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                        uncheckedTrackColor = Color(0xFF333333),
+                        uncheckedBorderColor = Color(0xFF333333)
+                    )
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Save prompt history", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = settings.savePromptHistory, onCheckedChange = { onUpdate(settings.copy(savePromptHistory = it)) })
+                Switch(
+                    checked = settings.savePromptHistory,
+                    onCheckedChange = { onUpdate(settings.copy(savePromptHistory = it)) },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                        checkedTrackColor = Color(0xFF525252),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                        uncheckedTrackColor = Color(0xFF333333),
+                        uncheckedBorderColor = Color(0xFF333333)
+                    )
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Refinement suggestions", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = settings.enableRefinementSuggestions, onCheckedChange = { onUpdate(settings.copy(enableRefinementSuggestions = it)) })
+                Switch(
+                    checked = settings.enableRefinementSuggestions,
+                    onCheckedChange = { onUpdate(settings.copy(enableRefinementSuggestions = it)) },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                        checkedTrackColor = Color(0xFF525252),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                        uncheckedTrackColor = Color(0xFF333333),
+                        uncheckedBorderColor = Color(0xFF333333)
+                    )
+                )
             }
             // Default template picker
             var expanded by remember { mutableStateOf(false) }
