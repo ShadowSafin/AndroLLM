@@ -770,7 +770,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                 Text(
                     text = user?.displayName?.takeIf { it.isNotBlank() } ?: "",
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = MaterialTheme.ledger.deskInkFaint
+                        color = MaterialTheme.ledger.deskInk
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -782,7 +782,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                         "Guest • 100% on-device"
                     },
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = if (user?.isGuest == false) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInkFaint
+                        color = if (user?.isGuest == false) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -907,7 +907,7 @@ internal fun SettingRow(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.ledger.deskInkFaint
+                    color = MaterialTheme.ledger.deskInk
                 )
             )
         }
@@ -950,7 +950,7 @@ private fun MemorySettingsCard(
                 Icon(
                     imageVector = Icons.Filled.Memory,
                     contentDescription = null,
-                    tint = if (settings.enabled) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.lampGlow,
+                    tint = if (settings.enabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk,
                     modifier = Modifier.size(20.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -971,12 +971,19 @@ private fun MemorySettingsCard(
                 Switch(
                     checked = settings.enabled,
                     onCheckedChange = { onToggleEnabled() },
-                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        checkedTrackColor = Color(0xFF525252),
+                                        checkedBorderColor = Color.Transparent,
+                                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        uncheckedTrackColor = Color(0xFF333333),
+                                        uncheckedBorderColor = Color(0xFF333333)
+                                    )
                 )
             }
 
             if (settings.enabled) {
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
                 // Stats line
                 Row(
@@ -988,7 +995,7 @@ private fun MemorySettingsCard(
                 ) {
                     Text(
                         text = stats?.let { "${it.memoryCount} memories • ${it.embeddingCount} embeddings" } ?: "…",
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk),
                         modifier = Modifier.weight(1f)
                     )
                     TextButton(onClick = onRefreshStats) {
@@ -1014,7 +1021,12 @@ private fun MemorySettingsCard(
                         value = settings.similarityThreshold,
                         onValueChange = onThresholdChange,
                         valueRange = io.androllm.core.memory.model.MemorySettings.THRESHOLD_MIN..io.androllm.core.memory.model.MemorySettings.THRESHOLD_MAX,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -1031,7 +1043,12 @@ private fun MemorySettingsCard(
                             io.androllm.core.memory.model.MemorySettings.RETRIEVAL_MAX.toFloat(),
                         steps = io.androllm.core.memory.model.MemorySettings.RETRIEVAL_MAX -
                             io.androllm.core.memory.model.MemorySettings.RETRIEVAL_MIN - 1,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -1047,7 +1064,12 @@ private fun MemorySettingsCard(
                         valueRange = io.androllm.core.memory.model.MemorySettings.SUMMARIZATION_MIN.toFloat()..
                             io.androllm.core.memory.model.MemorySettings.SUMMARIZATION_MAX.toFloat(),
                         steps = 10,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
