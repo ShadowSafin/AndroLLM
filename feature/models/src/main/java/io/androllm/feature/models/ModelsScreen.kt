@@ -1481,12 +1481,12 @@ private fun HuggingFaceTab(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.ledger.deskInk)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("${remote.downloads}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                                Text("${remote.downloads}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.ledger.deskInk)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFE0A489))
+                                Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.ledger.lampAmber)
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("${remote.likes}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                                Text("${remote.likes}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.ledger.deskInk)
                             }
                         }
                     }
@@ -1517,7 +1517,7 @@ private fun RemoteModelDetailsSheet(
                 .padding(20.dp)
         ) {
             Text(text = details.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(text = "by ${details.author} • License: ${details.license}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = "by ${details.author} • License: ${details.license}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.ledger.deskInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(12.dp))
 
             SecondaryTabRow(
@@ -1562,7 +1562,7 @@ private fun RemoteModelDetailsSheet(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(file.filename, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("Quant: ${file.quantization} • RAM: ${"%.0f".format(file.minRamGb)} GB+", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("Quant: ${file.quantization} • RAM: ${"%.0f".format(file.minRamGb)} GB+", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.ledger.deskInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Button(
@@ -1642,7 +1642,7 @@ private fun DiagnosticRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.ledger.deskInk,
             modifier = Modifier.weight(1f)
         )
         Text(
@@ -1818,7 +1818,7 @@ private fun BackendSelectorCard(
             Text(
                 text = "AUTO picks the fastest accelerator on this device (NPU → GPU → CPU) with silent fallback.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.ledger.deskInk
             )
             if (capabilities.npuOptionVisible) {
                 Spacer(modifier = Modifier.height(2.dp))
@@ -1857,13 +1857,13 @@ private fun BackendSelectorCard(
                             enabled = true,
                             selected = preference == type,
                             borderColor = MaterialTheme.ledger.deskHairline,
-                            selectedBorderColor = MaterialTheme.ledger.lampDeep
+                            selectedBorderColor = MaterialTheme.ledger.lampAmber
                         ),
                         colors = FilterChipDefaults.filterChipColors(
                             containerColor = MaterialTheme.ledger.deskWalnutDeep,
                             labelColor = MaterialTheme.ledger.deskInk,
                             iconColor = MaterialTheme.ledger.deskInk,
-                            selectedContainerColor = MaterialTheme.ledger.lampDeep,
+                            selectedContainerColor = MaterialTheme.ledger.lampAmber,
                             selectedLabelColor = MaterialTheme.ledger.inkOnLamp,
                             selectedLeadingIconColor = MaterialTheme.ledger.inkOnLamp,
                             selectedTrailingIconColor = MaterialTheme.ledger.inkOnLamp
@@ -1890,7 +1890,7 @@ private fun ModelStatusDashboard(
     val (statusLabel, statusColor, showProgress) = when (engineState) {
         is EngineState.Loading -> Triple(
             "Loading: ${engineState.stage}",
-            Color(0xFFE69D81),
+            MaterialTheme.ledger.lampAmber,
             true
         )
         is EngineState.WarmingUp -> Triple(
