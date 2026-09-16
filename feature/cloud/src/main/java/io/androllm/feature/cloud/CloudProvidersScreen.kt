@@ -46,6 +46,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -72,14 +73,7 @@ import io.androllm.core.navigation.Routes
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.SectionHeader
-import io.androllm.core.ui.theme.DeskHairline
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.EmberRed
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.components.StaggeredEntrance
 import io.androllm.core.ui.theme.ledger
 
 /**
@@ -140,7 +134,7 @@ fun CloudProvidersScreen(
                 FloatingActionButton(
                     onClick = { formState = ProviderFormState() },
                     containerColor = MaterialTheme.ledger.lampAmber,
-                    contentColor = MaterialTheme.ledger.deskPaper
+                    contentColor = MaterialTheme.ledger.inkOnLamp
                 ) {
                     Text("+", style = MaterialTheme.typography.headlineMedium)
                 }
@@ -156,67 +150,75 @@ fun CloudProvidersScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    CloudModeCard(
-                        enabled = uiState.settings.enabled,
-                        onToggle = { viewModel.toggleCloudMode() }
-                    )
+                    StaggeredEntrance(0) {
+                        CloudModeCard(
+                            enabled = uiState.settings.enabled,
+                            onToggle = { viewModel.toggleCloudMode() }
+                        )
+                    }
                 }
 
                 item {
-                    SectionHeader(
-                        title = "Providers",
-                        subtitle = "Self-hosted or hosted LiteLLM proxies"
-                    )
+                    StaggeredEntrance(1) {
+                        SectionHeader(
+                            title = "Providers",
+                            subtitle = "Self-hosted or hosted LiteLLM proxies"
+                        )
+                    }
                 }
 
                 if (uiState.settings.providers.isEmpty()) {
                     item {
-                        CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                            Column {
-                                Text(
-                                    text = "No providers yet",
-                                    color = MaterialTheme.ledger.deskPaper,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = "Add your LiteLLM proxy URL and master key to start. " +
-                                        "Model routing (OpenAI, Anthropic, Gemini, Groq, OpenRouter, Ollama, ...) " +
-                                        "happens server-side — one gateway, every provider.",
-                                    color = MaterialTheme.ledger.deskInk,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                        StaggeredEntrance(2) {
+                            CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Column {
+                                    Text(
+                                        text = "No providers yet",
+                                        color = MaterialTheme.ledger.deskPaper,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "Add your LiteLLM proxy URL and master key to start. " +
+                                            "Model routing (OpenAI, Anthropic, Gemini, Groq, OpenRouter, Ollama, ...) " +
+                                            "happens server-side — one gateway, every provider.",
+                                        color = MaterialTheme.ledger.deskInk,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
                             }
                         }
                     }
                 } else {
                     items(uiState.settings.providers, key = { it.id }) { provider ->
-                        ProviderCard(
-                            provider = provider,
-                            health = healthStatus[provider.id],
-                            isDefault = provider.id == uiState.settings.defaultProviderId,
-                            isTesting = uiState.testingId == provider.id,
-                            isRefreshing = uiState.refreshingId == provider.id,
-                            onTest = { viewModel.testConnection(provider.id) },
-                            onRefreshModels = { viewModel.refreshModels(provider.id) },
-                            onSetDefault = { viewModel.setDefault(provider.id) },
-                            onToggleEnabled = { viewModel.toggleEnabled(provider.id) },
-                            onEdit = {
-                                formState = ProviderFormState(
-                                    providerId = provider.id,
-                                    name = provider.name,
-                                    baseUrl = provider.baseUrl,
-                                    apiKeyHeader = provider.apiKeyHeader,
-                                    headersText = provider.extraHeaders.entries.joinToString("\n") { "${it.key}: ${it.value}" },
-                                    description = provider.description,
-                                    tagsText = provider.tags.joinToString(", ")
-                                )
-                            },
-                            onDelete = { confirmDelete = provider },
-                            onOpenModels = {
-                                navController.navigate(Routes.cloudModels(provider.id))
-                            }
-                        )
+                        StaggeredEntrance(0, instant = true) {
+                            ProviderCard(
+                                provider = provider,
+                                health = healthStatus[provider.id],
+                                isDefault = provider.id == uiState.settings.defaultProviderId,
+                                isTesting = uiState.testingId == provider.id,
+                                isRefreshing = uiState.refreshingId == provider.id,
+                                onTest = { viewModel.testConnection(provider.id) },
+                                onRefreshModels = { viewModel.refreshModels(provider.id) },
+                                onSetDefault = { viewModel.setDefault(provider.id) },
+                                onToggleEnabled = { viewModel.toggleEnabled(provider.id) },
+                                onEdit = {
+                                    formState = ProviderFormState(
+                                        providerId = provider.id,
+                                        name = provider.name,
+                                        baseUrl = provider.baseUrl,
+                                        apiKeyHeader = provider.apiKeyHeader,
+                                        headersText = provider.extraHeaders.entries.joinToString("\n") { "${it.key}: ${it.value}" },
+                                        description = provider.description,
+                                        tagsText = provider.tags.joinToString(", ")
+                                    )
+                                },
+                                onDelete = { confirmDelete = provider },
+                                onOpenModels = {
+                                    navController.navigate(Routes.cloudModels(provider.id))
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -301,7 +303,15 @@ private fun CloudModeCard(enabled: Boolean, onToggle: () -> Unit) {
             }
             Switch(
                 checked = enabled,
-                onCheckedChange = { onToggle() }
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                    checkedTrackColor = Color(0xFF525252),
+                    checkedBorderColor = Color.Transparent,
+                    uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                    uncheckedTrackColor = Color(0xFF333333),
+                    uncheckedBorderColor = Color(0xFF333333)
+                )
             )
         }
     }
@@ -485,7 +495,7 @@ private fun StatusChip(enabled: Boolean) {
     val (bg, fg, label) = if (enabled) {
         Triple(MaterialTheme.ledger.lampAmber.copy(alpha = 0.18f), MaterialTheme.ledger.lampGlow, "ON")
     } else {
-        Triple(MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskInk, "OFF")
+        Triple(MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskPaperDim, "OFF")
     }
     Box(
         modifier = Modifier
