@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 fun CloudAtmosphericBackground(
     modifier: Modifier = Modifier,
     reduceMotion: Boolean = false,
+    showDots: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "ParchmentAtmosphereTransition")
@@ -76,11 +77,11 @@ fun CloudAtmosphericBackground(
     val lampHalo = ledger.lampHalo
     val deskHairline = ledger.deskHairline
     val deskInkFaint = ledger.deskInkFaint
-    // The same pool of light reads differently on the night desk: lift its
-    // alpha so the terracotta still reads against the darker ground.
-    val sunGlowAlpha = if (isDark) 0.20f + sunBreath * 0.10f else 0.16f + sunBreath * 0.08f
-    val deskGlowAlpha = if (isDark) 0.10f else 0.06f
-    val dustTwinkleRange = if (isDark) 0.12f to 0.5f else 0.06f to 0.4f
+    // The pool of light reads as a faint white breath on the blackout desk:
+    // kept whisper-quiet so content stays crisp, never foggy.
+    val sunGlowAlpha = if (isDark) 0.07f + sunBreath * 0.03f else 0.06f + sunBreath * 0.02f
+    val deskGlowAlpha = if (isDark) 0.04f else 0.03f
+    val dustTwinkleRange = if (isDark) 0.05f to 0.18f else 0.04f to 0.16f
 
     Box(
         modifier = modifier
@@ -159,6 +160,17 @@ fun CloudAtmosphericBackground(
                     center = Offset(x, y)
                 )
             }
+        }
+
+        // Layer 5: the sign-in dot grid — dimmed to a backdrop whisper so
+        // text stays crisp over it. White on the blackout desk.
+        if (showDots) {
+            DotGridBackground(
+                modifier = Modifier.fillMaxSize(),
+                dotColor = if (isDark) Color.White else deskInkFaint,
+                alphaScale = if (isDark) 0.5f else 0.55f,
+                animate = !reduceMotion
+            )
         }
 
         content()
