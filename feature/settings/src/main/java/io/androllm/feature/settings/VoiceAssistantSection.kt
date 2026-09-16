@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -51,12 +52,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.androllm.core.ui.components.CloudCapsuleButton
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.voice.model.VoiceSettings
 import io.androllm.feature.voice.VoicePhase
 import io.androllm.feature.voice.VoiceUiState
@@ -118,7 +113,7 @@ fun VoiceAssistantSection(
                 Icon(
                     imageVector = Icons.Filled.Mic,
                     contentDescription = null,
-                    tint = if (settings.enabled) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.lampGlow,
+                    tint = if (settings.enabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk,
                     modifier = Modifier.size(20.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -145,7 +140,14 @@ fun VoiceAssistantSection(
                 Switch(
                     checked = settings.enabled,
                     onCheckedChange = { if (it) requestEnable() else onStop() },
-                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                        checkedTrackColor = Color(0xFF525252),
+                        checkedBorderColor = Color.Transparent,
+                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                        uncheckedTrackColor = Color(0xFF333333),
+                        uncheckedBorderColor = Color(0xFF333333)
+                    )
                 )
             }
 
@@ -153,13 +155,13 @@ fun VoiceAssistantSection(
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "The microphone permission is required for the assistant.",
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFFF8A80)),
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.emberRed),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
 
             if (settings.enabled) {
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
                 ToggleRow(
                     icon = Icons.Filled.RecordVoiceOver,
@@ -186,7 +188,12 @@ fun VoiceAssistantSection(
                         value = settings.sensitivity,
                         onValueChange = { onUpdate(settings.copy(sensitivity = it)) },
                         valueRange = VoiceSettings.MIN_SENSITIVITY..VoiceSettings.MAX_SENSITIVITY,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -201,7 +208,12 @@ fun VoiceAssistantSection(
                         onValueChange = { onUpdate(settings.copy(silenceTimeoutMs = it.toInt())) },
                         valueRange = VoiceSettings.MIN_SILENCE_TIMEOUT_MS.toFloat()..
                             VoiceSettings.MAX_SILENCE_TIMEOUT_MS.toFloat(),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -215,7 +227,12 @@ fun VoiceAssistantSection(
                         value = settings.speakingSpeed,
                         onValueChange = { onUpdate(settings.copy(speakingSpeed = it)) },
                         valueRange = VoiceSettings.MIN_SPEED..VoiceSettings.MAX_SPEED,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -229,7 +246,12 @@ fun VoiceAssistantSection(
                         value = settings.pitch,
                         onValueChange = { onUpdate(settings.copy(pitch = it)) },
                         valueRange = VoiceSettings.MIN_PITCH..VoiceSettings.MAX_PITCH,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -243,7 +265,12 @@ fun VoiceAssistantSection(
                         value = settings.volume,
                         onValueChange = { onUpdate(settings.copy(volume = it)) },
                         valueRange = VoiceSettings.MIN_VOLUME..VoiceSettings.MAX_VOLUME,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -314,7 +341,12 @@ fun VoiceAssistantSection(
                         value = settings.overlayTransparency,
                         onValueChange = { onUpdate(settings.copy(overlayTransparency = it)) },
                         valueRange = VoiceSettings.MIN_OVERLAY_TRANSPARENCY..VoiceSettings.MAX_OVERLAY_TRANSPARENCY,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -328,7 +360,12 @@ fun VoiceAssistantSection(
                         value = settings.overlaySize,
                         onValueChange = { onUpdate(settings.copy(overlaySize = it)) },
                         valueRange = VoiceSettings.MIN_OVERLAY_SIZE..VoiceSettings.MAX_OVERLAY_SIZE,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -342,7 +379,12 @@ fun VoiceAssistantSection(
                         value = settings.animationSpeed,
                         onValueChange = { onUpdate(settings.copy(animationSpeed = it)) },
                         valueRange = VoiceSettings.MIN_ANIMATION_SPEED..VoiceSettings.MAX_ANIMATION_SPEED,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.ledger.lampGlow,
+                            activeTrackColor = MaterialTheme.ledger.lampAmber,
+                            inactiveTrackColor = Color(0xFF333333)
+                        )
                     )
                 }
 
@@ -379,7 +421,7 @@ fun VoiceAssistantSection(
                     onCheckedChange = { onUpdate(settings.copy(offlineOnly = it)) }
                 )
 
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
                 // Overlay permission
                 SettingRow(
@@ -391,7 +433,7 @@ fun VoiceAssistantSection(
 
                 // Real-Time Debug Overlay Card (Phase 8 & Phase 2 & Phase 3)
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnutRaised),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -433,7 +475,7 @@ fun VoiceAssistantSection(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = error,
-                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFFF8A80)),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.emberRed),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
@@ -515,7 +557,14 @@ private fun ToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                checkedTrackColor = Color(0xFF525252),
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                uncheckedTrackColor = Color(0xFF333333),
+                uncheckedBorderColor = Color(0xFF333333)
+            )
         )
     }
 }
@@ -557,11 +606,11 @@ private fun WakePhraseDialog(
                 },
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.ledger.lampAmber)
             ) {
-                Text("Save", color = MaterialTheme.ledger.deskPaper)
+                Text("Save", color = MaterialTheme.ledger.inkOnLamp)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInkFaint) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.ledger.deskInk) }
         }
     )
 }
