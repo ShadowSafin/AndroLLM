@@ -433,10 +433,10 @@ private fun StudioTemplateCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.15f)),
+                        .background(Color.White.copy(alpha = 0.08f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(imageVector = template.icon, contentDescription = null, tint = MaterialTheme.ledger.lampDeep, modifier = Modifier.size(20.dp))
+                    Icon(imageVector = template.icon, contentDescription = null, tint = MaterialTheme.ledger.lampGlow, modifier = Modifier.size(20.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -457,14 +457,14 @@ private fun StudioTemplateCard(
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                         contentDescription = "Favorite",
-                        tint = if (isFavorite) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint
+                        tint = if (isFavorite) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk
                     )
                 }
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = template.exampleUseCase,
-                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -494,7 +494,7 @@ private fun StudioTemplateCard(
                     ) {
                         Text(
                             text = "${template.qualityScore} • ${template.usefulnessTag}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, color = MaterialTheme.ledger.deskPaper),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -544,53 +544,59 @@ private fun TemplateFormStep(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text(
-                text = template.title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
-            )
-            Text(
-                text = template.description,
-                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
-            )
+            StaggeredEntrance(0) {
+                Text(
+                    text = template.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
+                )
+                Text(
+                    text = template.description,
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
+                )
+            }
         }
         // Dynamic fields
         items(template.fields.size) { idx ->
             val field = template.fields[idx]
             if (field.isAdvanced && !showAdvanced) return@items
-            FieldRenderer(
-                field = field,
-                value = formValues[field.id] ?: "",
-                error = errors[field.id],
-                onValueChange = { viewModel.updateField(field.id, it) },
-                onFilePick = { filePicker.launch(arrayOf("text/*", "application/*")) }
-            )
+            StaggeredEntrance(idx, instant = true) {
+                FieldRenderer(
+                    field = field,
+                    value = formValues[field.id] ?: "",
+                    error = errors[field.id],
+                    onValueChange = { viewModel.updateField(field.id, it) },
+                    onFilePick = { filePicker.launch(arrayOf("text/*", "application/*")) }
+                )
+            }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = { viewModel.resetForm() }, modifier = Modifier.weight(1f)) {
-                    Text("Reset")
+            StaggeredEntrance(1) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { viewModel.resetForm() }, modifier = Modifier.weight(1f)) {
+                        Text("Reset")
+                    }
+                    Button(onClick = onNext, modifier = Modifier.weight(1f)) {
+                        Text("Preview")
+                    }
                 }
-                Button(onClick = onNext, modifier = Modifier.weight(1f)) {
-                    Text("Preview")
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            // Show validation summary if errors
-            if (errors.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = "Please fix:",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                        )
-                        errors.values.forEach { msg ->
+                Spacer(modifier = Modifier.height(8.dp))
+                // Show validation summary if errors
+                if (errors.isNotEmpty()) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                text = "• $msg",
-                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onErrorContainer)
+                                text = "Please fix:",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
                             )
+                            errors.values.forEach { msg ->
+                                Text(
+                                    text = "• $msg",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onErrorContainer)
+                                )
+                            }
                         }
                     }
                 }
