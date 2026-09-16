@@ -835,8 +835,7 @@ private fun SmartReplyChips(onSend: (String) -> Unit) {
         Text(
             text = "FOLLOW UP",
             style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 1.6.sp,
-                color = MaterialTheme.ledger.deskInkFaint
+                color = MaterialTheme.ledger.deskInk
             )
         )
         FlowRow(
@@ -846,7 +845,7 @@ private fun SmartReplyChips(onSend: (String) -> Unit) {
             suggestions.forEach { suggestion ->
                 Surface(
                     shape = RoundedCornerShape(999.dp),
-                    color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.85f),
+                    color = MaterialTheme.ledger.deskWalnutRaised,
                     border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
                     modifier = Modifier
                         .shadow(1.dp, RoundedCornerShape(999.dp))
@@ -1097,7 +1096,6 @@ private fun ChatTopBar(
                 Text(
                     text = statusLabel.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.4.sp,
                         color = MaterialTheme.ledger.lampDeep
                     )
                 )
@@ -1162,9 +1160,9 @@ private fun ChatTopBar(
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete Chat", color = MaterialTheme.colorScheme.error) },
+                        text = { Text("Delete Chat", color = MaterialTheme.ledger.emberRed) },
                         onClick = { menuExpanded = false; onDelete() },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.ledger.emberRed) }
                     )
                 }
             }
