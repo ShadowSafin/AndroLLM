@@ -1,7 +1,6 @@
 package io.androllm.app.profile
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,16 +40,12 @@ import io.androllm.core.ui.components.CloudSection
 import io.androllm.core.ui.components.CloudTextField
 import io.androllm.core.ui.components.CloudTopBar
 import io.androllm.core.ui.components.CloudAccentOptions
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.ledger
 
 /**
  * First-run profile creation — shown once after the first successful sign-in.
- * The user picks an avatar preset, a display name, an optional username and an
- * accent color. Everything is persisted locally and mirrored to Firebase
+ * The user picks an avatar preset, a display name and an optional username.
+ * Everything is persisted locally and mirrored to Firebase
  * best-effort, then [onDone] hands over to Home.
  */
 @Composable
@@ -66,7 +60,8 @@ fun ProfileSetupScreen(
     var displayName by remember { mutableStateOf(currentUser?.displayName ?: "") }
     var username by remember { mutableStateOf("") }
     var avatarIndex by remember { mutableIntStateOf(0) }
-    var accent by remember { mutableStateOf(CloudAccentOptions.first()) }
+    // Single blackout theme — the accent is fixed, no picker.
+    val accent = CloudAccentOptions.first()
 
     CloudScaffold(
         topBar = {
@@ -93,7 +88,7 @@ fun ProfileSetupScreen(
             Text(
                 text = "Make it yours",
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.ledger.deskPaper
                 )
             )
@@ -156,31 +151,6 @@ fun ProfileSetupScreen(
                 placeholder = "@handle"
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            CloudSection(title = "Accent color") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    CloudAccentOptions.forEach { option ->
-                        val selected = option == accent
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(option.color)
-                                .border(
-                                    width = if (selected) 3.dp else 1.dp,
-                                    color = if (selected) MaterialTheme.ledger.deskPaper else option.color.copy(alpha = 0.6f),
-                                    shape = CircleShape
-                                )
-                                .clickable { accent = option }
-                        )
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(40.dp))
 
             CloudCapsuleButton(
@@ -195,7 +165,6 @@ fun ProfileSetupScreen(
                     )
                 },
                 enabled = displayName.isNotBlank() && !isSaving,
-                gradient = Brush.horizontalGradient(listOf(MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampGlow)),
                 modifier = Modifier.fillMaxWidth()
             )
 
