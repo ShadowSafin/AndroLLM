@@ -4,13 +4,12 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /**
- * The Parchment Ledger palette, resolvable per theme.
+ * The Signup Blackout palette, resolvable per theme.
  *
- * [LightLedger] is the daylight desk; [DarkLedger] is the same desk at night —
- * warm near-black surfaces, warm off-white ink, and the terracotta stamp kept
- * as the single accent so the world survives the switch intact. Components read
- * the current palette via [MaterialTheme.ledger] instead of hardcoding a light
- * token, which is what makes the app's custom surfaces respond to dark mode.
+ * Every mode wears the sign-in page: pure-black grounds, white ink, quiet
+ * gray secondaries, hairline borders, and the single #EDEDED primary.
+ * Components read the current palette via [MaterialTheme.ledger] instead of
+ * hardcoding a token, which is what flips the whole app at once.
  */
 @Immutable
 data class LedgerColors(
@@ -49,117 +48,116 @@ data class LedgerColors(
     val sunsetGlowAmber: Color
 )
 
-/** The daylight desk — the parchment ledger under the sun. */
+/** The blackout desk — the sign-in page everywhere. */
 val LightLedger = LedgerColors(
-    deskNight = Color(0xFFF5F4ED),
-    deskNightRaised = Color(0xFFECEBE3),
-    deskWalnut = Color(0xFFFBFAF4),
-    deskWalnutRaised = Color(0xFFFFFFFF),
-    deskWalnutDeep = Color(0xFFEFEEE6),
-    deskPaper = Color(0xFF141413),
-    deskPaperDim = Color(0xFF4A4945),
-    deskInk = Color(0xFF5E5D59),
-    deskInkFaint = Color(0xFF8F8D87),
-    deskHairline = Color(0xFFE8E6DC),
-    deskHairlineSoft = Color(0xFFF0EEE6),
-    lampAmber = Color(0xFFD97757),
-    lampGlow = Color(0xFFE69D81),
-    lampDeep = Color(0xFFB3573E),
-    lampHalo = Color(0x40D97757),
-    inkOnLamp = Color(0xFFFFFFFF),
-    emberRed = Color(0xFFC7442F),
-    emberRedSoft = Color(0xFFFBE9E6),
-    emberRedHard = Color(0xFF7E1F14),
-    emberOnRed = Color(0xFFFFFFFF),
-    terracottaSoft = Color(0xFFFFEBE0),
-    terracottaDeep = Color(0xFF66251A),
-    cloudWhite = Color(0xFFFDFCF8),
-    cloudGlassSurface = Color(0xCCFBFAF4),
-    cloudGlassSurfaceVariant = Color(0xE6FFFFFF),
-    cloudGlassBorder = Color(0x59E8E6DC),
-    cloudGlassBorderHighlight = Color(0x99E69D81),
-    cloudMoonGlow = Color(0x40E69D81),
-    cloudParticleTint = Color(0x59D97757),
-    revolutCyberCyan = Color(0xFFE69D81),
-    revolutGoldTier = Color(0xFFC08A2E),
-    revolutNeonEmerald = Color(0xFF52C41A),
-    sunsetGlowAmber = Color(0xFFE69D81)
+    deskNight = Color(0xFF000000),
+    deskNightRaised = Color(0xFF0A0A0A),
+    deskWalnut = Color(0xFF121212),
+    deskWalnutRaised = Color(0xFF1A1A1A),
+    deskWalnutDeep = Color(0xFF0A0A0A),
+    deskPaper = Color(0xFFFFFFFF),
+    deskPaperDim = Color(0xFFEDEDED),
+    deskInk = Color(0xFF888888),
+    deskInkFaint = Color(0xFF666666),
+    deskHairline = Color(0xFF222222),
+    deskHairlineSoft = Color(0xFF1E1E1E),
+    lampAmber = Color(0xFFEDEDED),
+    lampGlow = Color(0xFFFFFFFF),
+    lampDeep = Color(0xFFA3A3A3),
+    lampHalo = Color(0x40FFFFFF),
+    inkOnLamp = Color(0xFF000000),
+    emberRed = Color(0xFFF0665F),
+    emberRedSoft = Color(0xFF2A1512),
+    emberRedHard = Color(0xFFFFB4A0),
+    emberOnRed = Color(0xFF000000),
+    terracottaSoft = Color(0xFF1F1F1F),
+    terracottaDeep = Color(0xFFFFFFFF),
+    cloudWhite = Color(0xFFFFFFFF),
+    cloudGlassSurface = Color(0xCC000000),
+    cloudGlassSurfaceVariant = Color(0xE6121212),
+    cloudGlassBorder = Color(0x59222222),
+    cloudGlassBorderHighlight = Color(0x33FFFFFF),
+    cloudMoonGlow = Color(0x40FFFFFF),
+    cloudParticleTint = Color(0x40FFFFFF),
+    revolutCyberCyan = Color(0xFFEDEDED),
+    revolutGoldTier = Color(0xFF9CA3AF),
+    revolutNeonEmerald = Color(0xFF4ADE80),
+    sunsetGlowAmber = Color(0xFFFFFFFF)
 )
 
-/** The same desk at night — warm near-black, warm ink, terracotta accent. */
+/** Night mode — identical blackout; the mode switch is a visual no-op. */
 val DarkLedger = LedgerColors(
-    deskNight = Color(0xFF141312),
-    deskNightRaised = Color(0xFF1D1B19),
-    deskWalnut = Color(0xFF24211D),
-    deskWalnutRaised = Color(0xFF2B2824),
-    deskWalnutDeep = Color(0xFF1B1916),
-    deskPaper = Color(0xFFE8E4DC),
-    deskPaperDim = Color(0xFFB9B4AA),
-    deskInk = Color(0xFFA39D92),
-    deskInkFaint = Color(0xFF8A8478),
-    deskHairline = Color(0xFF3B3731),
-    deskHairlineSoft = Color(0xFF2C2925),
-    lampAmber = Color(0xFFE08A6A),
-    lampGlow = Color(0xFFEAA48C),
-    lampDeep = Color(0xFFC77052),
-    lampHalo = Color(0x66E08A6A),
-    inkOnLamp = Color(0xFF1F1E1B),
-    emberRed = Color(0xFFE0604A),
-    emberRedSoft = Color(0xFF3B211B),
+    deskNight = Color(0xFF000000),
+    deskNightRaised = Color(0xFF0A0A0A),
+    deskWalnut = Color(0xFF121212),
+    deskWalnutRaised = Color(0xFF1A1A1A),
+    deskWalnutDeep = Color(0xFF0A0A0A),
+    deskPaper = Color(0xFFFFFFFF),
+    deskPaperDim = Color(0xFFEDEDED),
+    deskInk = Color(0xFF888888),
+    deskInkFaint = Color(0xFF666666),
+    deskHairline = Color(0xFF222222),
+    deskHairlineSoft = Color(0xFF1E1E1E),
+    lampAmber = Color(0xFFEDEDED),
+    lampGlow = Color(0xFFFFFFFF),
+    lampDeep = Color(0xFFA3A3A3),
+    lampHalo = Color(0x40FFFFFF),
+    inkOnLamp = Color(0xFF000000),
+    emberRed = Color(0xFFF0665F),
+    emberRedSoft = Color(0xFF2A1512),
     emberRedHard = Color(0xFFFFB4A0),
-    emberOnRed = Color(0xFF1F1E1B),
-    terracottaSoft = Color(0xFF3B211B),
-    terracottaDeep = Color(0xFFFFB4A0),
-    cloudWhite = Color(0xFFF3EFE7),
-    cloudGlassSurface = Color(0xCC1D1B19),
-    cloudGlassSurfaceVariant = Color(0xE624211D),
-    cloudGlassBorder = Color(0x593B3731),
-    cloudGlassBorderHighlight = Color(0x99E69D81),
-    cloudMoonGlow = Color(0x40E69D81),
-    cloudParticleTint = Color(0x59D97757),
-    revolutCyberCyan = Color(0xFFE69D81),
-    revolutGoldTier = Color(0xFFD9A94F),
-    revolutNeonEmerald = Color(0xFF5FCF3D),
-    sunsetGlowAmber = Color(0xFFEAA48C)
+    emberOnRed = Color(0xFF000000),
+    terracottaSoft = Color(0xFF1F1F1F),
+    terracottaDeep = Color(0xFFFFFFFF),
+    cloudWhite = Color(0xFFFFFFFF),
+    cloudGlassSurface = Color(0xCC000000),
+    cloudGlassSurfaceVariant = Color(0xE6121212),
+    cloudGlassBorder = Color(0x59222222),
+    cloudGlassBorderHighlight = Color(0x33FFFFFF),
+    cloudMoonGlow = Color(0x40FFFFFF),
+    cloudParticleTint = Color(0x40FFFFFF),
+    revolutCyberCyan = Color(0xFFEDEDED),
+    revolutGoldTier = Color(0xFF9CA3AF),
+    revolutNeonEmerald = Color(0xFF4ADE80),
+    sunsetGlowAmber = Color(0xFFFFFFFF)
 )
 
 /**
- * The AMOLED desk — the night desk pushed to pure black so every OLED pixel
- * rests. Same warm ink and terracotta accent, identical role names, zero
- * luminance on the ground.
+ * The AMOLED desk — pure-black floor, same blackout ink. Identical role
+ * names, zero luminance on the ground.
  */
 val AmoledLedger = LedgerColors(
     deskNight = Color(0xFF000000),
     deskNightRaised = Color(0xFF0A0A0A),
-    deskWalnut = Color(0xFF111111),
+    deskWalnut = Color(0xFF121212),
     deskWalnutRaised = Color(0xFF1A1A1A),
     deskWalnutDeep = Color(0xFF070707),
-    deskPaper = Color(0xFFEDEAE2),
-    deskPaperDim = Color(0xFFC4BFB4),
-    deskInk = Color(0xFFA6A094),
-    deskInkFaint = Color(0xFF75706A),
-    deskHairline = Color(0xFF1E1E1E),
-    deskHairlineSoft = Color(0xFF161616),
-    lampAmber = Color(0xFFE08A6A),
-    lampGlow = Color(0xFFEAA48C),
-    lampDeep = Color(0xFFC77052),
-    lampHalo = Color(0x66E08A6A),
-    inkOnLamp = Color(0xFF1F1E1B),
-    emberRed = Color(0xFFE0604A),
+    deskPaper = Color(0xFFFFFFFF),
+    deskPaperDim = Color(0xFFEDEDED),
+    deskInk = Color(0xFF888888),
+    deskInkFaint = Color(0xFF666666),
+    deskHairline = Color(0xFF222222),
+    deskHairlineSoft = Color(0xFF1E1E1E),
+    lampAmber = Color(0xFFEDEDED),
+    lampGlow = Color(0xFFFFFFFF),
+    lampDeep = Color(0xFFA3A3A3),
+    lampHalo = Color(0x40FFFFFF),
+    inkOnLamp = Color(0xFF000000),
+    emberRed = Color(0xFFF0665F),
     emberRedSoft = Color(0xFF2A1512),
     emberRedHard = Color(0xFFFFB4A0),
-    emberOnRed = Color(0xFF1F1E1B),
-    terracottaSoft = Color(0xFF2A1512),
-    terracottaDeep = Color(0xFFFFB4A0),
-    cloudWhite = Color(0xFFF3EFE7),
-    cloudGlassSurface = Color(0xCC111111),
-    cloudGlassSurfaceVariant = Color(0xE61A1A1A),
-    cloudGlassBorder = Color(0x401E1E1E),
-    cloudGlassBorderHighlight = Color(0x99E69D81),
-    cloudMoonGlow = Color(0x40E69D81),
-    cloudParticleTint = Color(0x59D97757),
-    revolutCyberCyan = Color(0xFFE69D81),
-    revolutGoldTier = Color(0xFFD9A94F),
-    revolutNeonEmerald = Color(0xFF5FCF3D),
-    sunsetGlowAmber = Color(0xFFEAA48C)
+    emberOnRed = Color(0xFF000000),
+    terracottaSoft = Color(0xFF1F1F1F),
+    terracottaDeep = Color(0xFFFFFFFF),
+    cloudWhite = Color(0xFFFFFFFF),
+    cloudGlassSurface = Color(0xCC000000),
+    cloudGlassSurfaceVariant = Color(0xE6121212),
+    cloudGlassBorder = Color(0x59222222),
+    cloudGlassBorderHighlight = Color(0x33FFFFFF),
+    cloudMoonGlow = Color(0x40FFFFFF),
+    cloudParticleTint = Color(0x40FFFFFF),
+    revolutCyberCyan = Color(0xFFEDEDED),
+    revolutGoldTier = Color(0xFF9CA3AF),
+    revolutNeonEmerald = Color(0xFF4ADE80),
+    sunsetGlowAmber = Color(0xFFFFFFFF)
 )
