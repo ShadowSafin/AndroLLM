@@ -596,58 +596,78 @@ private enum class AuthAction {
 }
 
 @Composable
-private fun ProviderButton(
+private fun AuthSocialButton(
     text: String,
+    loading: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    gradient: Brush,
-    textColor: Color = MaterialTheme.ledger.deskPaper,
-    glyph: @Composable () -> Unit
+    icon: @Composable () -> Unit
 ) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "providerButtonScale"
-    )
-
     Box(
         modifier = modifier
-            .scale(scale)
-            .clip(CloudCapsuleShape)
-            .background(gradient)
-            .semantics { role = Role.Button }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        isPressed = true
-                        tryAwaitRelease()
-                        isPressed = false
-                    },
-                    onTap = { onClick() }
-                )
-            }
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.Transparent)
+            .border(1.dp, Color(0xFF333333), RoundedCornerShape(6.dp))
+            .clickable(enabled = !loading, onClick = onClick)
+            .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            glyph()
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = textColor
-                )
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = Color.White,
+                strokeWidth = 2.dp
             )
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                icon()
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = text,
+                    style = TextStyle(
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun AuthLegalFooter(onOpenDoc: (LegalDoc) -> Unit) {
+    val footer = buildAnnotatedString {
+        append("By proceeding, you agree to creating an AndroLLM account\nsubject to our ")
+        pushStringAnnotation(tag = "doc", annotation = LegalDoc.TERMS.name)
+        withStyle(SpanStyle(color = Color(0xFF888888), textDecoration = TextDecoration.Underline)) {
+            append("Terms of Service")
+        }
+        pop()
+        append(" and ")
+        pushStringAnnotation(tag = "doc", annotation = LegalDoc.PRIVACY.name)
+        withStyle(SpanStyle(color = Color(0xFF888888), textDecoration = TextDecoration.Underline)) {
+            append("Privacy Policy")
+        }
+        pop()
+        append(".")
+    }
+    ClickableText(
+        text = footer,
+        style = TextStyle(
+            color = Color(0xFF666666),
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
+        ),
+        onClick = { offset ->
+            footer.getStringAnnotations(tag = "doc", start = offset, end = offset)
+                .firstOrNull()?.let { onOpenDoc(LegalDoc.valueOf(it.item)) }
+        }
+    )
 }
 
 private fun toast(context: Context, message: String) {
