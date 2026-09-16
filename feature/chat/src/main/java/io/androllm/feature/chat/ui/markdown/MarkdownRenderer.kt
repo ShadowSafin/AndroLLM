@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.androllm.core.ui.theme.ledger
 
 sealed interface MarkdownNode {
     data class Header(val level: Int, val content: String) : MarkdownNode
@@ -107,7 +108,7 @@ fun MarkdownRenderer(
                 is MarkdownNode.Callout -> CalloutItem(node, textColor, warnBeforeOpeningAiLinks)
                 is MarkdownNode.HorizontalRule -> HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    color = MaterialTheme.ledger.deskHairline
                 )
                 is MarkdownNode.ImagePlaceholder -> ImagePlaceholderItem(node)
                 is MarkdownNode.MathBlock -> MathBlockItem(node)
@@ -162,8 +163,9 @@ private fun BlockquoteItem(text: String, textColor: Color, warnBeforeOpeningAiLi
         Spacer(modifier = Modifier.width(8.dp))
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
-            shape = RoundedCornerShape(8.dp)
+            color = MaterialTheme.ledger.deskWalnutRaised,
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline)
         ) {
             LinkAwareClickableText(
                 text = text,
@@ -234,7 +236,8 @@ private fun TableItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnutRaised),
+        border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
@@ -242,7 +245,7 @@ private fun TableItem(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.ledger.deskNightRaised, RoundedCornerShape(4.dp))
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
@@ -286,26 +289,28 @@ private fun ImagePlaceholderItem(image: MarkdownNode.ImagePlaceholder) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.ledger.deskWalnutRaised),
+        border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
         shape = RoundedCornerShape(8.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Image, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.Image, contentDescription = null, tint = MaterialTheme.ledger.deskPaperDim)
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
                     text = image.altText.ifBlank { "Image Attachment" },
                     style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.ledger.deskPaper
                 )
                 if (image.url.isNotBlank()) {
                     Text(
                         text = image.url,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             }
@@ -319,20 +324,21 @@ private fun MathBlockItem(math: MarkdownNode.MathBlock) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
-        shape = RoundedCornerShape(8.dp)
+        color = MaterialTheme.ledger.deskWalnutRaised,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Functions, contentDescription = "Math", tint = MaterialTheme.colorScheme.secondary)
+            Icon(Icons.Default.Functions, contentDescription = "Math", tint = MaterialTheme.ledger.deskPaperDim)
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = math.expression,
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                color = MaterialTheme.ledger.deskPaperDim
             )
         }
     }
@@ -548,10 +554,10 @@ private data class CalloutPalette(
 @Composable
 private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color, warnBeforeOpeningAiLinks: Boolean = true) {
     val palette = when (callout.kind) {
-        "Tip" -> CalloutPalette(Color(0xFFEDF4E6), Color(0xFFA9BF8A), Color(0xFF5F7D3E), "💡")
-        "Warning" -> CalloutPalette(Color(0xFFFBF0DC), Color(0xFFDDB968), Color(0xFF92681E), "⚠️")
-        "Example" -> CalloutPalette(Color(0xFFFBE9E0), Color(0xFFE3B39A), Color(0xFFA85E3E), "✨")
-        else -> CalloutPalette(Color(0xFFE9EFF4), Color(0xFFA7BFD4), Color(0xFF52708C), "📌")
+        "Tip" -> CalloutPalette(MaterialTheme.ledger.deskWalnutRaised, MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskPaperDim, "💡")
+        "Warning" -> CalloutPalette(MaterialTheme.ledger.deskWalnutRaised, MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskPaperDim, "⚠️")
+        "Example" -> CalloutPalette(MaterialTheme.ledger.deskWalnutRaised, MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskPaperDim, "✨")
+        else -> CalloutPalette(MaterialTheme.ledger.deskWalnutRaised, MaterialTheme.ledger.deskHairline, MaterialTheme.ledger.deskPaperDim, "📌")
     }
 
     Surface(
@@ -569,7 +575,6 @@ private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color, warnBef
                 Text(
                     text = callout.kind.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.4.sp,
                         fontWeight = FontWeight.Bold,
                         color = palette.accent
                     )
@@ -594,9 +599,9 @@ private fun CalloutItem(callout: MarkdownNode.Callout, textColor: Color, warnBef
 private fun parseFormattedText(
     text: String,
     defaultColor: Color,
-    inlineCodeBackground: Color = Color(0xFFEFEEE6),
-    inlineCodeForeground: Color = Color(0xFF4A4945),
-    linkColor: Color = Color(0xFFB3573E)
+    inlineCodeBackground: Color = Color(0xFF1A1A1A),
+    inlineCodeForeground: Color = Color(0xFFEDEDED),
+    linkColor: Color = Color(0xFFFFFFFF)
 ): AnnotatedString {
     return buildAnnotatedString {
         // Use AiLinkUtils to handle both markdown links and plain URLs in one pass,
