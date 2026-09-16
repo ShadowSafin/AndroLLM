@@ -99,6 +99,8 @@ import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
+import io.androllm.core.ui.components.StaggeredEntrance
+import io.androllm.core.ui.components.bounceClick
 import io.androllm.core.ui.theme.ledger
 
 /**
@@ -130,7 +132,7 @@ fun PromptLibraryScreen(
                             Text(
                                 text = "Prompt Studio",
                                 style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.ExtraBold,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.ledger.deskPaper
                                 )
                             )
@@ -143,8 +145,7 @@ fun PromptLibraryScreen(
                                 },
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = MaterialTheme.ledger.lampDeep,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 0.8.sp
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             )
                         }
@@ -247,7 +248,7 @@ private fun StudioStepper(currentStep: WizardStep, modifier: Modifier = Modifier
                 isCurrent -> MaterialTheme.ledger.lampAmber
                 else -> MaterialTheme.ledger.deskHairline
             }
-            val fg = if (isCompleted || isCurrent) Color.White else MaterialTheme.ledger.deskInk
+            val fg = if (isCompleted || isCurrent) MaterialTheme.ledger.inkOnLamp else MaterialTheme.ledger.deskInk
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -256,7 +257,7 @@ private fun StudioStepper(currentStep: WizardStep, modifier: Modifier = Modifier
                 contentAlignment = Alignment.Center
             ) {
                 if (isCompleted) {
-                    Icon(Icons.Filled.CheckCircle, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.ledger.inkOnLamp, modifier = Modifier.size(16.dp))
                 } else {
                     Text(
                         text = "${index + 1}",
@@ -319,21 +320,23 @@ private fun TemplateGalleryStep(
     ) {
         // Category chips
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    FilterChip(
-                        selected = studioCategoryFilter == null,
-                        onClick = { viewModel.selectStudioCategory(null) },
-                        label = { Text("All") }
-                    )
-                }
-                items(categories.size) { idx ->
-                    val cat = categories[idx]
-                    FilterChip(
-                        selected = studioCategoryFilter == cat,
-                        onClick = { viewModel.selectStudioCategory(if (studioCategoryFilter == cat) null else cat) },
-                        label = { Text(cat.label) }
-                    )
+            StaggeredEntrance(0) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChip(
+                            selected = studioCategoryFilter == null,
+                            onClick = { viewModel.selectStudioCategory(null) },
+                            label = { Text("All") }
+                        )
+                    }
+                    items(categories.size) { idx ->
+                        val cat = categories[idx]
+                        FilterChip(
+                            selected = studioCategoryFilter == cat,
+                            onClick = { viewModel.selectStudioCategory(if (studioCategoryFilter == cat) null else cat) },
+                            label = { Text(cat.label) }
+                        )
+                    }
                 }
             }
         }
@@ -342,20 +345,24 @@ private fun TemplateGalleryStep(
         // Show favorites and history counts
         if (studioState.history.isNotEmpty()) {
             item {
-                Text(
-                    text = "Recent sessions • ${studioState.history.size}",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
-                )
+                StaggeredEntrance(1) {
+                    Text(
+                        text = "Recent sessions • ${studioState.history.size}",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
+                    )
+                }
             }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(studioState.history.take(5).size) { idx ->
-                        val session = studioState.history[idx]
-                        AssistChip(
-                            onClick = { viewModel.duplicateSession(session) },
-                            label = { Text(session.templateTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            leadingIcon = { Icon(Icons.Filled.History, null, modifier = Modifier.size(14.dp)) }
-                        )
+                StaggeredEntrance(2) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(studioState.history.take(5).size) { idx ->
+                            val session = studioState.history[idx]
+                            AssistChip(
+                                onClick = { viewModel.duplicateSession(session) },
+                                label = { Text(session.templateTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                leadingIcon = { Icon(Icons.Filled.History, null, modifier = Modifier.size(14.dp)) }
+                            )
+                        }
                     }
                 }
             }
@@ -367,40 +374,46 @@ private fun TemplateGalleryStep(
             val templates = grouped[category] ?: emptyList()
             if (templates.isNotEmpty()) {
                 item {
-                    Text(
-                        text = category.label,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
-                    )
+                    StaggeredEntrance(3) {
+                        Text(
+                            text = category.label,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
+                        )
+                    }
                 }
                 items(templates.size) { idx ->
-                    val template = templates[idx]
-                    StudioTemplateCard(
-                        template = template,
-                        isFavorite = template.id in viewModel.uiState.collectAsStateWithLifecycle().value.favorites,
-                        onToggleFavorite = { viewModel.toggleFavoriteStudio(template.id) },
-                        onUse = { onTemplateSelected(template) },
-                        onCopy = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Prompt", template.promptTemplate))
-                            Toast.makeText(context, "Template copied", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+                    StaggeredEntrance(idx, instant = true) {
+                        val template = templates[idx]
+                        StudioTemplateCard(
+                            template = template,
+                            isFavorite = template.id in viewModel.uiState.collectAsStateWithLifecycle().value.favorites,
+                            onToggleFavorite = { viewModel.toggleFavoriteStudio(template.id) },
+                            onUse = { onTemplateSelected(template) },
+                            onCopy = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("Prompt", template.promptTemplate))
+                                Toast.makeText(context, "Template copied", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                 }
             }
         }
 
         // Settings for studio
         item {
-            StudioSettingsCard(
-                settings = studioState.settings,
-                onUpdate = { newSettings ->
-                    if (newSettings.defaultTemplateId != studioState.settings.defaultTemplateId) viewModel.setDefaultTemplate(newSettings.defaultTemplateId)
-                    if (newSettings.autoPreviewOn != studioState.settings.autoPreviewOn) viewModel.setAutoPreview(newSettings.autoPreviewOn)
-                    if (newSettings.showAdvancedFields != studioState.settings.showAdvancedFields) viewModel.setShowAdvanced(newSettings.showAdvancedFields)
-                    if (newSettings.savePromptHistory != studioState.settings.savePromptHistory) viewModel.setSaveHistory(newSettings.savePromptHistory)
-                    if (newSettings.enableRefinementSuggestions != studioState.settings.enableRefinementSuggestions) viewModel.setEnableRefinement(newSettings.enableRefinementSuggestions)
-                }
-            )
+            StaggeredEntrance(4) {
+                StudioSettingsCard(
+                    settings = studioState.settings,
+                    onUpdate = { newSettings ->
+                        if (newSettings.defaultTemplateId != studioState.settings.defaultTemplateId) viewModel.setDefaultTemplate(newSettings.defaultTemplateId)
+                        if (newSettings.autoPreviewOn != studioState.settings.autoPreviewOn) viewModel.setAutoPreview(newSettings.autoPreviewOn)
+                        if (newSettings.showAdvancedFields != studioState.settings.showAdvancedFields) viewModel.setShowAdvanced(newSettings.showAdvancedFields)
+                        if (newSettings.savePromptHistory != studioState.settings.savePromptHistory) viewModel.setSaveHistory(newSettings.savePromptHistory)
+                        if (newSettings.enableRefinementSuggestions != studioState.settings.enableRefinementSuggestions) viewModel.setEnableRefinement(newSettings.enableRefinementSuggestions)
+                    }
+                )
+            }
         }
     }
 }
