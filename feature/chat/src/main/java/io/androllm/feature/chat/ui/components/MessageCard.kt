@@ -178,13 +178,12 @@ fun MessageCard(
     val selectionTint = if (selected) MaterialTheme.ledger.lampAmber.copy(alpha = 0.12f) else Color.Transparent
 
     val bgColor = if (isUser) {
-        // Your words sit on the terracotta wash — the lamp's own tint at a
-        // quiet alpha, always in the ledger family so the page never splits
-        // into a second (dynamic-color) theme.
-        MaterialTheme.ledger.lampAmber.copy(alpha = 0.14f)
+        // Your words sit on the raised card — opaque so the animated
+        // backdrop never shows through.
+        MaterialTheme.ledger.deskWalnutRaised
     } else {
-        // Glass tint: the parchment shows through the card.
-        MaterialTheme.ledger.deskWalnut.copy(alpha = 0.66f)
+        // Assistant card: opaque card surface.
+        MaterialTheme.ledger.deskWalnut
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -216,7 +215,6 @@ fun MessageCard(
                             else -> "AI"
                         },
                         style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.8.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (isUser) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                         )
@@ -225,8 +223,7 @@ fun MessageCard(
                         Text(
                             text = formattedTime,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                letterSpacing = 1.1.sp,
-                                color = MaterialTheme.ledger.deskInkFaint
+                                color = MaterialTheme.ledger.deskInk
                             )
                         )
                     }
@@ -237,7 +234,7 @@ fun MessageCard(
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = "Bookmarked",
-                            tint = MaterialTheme.ledger.lampDeep.copy(alpha = 0.9f),
+                            tint = MaterialTheme.ledger.lampDeep,
                             modifier = Modifier.size(12.dp)
                         )
                     }
@@ -341,7 +338,7 @@ fun MessageCard(
                                     Text(
                                         text = "This conversation contains cloud-only attachments. Switch to a cloud model to use them.",
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            color = MaterialTheme.ledger.deskInkFaint
+                                            color = MaterialTheme.ledger.deskInk
                                         )
                                     )
                                 }
@@ -365,23 +362,23 @@ fun MessageCard(
                             modifier = Modifier.padding(top = 5.dp, start = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            CardIconButton(Icons.Default.ContentCopy, "Copy", MaterialTheme.ledger.deskInkFaint) {
+                            CardIconButton(Icons.Default.ContentCopy, "Copy", MaterialTheme.ledger.deskInk) {
                                 copyToClipboard(context, message.content, "Copied text")
                             }
                             if (isUser) {
-                                CardIconButton(Icons.Default.Edit, "Edit prompt", MaterialTheme.ledger.deskInkFaint) { onEditPrompt() }
+                                CardIconButton(Icons.Default.Edit, "Edit prompt", MaterialTheme.ledger.deskInk) { onEditPrompt() }
                             } else {
-                                CardIconButton(Icons.Default.Refresh, "Regenerate", MaterialTheme.ledger.deskInkFaint) { onRegenerate() }
+                                CardIconButton(Icons.Default.Refresh, "Regenerate", MaterialTheme.ledger.deskInk) { onRegenerate() }
                                 CardIconButton(
                                     if (message.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                     if (message.isBookmarked) "Remove bookmark" else "Bookmark",
-                                    if (message.isBookmarked) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInkFaint
+                                    if (message.isBookmarked) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                                 ) { onBookmarkToggle() }
-                                CardIconButton(Icons.Default.Share, "Share", MaterialTheme.ledger.deskInkFaint) {
+                                CardIconButton(Icons.Default.Share, "Share", MaterialTheme.ledger.deskInk) {
                                     ConversationSharer.shareSingleMessage(context, message.content)
                                 }
                             }
-                            CardIconButton(Icons.Default.Delete, "Delete", MaterialTheme.ledger.deskInkFaint) { onDelete() }
+                            CardIconButton(Icons.Default.Delete, "Delete", MaterialTheme.ledger.deskInk) { onDelete() }
                         }
                     }
                 }
@@ -409,19 +406,18 @@ fun MessageCard(
 @Composable
 private fun BackendBadge(cloudMode: Boolean) {
     val label = if (cloudMode) "CLOUD" else "LOCAL"
-    val fg = if (cloudMode) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
-    val bg = if (cloudMode) MaterialTheme.ledger.lampAmber.copy(alpha = 0.14f) else MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.8f)
+    val fg = if (cloudMode) MaterialTheme.ledger.deskPaperDim else MaterialTheme.ledger.deskInk
+    val bg = if (cloudMode) MaterialTheme.ledger.lampAmber.copy(alpha = 0.08f) else MaterialTheme.ledger.deskWalnutRaised
     Surface(
         shape = RoundedCornerShape(999.dp),
         color = bg,
-        border = BorderStroke(0.5.dp, if (cloudMode) MaterialTheme.ledger.lampAmber.copy(alpha = 0.5f) else MaterialTheme.ledger.deskHairline)
+        border = BorderStroke(1.dp, if (cloudMode) MaterialTheme.ledger.lampAmber.copy(alpha = 0.2f) else MaterialTheme.ledger.deskHairline)
     ) {
         Text(
             text = label,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 8.sp,
-                letterSpacing = 1.2.sp,
                 fontWeight = FontWeight.Bold,
                 color = fg
             )
@@ -489,7 +485,7 @@ private fun AttachmentCards(
         attachments.forEach { attachment ->
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (enabled) MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.8f) else MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.45f),
+                color = if (enabled) MaterialTheme.ledger.deskWalnutRaised else MaterialTheme.ledger.deskWalnut,
                 border = BorderStroke(
                     0.5.dp,
                     if (attachment.isFailed) MaterialTheme.ledger.emberRed.copy(alpha = 0.5f) else MaterialTheme.ledger.deskHairline
@@ -528,7 +524,7 @@ private fun AttachmentCards(
                                 else -> attachment.label.substringAfter(" · ")
                             },
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (attachment.isFailed) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInkFaint
+                                color = if (attachment.isFailed) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInk
                             )
                         )
                     }
