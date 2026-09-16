@@ -196,33 +196,37 @@ fun CloudModelsScreen(
                     }
                     else -> {
                         item {
-                            Text(
-                                text = "Tap a model to make it the chat default.",
-                                color = MaterialTheme.ledger.deskInk,
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            StaggeredEntrance(0) {
+                                Text(
+                                    text = "Tap a model to make it the chat default.",
+                                    color = MaterialTheme.ledger.deskInk,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                         items(entries, key = { it.model.id + it.model.providerId }) { entry ->
-                            ModelRow(
-                                model = entry.model,
-                                custom = entry.custom,
-                                onToggleFavorite = { viewModel.toggleFavorite(entry.model.id) },
-                                onSetDefault = { viewModel.setDefaultModel(entry.model.id) },
-                                onEditCustom = {
-                                    val c = entry.custom ?: return@ModelRow
-                                    customForm = CustomModelFormState(
-                                        customModelId = c.id,
-                                        modelName = c.modelName,
-                                        modelId = c.modelId,
-                                        apiBaseUrl = c.apiBaseUrl.orEmpty(),
-                                        apiKeyHeader = c.apiKeyHeader,
-                                        headersText = c.extraHeaders.entries.joinToString("\n") { "${it.key}: ${it.value}" },
-                                        description = c.description,
-                                        tagsText = c.tags.joinToString(", ")
-                                    )
-                                },
-                                onDeleteCustom = { entry.custom?.let { confirmDelete = it } }
-                            )
+                            StaggeredEntrance(0, instant = true) {
+                                ModelRow(
+                                    model = entry.model,
+                                    custom = entry.custom,
+                                    onToggleFavorite = { viewModel.toggleFavorite(entry.model.id) },
+                                    onSetDefault = { viewModel.setDefaultModel(entry.model.id) },
+                                    onEditCustom = {
+                                        val c = entry.custom ?: return@ModelRow
+                                        customForm = CustomModelFormState(
+                                            customModelId = c.id,
+                                            modelName = c.modelName,
+                                            modelId = c.modelId,
+                                            apiBaseUrl = c.apiBaseUrl.orEmpty(),
+                                            apiKeyHeader = c.apiKeyHeader,
+                                            headersText = c.extraHeaders.entries.joinToString("\n") { "${it.key}: ${it.value}" },
+                                            description = c.description,
+                                            tagsText = c.tags.joinToString(", ")
+                                        )
+                                    },
+                                    onDeleteCustom = { entry.custom?.let { confirmDelete = it } }
+                                )
+                            }
                         }
                     }
                 }
@@ -278,7 +282,7 @@ private fun ModelRow(
     CloudGlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onSetDefault),
+            .bounceClick(onClick = onSetDefault),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Row(
@@ -289,7 +293,7 @@ private fun ModelRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = model.label,
-                        color = if (model.isDefault) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskPaper,
+                        color = MaterialTheme.ledger.deskPaper,
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -357,7 +361,7 @@ private fun ModelRow(
                 Icon(
                     imageVector = if (model.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                     contentDescription = if (model.isFavorite) "Unfavorite" else "Favorite",
-                    tint = if (model.isFavorite) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInk
+                    tint = if (model.isFavorite) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.lampDeep
                 )
             }
             if (custom != null) {
