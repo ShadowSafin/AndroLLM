@@ -9,20 +9,15 @@ import androidx.compose.ui.unit.sp
 import io.androllm.core.ui.R
 
 /**
- * The Writer's Night Desk typography — Public Sans throughout.
+ * App typography — the sign-in voice, everywhere.
  *
- * One voice for the whole app: the USWDS-style geometric humanist sans that
- * carries the desk's clarity from the biggest display headline to the smallest
- * label. Bundled as a variable font (`res/font/public_sans_variable.ttf`) so
- * every weight resolves without extra files or network access.
+ * Tight-tracked semibold headings (-0.025em, the auth-card hand), 14sp body
+ * and medium labels with near-zero tracking. Labels are sentence-case and
+ * quiet; no tracked-caps shouting. Display sizes stay bold for hero moments.
  *
- * Scale follows the google-fonts skill's major-third (1.25) @ 16px base rhythm
- * (line-height and letter-spacing tighten as display sizes grow). Labels keep
- * their tracked-caps ledger hand so model meta, tokens, benchmarks and
- * captions read as measured figures.
+ * The family stays the bundled Public Sans variable font
+ * (`res/font/public_sans.xml`) so every weight resolves offline.
  */
-// res/font/public_sans.xml maps each FontWeight onto the variable font's wght
-// axis via android:fontVariationSettings.
 private val DeskSans = FontFamily(
     Font(R.font.public_sans, FontWeight.Normal),
     Font(R.font.public_sans, FontWeight.Medium),
@@ -57,39 +52,42 @@ val AndroLLMTypography = Typography(
         fontWeight = FontWeight.SemiBold,
         fontSize = 25.sp,
         lineHeight = 34.sp,
-        letterSpacing = (-0.25).sp
+        letterSpacing = (-0.6).sp
     ),
     headlineMedium = TextStyle(
         fontFamily = DeskSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
         lineHeight = 29.sp,
-        letterSpacing = (-0.1).sp
+        letterSpacing = (-0.5).sp
     ),
     headlineSmall = TextStyle(
         fontFamily = DeskSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
-        lineHeight = 24.sp
+        lineHeight = 24.sp,
+        letterSpacing = (-0.4).sp
     ),
     titleLarge = TextStyle(
         fontFamily = DeskSans,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
         lineHeight = 29.sp,
-        letterSpacing = (-0.1).sp
+        letterSpacing = (-0.5).sp
     ),
     titleMedium = TextStyle(
         fontFamily = DeskSans,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
-        lineHeight = 24.sp
+        lineHeight = 24.sp,
+        letterSpacing = (-0.4).sp
     ),
     titleSmall = TextStyle(
         fontFamily = DeskSans,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
-        lineHeight = 20.sp
+        lineHeight = 20.sp,
+        letterSpacing = 0.sp
     ),
     bodyLarge = TextStyle(
         fontFamily = DeskSans,
@@ -101,36 +99,34 @@ val AndroLLMTypography = Typography(
         fontFamily = DeskSans,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
-        lineHeight = 21.sp,
-        letterSpacing = 0.1.sp
+        lineHeight = 21.sp
     ),
     bodySmall = TextStyle(
         fontFamily = DeskSans,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.1.sp
+        lineHeight = 18.sp
     ),
     labelLarge = TextStyle(
         fontFamily = DeskSans,
         fontWeight = FontWeight.Medium,
         fontSize = 13.sp,
         lineHeight = 18.sp,
-        letterSpacing = 0.8.sp
+        letterSpacing = 0.2.sp
     ),
     labelMedium = TextStyle(
         fontFamily = DeskSans,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,
-        letterSpacing = 0.9.sp
+        letterSpacing = 0.2.sp
     ),
     labelSmall = TextStyle(
         fontFamily = DeskSans,
         fontWeight = FontWeight.Medium,
         fontSize = 10.sp,
         lineHeight = 14.sp,
-        letterSpacing = 0.7.sp
+        letterSpacing = 0.2.sp
     )
 )
 
