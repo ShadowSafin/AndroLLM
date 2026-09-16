@@ -82,7 +82,7 @@ fun ModelParameterSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = MaterialTheme.ledger.deskNight,
+        containerColor = MaterialTheme.ledger.deskWalnut,
         scrimColor = Color.Black.copy(alpha = 0.6f)
     ) {
         Column(
@@ -116,15 +116,15 @@ fun ModelParameterSheet(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.ledger.lampGlow.copy(alpha = 0.18f))
+                        .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.08f))
+                        .border(1.dp, MaterialTheme.ledger.lampAmber.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "LIVE TUNER",
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 0.6.sp,
-                        color = MaterialTheme.ledger.lampDeep
+                        color = MaterialTheme.ledger.deskPaperDim
                     )
                 }
             }
@@ -242,7 +242,7 @@ fun ModelParameterSheet(
                 Text(
                     text = "Answers run until the model finishes (bounded by the context window). Lower this to force shorter replies.",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        color = MaterialTheme.ledger.deskInkFaint
+                        color = MaterialTheme.ledger.deskInk
                     )
                 )
             }
@@ -266,7 +266,8 @@ fun ModelParameterSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskHairline.copy(alpha = 0.5f))
+                            .background(if (isSelected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskWalnutRaised)
+                            .border(1.dp, if (isSelected) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskHairline, RoundedCornerShape(12.dp))
                             .clickable { selectedPreset = name }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
@@ -274,7 +275,7 @@ fun ModelParameterSheet(
                             text = name,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInkFaint
+                            color = if (isSelected) MaterialTheme.ledger.inkOnLamp else MaterialTheme.ledger.deskInk
                         )
                     }
                 }
