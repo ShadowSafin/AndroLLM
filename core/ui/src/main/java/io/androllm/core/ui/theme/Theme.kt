@@ -1,19 +1,15 @@
 package io.androllm.core.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import io.androllm.core.models.ChatFontSize
@@ -21,26 +17,15 @@ import io.androllm.core.models.ThemeMode
 import io.androllm.core.models.UiDensity
 
 /**
- * THE PARCHMENT LEDGER — direction contract (seed from design-system/).
- * THESIS: The daylight desk: every conversation is a letter kept in ink on
- *   parchment, every action is a terracotta stamp. Calm editorial warmth that
- *   refuses neon glass, gradient chrome, and every fintech accent stack.
- * OWN-WORLD: warm parchment canvas (#F5F4ED) under one terracotta accent
- *   (#D97757); cream hairline rules, ink text, serif display voice, monospace
- *   ledger labels, soft warm shadows, spring press.
- * STORY: the visitor understands this device is their own quiet instrument —
- *   the loaded model glows like a terracotta seal, downloads arrive as slips
- *   drawn from a stack, chat reads as correspondence kept in daylight.
- * FIRST VIEWPORT: Models — a serif wordmark above the page, one lettered index
- *   card (the loaded model) with its lit terracotta seal, download slips
- *   beneath, mono-caps nav bar with the terracotta stamp on the active tab.
- * FORM: replacement world, assigned direction, seed from design-system files.
- * FINISH: unreviewed and undocumented is unfinished; this build ends with the
- *   finish review, the verdict, and DESIGN.md.
+ * THE SIGNUP BLACKOUT — direction contract.
+ * THESIS: the whole app wears the sign-in page: pure-black grounds, white
+ *   ink, quiet gray secondaries, hairline borders, one #EDEDED primary.
+ *   No terracotta, no warmth, no wallpaper tinting, no per-user accent —
+ *   every ThemeMode resolves to the same black.
  */
 
 /**
- * Dark color scheme for AndroLLM — the parchment at night (parchment.dark tokens).
+ * Dark color scheme for AndroLLM — the blackout (all modes share it).
  */
 private val DarkColors = darkColorScheme(
     primary = DarkLedger.lampAmber,
@@ -66,8 +51,8 @@ private val DarkColors = darkColorScheme(
     surfaceVariant = DarkLedger.deskWalnutDeep,
     onSurfaceVariant = DarkLedger.deskInk,
     surfaceTint = DarkLedger.lampAmber,
-    inverseSurface = Color(0xFFE8E4DC),
-    inverseOnSurface = Color(0xFF141312),
+    inverseSurface = Color(0xFFFFFFFF),
+    inverseOnSurface = Color(0xFF000000),
     inversePrimary = DarkLedger.lampDeep,
     surfaceBright = DarkLedger.deskNightRaised,
     surfaceDim = DarkLedger.deskNight,
@@ -108,7 +93,7 @@ private val AmoledColors = darkColorScheme(
     surfaceVariant = AmoledLedger.deskWalnutDeep,
     onSurfaceVariant = AmoledLedger.deskInk,
     surfaceTint = AmoledLedger.lampAmber,
-    inverseSurface = Color(0xFFE8E4DC),
+    inverseSurface = Color(0xFFFFFFFF),
     inverseOnSurface = Color(0xFF000000),
     inversePrimary = AmoledLedger.lampDeep,
     surfaceBright = AmoledLedger.deskNightRaised,
@@ -123,7 +108,7 @@ private val AmoledColors = darkColorScheme(
 )
 
 /**
- * Light color scheme for AndroLLM — the parchment ledger in daylight (flagship).
+ * Light color scheme for AndroLLM — blackout; identical black, never parchment.
  */
 private val LightColors = lightColorScheme(
     primary = LightLedger.lampAmber,
@@ -173,14 +158,12 @@ val MaterialTheme.ledger: LedgerColors
     get() = LocalLedgerColors.current
 
 /**
- * The AndroLLM theme. Resolves the [ThemeMode] to the matching palette:
- *  - [ThemeMode.SYSTEM] follows the OS dark/light setting;
- *  - [ThemeMode.AMOLED] is true-black for OLED displays;
- *  - [ThemeMode.DARK] / [ThemeMode.LIGHT] force the parchment night/day desk.
+ * The AndroLLM theme — always the signup blackout.
  *
- * [dynamicColor] enables Material You dynamic color on Android 12+; the
- * wallpaper-derived scheme is blended with the ledger identity via
- * [accentColor] when the user has chosen one during profile setup.
+ * [themeMode], [dynamicColor] and [accentColor] are accepted for API
+ * compatibility but intentionally ignored: wallpaper tinting and per-user
+ * accents would break the monochrome black. Every mode resolves to the
+ * same black scheme + black ledger.
  */
 @Composable
 fun AndroLLMTheme(
@@ -196,35 +179,15 @@ fun AndroLLMTheme(
     }
     val amoled = themeMode == ThemeMode.AMOLED
 
-    val context = LocalContext.current
-    val dynamicScheme = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        null
-    }
-
+    // Blackout: dynamic wallpaper schemes and profile accents are ignored —
+    // every mode lands on the same black.
     val base = when {
-        dynamicScheme != null -> dynamicScheme
         amoled -> AmoledColors
         darkTheme -> DarkColors
         else -> LightColors
     }
 
-    val colorScheme = if (accentColor != null) {
-        base.copy(
-            primary = accentColor,
-            onPrimary = Color.White,
-            secondary = accentColor,
-            onSecondary = Color.White,
-            tertiary = accentColor,
-            onTertiary = Color.White,
-            primaryContainer = accentColor.copy(alpha = 0.18f),
-            secondaryContainer = accentColor.copy(alpha = 0.18f),
-            tertiaryContainer = accentColor.copy(alpha = 0.18f)
-        )
-    } else {
-        base
-    }
+    val colorScheme = base
 
     val ledger = when {
         amoled -> AmoledLedger
