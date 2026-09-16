@@ -48,7 +48,7 @@ fun ToolConfirmationCard(
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.ledger.deskWalnutRaised,
-        border = BorderStroke(1.dp, MaterialTheme.ledger.lampGlow.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
         shadowElevation = 4.dp,
         modifier = modifier.fillMaxWidth()
     ) {
@@ -68,7 +68,6 @@ fun ToolConfirmationCard(
                 Text(
                     text = "ACTION REQUIRED",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.4.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.ledger.lampGlow
                     )
@@ -92,7 +91,7 @@ fun ToolConfirmationCard(
                 } else {
                     "This action can't be undone. Tap Approve to continue or Deny to cancel."
                 },
-                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint)
+                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -100,7 +99,7 @@ fun ToolConfirmationCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onDeny) {
-                    Text("Deny", color = MaterialTheme.ledger.deskInkFaint)
+                    Text("Deny", color = MaterialTheme.ledger.deskInk)
                 }
                 Button(
                     onClick = onApprove,
