@@ -1,6 +1,5 @@
 package io.androllm.feature.developer
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,12 +48,12 @@ import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.CloudLineChart
 import io.androllm.core.ui.components.CloudUsageBar
+import io.androllm.core.ui.components.DeveloperStatsCard
 import io.androllm.core.ui.components.SectionHeader
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.EmberRed
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
+import io.androllm.core.ui.components.StaggeredEntrance
+import io.androllm.core.ui.components.StatsCardSubStat
+import io.androllm.core.ui.components.StatsDeltaTone
+import io.androllm.core.ui.components.bounceClick
 import io.androllm.core.runtime.Runtime
 import io.androllm.core.runtime.RuntimeStatus
 import io.androllm.core.ui.theme.LampGlow
@@ -96,7 +95,7 @@ fun DeveloperScreen(
                             Text(
                                 text = "Developer Mode",
                                 style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.ExtraBold,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.ledger.deskPaper
                                 )
                             )
@@ -104,8 +103,7 @@ fun DeveloperScreen(
                                 text = "Live engine & device telemetry",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = MaterialTheme.ledger.lampDeep,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 0.8.sp
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             )
                         }
@@ -126,19 +124,29 @@ fun DeveloperScreen(
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
+                // Session stats hero — throughput, totals, backend, load chart.
+                item {
+                    StaggeredEntrance(index = 0) {
+                        SessionStatsHero(data = data)
+                    }
+                }
+
                 // Device & engine summary
                 item {
-                    DeviceSummaryCard(data = data)
+                    StaggeredEntrance(index = 1) {
+                        DeviceSummaryCard(data = data)
+                    }
                 }
 
                 // Tool execution log entry point
                 item {
-                    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { navController.navigate(Routes.TOOL_DEBUG) }
-                                .padding(vertical = 16.dp, horizontal = 16.dp),
+                    StaggeredEntrance(index = 2) {
+                        CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bounceClick { navController.navigate(Routes.TOOL_DEBUG) }
+                                    .padding(vertical = 16.dp, horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -170,20 +178,23 @@ fun DeveloperScreen(
                             )
                         }
                     }
+                    }
                 }
 
                 // Throughput
                 item {
-                    ChartCard(
-                        title = "Inference Throughput",
-                        liveValue = "${String.format("%.1f", data.lastTokensPerSecond)} tok/s",
-                        subtitle = "Peak ${String.format("%.1f", data.peakTokensPerSecond)} • Avg ${String.format("%.1f", data.avgTokensPerSecond)} • ${data.speedHistory.size} samples"
-                    ) {
-                        CloudLineChart(
-                            dataPoints = data.speedHistory.ifEmpty { listOf(0f, 0f) },
-                            accent = MaterialTheme.ledger.lampGlow,
-                            height = 120.dp
-                        )
+                    StaggeredEntrance(index = 3) {
+                        ChartCard(
+                            title = "Inference Throughput",
+                            liveValue = "${String.format("%.1f", data.lastTokensPerSecond)} tok/s",
+                            subtitle = "Peak ${String.format("%.1f", data.peakTokensPerSecond)} • Avg ${String.format("%.1f", data.avgTokensPerSecond)} • ${data.speedHistory.size} samples"
+                        ) {
+                            CloudLineChart(
+                                dataPoints = data.speedHistory.ifEmpty { listOf(0f, 0f) },
+                                accent = MaterialTheme.ledger.lampGlow,
+                                height = 120.dp
+                            )
+                        }
                     }
                 }
 
