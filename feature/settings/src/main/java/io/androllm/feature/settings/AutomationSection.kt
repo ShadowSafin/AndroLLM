@@ -25,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -37,11 +38,6 @@ import io.androllm.core.tools.settings.AutomationSettings
 import io.androllm.core.utils.PermissionUtils
 import io.androllm.core.tools.settings.ConfirmationMode
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.ledger
 
 /**
@@ -77,7 +73,7 @@ fun AutomationSection(
             )
 
             if (settings.toolCallingEnabled) {
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
                 // Confirmation mode
                 Row(
@@ -108,7 +104,7 @@ fun AutomationSection(
                     ) {
                         Text(
                             text = if (settings.confirmationMode == mode) "●" else "○",
-                            color = if (settings.confirmationMode == mode) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInkFaint,
+                            color = if (settings.confirmationMode == mode) MaterialTheme.ledger.lampAmber else MaterialTheme.ledger.deskInk,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -121,13 +117,13 @@ fun AutomationSection(
                             )
                             Text(
                                 mode.description,
-                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInkFaint)
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.ledger.deskInk)
                             )
                         }
                     }
                 }
 
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
                 AutoToggleRow(
                     icon = Icons.Filled.Mic,
@@ -137,7 +133,7 @@ fun AutomationSection(
                     onCheckedChange = { onUpdate(settings.copy(voiceConfirmations = it)) }
                 )
 
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
                 // Device permissions the tools need at the Android level
                 if (missingDevicePermissions.isNotEmpty()) {
@@ -180,7 +176,7 @@ fun AutomationSection(
                             }
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+                    HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
                 }
 
                 // Per-tool toggles grouped by category
@@ -190,7 +186,7 @@ fun AutomationSection(
                         Text(
                             text = category.displayName.uppercase(),
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.ledger.deskInkFaint,
+                                color = MaterialTheme.ledger.deskInk,
                                 fontWeight = FontWeight.Bold
                             ),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -268,7 +264,14 @@ private fun AutoToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                checkedTrackColor = Color(0xFF525252),
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                uncheckedTrackColor = Color(0xFF333333),
+                uncheckedBorderColor = Color(0xFF333333)
+            )
         )
     }
 }
