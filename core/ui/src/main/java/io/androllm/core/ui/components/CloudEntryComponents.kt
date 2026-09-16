@@ -153,6 +153,29 @@ val GitHubIcon: ImageVector by lazy {
     }.build()
 }
 
+/**
+ * Apple mark as a vector icon (tintable through [Icon]).
+ */
+val AppleIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "Apple",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        addPath(
+            pathData = addPathNodes(
+                "M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35" +
+                    "C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.04 2.26-.79 3.59-.76 1.56.04 " +
+                    "2.88.75 3.65 1.89-3.08 1.75-2.58 5.61.35 6.75-1.01 2.37-2.39 4.39-4.29 4.29zM12.03 7.25" +
+                    "c-.15-2.23 1.66-4.07 3.72-4.25.36 2.38-1.92 4.34-3.72 4.25z"
+            ),
+            fill = SolidColor(Color.White)
+        )
+    }.build()
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Accent palette (profile setup) — warm family, one lamp at a time
 // ─────────────────────────────────────────────────────────────────────────────
@@ -181,18 +204,18 @@ val CloudAccentOptions: List<CloudAccent> = listOf(
 )
 
 /**
- * Gradient presets for the CloudAvatar — warm washes, not neon.
+ * Gradient presets for the CloudAvatar — monochrome ramps, not neon.
  */
 @Composable
 fun CloudAvatarGradients(): List<List<Color>> {
     val ledger = MaterialTheme.ledger
     return listOf(
         listOf(ledger.lampAmber, ledger.lampGlow),
-        listOf(Color(0xFFB3573E), Color(0xFF8C3C2A)),
-        listOf(Color(0xFFB08D6E), Color(0xFF8C6A4E)),
-        listOf(Color(0xFF9AA86E), Color(0xFF7A8558)),
-        listOf(Color(0xFF8A9AA8), Color(0xFF64717E)),
-        listOf(Color(0xFFE0A489), Color(0xFFB3573E))
+        listOf(Color(0xFFEDEDED), Color(0xFFA3A3A3)),
+        listOf(Color(0xFFA3A3A3), Color(0xFF525252)),
+        listOf(Color(0xFF737373), Color(0xFF404040)),
+        listOf(Color(0xFF9CA3AF), Color(0xFF4B5563)),
+        listOf(Color(0xFFFFFFFF), Color(0xFF737373))
     )
 }
 
@@ -330,7 +353,7 @@ fun CloudAvatar(
             Text(
                 text = initials.take(2).uppercase(),
                 style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.ledger.inkOnLamp
                 )
             )
@@ -380,7 +403,6 @@ fun CloudSection(
         Text(
             text = title.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 1.6.sp,
                 color = MaterialTheme.ledger.deskInk
             )
         )
