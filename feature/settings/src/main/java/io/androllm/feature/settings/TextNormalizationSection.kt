@@ -22,15 +22,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.voice.model.VoiceSettings
 import io.androllm.core.ui.theme.ledger
 
@@ -56,7 +52,7 @@ fun TextNormalizationSection(
                 onCheckedChange = { onUpdate(settings.copy(tnEnabled = it)) }
             )
 
-            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
             if (settings.tnEnabled) {
                 ToggleRowTn(
@@ -122,7 +118,7 @@ fun TextNormalizationSection(
                     checked = settings.tnAbbreviations,
                     onCheckedChange = { onUpdate(settings.copy(tnAbbreviations = it)) }
                 )
-                HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
                 ToggleRowTn(
                     icon = Icons.Filled.FormatQuote,
                     title = "Debug mode",
@@ -165,7 +161,14 @@ private fun ToggleRowTn(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                checkedTrackColor = Color(0xFF525252),
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                uncheckedTrackColor = Color(0xFF333333),
+                uncheckedBorderColor = Color(0xFF333333)
+            )
         )
     }
 }
