@@ -1,5 +1,8 @@
 package io.androllm.app.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -85,7 +88,11 @@ fun AppNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = Routes.SPLASH
+        startDestination = Routes.SPLASH,
+        enterTransition = { fadeIn(animationSpec = tween(durationMillis = 200)) },
+        exitTransition = { fadeOut(animationSpec = tween(durationMillis = 200)) },
+        popEnterTransition = { fadeIn(animationSpec = tween(durationMillis = 200)) },
+        popExitTransition = { fadeOut(animationSpec = tween(durationMillis = 200)) }
     ) {
         composable(Routes.SPLASH) {
             SplashScreen(
