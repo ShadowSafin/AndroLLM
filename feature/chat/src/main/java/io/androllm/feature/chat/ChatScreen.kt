@@ -1203,7 +1203,7 @@ private fun PendingAttachmentChips(
         attachments.forEach { attachment ->
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.9f),
+                color = MaterialTheme.ledger.deskWalnutRaised,
                 border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline)
             ) {
                 Row(
@@ -1233,7 +1233,7 @@ private fun PendingAttachmentChips(
                                 else -> "Processing…"
                             },
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = if (attachment.isFailed) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInkFaint
+                                color = if (attachment.isFailed) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.deskInk
                             )
                         )
                     }
@@ -1244,7 +1244,7 @@ private fun PendingAttachmentChips(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Remove ${attachment.name}",
-                            tint = MaterialTheme.ledger.deskInkFaint,
+                            tint = MaterialTheme.ledger.deskInk,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -1254,12 +1254,12 @@ private fun PendingAttachmentChips(
         if (processing) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.9f),
+                color = MaterialTheme.ledger.deskWalnutRaised,
                 border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline)
             ) {
                 Text(
                     text = "Processing…",
-                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint),
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                 )
             }
