@@ -37,7 +37,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,13 +58,6 @@ import io.androllm.core.ui.components.PromptStudioCarousel
 import io.androllm.core.ui.components.RevolutPerformanceChartCard
 import io.androllm.core.ui.components.RevolutResourceGaugeCard
 import io.androllm.core.ui.components.SectionHeader
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.DeskPaperDim
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.utils.StorageUtils
 import io.androllm.feature.home.R
 import io.androllm.feature.home.ui.components.ChatActivityCard
@@ -108,7 +100,7 @@ fun HomeScreen(
                                 Text(
                                     text = stringResource(R.string.home_title),
                                     style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.ExtraBold,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.ledger.deskPaper
                                     )
                                 )
@@ -116,8 +108,7 @@ fun HomeScreen(
                                     text = greetingForTimeOfDay(),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         color = MaterialTheme.ledger.lampDeep,
-                                        fontWeight = FontWeight.SemiBold,
-                                        letterSpacing = 0.8.sp
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 )
                             }
@@ -144,8 +135,8 @@ fun HomeScreen(
                         .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(6) {
-                        CardSkeletonRow(height = when (it) {
+                    items(6) { index ->
+                        CardSkeletonRow(height = when (index) {
                             0 -> 132.dp
                             1 -> 150.dp
                             2 -> 180.dp
@@ -205,17 +196,17 @@ fun HomeScreen(
                 // 6. Prompt Studio Carousel
                 item {
                     Column {
-                        SectionHeader(
-                            title = "Prompt Studio",
-                            subtitle = "One-tap AI templates & presets"
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        PromptStudioCarousel(
-                            onPromptSelected = { promptText ->
-                                navController.navigate(Routes.CHAT)
-                            }
-                        )
-                    }
+                    SectionHeader(
+                        title = "Prompt Studio",
+                        subtitle = "One-tap AI templates & presets"
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    PromptStudioCarousel(
+                        onPromptSelected = { promptText ->
+                            navController.navigate(Routes.CHAT)
+                        }
+                    )
+                }
                 }
 
                 // 7. Recent Conversations Activity Feed
@@ -224,10 +215,10 @@ fun HomeScreen(
                         title = "Activity & Chats",
                         subtitle = "Your private on-device conversations",
                         trailing = {
-                    CloudChip(
-                        text = "100% Offline",
-                        accentColor = MaterialTheme.ledger.lampDeep
-                    )
+                            CloudChip(
+                                text = "100% Offline",
+                                accentColor = MaterialTheme.ledger.lampDeep
+                            )
                         }
                     )
                 }
