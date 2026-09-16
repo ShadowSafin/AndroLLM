@@ -65,13 +65,8 @@ import io.androllm.core.cloud.model.CloudCustomModel
 import io.androllm.core.cloud.model.CloudModelProvider
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskHairline
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.EmberRed
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.components.StaggeredEntrance
+import io.androllm.core.ui.components.bounceClick
 import java.util.Locale
 import io.androllm.core.ui.theme.ledger
 
@@ -133,7 +128,7 @@ fun CloudModelsScreen(
                             if (uiState.refreshing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.ledger.lampDeep,
+                                    color = MaterialTheme.ledger.lampGlow,
                                     strokeWidth = 2.dp
                                 )
                             } else {
@@ -149,7 +144,7 @@ fun CloudModelsScreen(
                     FloatingActionButton(
                         onClick = { customForm = CustomModelFormState() },
                         containerColor = MaterialTheme.ledger.lampAmber,
-                        contentColor = MaterialTheme.ledger.deskPaper
+                        contentColor = MaterialTheme.ledger.inkOnLamp
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = "Add custom model")
                     }
@@ -166,31 +161,35 @@ fun CloudModelsScreen(
                 when {
                     provider == null -> {
                         item {
-                            CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "Add a provider in Cloud Providers first, then come back here to browse its models.",
-                                    color = MaterialTheme.ledger.deskInk,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                            StaggeredEntrance(0) {
+                                CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = "Add a provider in Cloud Providers first, then come back here to browse its models.",
+                                        color = MaterialTheme.ledger.deskInk,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
                             }
                         }
                     }
                     entries.isEmpty() -> {
                         item {
-                            CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                                Column {
-                                    Text(
-                                        text = "No models yet",
-                                        color = MaterialTheme.ledger.deskPaper,
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        text = "Refresh (top right) to pull the model list from /v1/models, " +
-                                            "or use the + button to add a custom LiteLLM model manually.",
-                                        color = MaterialTheme.ledger.deskInk,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
+                            StaggeredEntrance(0) {
+                                CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                                    Column {
+                                        Text(
+                                            text = "No models yet",
+                                            color = MaterialTheme.ledger.deskPaper,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = "Refresh (top right) to pull the model list from /v1/models, " +
+                                                "or use the + button to add a custom LiteLLM model manually.",
+                                            color = MaterialTheme.ledger.deskInk,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
                                 }
                             }
                         }
