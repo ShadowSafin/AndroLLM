@@ -111,7 +111,6 @@ fun NewChatEmptyState(
                     Text(
                         text = suggestion.uppercase(),
                         style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 0.6.sp,
                             color = MaterialTheme.ledger.deskInk
                         )
                     )
