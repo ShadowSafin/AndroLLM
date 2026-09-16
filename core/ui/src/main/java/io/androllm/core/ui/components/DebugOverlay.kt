@@ -30,7 +30,7 @@ fun DebugOverlay(
 ) {
     Surface(
         modifier = modifier.padding(8.dp),
-        color = Color(0xE6262624), // Warm dark HUD background on the parchment
+        color = Color(0xE6000000), // Neutral black HUD background
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -38,31 +38,31 @@ fun DebugOverlay(
                 text = "⚡ DEV DEBUG HUD",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFE69D81)
+                color = Color(0xFFFFFFFF)
             )
             Text(
                 text = "Speed: ${"%.1f".format(tokensPerSecond)} tok/s",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
-                color = Color(0xFFA8C07A)
+                color = Color(0xFFA3A3A3)
             )
             Text(
                 text = "Tokens: $promptTokens prompt / $generatedTokens gen",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
-                color = Color(0xFFD9B48F)
+                color = Color(0xFFA3A3A3)
             )
             Text(
                 text = "Backend: $activeBackend | Threads: $threadCount",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
-                color = Color(0xFFE0A33D)
+                color = Color(0xFFEDEDED)
             )
             Text(
                 text = "RAM: $memoryUsageMb MB",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
-                color = Color(0xFFC9C7BE)
+                color = Color(0xFFA3A3A3)
             )
         }
     }
