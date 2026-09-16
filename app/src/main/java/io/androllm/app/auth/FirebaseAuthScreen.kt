@@ -498,68 +498,76 @@ fun FirebaseAuthScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    androidx.compose.material3.Icon(
-                        imageVector = GitHubIcon,
-                        contentDescription = "GitHub",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                // Debug builds only: local guest entry so on-device validation
-                // (e.g. the NPU/QNN probe chain) never depends on a Firebase
-                // account. Release builds keep the strict two-provider gate —
-                // this branch is compiled out entirely.
-                if (BuildConfig.DEBUG) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    ProviderButton(
-                        text = "Continue as guest",
-                        onClick = {
-                            Timber.i("[Auth] Guest mode entered (debug build) — on-device features only")
-                            toast(context, "Guest mode — no cloud profile sync")
-                            onAuthSuccess(false)
-                        },
-                        gradient = Brush.horizontalGradient(
-                            listOf(Color(0xFF263238), Color(0xFF1B2226))
-                        ),
-                        textColor = Color(0xFFB0BEC5),
+                    AuthSocialButton(
+                        text = "$socialNoun with Google",
+                        loading = pendingAction == AuthAction.GOOGLE,
+                        onClick = ::googleSignIn,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        androidx.compose.material3.Icon(
+                        GoogleGlyph(size = 16.dp)
+                    }
+                    AuthSocialButton(
+                        text = "$socialNoun with GitHub",
+                        loading = pendingAction == AuthAction.GITHUB,
+                        onClick = ::githubSignIn,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
                             imageVector = GitHubIcon,
-                            contentDescription = "Guest",
-                            tint = Color(0xFFB0BEC5),
-                            modifier = Modifier.size(20.dp)
+                            contentDescription = "GitHub",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(28.dp))
+                // Debug builds only: local guest entry so on-device validation
+                // never depends on a Firebase account. Release builds keep the
+                // strict provider gate — this branch is compiled out entirely.
+                if (BuildConfig.DEBUG) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Continue as guest (debug)",
+                        style = TextStyle(
+                            color = Color(0xFF888888),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        ),
+                        modifier = Modifier.clickable(enabled = !isLoading) {
+                            Timber.i("[Auth] Guest mode entered (debug build) — on-device features only")
+                            toast(context, "Guest mode — no cloud profile sync")
+                            onAuthSuccess(false)
+                        }
+                    )
+                }
 
-            // Legal footer
-            val legal = buildAnnotatedString {
-                append("By continuing you agree to the ")
-                withStyle(SpanStyle(color = MaterialTheme.ledger.lampDeep, fontWeight = FontWeight.SemiBold)) {
-                    append("Privacy Policy")
+                // Mode toggle.
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (isLogin) "Don't have an account? " else "Already have an account? ",
+                        style = TextStyle(color = Color(0xFF888888), fontSize = 14.sp)
+                    )
+                    Text(
+                        text = if (isLogin) "Sign Up" else "Sign In",
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.clickable(enabled = !isLoading) { isLogin = !isLogin }
+                    )
                 }
-                append(" and ")
-                withStyle(SpanStyle(color = MaterialTheme.ledger.lampDeep, fontWeight = FontWeight.SemiBold)) {
-                    append("Terms of Service")
-                }
-                append(".")
+
+                // Legal footer.
+                Spacer(modifier = Modifier.height(14.dp))
+                AuthLegalFooter(onOpenDoc = { legalDialog = it })
             }
-            Text(
-                text = legal,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color = MaterialTheme.ledger.deskInk,
-                    fontSize = 11.sp
-                ),
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .clickable { legalDialog = LegalDoc.PRIVACY }
-                    .padding(4.dp)
-            )
         }
     }
 
@@ -572,8 +580,9 @@ fun FirebaseAuthScreen(
         ) {
             Text(
                 text = doc.body,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.ledger.deskInk,
+                style = TextStyle(
+                    color = Color(0xFF888888),
+                    fontSize = 14.sp,
                     lineHeight = 18.sp
                 )
             )
@@ -581,9 +590,11 @@ fun FirebaseAuthScreen(
     }
 }
 
-/**
- * Premium capsule action button with a custom leading glyph.
- */
+/** Which auth entry point is currently awaiting a result (button spinners). */
+private enum class AuthAction {
+    GOOGLE, GITHUB
+}
+
 @Composable
 private fun ProviderButton(
     text: String,
