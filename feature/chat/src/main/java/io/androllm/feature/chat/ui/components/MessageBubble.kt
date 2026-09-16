@@ -146,7 +146,6 @@ fun MessageBubble(
                                 else -> "AI"
                             },
                             style = MaterialTheme.typography.labelSmall.copy(
-                                letterSpacing = 1.8.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isUser) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                             )
@@ -155,8 +154,7 @@ fun MessageBubble(
                             Text(
                                 text = formattedTime,
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    letterSpacing = 1.2.sp,
-                                    color = MaterialTheme.ledger.deskInkFaint
+                                    color = MaterialTheme.ledger.deskInk
                                 )
                             )
                         }
@@ -164,7 +162,7 @@ fun MessageBubble(
                             Icon(
                                 imageVector = Icons.Default.Bookmark,
                                 contentDescription = "Bookmarked",
-                                tint = MaterialTheme.ledger.lampDeep.copy(alpha = 0.9f),
+                                tint = MaterialTheme.ledger.lampDeep,
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -176,7 +174,7 @@ fun MessageBubble(
                             Icon(
                                 imageVector = Icons.Default.Mic,
                                 contentDescription = "Voice",
-                                tint = MaterialTheme.ledger.lampDeep.copy(alpha = 0.9f),
+                                tint = MaterialTheme.ledger.lampDeep,
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -233,13 +231,13 @@ fun MessageBubble(
                             modifier = Modifier.padding(top = 6.dp, start = 2.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            InkIconButton(Icons.Default.ContentCopy, "Copy", tint = MaterialTheme.ledger.deskInkFaint) {
+                            InkIconButton(Icons.Default.ContentCopy, "Copy", tint = MaterialTheme.ledger.deskInk) {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("Message", message.content))
                                 Toast.makeText(context, "Copied text", Toast.LENGTH_SHORT).show()
                             }
-                            InkIconButton(Icons.Default.Refresh, "Regenerate", tint = MaterialTheme.ledger.deskInkFaint) { onRegenerate() }
-                            InkIconButton(Icons.Default.Share, "Share", tint = MaterialTheme.ledger.deskInkFaint) {
+                            InkIconButton(Icons.Default.Refresh, "Regenerate", tint = MaterialTheme.ledger.deskInk) { onRegenerate() }
+                            InkIconButton(Icons.Default.Share, "Share", tint = MaterialTheme.ledger.deskInk) {
                                 ConversationSharer.shareSingleMessage(context, message.content)
                             }
                         }
