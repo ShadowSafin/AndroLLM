@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -37,12 +38,6 @@ import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudCapsuleButton
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.rememberReduceMotion
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
 import kotlin.math.abs
 import io.androllm.core.ui.theme.ledger
 
@@ -135,9 +130,6 @@ fun OnboardingScreen(
                             viewModel.next()
                         }
                     },
-                    gradient = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                        listOf(MaterialTheme.ledger.lampAmber, MaterialTheme.ledger.lampGlow)
-                    ),
                     modifier = Modifier.width(150.dp)
                 )
             }
@@ -189,7 +181,7 @@ private fun OnboardingPage(
         Text(
             text = title,
             style = MaterialTheme.typography.headlineLarge.copy(
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.ledger.deskPaper
             ),
             textAlign = TextAlign.Center
@@ -244,7 +236,7 @@ private fun OnboardingDots(
                     .width(width)
                     .clip(CircleShape)
                     .background(
-                        if (active) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.4f)
+                        if (active) MaterialTheme.ledger.lampGlow else Color(0xFF333333)
                     )
             )
         }
