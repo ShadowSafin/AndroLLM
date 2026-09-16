@@ -360,7 +360,8 @@ fun DeveloperScreen(
 
                 // Memory Inspector
                 item {
-                    SectionHeader(
+                    StaggeredEntrance(index = 10) {
+                        SectionHeader(
                         title = "Memory Inspector",
                         subtitle = "On-device memory pipeline"
                     )
@@ -370,25 +371,92 @@ fun DeveloperScreen(
                         recentMemories = recentMemories,
                         onRefresh = { viewModel.refreshMemoryInspector() }
                     )
+                    }
                 }
 
                 // Runtime Registry — every app runtime, auto-discovered
                 item {
-                    SectionHeader(
-                        title = "Runtime Registry",
-                        subtitle = "Every app runtime, auto-discovered — failures stay isolated"
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    RuntimeRegistryCard(
-                        runtimes = runtimeStatuses,
-                        onRefresh = { viewModel.refreshRuntimes() }
-                    )
+                    StaggeredEntrance(index = 11) {
+                        SectionHeader(
+                            title = "Runtime Registry",
+                            subtitle = "Every app runtime, auto-discovered — failures stay isolated"
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        RuntimeRegistryCard(
+                            runtimes = runtimeStatuses,
+                            onRefresh = { viewModel.refreshRuntimes() }
+                        )
+                    }
                 }
 
                 item { Spacer(modifier = Modifier.height(24.dp)) }
             }
         }
     }
+}
+
+@Composable
+private fun SessionStatsHero(data: DeveloperData) {
+    val samples = data.speedHistory
+    val hasSamples = samples.any { it > 0f }
+    val last = data.lastTokensPerSecond
+    val diff = last - data.avgTokensPerSecond
+    val totalTokens = data.generations.sumOf { it.totalTokens }
+    val ramUsedMb = data.history.lastOrNull()?.ramUsedMb?.toInt() ?: 0
+    val ramTotalMb = data.deviceMetrics?.totalRamMb ?: 0L
+    val peak = data.peakTokensPerSecond.takeIf { it > 0f } ?: 1f
+
+    DeveloperStatsCard(
+        title = "Session Stats",
+        timeFrame = "This session",
+        heroLabel = "Throughput",
+        heroValue = if (hasSamples) "${String.format("%.1f", last)} tok/s" else "—",
+        heroDelta = if (hasSamples) {
+            "${if (diff >= 0) "+" else "-"}${String.format("%.1f", kotlin.math.abs(diff))} tok/s vs avg"
+        } else {
+            "Load a model to begin"
+        },
+        heroDeltaTone = if (!hasSamples) {
+            StatsDeltaTone.NEUTRAL
+        } else if (diff >= 0) {
+            StatsDeltaTone.UP
+        } else {
+            StatsDeltaTone.DOWN
+        },
+        subStats = listOf(
+            StatsCardSubStat(
+                value = formatCompactTokens(totalTokens),
+                label = "tokens",
+                subLabel = "${data.generations.size} generations"
+            ),
+            StatsCardSubStat(
+                value = "$ramUsedMb",
+                label = "MB RAM",
+                subLabel = "of $ramTotalMb MB"
+            )
+        ),
+        rankTitle = if (data.isModelLoaded) data.backendLabel.uppercase() else "No backend",
+        rankSubtitle = if (data.isModelLoaded) {
+            buildString {
+                append(data.modelName.ifBlank { "Model loaded" })
+                data.memoryStats?.gpuLayersDisplay?.let { append(" · $it") }
+            }
+        } else {
+            "Load a model to light the desk"
+        },
+        chartTitle = "Session load",
+        bars = samples.takeLast(24).map { sample ->
+            val fraction = (sample / peak).coerceIn(0f, 1f)
+            if (sample > 0f && fraction < 0.06f) 0.06f else fraction
+        },
+        chartLabel = "${samples.size} samples this session"
+    )
+}
+
+private fun formatCompactTokens(n: Long): String = when {
+    n >= 1_000_000L -> "${String.format("%.1f", n / 1_000_000.0)}M"
+    n >= 1_000L -> "${String.format("%.1f", n / 1_000.0)}k"
+    else -> n.toString()
 }
 
 @Composable
@@ -485,7 +553,7 @@ private fun ChartCard(
                 Text(
                     text = liveValue,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.ledger.lampAmber
                     )
                 )
@@ -667,7 +735,7 @@ private fun BenchmarkBackendsCard(
                                     "—"
                                 },
                                 style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.ExtraBold,
+                                    fontWeight = FontWeight.Bold,
                                     color = if (r.succeeded) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.emberRed
                                 )
                             )
@@ -917,7 +985,7 @@ private fun RuntimeRegistryCard(
                             status.detail?.let {
                                 Text(
                                     text = it,
-                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.lampDeep),
+                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk),
                                     maxLines = 2,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
@@ -928,7 +996,7 @@ private fun RuntimeRegistryCard(
                             text = if (status.available) "● Ready" else "● Off",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = if (status.available) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampDeep
+                                color = if (status.available) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk
                             )
                         )
                     }
@@ -953,7 +1021,7 @@ private fun StatMini(label: String, value: String, modifier: Modifier = Modifier
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.ledger.lampAmber
             )
         )
