@@ -1383,7 +1383,12 @@ private fun AttachmentSettingsCard(
                         io.androllm.core.attachments.model.AttachmentSettings.MAX_ATTACHMENTS_MAX.toFloat(),
                     steps = io.androllm.core.attachments.model.AttachmentSettings.MAX_ATTACHMENTS_MAX -
                         io.androllm.core.attachments.model.AttachmentSettings.MAX_ATTACHMENTS_MIN - 1,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.ledger.lampGlow,
+                        activeTrackColor = MaterialTheme.ledger.lampAmber,
+                        inactiveTrackColor = Color(0xFF333333)
+                    )
                 )
             }
 
@@ -1402,13 +1407,20 @@ private fun AttachmentSettingsCard(
                     )
                     Text(
                         text = "Downscale photos before sending to vision models",
-                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                 }
                 Switch(
                     checked = settings.autoCompressImages,
                     onCheckedChange = onAutoCompressChange,
-                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        checkedTrackColor = Color(0xFF525252),
+                                        checkedBorderColor = Color.Transparent,
+                                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        uncheckedTrackColor = Color(0xFF333333),
+                                        uncheckedBorderColor = Color(0xFF333333)
+                                    )
                 )
             }
 
@@ -1427,13 +1439,20 @@ private fun AttachmentSettingsCard(
                     )
                     Text(
                         text = "Keep the source name for copied attachments",
-                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                 }
                 Switch(
                     checked = settings.preserveFilenames,
                     onCheckedChange = onPreserveFilenamesChange,
-                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        checkedTrackColor = Color(0xFF525252),
+                                        checkedBorderColor = Color.Transparent,
+                                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        uncheckedTrackColor = Color(0xFF333333),
+                                        uncheckedBorderColor = Color(0xFF333333)
+                                    )
                 )
             }
 
@@ -1452,18 +1471,25 @@ private fun AttachmentSettingsCard(
                     )
                     Text(
                         text = "Keep parsed text for the current conversation only",
-                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                 }
                 Switch(
                     checked = settings.cacheProcessedAttachments,
                     onCheckedChange = onCacheProcessedChange,
-                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        checkedTrackColor = Color(0xFF525252),
+                                        checkedBorderColor = Color.Transparent,
+                                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        uncheckedTrackColor = Color(0xFF333333),
+                                        uncheckedBorderColor = Color(0xFF333333)
+                                    )
                 )
             }
 
             // Cache usage + clear
-            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.25f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1481,7 +1507,7 @@ private fun AttachmentSettingsCard(
                         } else {
                             "Nothing cached"
                         },
-                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                     )
                 }
                 TextButton(onClick = onClearCache) {
