@@ -20,16 +20,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.androllm.core.accessibility.settings.AccessibilitySettings
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.ui.theme.ledger
 
 /**
@@ -77,12 +73,12 @@ fun AccessibilitySection(
                 Icon(
                     Icons.Filled.Settings,
                     contentDescription = "Open accessibility settings",
-                    tint = MaterialTheme.ledger.deskInkFaint,
+                    tint = MaterialTheme.ledger.deskInk,
                     modifier = Modifier.size(20.dp)
                 )
             }
 
-            HorizontalDivider(color = MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.15f))
+            HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
 
             AccToggleRow(
                 icon = Icons.Filled.TouchApp,
@@ -149,7 +145,14 @@ private fun AccToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                checkedTrackColor = Color(0xFF525252),
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                uncheckedTrackColor = Color(0xFF333333),
+                uncheckedBorderColor = Color(0xFF333333)
+            )
         )
     }
 }
