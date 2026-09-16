@@ -45,11 +45,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.credentials.Credential
 import androidx.credentials.CustomCredential
@@ -73,21 +76,15 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.OAuthProvider
 import io.androllm.app.BuildConfig
 import io.androllm.app.R
-import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.CloudDialog
-import io.androllm.core.ui.components.CloudProgress
+import io.androllm.core.ui.components.DotGridBackground
 import io.androllm.core.ui.components.GitHubIcon
 import io.androllm.core.ui.components.GoogleGlyph
-import io.androllm.core.ui.theme.CloudCapsuleShape
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampGlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import io.androllm.core.ui.theme.ledger
+import kotlin.math.sqrt
 
 /**
  * Authentication Entrance — Cloud Intelligence edition.
@@ -127,13 +124,15 @@ fun FirebaseAuthScreen(
         runCatching { androidx.credentials.CredentialManager.create(context) }.getOrNull()
     }
 
-    var isLoading by remember { mutableStateOf(false) }
+    var isLogin by remember { mutableStateOf(true) }
+    var pendingAction by remember { mutableStateOf<AuthAction?>(null) }
     var legalDialog by remember { mutableStateOf<LegalDoc?>(null) }
+    val isLoading = pendingAction != null
 
     // ── Google Sign-In (Credential Manager, per official Firebase docs) ──
 
     fun failGetCredential(e: GetCredentialException) {
-        isLoading = false
+        pendingAction = null
         when (e) {
             is GetCredentialProviderConfigurationException -> {
                 // Documented cause: missing/wrong SHA-1 (or SHA-256) fingerprint
