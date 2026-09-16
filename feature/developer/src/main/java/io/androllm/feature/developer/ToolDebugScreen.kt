@@ -1,6 +1,5 @@
 package io.androllm.feature.developer
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,13 +50,8 @@ import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.EmberRed
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
+import io.androllm.core.ui.components.StaggeredEntrance
+import io.androllm.core.ui.components.bounceClick
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -94,7 +88,7 @@ fun ToolDebugScreen(
                             Text(
                                 text = "Tool Execution Log",
                                 style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.ExtraBold,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.ledger.deskPaper
                                 )
                             )
@@ -102,8 +96,7 @@ fun ToolDebugScreen(
                                 text = "${traces.size} call(s) • prompt → tool → result → LLM output",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = MaterialTheme.ledger.lampDeep,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 0.6.sp
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             )
                         }
@@ -126,17 +119,20 @@ fun ToolDebugScreen(
             ) {
                 // Tool Registry status + prompt-injection diagnostics
                 item {
-                    ToolRegistryStatusCard(
-                        diagnostics = diagnostics,
-                        onRefresh = { viewModel.refresh() },
-                        onProbeCapability = { viewModel.probeCapability() }
-                    )
+                    StaggeredEntrance(index = 0) {
+                        ToolRegistryStatusCard(
+                            diagnostics = diagnostics,
+                            onRefresh = { viewModel.refresh() },
+                            onProbeCapability = { viewModel.probeCapability() }
+                        )
+                    }
                 }
 
                 if (traces.isEmpty()) {
                     item {
-                        Spacer(modifier = Modifier.height(40.dp))
-                        CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                        StaggeredEntrance(index = 1) {
+                            Spacer(modifier = Modifier.height(40.dp))
+                            CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(20.dp)) {
                                 Icon(
                                     imageVector = Icons.Filled.Bolt,
@@ -159,10 +155,13 @@ fun ToolDebugScreen(
                                 )
                             }
                         }
+                        }
                     }
                 } else {
                     items(traces, key = { it.id }) { trace ->
-                        TraceCard(trace)
+                        StaggeredEntrance(index = 0, instant = true) {
+                            TraceCard(trace)
+                        }
                     }
                 }
                 item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -188,7 +187,7 @@ private fun ToolRegistryStatusCard(
                     Text(
                         text = "Tool Registry",
                         style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.ledger.deskPaper
                         )
                     )
@@ -211,7 +210,7 @@ private fun ToolRegistryStatusCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CloudChip(
                     text = if (diagnostics.pipelineEnabled) "● Pipeline ON" else "○ Pipeline OFF",
-                    accentColor = if (diagnostics.pipelineEnabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber
+                    accentColor = if (diagnostics.pipelineEnabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk
                 )
                 CloudChip(
                     text = "${diagnostics.registeredCount} registered",
@@ -219,7 +218,7 @@ private fun ToolRegistryStatusCard(
                 )
                 CloudChip(
                     text = "${diagnostics.advertisedCount} advertised",
-                    accentColor = if (diagnostics.advertisedCount > 0) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber
+                    accentColor = if (diagnostics.advertisedCount > 0) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk
                 )
             }
 
@@ -231,9 +230,8 @@ private fun ToolRegistryStatusCard(
                 else
                     "PROMPT INJECTION — nothing advertised (pipeline off, or every tool blocked)",
                 style = MaterialTheme.typography.labelSmall.copy(
-                    color = if (diagnostics.advertisementPreview.isNotBlank()) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.6.sp
+                    color = if (diagnostics.advertisementPreview.isNotBlank()) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk,
+                    fontWeight = FontWeight.Bold
                 )
             )
             if (diagnostics.advertisementPreview.isNotBlank()) {
@@ -275,7 +273,7 @@ private fun ToolRegistryStatusCard(
                             else -> "Parser compatibility mode"
                         },
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = if (cap.nativeJsonSupport) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber
+                            color = if (cap.nativeJsonSupport) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk
                         )
                     )
                 }
@@ -289,7 +287,7 @@ private fun ToolRegistryStatusCard(
                     text = "Model: ${cap.modelName.ifBlank { "—" }} • " +
                         "${cap.planningRounds} round${if (cap.planningRounds == 1) "" else "s"}: " +
                         "${cap.cleanParses} clean / ${cap.fallbackParses} parser-salvaged",
-                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInkFaint)
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk)
                 )
             }
             if (cap.lastOutputSample.isNotBlank()) {
@@ -316,13 +314,13 @@ private fun ToolRegistryStatusCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { expanded = if (isExpanded) null else tool.name }
+                            .bounceClick { expanded = if (isExpanded) null else tool.name }
                             .padding(vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = if (tool.enabled) "●" else "○",
-                            color = if (tool.enabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.lampAmber,
+                            color = if (tool.enabled) MaterialTheme.ledger.lampGlow else MaterialTheme.ledger.deskInk,
                             style = MaterialTheme.typography.labelSmall
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -400,7 +398,7 @@ private fun TraceCard(trace: ToolExecutionTrace) {
                 Text(
                     text = trace.toolName,
                     style = MaterialTheme.typography.titleSmall.copy(
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.ledger.deskPaper
                     )
                 )
@@ -417,7 +415,7 @@ private fun TraceCard(trace: ToolExecutionTrace) {
                         text = trace.status,
                         accentColor = when (trace.status) {
                             "ok" -> MaterialTheme.ledger.lampGlow
-                            "blocked" -> MaterialTheme.ledger.lampAmber
+                            "blocked" -> MaterialTheme.ledger.deskInk
                             else -> MaterialTheme.ledger.emberRed
                         }
                     )
@@ -469,8 +467,7 @@ private fun TraceRow(label: String, value: String, color: Color = MaterialTheme.
             text = label.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
                 color = MaterialTheme.ledger.lampDeep,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp
+                fontWeight = FontWeight.Bold
             )
         )
         Text(
