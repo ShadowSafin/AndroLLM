@@ -236,8 +236,8 @@ fun CloudChip(
     Surface(
         modifier = modifier,
         shape = CircleShape,
-        color = accentColor.copy(alpha = 0.1f),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
+        color = accentColor.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -291,7 +291,6 @@ fun SectionHeader(
                 Text(
                     text = subtitle.uppercase(),
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.4.sp,
                         color = MaterialTheme.ledger.deskInk
                     ),
                     maxLines = 1,
