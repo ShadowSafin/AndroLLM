@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
@@ -63,6 +62,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -93,22 +93,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import io.androllm.core.common.UiState
 import io.androllm.core.models.ChatFontSize
-import io.androllm.core.models.ThemeMode
 import io.androllm.core.models.UiDensity
-import io.androllm.core.ui.components.CloudAccentOptions
 import io.androllm.core.ui.components.CloudAdaptiveNavigation
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.CloudCapsuleButton
 import io.androllm.core.ui.components.CloudChip
 import io.androllm.core.ui.components.CloudGlassCard
-import io.androllm.core.ui.theme.DeskHairline
-import io.androllm.core.ui.theme.DeskInk
-import io.androllm.core.ui.theme.DeskInkFaint
-import io.androllm.core.ui.theme.DeskPaper
-import io.androllm.core.ui.theme.LampAmber
-import io.androllm.core.ui.theme.LampDeep
-import io.androllm.core.ui.theme.LampGlow
 import io.androllm.core.utils.StorageUtils
 import io.androllm.feature.settings.R
 import io.androllm.core.ui.theme.ledger
@@ -266,28 +257,11 @@ fun SettingsScreen(
                     expanded = expandedGroup == SettingsGroup.Appearance.name,
                     onToggle = { toggleGroup(SettingsGroup.Appearance) },
                     visible = SettingsGroup.Appearance.matches(searchQuery),
-                    subtitle = settings.theme.displayName(),
+                    subtitle = "Display",
                     reduceMotion = settings.reduceMotion
                 ) {
                     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
-                            SettingRow(
-                                icon = Icons.Filled.Palette,
-                                title = stringResource(R.string.settings_theme),
-                                value = settings.theme.displayName(),
-                                onClick = { viewModel.cycleTheme() }
-                            )
-                            SettingRow(
-                                icon = Icons.Filled.Palette,
-                                title = "Dynamic Color",
-                                value = if (settings.dynamicColor) "On" else "Off",
-                                onClick = { viewModel.setDynamicColor(!settings.dynamicColor) }
-                            )
-                            AccentSwatches(
-                                selectedHex = settings.accentHex,
-                                onSelect = { viewModel.setAccentColor(it) }
-                            )
-                            HorizontalDivider(color = MaterialTheme.ledger.deskHairline.copy(alpha = 0.5f))
                             SettingRow(
                                 icon = Icons.Filled.TextFields,
                                 title = "Text Size",
@@ -325,7 +299,7 @@ fun SettingsScreen(
                                     Text(
                                         text = "${(settings.blurIntensity * 100).roundToInt()}%",
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            color = MaterialTheme.ledger.deskInkFaint
+                                            color = MaterialTheme.ledger.deskInk
                                         )
                                     )
                                 }
@@ -333,7 +307,12 @@ fun SettingsScreen(
                                     value = settings.blurIntensity,
                                     onValueChange = { viewModel.setBlurIntensity(it) },
                                     valueRange = 0f..1f,
-                                    modifier = Modifier.padding(top = 4.dp)
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = MaterialTheme.ledger.lampGlow,
+                                        activeTrackColor = MaterialTheme.ledger.lampAmber,
+                                        inactiveTrackColor = Color(0xFF333333)
+                                    )
                                 )
                             }
                             SettingRow(
@@ -652,7 +631,14 @@ fun SettingsScreen(
                                 Switch(
                                     checked = settings.warnBeforeOpeningAiLinks,
                                     onCheckedChange = { viewModel.setWarnBeforeOpeningAiLinks(it) },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.ledger.lampAmber)
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        checkedTrackColor = Color(0xFF525252),
+                                        checkedBorderColor = Color.Transparent,
+                                        uncheckedThumbColor = MaterialTheme.ledger.lampGlow,
+                                        uncheckedTrackColor = Color(0xFF333333),
+                                        uncheckedBorderColor = Color(0xFF333333)
+                                    )
                                 )
                             }
                         }
