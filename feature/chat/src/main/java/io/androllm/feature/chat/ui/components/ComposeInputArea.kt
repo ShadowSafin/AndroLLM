@@ -207,7 +207,7 @@ fun ComposeInputArea(
                         Text(
                             text = "Send a message…",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.ledger.deskInkFaint
+                                color = MaterialTheme.ledger.deskInk
                             )
                         )
                     },
@@ -268,7 +268,7 @@ fun ComposeInputArea(
                             when {
                                 isGenerating -> MaterialTheme.ledger.emberRed
                                 text.isNotBlank() -> MaterialTheme.ledger.lampAmber
-                                else -> MaterialTheme.ledger.deskInkFaint.copy(alpha = 0.5f)
+                                else -> MaterialTheme.ledger.deskWalnutRaised
                             }
                         ),
                     contentAlignment = Alignment.Center
