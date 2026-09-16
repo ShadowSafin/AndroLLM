@@ -126,7 +126,7 @@ fun UsageBarChart(
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.ledger.deskInkFaint
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             }
