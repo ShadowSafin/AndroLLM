@@ -72,6 +72,8 @@ import io.androllm.core.cloud.usage.CloudErrorKind
 import io.androllm.core.ui.components.CloudAtmosphericBackground
 import io.androllm.core.ui.components.CloudGlassCard
 import io.androllm.core.ui.components.SectionHeader
+import io.androllm.core.ui.components.StaggeredEntrance
+import io.androllm.core.ui.components.bounceClick
 import io.androllm.core.ui.theme.ledger
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -150,33 +152,35 @@ fun CloudUsageDashboardScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item { FilterRow(uiState, viewModel) }
+                item { StaggeredEntrance(0) { FilterRow(uiState, viewModel) } }
 
                 if (snapshot == null) {
                     item {
-                        CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                "Loading cloud usage...",
-                                color = MaterialTheme.ledger.deskInkFaint,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                        StaggeredEntrance(1) {
+                            CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    "Loading cloud usage...",
+                                    color = MaterialTheme.ledger.deskInk,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
                 } else {
-                    item { OverviewSection(snapshot, uiState) }
+                    item { StaggeredEntrance(1) { OverviewSection(snapshot, uiState) } }
                     if (snapshot.alerts.isNotEmpty()) {
-                        item { AlertsSection(snapshot.alerts) }
+                        item { StaggeredEntrance(2) { AlertsSection(snapshot.alerts) } }
                     }
-                    item { TokensSection(snapshot) }
-                    item { CostSection(snapshot) }
-                    item { LatencySection(snapshot) }
-                    item { ProviderHealthSection(uiState) }
-                    item { ToolCallingSection(snapshot) }
-                    item { CacheSection(uiState) }
+                    item { StaggeredEntrance(3) { TokensSection(snapshot) } }
+                    item { StaggeredEntrance(4) { CostSection(snapshot) } }
+                    item { StaggeredEntrance(5) { LatencySection(snapshot) } }
+                    item { StaggeredEntrance(6) { ProviderHealthSection(uiState) } }
+                    item { StaggeredEntrance(7) { ToolCallingSection(snapshot) } }
+                    item { StaggeredEntrance(8) { CacheSection(uiState) } }
                     if (snapshot.perModel.isNotEmpty()) {
-                        item { ModelsSection(snapshot.perModel) }
+                        item { StaggeredEntrance(9) { ModelsSection(snapshot.perModel) } }
                     }
-                    item { HistorySection(uiState, viewModel) }
+                    item { StaggeredEntrance(10) { HistorySection(uiState, viewModel) } }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
             }
@@ -232,14 +236,14 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(CircleShape)
             .background(
                 if (selected) MaterialTheme.ledger.lampAmber
-                else MaterialTheme.ledger.cloudGlassSurface
+                else MaterialTheme.ledger.deskWalnut
             )
             .border(
                 width = 1.dp,
                 color = if (selected) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskHairline,
                 shape = CircleShape
             )
-            .clickable(onClick = onClick)
+            .bounceClick(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp)
     ) {
         Text(
@@ -340,7 +344,7 @@ private fun OverviewSection(
                         Text(
                             text = snapshot.currentModelId.ifBlank { "No model selected" },
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.ledger.deskInkFaint,
+                            color = MaterialTheme.ledger.deskInk,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -379,7 +383,7 @@ private fun MetricTile(label: String, value: String, modifier: Modifier = Modifi
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.ledger.deskInkFaint,
+            color = MaterialTheme.ledger.deskInk,
             maxLines = 1
         )
     }
@@ -415,7 +419,7 @@ private fun LastRequestRow(last: CloudUsageRecord?, providerName: String) {
         Text(
             "No cloud requests yet — send a message in cloud mode.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.ledger.deskInkFaint
+            color = MaterialTheme.ledger.deskInk
         )
         return
     }
@@ -658,7 +662,7 @@ private fun ProviderHealthSection(uiState: CloudUsageDashboardViewModel.UiState)
                         }
                     }
                     if (!provider.enabled) {
-                        Text("Provider disabled", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.ledger.deskInkFaint)
+                        Text("Provider disabled", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.ledger.deskInk)
                     } else if (provider.lastError.isNotBlank()) {
                         Text(
                             "Last error: ${provider.lastError.take(100)}",
@@ -677,8 +681,8 @@ private fun ProviderHealthSection(uiState: CloudUsageDashboardViewModel.UiState)
 @Composable
 private fun HealthDot(health: CloudHealth?, enabled: Boolean) {
     val color = when {
-        !enabled -> MaterialTheme.ledger.deskInkFaint
-        health == null -> MaterialTheme.ledger.deskInkFaint
+        !enabled -> MaterialTheme.ledger.deskInk
+        health == null -> MaterialTheme.ledger.deskInk
         health.ready || health.alive -> MaterialTheme.ledger.revolutNeonEmerald
         health.reachable -> MaterialTheme.ledger.lampAmber
         else -> MaterialTheme.ledger.emberRed
@@ -722,7 +726,7 @@ private fun ToolCallingSection(snapshot: CloudUsageSnapshot) {
                     Text(
                         "No tool calls yet — ask for weather, a search, or an SMS in cloud mode.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.ledger.deskInkFaint
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             }
@@ -771,7 +775,7 @@ private fun CacheSection(uiState: CloudUsageDashboardViewModel.UiState) {
                     Text(
                         "Last invalidation: ${cache.lastInvalidationReason.lowercase().replace('_', ' ')}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.ledger.deskInkFaint
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
             }
@@ -804,7 +808,7 @@ private fun ModelsSection(models: List<CloudModelLifetimeStats>) {
                             Text(
                                 "${model.requests} req · ${formatTokens(model.totalTokens)} tokens · ${CloudPricing.formatUsd(model.estimatedCostMicros)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.ledger.deskInkFaint,
+                                color = MaterialTheme.ledger.deskInk,
                                 maxLines = 1
                             )
                         }
@@ -832,7 +836,7 @@ private fun HistorySection(
         CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable { viewModel.toggleHistory() },
+                    modifier = Modifier.fillMaxWidth().bounceClick { viewModel.toggleHistory() },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -844,7 +848,7 @@ private fun HistorySection(
                     Text(
                         "${uiState.history.size} request(s)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.ledger.deskInkFaint
+                        color = MaterialTheme.ledger.deskInk
                     )
                 }
                 if (uiState.historyExpanded) {
@@ -852,7 +856,7 @@ private fun HistorySection(
                         Text(
                             "No requests match the current filter.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.ledger.deskInkFaint
+                            color = MaterialTheme.ledger.deskInk
                         )
                     }
                     uiState.history.take(50).forEach { record ->
@@ -899,7 +903,7 @@ private fun HistoryRow(record: CloudUsageRecord) {
                     if (!record.success && record.errorKind != CloudErrorKind.NONE) append(" · ${record.errorKind.name.lowercase()}")
                 },
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.ledger.deskInkFaint,
+                color = MaterialTheme.ledger.deskInk,
                 maxLines = 1
             )
         }
