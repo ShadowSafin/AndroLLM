@@ -1895,32 +1895,32 @@ private fun ModelStatusDashboard(
         )
         is EngineState.WarmingUp -> Triple(
             "Warming Up: ${engineState.step}",
-            Color(0xFFE0A33D),
+            MaterialTheme.ledger.lampAmber,
             true
         )
         is EngineState.Ready -> Triple(
             "🟢 Engine Ready",
-            Color(0xFF52C41A),
+            MaterialTheme.ledger.revolutNeonEmerald,
             false
         )
         is EngineState.Generating -> Triple(
             "● Generating (Prompt #${engineState.promptNumber})",
-            Color(0xFFD97757),
+            MaterialTheme.ledger.lampAmber,
             false
         )
         EngineState.Unloading -> Triple(
             "Unloading...",
-            Color(0xFFE0A489),
+            MaterialTheme.ledger.lampDeep,
             true
         )
         is EngineState.Failed -> Triple(
             "● Error: ${engineState.message}",
-            Color(0xFFC7442F),
+            MaterialTheme.ledger.emberRed,
             false
         )
         EngineState.Unloaded -> Triple(
             "No Model",
-            Color(0xFF8F8D87),
+            MaterialTheme.ledger.deskInk,
             false
         )
     }
@@ -2009,7 +2009,7 @@ private fun ModelStatusDashboard(
             // Memory telemetry - shown when stats are available
             memoryStats?.let { stats ->
                 Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(color = MaterialTheme.ledger.deskHairline)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
@@ -2050,16 +2050,16 @@ private fun ModelStatusDashboard(
                 val isNpu = stats.backend == "npu"
                 val npuModel = (engineState as? EngineState.Ready)?.model
                     ?: (engineState as? EngineState.Generating)?.model
-                val successGreen = Color(0xFF52C41A)
+                val successGreen = MaterialTheme.ledger.revolutNeonEmerald
                 LedgerStatRow(
                     "NPU",
                     if (isNpu) "✓ ${npuModel?.accelerator?.ifBlank { "NPU" } ?: "NPU"}" else "Not active",
-                    valueColor = if (isNpu) successGreen else MaterialTheme.colorScheme.outline
+                    valueColor = if (isNpu) successGreen else MaterialTheme.ledger.deskInk
                 )
                 LedgerStatRow(
                     "GPU",
                     if (stats.isGpuAccelerated) "${stats.gpuBackendLabel} ✓" else "Not active",
-                    valueColor = if (stats.isGpuAccelerated) successGreen else MaterialTheme.colorScheme.outline
+                    valueColor = if (stats.isGpuAccelerated) successGreen else MaterialTheme.ledger.deskInk
                 )
                 LedgerStatRow("CPU", "Host ✓", valueColor = successGreen)
                 LedgerStatRow(
