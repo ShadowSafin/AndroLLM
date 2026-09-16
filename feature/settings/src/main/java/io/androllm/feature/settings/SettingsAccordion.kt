@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -111,8 +112,8 @@ internal val SettingsGroup.keywords: List<String>
             "sign in", "google", "sync", "profile", "guest", "account", "firebase", "email"
         )
         SettingsGroup.Appearance -> listOf(
-            "theme", "dynamic color", "accent", "text size", "density", "blur",
-            "motion", "wallpaper", "font", "dark", "amoled", "light"
+            "text size", "density", "blur",
+            "motion", "font", "display"
         )
         SettingsGroup.Storage -> listOf(
             "cache", "free space", "models", "path", "storage", "disk"
@@ -169,7 +170,7 @@ internal fun SettingsSearchField(
         placeholder = {
             Text(
                 "Search settings",
-                color = MaterialTheme.ledger.deskInkFaint
+                color = MaterialTheme.ledger.deskInk
             )
         },
         leadingIcon = {
@@ -249,7 +250,8 @@ private fun QuickActionChip(
     Row(
         modifier = Modifier
             .clip(CircleShape)
-            .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.14f))
+            .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.08f))
+            .border(1.dp, MaterialTheme.ledger.lampGlow.copy(alpha = 0.2f), CircleShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -325,7 +327,7 @@ internal fun SettingsAccordionHeader(
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.ledger.deskInkFaint
+                            color = MaterialTheme.ledger.deskInk
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -339,7 +341,7 @@ internal fun SettingsAccordionHeader(
                 } else {
                     "Expand ${group.title}"
                 },
-                tint = MaterialTheme.ledger.deskInkFaint,
+                tint = MaterialTheme.ledger.deskInk,
                 modifier = Modifier
                     .size(22.dp)
                     .rotate(chevron)
@@ -385,7 +387,7 @@ internal fun LazyListScope.settingsAccordionItem(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.ledger.deskWalnut.copy(alpha = 0.97f))
+                    .background(MaterialTheme.ledger.deskWalnut)
                     .padding(bottom = 8.dp)
             ) {
                 SettingsAccordionHeader(
