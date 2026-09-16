@@ -71,7 +71,7 @@ fun GenerationStatsPanel(
         // ── The compact pill ──────────────────────────────────────────────────
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.92f),
+        color = MaterialTheme.ledger.deskWalnutRaised,
         border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
         shadowElevation = 1.dp,
         modifier = Modifier
@@ -92,7 +92,6 @@ fun GenerationStatsPanel(
                             "Idle"
                         },
                         style = MaterialTheme.typography.labelMedium.copy(
-                            letterSpacing = 1.1.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.ledger.deskInk
                         )
@@ -122,7 +121,7 @@ fun GenerationStatsPanel(
                         Icon(
                             imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                             contentDescription = if (expanded) "Collapse stats" else "Expand stats",
-                            tint = MaterialTheme.ledger.deskInkFaint,
+                            tint = MaterialTheme.ledger.deskInk,
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     }
@@ -135,7 +134,7 @@ fun GenerationStatsPanel(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(3.dp)
-                            .background(MaterialTheme.ledger.lampAmber.copy(alpha = 0.12f), RoundedCornerShape(999.dp)),
+                            .background(MaterialTheme.ledger.deskHairline, RoundedCornerShape(999.dp)),
                         color = if (usedTokens.toFloat() / contextLength > 0.85f) MaterialTheme.ledger.emberRed else MaterialTheme.ledger.lampAmber,
                         trackColor = androidx.compose.ui.graphics.Color.Transparent
                     )
@@ -151,7 +150,7 @@ fun GenerationStatsPanel(
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.ledger.deskWalnutRaised.copy(alpha = 0.9f),
+                color = MaterialTheme.ledger.deskWalnutRaised,
                 border = BorderStroke(1.dp, MaterialTheme.ledger.deskHairline),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -216,8 +215,7 @@ private fun TelemetryRow(label: String, value: String, accent: androidx.compose.
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(
-                letterSpacing = 0.8.sp,
-                color = MaterialTheme.ledger.deskInkFaint
+                color = MaterialTheme.ledger.deskInk
             )
         )
         Text(
