@@ -99,7 +99,6 @@ fun TypingAndThinkingIndicator(
                 Text(
                     text = text,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 0.8.sp,
                         color = MaterialTheme.ledger.deskInk
                     )
                 )
