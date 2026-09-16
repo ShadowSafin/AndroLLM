@@ -434,69 +434,69 @@ fun FirebaseAuthScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 28.dp, vertical = 32.dp),
+                .padding(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            CloudBugdroidLogo(size = 128.dp)
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 400.dp)
+                    .fillMaxWidth()
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        ambientColor = Color.Black,
+                        spotColor = Color.Black
+                    )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF121212))
+                    .border(1.dp, Color(0xFF222222), RoundedCornerShape(12.dp))
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Logo.
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF111111))
+                        .border(1.dp, Color(0xFF333333), RoundedCornerShape(50)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CloudBugdroidLogo(size = 26.dp, showMoon = false)
+                }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = "Welcome back",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.ledger.deskPaper
-                )
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Your private AI stays on your device.\nSign in to keep your profile in sync.",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.ledger.deskInk
-                ),
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            if (isLoading) {
-                CloudProgress(size = 64.dp)
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Connecting securely…",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        color = MaterialTheme.ledger.deskInk,
-                        letterSpacing = 1.sp
+                    text = if (isLogin) "Sign in to Account" else "Sign up for Account",
+                    style = TextStyle(
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.025).em,
+                        textAlign = TextAlign.Center
                     )
                 )
-            } else {
-                // Continue with Google
-                ProviderButton(
-                    text = "Continue with Google",
-                    onClick = ::googleSignIn,
-                    gradient = Brush.horizontalGradient(
-                        listOf(Color(0xFFFFFFFF), Color(0xFFF8F9FA))
-                    ),
-                    textColor = Color(0xFF1F1F1F),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    GoogleGlyph(size = 20.dp)
-                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = if (isLogin) "Sign in to your Account." else "Create a new account to get started.",
+                    style = TextStyle(
+                        color = Color(0xFF888888),
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Continue with GitHub
-                ProviderButton(
-                    text = "Continue with GitHub",
-                    onClick = ::githubSignIn,
-                    gradient = Brush.horizontalGradient(
-                        listOf(Color(0xFF24292E), Color(0xFF181717))
-                    ),
-                    textColor = Color(0xFFFFFFFF),
-                    modifier = Modifier.fillMaxWidth()
+                // Social providers — the two shipped options: Google + GitHub.
+                val socialNoun = if (isLogin) "Continue" else "Sign up"
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     androidx.compose.material3.Icon(
                         imageVector = GitHubIcon,
