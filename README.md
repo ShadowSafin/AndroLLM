@@ -310,15 +310,11 @@ flowchart TB
 ## 📦 Technology Stack
 
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=kotlin,android,gradle,firebase,sqlite,timber&perline=6" width="420" alt="Core Technologies"/>
+  <img src="https://skillicons.dev/icons?i=kotlin,androidstudio,gradle,firebase,sqlite&perline=5" width="350" alt="Core Technologies"/>
 </p>
 
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=ktor,okhttp,coilmcp&perline=3" width="280" alt="Networking & Images"/>
-</p>
-
-<p align="center">
-  <img src="https://skillicons.dev/icons?i=cpp,vulkan,onnx&perline=3" width="280" alt="Native & ML Runtimes"/>
+  <img src="https://skillicons.dev/icons?i=ktor,cpp&perline=2" width="140" alt="Networking & Native"/>
 </p>
 
 | Layer | Technology | Purpose |
