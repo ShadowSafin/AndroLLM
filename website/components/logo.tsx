@@ -11,7 +11,7 @@ export function Logo({ className, compact = false }: { className?: string; compa
           alt=""
           width={36}
           height={36}
-          className="h-[150%] w-[150%] object-cover"
+          className="h-full w-full object-cover"
           priority
         />
       </span>

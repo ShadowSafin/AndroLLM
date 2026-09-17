@@ -89,7 +89,7 @@ export function PhoneMockup() {
           <div className="flex items-center justify-between px-4 pb-2">
             <div className="flex items-center gap-2">
               <div className="flex size-7 items-center justify-center overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-                <img src="/images/logo.png" alt="" className="h-[150%] w-[150%] object-cover" />
+                <img src="/images/logo.png" alt="" className="h-full w-full object-cover" />
               </div>
               <div>
                 <p className="text-[11px] font-bold leading-none text-[var(--ink)]">AndroLLM</p>
