@@ -131,6 +131,7 @@ fun ToolDebugScreen(
                 if (traces.isEmpty()) {
                     item {
                         StaggeredEntrance(index = 1) {
+                            Column {
                             Spacer(modifier = Modifier.height(40.dp))
                             CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(20.dp)) {
@@ -155,6 +156,7 @@ fun ToolDebugScreen(
                                 )
                             }
                         }
+                            }
                         }
                     }
                 } else {

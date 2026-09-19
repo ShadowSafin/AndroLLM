@@ -295,6 +295,7 @@ fun DeveloperScreen(
                 // Generation history
                 item {
                     StaggeredEntrance(index = 7) {
+                        Column {
                         SectionHeader(
                         title = "Generation History",
                         subtitle = "${data.generations.size} runs this session"
@@ -331,6 +332,7 @@ fun DeveloperScreen(
                             )
                         }
                     }
+                        }
                     }
                 }
 
@@ -361,6 +363,7 @@ fun DeveloperScreen(
                 // Memory Inspector
                 item {
                     StaggeredEntrance(index = 10) {
+                        Column {
                         SectionHeader(
                         title = "Memory Inspector",
                         subtitle = "On-device memory pipeline"
@@ -371,12 +374,14 @@ fun DeveloperScreen(
                         recentMemories = recentMemories,
                         onRefresh = { viewModel.refreshMemoryInspector() }
                     )
+                        }
                     }
                 }
 
                 // Runtime Registry — every app runtime, auto-discovered
                 item {
                     StaggeredEntrance(index = 11) {
+                        Column {
                         SectionHeader(
                             title = "Runtime Registry",
                             subtitle = "Every app runtime, auto-discovered — failures stay isolated"
@@ -386,6 +391,7 @@ fun DeveloperScreen(
                             runtimes = runtimeStatuses,
                             onRefresh = { viewModel.refreshRuntimes() }
                         )
+                        }
                     }
                 }
 
