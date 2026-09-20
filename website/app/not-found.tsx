@@ -1,33 +1,68 @@
 ﻿import Link from "next/link";
-import { Compass } from "lucide-react";
-import { SectionHeading } from "@/components/marketing/section-heading";
+import { HomeIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { site } from "@/lib/site";
+
+// The oversized, bottom-faded 404 and the Empty primitives come from the
+// upstream `not-found-2` component; the headline, description, and three CTAs
+// are this page's own copy, which says more than the upstream placeholder did.
+//
+// The CTAs were styled with `.btn`, `.btn-primary`, and `.btn-ghost` — classes
+// that exist nowhere in globals.css, so all three links rendered unstyled. They
+// now use the project's Button with the same intent the class names expressed:
+// primary (the default variant) for the main action, ghost for the two
+// secondary ones.
+//
+// `mask-b-from-20%` / `mask-b-to-80%` upstream are Tailwind v4 utilities and
+// are silently dropped by this project's Tailwind 3.4, so the mask is written
+// as a v3 arbitrary property, plus the -webkit- prefix for Safari.
+//
+// `SectionHeading` was imported but never used; it is gone.
 
 export default function NotFound() {
   return (
-    <section className="container flex min-h-[70vh] flex-col items-center justify-center py-28 text-center">
-      <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">404 — page not found</p>
-      <h1 className="mt-5 max-w-2xl text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-aurora-lavender">
-        This page drifted off the ledger.
-      </h1>
-      <p className="mt-5 max-w-xl font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
-        The address you followed doesn&rsquo;t exist here. It may have moved, been renamed, or never been written.
-        The rest of the site is exactly where you left it.
-      </p>
-      <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <Link href="/" className="btn btn-primary font-geist tracking-tighter">
-          <Compass className="size-4" aria-hidden /> Back to the home page
-        </Link>
-        <Link href="/docs" className="btn btn-ghost font-geist tracking-tighter">Browse documentation</Link>
-        <a
-          href={`${site.repo}/issues`}
-          target="_blank"
-          rel="noreferrer"
-          className="btn btn-ghost font-geist tracking-tighter"
-        >
-          Report a broken link
-        </a>
-      </div>
+    <section className="container flex min-h-[70vh] items-center justify-center py-28 text-center">
+      <Empty>
+        <EmptyHeader className="max-w-2xl">
+          <EmptyTitle className="font-geist text-9xl font-extrabold leading-none tracking-tighter [mask-image:linear-gradient(to_bottom,black_20%,transparent_80%)] [-webkit-mask-image:linear-gradient(to_bottom,black_20%,transparent_80%)]">
+            404
+          </EmptyTitle>
+          <h1 className="text-gradient-prompt -mt-4 max-w-2xl font-geist text-3xl tracking-tighter sm:text-4xl md:text-5xl">
+            This page drifted off the ledger.
+          </h1>
+        </EmptyHeader>
+
+        <EmptyDescription className="mt-4 max-w-xl font-geist tracking-tight">
+          The address you followed doesn&rsquo;t exist here. It may have moved, been renamed, or never been written.
+          The rest of the site is exactly where you left it.
+        </EmptyDescription>
+
+        <EmptyContent className="max-w-2xl">
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button asChild>
+              <Link href="/">
+                <HomeIcon className="size-4" aria-hidden />
+                Back to the home page
+              </Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <Link href="/docs">Browse documentation</Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <a href={`${site.repo}/issues`} target="_blank" rel="noreferrer">
+                Report a broken link
+              </a>
+            </Button>
+          </div>
+        </EmptyContent>
+      </Empty>
     </section>
   );
 }
