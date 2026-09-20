@@ -58,6 +58,7 @@ import io.androllm.core.ui.components.PromptStudioCarousel
 import io.androllm.core.ui.components.RevolutPerformanceChartCard
 import io.androllm.core.ui.components.RevolutResourceGaugeCard
 import io.androllm.core.ui.components.SectionHeader
+import io.androllm.core.ui.components.StaggeredEntrance
 import io.androllm.core.utils.StorageUtils
 import io.androllm.feature.home.R
 import io.androllm.feature.home.ui.components.ChatActivityCard
@@ -154,89 +155,107 @@ fun HomeScreen(
             ) {
                 // 1. Model Status Island (real engine lifecycle)
                 item {
-                    ModelStatusIsland(
-                        telemetry = telemetry,
-                        onManageModels = { navController.navigate(Routes.MODELS) }
-                    )
+                    StaggeredEntrance(index = 0) {
+                        ModelStatusIsland(
+                            telemetry = telemetry,
+                            onManageModels = { navController.navigate(Routes.MODELS) }
+                        )
+                    }
                 }
 
                 // 2. Live Hardware Gauges — REAL RAM + REAL tokens/sec from the engine
                 item {
-                    RevolutResourceGaugeCard(
-                        ramUsedGb = telemetry.ramUsedMb / 1024f,
-                        ramTotalGb = telemetry.ramTotalMb / 1024f,
-                        tokensPerSecond = telemetry.tokensPerSecond,
-                        vulkanEnabled = telemetry.vulkanSupported
-                    )
+                    StaggeredEntrance(index = 1) {
+                        RevolutResourceGaugeCard(
+                            ramUsedGb = telemetry.ramUsedMb / 1024f,
+                            ramTotalGb = telemetry.ramTotalMb / 1024f,
+                            tokensPerSecond = telemetry.tokensPerSecond,
+                            vulkanEnabled = telemetry.vulkanSupported
+                        )
+                    }
                 }
 
                 // 3. Live Performance Waveform — REAL tokens/sec history from this session
                 item {
-                    RevolutPerformanceChartCard(
-                        dataPoints = telemetry.speedHistory.ifEmpty { listOf(0f, 0f) },
-                        subtitle = "Session tokens/sec — ${telemetry.speedHistory.size} samples"
-                    )
+                    StaggeredEntrance(index = 2) {
+                        RevolutPerformanceChartCard(
+                            dataPoints = telemetry.speedHistory.ifEmpty { listOf(0f, 0f) },
+                            subtitle = "Session tokens/sec — ${telemetry.speedHistory.size} samples"
+                        )
+                    }
                 }
 
                 // 4. Storage + GPU/KV Cache — REAL device & engine state
                 item {
-                    SystemStatusRow(telemetry = telemetry)
+                    StaggeredEntrance(index = 3) {
+                        SystemStatusRow(telemetry = telemetry)
+                    }
                 }
 
                 // 5. Quick Action Capsules — one amber, rest quiet
                 item {
-                    QuickActionsRow(
-                        onNewChat = { navController.navigate(Routes.CHAT) },
-                        onBrowseModels = { navController.navigate(Routes.MODELS) },
-                        onDeveloperMode = { navController.navigate(Routes.DEVELOPER) },
-                        onPromptStudio = { navController.navigate(Routes.PROMPTS) },
-                    )
+                    StaggeredEntrance(index = 4) {
+                        QuickActionsRow(
+                            onNewChat = { navController.navigate(Routes.CHAT) },
+                            onBrowseModels = { navController.navigate(Routes.MODELS) },
+                            onDeveloperMode = { navController.navigate(Routes.DEVELOPER) },
+                            onPromptStudio = { navController.navigate(Routes.PROMPTS) },
+                        )
+                    }
                 }
 
                 // 6. Prompt Studio Carousel
                 item {
-                    Column {
-                    SectionHeader(
-                        title = "Prompt Studio",
-                        subtitle = "One-tap AI templates & presets"
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    PromptStudioCarousel(
-                        onPromptSelected = { promptText ->
-                            navController.navigate(Routes.CHAT)
-                        }
-                    )
-                }
+                    StaggeredEntrance(index = 5) {
+                        Column {
+                        SectionHeader(
+                            title = "Prompt Studio",
+                            subtitle = "One-tap AI templates & presets"
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        PromptStudioCarousel(
+                            onPromptSelected = { promptText ->
+                                navController.navigate(Routes.CHAT)
+                            }
+                        )
+                    }
+                    }
                 }
 
                 // 7. Recent Conversations Activity Feed
                 item {
-                    SectionHeader(
-                        title = "Activity & Chats",
-                        subtitle = "Your private on-device conversations",
-                        trailing = {
-                            CloudChip(
-                                text = "100% Offline",
-                                accentColor = MaterialTheme.ledger.lampDeep
-                            )
-                        }
-                    )
+                    StaggeredEntrance(index = 6) {
+                        SectionHeader(
+                            title = "Activity & Chats",
+                            subtitle = "Your private on-device conversations",
+                            trailing = {
+                                CloudChip(
+                                    text = "100% Offline",
+                                    accentColor = MaterialTheme.ledger.lampDeep
+                                )
+                            }
+                        )
+                    }
                 }
 
                 val conversations = data.recentConversations
                 if (conversations.isEmpty()) {
                     item {
-                        EmptyChatsIsland(
-                            onStartChat = { navController.navigate(Routes.CHAT) }
+                        StaggeredEntrance(index = 7) {
+                            EmptyChatsIsland(
+                                onStartChat = { navController.navigate(Routes.CHAT) }
                             )
+                        }
                     }
                 } else {
                     items(conversations, key = { it.id }) { conversation ->
-                        ChatActivityCard(
-                            conversation = conversation,
-                            onClick = { navController.navigate(Routes.chatDetail(conversation.id)) },
-                            onMenuClick = {}
-                        )
+                        StaggeredEntrance(index = 0, instant = true) {
+                            ChatActivityCard(
+                                conversation = conversation,
+                                onClick = { navController.navigate(Routes.chatDetail(conversation.id)) },
+                                onMenuClick = {}
+                            )
+                        }
                     }
                 }
 

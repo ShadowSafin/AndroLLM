@@ -22,11 +22,12 @@ import io.androllm.core.ui.theme.ledger
 import androidx.compose.material3.MaterialTheme
 
 /**
- * The Parchment Ledger background — the warm daylight desk.
+ * The Aurora desk background — the shared app ground.
  *
- * A soft parchment ground, a slow terracotta pool of light high in the room,
- * a faint ruled horizon, and motes of dust drifting through the sunlit air.
- * Calm and slow: the desk holds still while the model thinks.
+ * Pure-black ground with two drifting violet/magenta gradient orbs (the
+ * onboarding look, everywhere), a breathing pool of light, a faint ruled
+ * horizon, and motes of dust drifting through the air. Calm and slow: the
+ * desk holds still while the model thinks.
  */
 @Composable
 fun CloudAtmosphericBackground(
@@ -74,13 +75,14 @@ fun CloudAtmosphericBackground(
     val deskNightRaised = ledger.deskNightRaised
     val deskWalnutDeep = ledger.deskWalnutDeep
     val lampAmber = ledger.lampAmber
+    val lampDeep = ledger.lampDeep
     val lampHalo = ledger.lampHalo
     val deskHairline = ledger.deskHairline
     val deskInkFaint = ledger.deskInkFaint
-    // The pool of light reads as a faint white breath on the blackout desk:
+    // The pool of light reads as a violet breath on the blackout desk:
     // kept whisper-quiet so content stays crisp, never foggy.
-    val sunGlowAlpha = if (isDark) 0.07f + sunBreath * 0.03f else 0.06f + sunBreath * 0.02f
-    val deskGlowAlpha = if (isDark) 0.04f else 0.03f
+    val sunGlowAlpha = if (isDark) 0.14f + sunBreath * 0.05f else 0.12f + sunBreath * 0.04f
+    val deskGlowAlpha = if (isDark) 0.08f else 0.07f
     val dustTwinkleRange = if (isDark) 0.05f to 0.18f else 0.04f to 0.16f
 
     Box(
@@ -100,7 +102,44 @@ fun CloudAtmosphericBackground(
             val width = size.width
             val height = size.height
 
-            // Layer 1: the warm sun pool high in the room — one terracotta light.
+            // Layer 0: the aurora orbs — violet riding high, magenta low.
+            val orbDrift = dustShift * (6.283185f / 360f)
+            val violetOrb = Offset(
+                x = width * 0.62f + kotlin.math.cos(orbDrift) * width * 0.16f,
+                y = height * 0.10f + kotlin.math.sin(orbDrift) * height * 0.03f
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        lampAmber.copy(alpha = if (isDark) 0.22f else 0.18f),
+                        lampAmber.copy(alpha = 0.06f),
+                        Color.Transparent
+                    ),
+                    center = violetOrb,
+                    radius = width * 0.72f
+                ),
+                center = violetOrb,
+                radius = width * 0.72f
+            )
+            val magentaOrb = Offset(
+                x = width * 0.30f + kotlin.math.cos(orbDrift * 0.8f + 2.4f) * width * 0.18f,
+                y = height * 0.88f + kotlin.math.sin(orbDrift * 0.8f + 1.1f) * height * 0.03f
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        lampDeep.copy(alpha = if (isDark) 0.16f else 0.12f),
+                        lampDeep.copy(alpha = 0.05f),
+                        Color.Transparent
+                    ),
+                    center = magentaOrb,
+                    radius = width * 0.78f
+                ),
+                center = magentaOrb,
+                radius = width * 0.78f
+            )
+
+            // Layer 1: the violet pool of light high in the room.
             val sunCenter = Offset(width * 0.72f, height * 0.06f)
             val glowRadius = width * 0.62f * (1f + sunBreath * 0.14f)
             drawCircle(
@@ -167,7 +206,7 @@ fun CloudAtmosphericBackground(
         if (showDots) {
             DotGridBackground(
                 modifier = Modifier.fillMaxSize(),
-                dotColor = if (isDark) Color.White else deskInkFaint,
+                dotColor = if (isDark) Color(0xFFCFC2FF) else deskInkFaint,
                 alphaScale = if (isDark) 0.5f else 0.55f,
                 animate = !reduceMotion
             )

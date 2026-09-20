@@ -48,7 +48,7 @@ data class LedgerColors(
     val sunsetGlowAmber: Color
 )
 
-/** The blackout desk — the sign-in page everywhere. */
+/** The blackout desk with the aurora-violet accent — everywhere. */
 val LightLedger = LedgerColors(
     deskNight = Color(0xFF000000),
     deskNightRaised = Color(0xFF0A0A0A),
@@ -61,11 +61,11 @@ val LightLedger = LedgerColors(
     deskInkFaint = Color(0xFF666666),
     deskHairline = Color(0xFF222222),
     deskHairlineSoft = Color(0xFF1E1E1E),
-    lampAmber = Color(0xFFEDEDED),
-    lampGlow = Color(0xFFFFFFFF),
-    lampDeep = Color(0xFFA3A3A3),
-    lampHalo = Color(0x40FFFFFF),
-    inkOnLamp = Color(0xFF000000),
+    lampAmber = Color(0xFF7A5CFF),
+    lampGlow = Color(0xFFCFC2FF),
+    lampDeep = Color(0xFF9D85FF),
+    lampHalo = Color(0x407A5CFF),
+    inkOnLamp = Color(0xFFFFFFFF),
     emberRed = Color(0xFFF0665F),
     emberRedSoft = Color(0xFF2A1512),
     emberRedHard = Color(0xFFFFB4A0),
@@ -76,16 +76,16 @@ val LightLedger = LedgerColors(
     cloudGlassSurface = Color(0xCC000000),
     cloudGlassSurfaceVariant = Color(0xE6121212),
     cloudGlassBorder = Color(0x59222222),
-    cloudGlassBorderHighlight = Color(0x33FFFFFF),
-    cloudMoonGlow = Color(0x40FFFFFF),
-    cloudParticleTint = Color(0x40FFFFFF),
-    revolutCyberCyan = Color(0xFFEDEDED),
+    cloudGlassBorderHighlight = Color(0x337A5CFF),
+    cloudMoonGlow = Color(0x407A5CFF),
+    cloudParticleTint = Color(0x407A5CFF),
+    revolutCyberCyan = Color(0xFFCFC2FF),
     revolutGoldTier = Color(0xFF9CA3AF),
     revolutNeonEmerald = Color(0xFF4ADE80),
-    sunsetGlowAmber = Color(0xFFFFFFFF)
+    sunsetGlowAmber = Color(0xFFCFC2FF)
 )
 
-/** Night mode — identical blackout; the mode switch is a visual no-op. */
+/** Night mode — same blackout + aurora violet; the mode switch stays calm. */
 val DarkLedger = LedgerColors(
     deskNight = Color(0xFF000000),
     deskNightRaised = Color(0xFF0A0A0A),
@@ -98,11 +98,11 @@ val DarkLedger = LedgerColors(
     deskInkFaint = Color(0xFF666666),
     deskHairline = Color(0xFF222222),
     deskHairlineSoft = Color(0xFF1E1E1E),
-    lampAmber = Color(0xFFEDEDED),
-    lampGlow = Color(0xFFFFFFFF),
-    lampDeep = Color(0xFFA3A3A3),
-    lampHalo = Color(0x40FFFFFF),
-    inkOnLamp = Color(0xFF000000),
+    lampAmber = Color(0xFF7A5CFF),
+    lampGlow = Color(0xFFCFC2FF),
+    lampDeep = Color(0xFF9D85FF),
+    lampHalo = Color(0x407A5CFF),
+    inkOnLamp = Color(0xFFFFFFFF),
     emberRed = Color(0xFFF0665F),
     emberRedSoft = Color(0xFF2A1512),
     emberRedHard = Color(0xFFFFB4A0),
@@ -113,17 +113,17 @@ val DarkLedger = LedgerColors(
     cloudGlassSurface = Color(0xCC000000),
     cloudGlassSurfaceVariant = Color(0xE6121212),
     cloudGlassBorder = Color(0x59222222),
-    cloudGlassBorderHighlight = Color(0x33FFFFFF),
-    cloudMoonGlow = Color(0x40FFFFFF),
-    cloudParticleTint = Color(0x40FFFFFF),
-    revolutCyberCyan = Color(0xFFEDEDED),
+    cloudGlassBorderHighlight = Color(0x337A5CFF),
+    cloudMoonGlow = Color(0x407A5CFF),
+    cloudParticleTint = Color(0x407A5CFF),
+    revolutCyberCyan = Color(0xFFCFC2FF),
     revolutGoldTier = Color(0xFF9CA3AF),
     revolutNeonEmerald = Color(0xFF4ADE80),
-    sunsetGlowAmber = Color(0xFFFFFFFF)
+    sunsetGlowAmber = Color(0xFFCFC2FF)
 )
 
 /**
- * The AMOLED desk — pure-black floor, same blackout ink. Identical role
+ * The AMOLED desk — pure-black floor, aurora-violet accent. Identical role
  * names, zero luminance on the ground.
  */
 val AmoledLedger = LedgerColors(
@@ -138,11 +138,11 @@ val AmoledLedger = LedgerColors(
     deskInkFaint = Color(0xFF666666),
     deskHairline = Color(0xFF222222),
     deskHairlineSoft = Color(0xFF1E1E1E),
-    lampAmber = Color(0xFFEDEDED),
-    lampGlow = Color(0xFFFFFFFF),
-    lampDeep = Color(0xFFA3A3A3),
-    lampHalo = Color(0x40FFFFFF),
-    inkOnLamp = Color(0xFF000000),
+    lampAmber = Color(0xFF7A5CFF),
+    lampGlow = Color(0xFFCFC2FF),
+    lampDeep = Color(0xFF9D85FF),
+    lampHalo = Color(0x407A5CFF),
+    inkOnLamp = Color(0xFFFFFFFF),
     emberRed = Color(0xFFF0665F),
     emberRedSoft = Color(0xFF2A1512),
     emberRedHard = Color(0xFFFFB4A0),
@@ -153,11 +153,11 @@ val AmoledLedger = LedgerColors(
     cloudGlassSurface = Color(0xCC000000),
     cloudGlassSurfaceVariant = Color(0xE6121212),
     cloudGlassBorder = Color(0x59222222),
-    cloudGlassBorderHighlight = Color(0x33FFFFFF),
-    cloudMoonGlow = Color(0x40FFFFFF),
-    cloudParticleTint = Color(0x40FFFFFF),
-    revolutCyberCyan = Color(0xFFEDEDED),
+    cloudGlassBorderHighlight = Color(0x337A5CFF),
+    cloudMoonGlow = Color(0x407A5CFF),
+    cloudParticleTint = Color(0x407A5CFF),
+    revolutCyberCyan = Color(0xFFCFC2FF),
     revolutGoldTier = Color(0xFF9CA3AF),
     revolutNeonEmerald = Color(0xFF4ADE80),
-    sunsetGlowAmber = Color(0xFFFFFFFF)
+    sunsetGlowAmber = Color(0xFFCFC2FF)
 )

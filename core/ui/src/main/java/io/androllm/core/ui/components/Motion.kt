@@ -1,8 +1,14 @@
 package io.androllm.core.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -17,7 +23,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.delay
 
@@ -106,3 +116,65 @@ fun Modifier.bounceClick(
             onClick = onClick
         )
 }
+
+
+/**
+ * Infinite breathing value between [min] and [max] on an ease-in-out loop.
+ * Returns [min] statically when [enabled] is false (reduce-motion path).
+ */
+@Composable
+fun rememberPulse(
+    min: Float = 0.92f,
+    max: Float = 1.08f,
+    durationMs: Int = 2600,
+    enabled: Boolean = true
+): Float {
+    if (!enabled) return min
+    val transition = rememberInfiniteTransition(label = "pulse")
+    return transition.animateFloat(
+        initialValue = min,
+        targetValue = max,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMs, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseValue"
+    ).value
+}
+
+/**
+ * A soft diagonal light band sweeping across the surface on a loop — the
+ * loading shimmer for skeletons, and a quiet sheen for hero surfaces.
+ * No-op when [enabled] is false.
+ */
+@Composable
+fun Modifier.shimmer(
+    enabled: Boolean = true,
+    durationMs: Int = 1800,
+    bandColor: Color = Color.White.copy(alpha = 0.10f)
+): Modifier {
+    if (!enabled) return this
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val shift = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMs, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerShift"
+    ).value
+    return drawWithContent {
+        drawContent()
+        val band = size.width * 0.45f
+        val x = -band + (size.width + band * 2f) * shift
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(Color.Transparent, bandColor, Color.Transparent),
+                start = Offset(x, 0f),
+                end = Offset(x + band, size.height)
+            )
+        )
+    }
+}
+

@@ -21,12 +21,12 @@ val DeskInkFaint = Color(0xFF666666)       // faint ink — tertiary / marginali
 val DeskHairline = Color(0xFF222222)       // the rule
 val DeskHairlineSoft = Color(0xFF1E1E1E)   // softer rule
 
-// ── The single accent (signup primary) ───────────────────────────────────────
-val LampAmber = Color(0xFFEDEDED)          // primary actions
-val LampGlow = Color(0xFFFFFFFF)           // highlight / glow
-val LampHalo = Color(0x40FFFFFF)           // soft halo
-val LampDeep = Color(0xFFA3A3A3)           // pressed / focus
-val InkOnLamp = Color(0xFF000000)          // text on primary
+// ── The single accent (aurora violet) ────────────────────────────────────────
+val LampAmber = Color(0xFF7A5CFF)          // primary actions — aurora violet
+val LampGlow = Color(0xFFCFC2FF)           // highlight / glow — light lavender
+val LampHalo = Color(0x407A5CFF)           // soft halo — violet at 25%
+val LampDeep = Color(0xFF9D85FF)           // pressed / focus — deep lavender
+val InkOnLamp = Color(0xFFFFFFFF)          // text on primary — white on violet
 
 // ── Status red, readable on black ────────────────────────────────────────────
 val EmberRed = Color(0xFFF0665F)

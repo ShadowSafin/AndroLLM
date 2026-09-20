@@ -1,20 +1,21 @@
 <resources>
     <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_back">Back</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_get_started">Get Started</string>
 
-    <string name="onboarding_page1_title">Welcome to AndroLLM</string>
-    <string name="onboarding_page1_subtitle">Your private AI assistant that runs entirely on your device.</string>
+    <string name="onboarding_page1_title">Meet your pocket AI</string>
+    <string name="onboarding_page1_subtitle">AndroLLM turns your phone into a private AI powerhouse — fast, free and entirely yours.</string>
 
-    <string name="onboarding_page2_title">100% Local Intelligence</string>
-    <string name="onboarding_page2_subtitle">Runs completely on-device. No cloud inference. Your conversations stay on your phone.</string>
+    <string name="onboarding_page2_title">Private by design</string>
+    <string name="onboarding_page2_subtitle">Every word is processed on-device. No cloud, no tracking, no compromise. Works fully offline.</string>
 
-    <string name="onboarding_page3_title">Lightning Fast</string>
-    <string name="onboarding_page3_subtitle">Optimized GGUF models. Vulkan acceleration. Offline performance.</string>
+    <string name="onboarding_page3_title">Ridiculously fast</string>
+    <string name="onboarding_page3_subtitle">GPU-accelerated inference with streaming responses the moment you hit send.</string>
 
-    <string name="onboarding_page4_title">Choose Your Models</string>
-    <string name="onboarding_page4_subtitle">Download GGUF models. Switch instantly. Private inference.</string>
+    <string name="onboarding_page4_title">Your models, your rules</string>
+    <string name="onboarding_page4_subtitle">Download, switch and fine-tune GGUF models in seconds. Total control, always.</string>
 
-    <string name="onboarding_page5_title">Ready to Begin?</string>
-    <string name="onboarding_page5_subtitle">Your private AI is waiting. Everything stays on your device.</string>
+    <string name="onboarding_page5_title">You’re all set</string>
+    <string name="onboarding_page5_subtitle">Your private AI is ready whenever you are. No account required to begin.</string>
 </resources>

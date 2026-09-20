@@ -1,8 +1,7 @@
-package io.androllm.feature.onboarding
+﻿package io.androllm.feature.onboarding
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,35 +13,55 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import io.androllm.core.ui.components.CloudAtmosphericBackground
-import io.androllm.core.ui.components.CloudCapsuleButton
-import io.androllm.core.ui.components.CloudChip
+import io.androllm.core.ui.components.AuroraBackground
+import io.androllm.core.ui.components.AuroraBlue
+import io.androllm.core.ui.components.AuroraCapsuleButton
+import io.androllm.core.ui.components.AuroraCyan
+import io.androllm.core.ui.components.AuroraEmerald
+import io.androllm.core.ui.components.AuroraMagenta
+import io.androllm.core.ui.components.AuroraProgressBar
+import io.androllm.core.ui.components.AuroraViolet
+import io.androllm.core.ui.components.GlassChip
+import io.androllm.core.ui.components.StaggeredEntrance
 import io.androllm.core.ui.components.rememberReduceMotion
-import kotlin.math.abs
 import io.androllm.core.ui.theme.ledger
+import kotlin.math.abs
+
+/** Per-page accent pair: (orb high, orb low). */
+private val PAGE_ACCENTS = listOf(
+    AuroraViolet to AuroraCyan,
+    AuroraEmerald to AuroraViolet,
+    AuroraCyan to AuroraBlue,
+    AuroraBlue to AuroraMagenta,
+    AuroraMagenta to AuroraViolet
+)
+private val PAGE_CHIP_ACCENTS = listOf(
+    AuroraViolet, AuroraEmerald, AuroraCyan, AuroraBlue, AuroraMagenta
+)
 
 /**
- * The five-page Writer's Night Desk introduction.
+ * The five-page Aurora introduction — neon light on the blackout ground.
  *
  * Flow: Skip / Get Started both persist the completion flag and call
  * [onFinished], after which the host decides where to continue.
@@ -56,33 +75,59 @@ fun OnboardingScreen(
     val reduceMotion = rememberReduceMotion()
     val pagerState = rememberPagerState(initialPage = 0) { viewModel.pageCount }
 
-    // Pager swipes -> ViewModel (single source of truth for dots & the CTA).
-    androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
+    // Pager swipes -> ViewModel (single source of truth for progress & CTA).
+    LaunchedEffect(pagerState.currentPage) {
         viewModel.setPage(pagerState.currentPage)
     }
     // ViewModel changes (e.g. Next button) -> pager.
-    androidx.compose.runtime.LaunchedEffect(currentPage) {
+    LaunchedEffect(currentPage) {
         if (pagerState.currentPage != currentPage) {
             pagerState.animateScrollToPage(currentPage)
         }
     }
 
-    CloudAtmosphericBackground {
+    val accentA by animateColorAsState(
+        targetValue = PAGE_ACCENTS[currentPage].first,
+        animationSpec = tween(700),
+        label = "accentA"
+    )
+    val accentB by animateColorAsState(
+        targetValue = PAGE_ACCENTS[currentPage].second,
+        animationSpec = tween(700),
+        label = "accentB"
+    )
+
+    AuroraBackground(
+        accentA = accentA,
+        accentB = accentB,
+        reduceMotion = reduceMotion
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 24.dp)
         ) {
-            // Skip affordance
+            // Top bar — back on the left (page > 0), skip on the right.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
-                horizontalArrangement = Arrangement.End,
+                    .height(52.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (currentPage > 0) {
+                    IconButton(onClick = { viewModel.back() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.onboarding_back),
+                            tint = MaterialTheme.ledger.deskPaperDim
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(1.dp))
+                }
                 if (!viewModel.isLastPage) {
                     TextButton(onClick = { viewModel.complete(onFinished) }) {
                         Text(
@@ -92,7 +137,6 @@ fun OnboardingScreen(
                     }
                 }
             }
-
             // Pages
             HorizontalPager(
                 state = pagerState,
@@ -107,39 +151,38 @@ fun OnboardingScreen(
                 )
             }
 
-            // Progress dots + primary action
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OnboardingDots(
-                    total = viewModel.pageCount,
-                    current = currentPage
-                )
-                CloudCapsuleButton(
-                    text = stringResource(
-                        if (viewModel.isLastPage) R.string.onboarding_get_started else R.string.onboarding_next
-                    ),
-                    onClick = {
-                        if (viewModel.isLastPage) {
-                            viewModel.complete(onFinished)
-                        } else {
-                            viewModel.next()
-                        }
-                    },
-                    modifier = Modifier.width(150.dp)
-                )
-            }
+            // Progress track
+            AuroraProgressBar(
+                progress = (currentPage + 1).toFloat() / viewModel.pageCount,
+                brush = Brush.horizontalGradient(listOf(accentA, accentB)),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Primary action
+            AuroraCapsuleButton(
+                text = stringResource(
+                    if (viewModel.isLastPage) R.string.onboarding_get_started else R.string.onboarding_next
+                ),
+                onClick = {
+                    if (viewModel.isLastPage) {
+                        viewModel.complete(onFinished)
+                    } else {
+                        viewModel.next()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 /**
- * A single onboarding page: animated illustration, headline, subtitle and
- * subtle feature chips, with a gentle parallax driven by the pager offset.
+ * A single onboarding page: animated scene, huge headline, subtitle and
+ * glass feature chips, with parallax + rotation driven by the pager offset.
  */
 @Composable
 private fun OnboardingPage(
@@ -155,16 +198,19 @@ private fun OnboardingPage(
             .fillMaxSize()
             .graphicsLayer {
                 val clamped = abs(offset).coerceIn(0f, 1f)
-                alpha = 1f - clamped * 0.35f
-                translationX = offset * 56f * density
-            }
-            .padding(horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+                alpha = 1f - clamped * 0.5f
+                translationX = offset * 80f * density
+                rotationZ = offset * 3f
+                val s = 1f - clamped * 0.08f
+                scaleX = s
+                scaleY = s
+            },
+        horizontalAlignment = Alignment.Start
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp),
+                .height(300.dp),
             contentAlignment = Alignment.Center
         ) {
             when (page) {
@@ -176,73 +222,44 @@ private fun OnboardingPage(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineLarge.copy(
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.ledger.deskPaper
-            ),
-            textAlign = TextAlign.Center
-        )
+        StaggeredEntrance(index = 1) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.ledger.deskPaper
+                )
+            )
+        }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                color = MaterialTheme.ledger.deskInk,
-                lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.25f
-            ),
-            textAlign = TextAlign.Center
-        )
+        StaggeredEntrance(index = 2) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.ledger.deskInk,
+                    lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.35f
+                )
+            )
+        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PAGES[page].chips.forEach { chip ->
-                CloudChip(text = chip)
+        StaggeredEntrance(index = 3) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PAGES[page].chips.forEach { chip ->
+                    GlassChip(text = chip, accent = PAGE_CHIP_ACCENTS[page])
+                }
             }
         }
     }
 }
-
-/**
- * Animated pill-style progress indicator.
- */
-@Composable
-private fun OnboardingDots(
-    total: Int,
-    current: Int
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(total) { index ->
-            val active = index == current
-            val width by animateDpAsState(
-                targetValue = if (active) 30.dp else 8.dp,
-                animationSpec = spring(),
-                label = "dotWidth"
-            )
-            Box(
-                modifier = Modifier
-                    .height(8.dp)
-                    .width(width)
-                    .clip(CircleShape)
-                    .background(
-                        if (active) MaterialTheme.ledger.lampGlow else Color(0xFF333333)
-                    )
-            )
-        }
-    }
-}
-
 private data class OnboardingPageData(
     val titleRes: Int,
     val subtitleRes: Int,
@@ -258,12 +275,12 @@ private val PAGES = listOf(
     OnboardingPageData(
         titleRes = R.string.onboarding_page2_title,
         subtitleRes = R.string.onboarding_page2_subtitle,
-        chips = listOf("No Cloud", "Offline", "Private by Design")
+        chips = listOf("No Cloud", "Offline", "Encrypted")
     ),
     OnboardingPageData(
         titleRes = R.string.onboarding_page3_title,
         subtitleRes = R.string.onboarding_page3_subtitle,
-        chips = listOf("GGUF Optimized", "Vulkan GPU", "Streaming")
+        chips = listOf("Vulkan GPU", "Streaming", "GGUF")
     ),
     OnboardingPageData(
         titleRes = R.string.onboarding_page4_title,
@@ -273,6 +290,6 @@ private val PAGES = listOf(
     OnboardingPageData(
         titleRes = R.string.onboarding_page5_title,
         subtitleRes = R.string.onboarding_page5_subtitle,
-        chips = emptyList()
+        chips = listOf("No Account", "No Limits", "Yours")
     )
 )

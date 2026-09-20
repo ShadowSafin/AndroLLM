@@ -27,7 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.androllm.core.common.AppConstants
-import io.androllm.core.ui.components.CloudAtmosphericBackground
+import io.androllm.core.ui.components.AuroraBackground
+import io.androllm.core.ui.components.AuroraCyan
+import io.androllm.core.ui.components.AuroraViolet
 import io.androllm.core.ui.components.CloudBugdroidLogo
 import io.androllm.core.ui.components.rememberReduceMotion
 import io.androllm.feature.splash.R
@@ -98,7 +100,11 @@ fun SplashScreen(
         onFinished()
     }
 
-    CloudAtmosphericBackground {
+    AuroraBackground(
+        accentA = AuroraViolet,
+        accentB = AuroraCyan,
+        reduceMotion = reduceMotion
+    ) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -108,7 +114,7 @@ fun SplashScreen(
                 verticalArrangement = Arrangement.Center,
                 modifier = Modifier.padding(24.dp)
             ) {
-                // The Lamp & Bug Badge — the desk mark
+                // The mark, floating weightlessly over the aurora
                 Box(
                     modifier = Modifier
                         .scale(logoScale.value)
@@ -116,7 +122,7 @@ fun SplashScreen(
                         .graphicsLayer { translationY = bob.value * 7.dp.toPx() },
                     contentAlignment = Alignment.Center
                 ) {
-                    CloudBugdroidLogo(size = 180.dp)
+                    CloudBugdroidLogo(size = 160.dp)
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
