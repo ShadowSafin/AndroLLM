@@ -55,7 +55,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -132,7 +132,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -184,7 +184,7 @@
       "revision": "main",
       "fileName": "gemma-4-12B-it.litertlm",
       "downloadUrl": "https://huggingface.co/litert-community/gemma-4-12B-it-litert-lm/resolve/main/gemma-4-12B-it.litertlm",
-      "sizeBytes": 6547589312,
+      "sizeBytes": 6883278368,
       "parameters": "12.2B",
       "quantization": "Q8",
       "contextLength": 8192,
@@ -211,7 +211,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -233,7 +233,7 @@
       "recommendedDevices": [
         "Tablets & 16GB RAM flagships"
       ],
-      "sha256": "74fc29a10c20eb5b3ced6c389471a7994a0ffd657255b2a1c764262fb9054aef",
+      "sha256": "58fd31b778ca2c21c80d634fb34fc5a89d11d563a38dfd3cbf1b40dbf252a8b6",
       "containerType": "gemma4",
       "fileFormat": "LITERTLM",
       "mimeType": "application/x-litertlm",
@@ -264,7 +264,7 @@
       "revision": "main",
       "fileName": "qwen3_0_6b_mixed_int4.litertlm",
       "downloadUrl": "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/qwen3_0_6b_mixed_int4.litertlm",
-      "sizeBytes": 497664000,
+      "sizeBytes": 497516544,
       "parameters": "0.6B",
       "quantization": "MIXED",
       "contextLength": 8192,
@@ -303,7 +303,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -325,7 +325,7 @@
       "recommendedDevices": [
         "Any 4GB+ RAM phone"
       ],
-      "sha256": "b1baab462f6be49d70eada79d715c2c52cd9ece0cad00bddf6a2c097d23498e9",
+      "sha256": "7900eb4e7362d88c58782c6f9999bb7a129e03544aa98b8f338ea0cc5d8c22c1",
       "containerType": "qwen3",
       "fileFormat": "LITERTLM",
       "mimeType": "application/x-litertlm",
@@ -381,7 +381,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -459,7 +459,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -537,7 +537,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -620,7 +620,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -702,7 +702,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -776,7 +776,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -850,7 +850,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -922,7 +922,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -993,7 +993,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1040,7 +1040,7 @@
       "revision": "main",
       "fileName": "SmolVLM2-500M.litertlm",
       "downloadUrl": "https://huggingface.co/litert-community/SmolVLM2-500M/resolve/main/SmolVLM2-500M.litertlm",
-      "sizeBytes": 361052336,
+      "sizeBytes": 360822960,
       "parameters": "500M",
       "quantization": "Q8",
       "contextLength": 8192,
@@ -1062,7 +1062,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1081,7 +1081,7 @@
       "recommendedDevices": [
         "4GB+ RAM phones"
       ],
-      "sha256": "0dfb6fb881eb16e5ef2b2be04de5476caf939b7d9ae601fdee308bbc5462fd55",
+      "sha256": "b808b328d845a600a33c5295f93d9217487317bd334dbc91b2a8d50e26e60ad0",
       "containerType": "generic_model",
       "fileFormat": "LITERTLM",
       "mimeType": "application/x-litertlm",
@@ -1134,7 +1134,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1183,7 +1183,7 @@
       "revision": "main",
       "fileName": "Mage-VL.litertlm",
       "downloadUrl": "https://huggingface.co/litert-community/Mage-VL/resolve/main/Mage-VL.litertlm",
-      "sizeBytes": 2812485008,
+      "sizeBytes": 2811977104,
       "parameters": "1.5B",
       "quantization": "Q8",
       "contextLength": 8192,
@@ -1204,7 +1204,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1223,7 +1223,7 @@
       "recommendedDevices": [
         "4GB+ RAM phones"
       ],
-      "sha256": "c3d35e8f0a4eea6b45795223e144e4a64a2ca6a6d3622f7149543374c8f11098",
+      "sha256": "4231ea9f88ef2bd3aca92fd4554531f17717225418c4527ac858a8a9184dad72",
       "containerType": "generic_model",
       "fileFormat": "LITERTLM",
       "mimeType": "application/x-litertlm",
@@ -1274,7 +1274,7 @@
       "runtimeFormat": "TFLITE",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1343,7 +1343,7 @@
       "runtimeFormat": "TFLITE",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1412,7 +1412,7 @@
       "runtimeFormat": "TFLITE",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1479,7 +1479,7 @@
       "runtimeFormat": "TFLITE",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1546,7 +1546,7 @@
       "runtimeFormat": "TFLITE",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1615,7 +1615,7 @@
       "runtimeFormat": "TFLITE",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1688,7 +1688,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1766,7 +1766,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1842,7 +1842,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1916,7 +1916,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -1992,7 +1992,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -2069,7 +2069,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -2144,7 +2144,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -2220,7 +2220,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -2300,7 +2300,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
@@ -2372,7 +2372,7 @@
       "runtimeFormat": "LITERTLM",
       "supportedBackends": [
         "CPU",
-        "GPU"
+        "VULKAN"
       ],
       "supportsCpu": true,
       "supportsGpu": true,
