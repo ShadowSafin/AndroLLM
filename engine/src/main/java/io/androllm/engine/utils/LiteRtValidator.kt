@@ -1,5 +1,10 @@
 package io.androllm.engine.utils
 
+import io.androllm.core.models.download.FailureReason
+import io.androllm.core.models.download.FileCheck
+import io.androllm.core.models.download.RepairAction
+import io.androllm.core.models.download.ValidationFailure
+import io.androllm.core.models.download.formatBytes
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
@@ -129,26 +134,188 @@ object LiteRtValidator {
         expectedSizeBytes?.takeIf { it > 0 }?.let { expected ->
             val actual = File(path).length()
             if (actual != expected) {
-                return ArtifactValidation(
-                    false,
-                    errorMessage = "File size mismatch: expected $expected bytes but the file is $actual bytes — " +
-                        "the download is truncated or corrupted. Delete and re-download the model."
+                val failure = ValidationFailure(
+                    reason = if (actual < expected) FailureReason.DOWNLOAD_INTERRUPTED
+                    else FailureReason.SIZE_MISMATCH,
+                    expectedBytes = expected,
+                    actualBytes = actual,
+                    detail = if (actual < expected) {
+                        "File size mismatch — download interrupted, the file is truncated."
+                    } else {
+                        "File size mismatch — the file is larger than expected."
+                    },
+                    suggestedAction = if (actual < expected) "Resume download." else "Re-download the model.",
+                    repairAction = if (actual < expected) RepairAction.RESUME_MISSING_BYTES
+                    else RepairAction.DELETE_PARTIAL_AND_RESTART,
                 )
+                return ArtifactValidation(false, errorMessage = failure.formatReport(File(path).name))
             }
         }
 
         expectedSha256?.takeIf { it.length == 64 }?.let { expected ->
             val actual = calculateSha256(path)
             if (actual == null || !actual.equals(expected, ignoreCase = true)) {
-                return ArtifactValidation(
-                    false,
-                    errorMessage = "SHA-256 checksum mismatch — the model file is corrupted or was modified " +
-                        "after download. Delete and re-download the model."
+                val failure = ValidationFailure(
+                    reason = FailureReason.HASH_MISMATCH,
+                    expectedSha256 = expected,
+                    actualSha256 = actual,
+                    detail = "SHA-256 checksum mismatch — the model file is corrupted " +
+                        "or was modified after download.",
+                    suggestedAction = "Re-download the model (bytes are refreshed in place).",
+                    repairAction = RepairAction.DELETE_AND_FULL_REDOWNLOAD,
                 )
+                return ArtifactValidation(false, errorMessage = failure.formatReport(File(path).name))
             }
         }
 
         return header
+    }
+
+    /**
+     * Structured full-file validation (req §3): existence, readability, exact
+     * byte size, SHA-256, container magic and expected format — in that order,
+     * returning the first failure with its [RepairAction]. Never throws.
+     *
+     * @param authoritativeSize the NETWORK truth (HEAD/Range probe). When null,
+     *   size is checked against [catalogSize] only as an advisory signal: a
+     *   mismatch is logged, never fatal — hardcoded catalog sizes alone must
+     *   never reject a good download (req §8).
+     */
+    fun validateFile(
+        path: String,
+        authoritativeSize: Long? = null,
+        catalogSize: Long = 0L,
+        expectedSha256: String? = null,
+        expectedFormat: String? = null,
+        modelName: String = File(path).name,
+    ): FileCheck {
+        val file = File(path)
+        if (!file.exists()) {
+            return FileCheck.Invalid(
+                ValidationFailure(
+                    reason = FailureReason.DOWNLOAD_INTERRUPTED,
+                    detail = "File not found: $path — the download produced no artifact.",
+                    suggestedAction = "Start the download again.",
+                    repairAction = RepairAction.DELETE_PARTIAL_AND_RESTART,
+                )
+            )
+        }
+        if (!file.canRead()) {
+            return FileCheck.Invalid(
+                ValidationFailure(
+                    reason = FailureReason.UNKNOWN,
+                    detail = "File not readable: $path — storage permission or filesystem error.",
+                    suggestedAction = "Check storage permissions and retry.",
+                    repairAction = RepairAction.REQUIRE_USER_ACTION,
+                )
+            )
+        }
+        val actual = file.length()
+        val required = if (authoritativeSize != null && authoritativeSize > 0) {
+            authoritativeSize
+        } else {
+            null
+        }
+        if (required != null && actual != required) {
+            val interrupted = actual < required
+            return FileCheck.Invalid(
+                ValidationFailure(
+                    reason = if (interrupted) FailureReason.TRUNCATED_TRANSFER else FailureReason.SIZE_MISMATCH,
+                    expectedBytes = required,
+                    actualBytes = actual,
+                    url = null,
+                    detail = if (interrupted) {
+                        "Download interrupted — the transfer ended before the " +
+                            "server's declared size."
+                    } else {
+                        "File size mismatch — the finished file disagrees with " +
+                            "the server's declared size."
+                    },
+                    suggestedAction = if (interrupted) "Resume download." else "Re-download the model.",
+                    repairAction = if (interrupted) RepairAction.RESUME_MISSING_BYTES
+                    else RepairAction.DELETE_PARTIAL_AND_RESTART,
+                )
+            )
+        }
+
+        if (!expectedSha256.isNullOrBlank() && expectedSha256.length == 64) {
+            val actualSha = calculateSha256(path)
+            if (actualSha == null || !actualSha.equals(expectedSha256, ignoreCase = true)) {
+                return FileCheck.Invalid(
+                    ValidationFailure(
+                        reason = FailureReason.HASH_MISMATCH,
+                        expectedSha256 = expectedSha256,
+                        actualSha256 = actualSha,
+                        detail = "SHA-256 checksum mismatch — the model file is corrupted " +
+                            "or was modified after download.",
+                        suggestedAction = "Re-download the model (bytes are refreshed in place).",
+                        repairAction = RepairAction.DELETE_AND_FULL_REDOWNLOAD,
+                    )
+                )
+            }
+        }
+
+        val header = validateHeader(path)
+        if (!header.isValid) {
+            return FileCheck.Invalid(
+                ValidationFailure(
+                    reason = FailureReason.INVALID_CONTAINER,
+                    detail = header.errorMessage,
+                    suggestedAction = "Install a compatible " +
+                        ".litertlm / .tflite model from the catalog.",
+                    repairAction = RepairAction.SUGGEST_COMPATIBLE_MODEL,
+                )
+            )
+        }
+        if (expectedFormat != null && header.format != expectedFormat) {
+            return FileCheck.Invalid(
+                ValidationFailure(
+                    reason = FailureReason.UNSUPPORTED_FORMAT,
+                    detail = "Artifact is a '${header.format}' file but this pipeline requires " +
+                        "'$expectedFormat'.",
+                    suggestedAction = "Install the matching model type from the catalog.",
+                    repairAction = RepairAction.SUGGEST_COMPATIBLE_MODEL,
+                )
+            )
+        }
+        return FileCheck.Valid
+    }
+
+    /**
+     * Assesses a partial file before resuming (req §5): oversized partials and
+     * files with a broken container prefix can never resume — restart them.
+     * Returns null when the partial is resumable.
+     */
+    fun assessPartial(path: String, resumeOffset: Long, totalBytes: Long): ValidationFailure? {
+        if (resumeOffset <= 0) return null
+        if (totalBytes > 0 && resumeOffset > totalBytes) {
+            return ValidationFailure(
+                reason = FailureReason.CORRUPTED_RESUME,
+                expectedBytes = totalBytes,
+                actualBytes = resumeOffset,
+                detail = "Corrupted resume state — the partial file is larger than " +
+                    "the artifact. The cached bytes cannot belong to this download.",
+                suggestedAction = "Restart the download from zero.",
+                repairAction = RepairAction.DELETE_PARTIAL_AND_RESTART,
+            )
+        }
+        // A resumable LiteRT partial must at least carry a plausible prefix:
+        // enough bytes for the magic, and the magic intact when present.
+        if (resumeOffset >= 12) {
+            val header = validateHeader(path)
+            // validateHeader fails small files only; a ≥12-byte partial with a
+            // broken magic means wrong-file bytes — restart, don't append.
+            if (!header.isValid && header.errorMessage.startsWith("Not a LiteRT model")) {
+                return ValidationFailure(
+                    reason = FailureReason.CORRUPTED_RESUME,
+                    detail = "Corrupted resume state — the partial file header is not " +
+                        "a LiteRT artifact. Appending would produce garbage.",
+                    suggestedAction = "Restart the download from zero.",
+                    repairAction = RepairAction.DELETE_PARTIAL_AND_RESTART,
+                )
+            }
+        }
+        return null
     }
 
     /**

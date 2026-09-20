@@ -38,7 +38,14 @@ enum class RuntimeBackend(val displayName: String) {
     VULKAN("Vulkan GPU");
 
     companion object {
+        /**
+         * Parses a backend label. Accepts the canonical CPU/VULKAN plus the
+         * legacy "GPU" alias old catalogs shipped — the LiteRT GPU delegate
+         * runs on Vulkan, so GPU ≡ VULKAN. Unknown labels return null so the
+         * caller can reject or warn instead of crashing.
+         */
         fun fromValue(value: String): RuntimeBackend? =
             entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true) }
+                ?: if (value.equals("GPU", ignoreCase = true)) VULKAN else null
     }
 }

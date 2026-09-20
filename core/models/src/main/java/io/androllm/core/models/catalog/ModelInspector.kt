@@ -36,7 +36,156 @@ class ModelInspector {
         val sharedExperts: Int,
         val modelStreamType: ModelStreamType,
         val denseOrMoe: DenseOrMoe,
+        // ---- LiteRT container facts (req §11; empty/zero for GGUF inspections) ----
+        /** .litertlm container format version (0 when not a .litertlm file). */
+        val containerVersion: Int = 0,
+        /** Expected LlmModelType identifier (catalog expectation, "" when unknown). */
+        val containerType: String = "",
+        /** True when the container magic + format mark it loadable by LiteRT. */
+        val litertCompatible: Boolean = false,
+        /** Why it is (in)compatible — surfaced in UI and validation reports. */
+        val compatibilityNote: String = "",
+        /** Tokenizer location: "embedded" (.litertlm), "sidecar" (.tflite + tokenizer.model), "unknown". */
+        val tokenizerLocation: String = "unknown",
+        /** Special tokens observed or expected (stop sequences, eos/bos markers). */
+        val specialTokens: List<String> = emptyList(),
     )
+
+    /**
+     * Inspects any downloaded artifact (req §11): routes `.litertlm`/`.tflite`
+     * files to the LiteRT container inspector and everything else to the GGUF
+     * reader. [catalog] supplies the expected engine/architecture/quantization
+     * context the container bytes alone cannot provide.
+     */
+    fun inspectAny(file: File, catalog: CatalogModel? = null): Result<Inspection> {
+        val lower = file.name.lowercase()
+        return if (lower.endsWith(".litertlm") || lower.endsWith(".tflite")) {
+            inspectLiteRt(file, catalog)
+        } else {
+            inspect(file)
+        }
+    }
+
+    /**
+     * Inspects a LiteRT artifact: container magic, format version, byte size,
+     * engine/architecture/quantization (from [catalog] when provided, else
+     * filename heuristics), context length, tokenizer location, parameter
+     * count, special tokens and LiteRT compatibility.
+     */
+    fun inspectLiteRt(file: File, catalog: CatalogModel? = null): Result<Inspection> = runCatching {
+        if (!file.exists()) throw IllegalArgumentException("File not found: ${file.absolutePath}")
+        if (!file.canRead()) throw IllegalArgumentException("File not readable: ${file.absolutePath}")
+        val size = file.length()
+        if (size < 12) throw IllegalArgumentException("File too small to be a model artifact (${size} bytes)")
+
+        val header = ByteArray(12)
+        file.inputStream().buffered().use { input ->
+            var off = 0
+            while (off < 12) {
+                val read = input.read(header, off, 12 - off)
+                if (read < 0) break
+                off += read
+            }
+            if (off < 12) throw IllegalArgumentException("File too small to be a model artifact")
+        }
+
+        val litertlmMagic = byteArrayOf('L'.code.toByte(), 'I'.code.toByte(), 'T'.code.toByte(), 'E'.code.toByte(),
+            'R'.code.toByte(), 'T'.code.toByte(), 'L'.code.toByte(), 'M'.code.toByte())
+        val tfliteId = byteArrayOf('T'.code.toByte(), 'F'.code.toByte(), 'L'.code.toByte(), '3'.code.toByte())
+        val isLitertlm = header.copyOfRange(0, 8).contentEquals(litertlmMagic)
+        val isTflite = header.copyOfRange(4, 8).contentEquals(tfliteId)
+        if (!isLitertlm && !isTflite) {
+            throw IllegalArgumentException(
+                "Not a LiteRT model: expected a .litertlm container (magic \"LITERTLM\") " +
+                    "or a .tflite flatbuffer (file id \"TFL3\")")
+        }
+
+        val version = if (isLitertlm) {
+            (header[8].toInt() and 0xFF) or ((header[9].toInt() and 0xFF) shl 8) or
+                ((header[10].toInt() and 0xFF) shl 16) or ((header[11].toInt() and 0xFF) shl 24)
+        } else 0
+        if (isLitertlm && version < 1) {
+            throw IllegalArgumentException("Unsupported .litertlm container version $version")
+        }
+
+        val architecture = catalog?.architecture?.ifBlank { null }
+            ?: guessArchitecture(file.nameWithoutExtension)
+        val family = catalog?.family?.ifBlank { null } ?: guessFamily(architecture)
+        val quantization = catalog?.quantization?.ifBlank { null }
+            ?: guessQuantization(file.nameWithoutExtension)
+        val contextLength = catalog?.contextLength?.takeIf { it > 0 } ?: 4096
+        val containerType = catalog?.containerType.orEmpty()
+        val tokenizerLocation = if (isLitertlm) "embedded" else {
+            val sidecar = File(file.parentFile, "tokenizer.model")
+            if (sidecar.exists() && sidecar.length() > 0) "sidecar" else "missing-sidecar"
+        }
+        val compatible = if (isTflite) tokenizerLocation == "sidecar" else true
+        val note = when {
+            isLitertlm -> ".litertlm container v$version, loadable by the LiteRT-LM chat engine" +
+                if (containerType.isNotBlank()) " (type $containerType)" else ""
+            tokenizerLocation == "sidecar" -> ".tflite flatbuffer with sidecar tokenizer.model present"
+            else -> ".tflite flatbuffer — tokenizer.model sidecar not found beside the file"
+        }
+        Inspection(
+            format = if (isLitertlm) "LITERTLM" else "TFLITE",
+            architecture = architecture,
+            family = family,
+            parameters = catalog?.parameters?.ifBlank { null },
+            quantization = quantization,
+            quantLevel = QuantClassifier.classify(quantization),
+            sizeBytes = size,
+            contextLength = contextLength,
+            embeddingLength = 0,
+            blockCount = 0,
+            headCount = 0,
+            headCountKv = 0,
+            tokenizerModel = if (isLitertlm) "embedded" else if (tokenizerLocation == "sidecar") "sidecar" else null,
+            chatTemplate = catalog?.chatTemplate,
+            tensorCount = 0,
+            tensorLayout = catalog?.tensorLayout?.ifBlank { null } ?: "BLOCKED",
+            streamable = catalog?.streamable ?: true,
+            supportedBackends = catalog?.backendValues?.ifEmpty { null }
+                ?: listOf(RuntimeBackend.CPU, RuntimeBackend.VULKAN),
+            isMoe = catalog?.denseOrMoeValue == DenseOrMoe.MOE,
+            expertCount = catalog?.expertCount ?: 0,
+            sharedExperts = catalog?.sharedExperts ?: 0,
+            modelStreamType = catalog?.modelStreamTypeValue ?: ModelStreamType.STREAMING_DENSE,
+            denseOrMoe = catalog?.denseOrMoeValue ?: DenseOrMoe.DENSE,
+            containerVersion = version,
+            containerType = containerType,
+            litertCompatible = compatible,
+            compatibilityNote = note,
+            tokenizerLocation = tokenizerLocation,
+            specialTokens = catalog?.stopSequences ?: emptyList(),
+        )
+    }
+
+    /** Architecture guess from a file stem (e.g. "Qwen3_1.7B" -> "qwen3"). */
+    private fun guessArchitecture(stem: String): String {
+        val lower = stem.lowercase()
+        val candidates = SupportedArchitectures.ALL.sortedByDescending { it.length }
+        return candidates.firstOrNull { lower.contains(it.replace(".", "").replace("-", "")) }
+            ?: candidates.firstOrNull { lower.contains(it) } ?: "unknown"
+    }
+
+    private fun guessFamily(arch: String): String {
+        val spec = ModelMetadataRegistry.familyForArchitecture(arch)
+        return spec?.displayName ?: arch.replaceFirstChar { it.uppercaseChar() }
+    }
+
+    /** Quantization guess from a file stem (e.g. "…_q8_…" -> "Q8"). */
+    private fun guessQuantization(stem: String): String {
+        val upper = stem.uppercase()
+        return when {
+            "_Q8" in upper || "-Q8" in upper || upper.endsWith("Q8") -> "Q8"
+            "_Q4" in upper || "-Q4" in upper || "INT4" in upper -> "Q4"
+            "Q4" in upper -> "Q4"
+            "INT8" in upper -> "INT8"
+            "FP32" in upper || "F32" in upper -> "FP32"
+            "MIXED" in upper -> "MIXED"
+            else -> "UNKNOWN"
+        }
+    }
 
     /**
      * Inspects [file]. Returns a failure (never throws) when the file is not
@@ -78,6 +227,9 @@ class ModelInspector {
             sharedExperts = sharedExperts,
             denseOrMoe = if (isMoe) DenseOrMoe.MOE else DenseOrMoe.DENSE,
             modelStreamType = if (isMoe) ModelStreamType.STREAMING_MOE else ModelStreamType.STREAMING_DENSE,
+            litertCompatible = false,
+            compatibilityNote = "GGUF container — not loadable by the LiteRT runtime " +
+                "(install the .litertlm build of this model)",
         )
     }
 

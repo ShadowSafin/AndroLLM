@@ -423,7 +423,14 @@ object QuantClassifier {
         "NVFP4" to QuantLevel.NVFP4,
         "F16" to QuantLevel.F16,
         "FP16" to QuantLevel.F16,
-        "BF16" to QuantLevel.BF16
+        "BF16" to QuantLevel.BF16,
+        // ---- LiteRT container labels (short aliases shipped by litert-community) ----
+        "Q4" to QuantLevel.Q4,
+        "Q8" to QuantLevel.Q8,
+        "INT4" to QuantLevel.Q4,
+        "INT8" to QuantLevel.Q8,
+        // Mixed-precision int4 containers (e.g. qwen3 mixed int4): 4-bit tier.
+        "MIXED" to QuantLevel.Q4,
     )
 
     private fun normalize(value: String): String =
