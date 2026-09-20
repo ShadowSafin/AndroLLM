@@ -1,8 +1,10 @@
 package io.androllm.feature.models.downloader
 
 import android.content.Context
-import androidx.work.Data
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -13,6 +15,10 @@ import io.androllm.core.models.DownloadProgress
 import io.androllm.core.models.DownloadStatus
 import io.androllm.core.models.Model
 import io.androllm.core.models.ModelFormat
+import io.androllm.core.models.catalog.CatalogModel
+import io.androllm.core.models.download.ModelCompatibility
+import io.androllm.feature.models.catalog.toDownloadModel
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -22,9 +28,23 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
+/** Scheduling priority for queued downloads (higher starts first). */
+enum class DownloadPriority(val value: Int) {
+    LOW(0),
+    NORMAL(10),
+    HIGH(20),
+}
+
 /**
  * Production-quality Download Manager managing model downloads via WorkManager.
- * Supports queue management, pause, resume, cancel, retry, and bulk controls.
+ *
+ * - Queue: one unique work chain per model (parallel across models, serial per
+ *   model), priorities via expedited/high-priority tagging, bulk pause/resume.
+ * - Pre-download gate: [ModelCompatibility] rejects unrunnable models BEFORE
+ *   WorkManager ever runs — no model downloads unless it passed validation.
+ * - Resilience: requires connectivity (network changes pause automatically via
+ *   constraints), exponential backoff retries transient failures, keeps partial
+ *   files for Range resume across reboot / app restart / pause.
  */
 @Singleton
 class DownloadManager @Inject constructor(
@@ -35,11 +55,18 @@ class DownloadManager @Inject constructor(
     private val workManager: WorkManager by lazy { WorkManager.getInstance(context) }
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    private val downloadConstraints: Constraints
+        get() = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresStorageNotLow(true)
+            .build()
+
     /**
      * Enqueues a model for download. Rejects models whose catalog metadata is
-     * unusable (missing/malformed download URL) before WorkManager ever runs.
+     * unusable (missing/malformed download URL, incompatible container) before
+     * WorkManager ever runs.
      */
-    fun startDownload(model: Model) {
+    fun startDownload(model: Model, priority: DownloadPriority = DownloadPriority.NORMAL) {
         scope.launch {
             val downloadUrl = model.downloadUrl ?: ""
             if (!isValidDownloadUrl(downloadUrl)) {
@@ -62,31 +89,80 @@ class DownloadManager @Inject constructor(
             )
             modelRepository.upsert(updatedModel)
 
-            val workRequest = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
-                .addTag("download_${model.id}")
-                .setInputData(
-                    workDataOf(
-                        ModelDownloadWorker.KEY_MODEL_ID to model.id,
-                        ModelDownloadWorker.KEY_MODEL_NAME to model.name,
-                        ModelDownloadWorker.KEY_DOWNLOAD_URL to downloadUrl,
-                        ModelDownloadWorker.KEY_TARGET_PATH to targetPath,
-                        ModelDownloadWorker.KEY_EXPECTED_SHA256 to (model.sha256 ?: ""),
-                        ModelDownloadWorker.KEY_EXPECTED_SIZE to model.fileSize,
-                        ModelDownloadWorker.KEY_COMPANION_URL to (model.companionUrl ?: "")
-                    )
-                )
-                .build()
-
-            workManager.enqueueUniqueWork(
-                "download_${model.id}",
-                ExistingWorkPolicy.REPLACE,
-                workRequest
+            enqueueWorker(
+                modelId = model.id,
+                modelName = model.name,
+                downloadUrl = downloadUrl,
+                targetPath = targetPath,
+                sha256 = model.sha256 ?: "",
+                expectedSize = model.fileSize,
+                companionUrl = model.companionUrl ?: "",
+                priority = priority,
+                policy = ExistingWorkPolicy.REPLACE,
             )
         }
     }
 
     /**
-     * Pauses an active download.
+     * Enqueues a [CatalogModel] after the compatibility gate. Models that can
+     * never run on this runtime are marked ERROR with the reason — they are
+     * never downloadable unless they pass every validation stage.
+     */
+    fun startCatalogDownload(catalogModel: CatalogModel, priority: DownloadPriority = DownloadPriority.NORMAL) {
+        val gate = ModelCompatibility.check(catalogModel)
+        if (!gate.compatible) {
+            Timber.e("Blocking download of ${catalogModel.name}: ${gate.reason}")
+            scope.launch {
+                modelRepository.updateDownloadState(
+                    id = catalogModel.id,
+                    isDownloaded = false,
+                    downloadStatus = DownloadStatus.ERROR,
+                    filePath = null
+                )
+            }
+            return
+        }
+        startDownload(catalogModel.toDownloadModel(), priority)
+    }
+
+    private fun enqueueWorker(
+        modelId: String,
+        modelName: String,
+        downloadUrl: String,
+        targetPath: String,
+        sha256: String,
+        expectedSize: Long,
+        companionUrl: String,
+        priority: DownloadPriority,
+        policy: ExistingWorkPolicy,
+    ) {
+        val builder = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+            .addTag("download_$modelId")
+            .addTag("priority_${priority.value}")
+            .setConstraints(downloadConstraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .setInputData(
+                workDataOf(
+                    ModelDownloadWorker.KEY_MODEL_ID to modelId,
+                    ModelDownloadWorker.KEY_MODEL_NAME to modelName,
+                    ModelDownloadWorker.KEY_DOWNLOAD_URL to downloadUrl,
+                    ModelDownloadWorker.KEY_TARGET_PATH to targetPath,
+                    ModelDownloadWorker.KEY_EXPECTED_SHA256 to sha256,
+                    ModelDownloadWorker.KEY_EXPECTED_SIZE to expectedSize,
+                    ModelDownloadWorker.KEY_COMPANION_URL to companionUrl
+                )
+            )
+        // High-priority downloads jump the queue via expedited work.
+        if (priority == DownloadPriority.HIGH) {
+            builder.setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+        }
+        workManager.enqueueUniqueWork("download_$modelId", policy, builder.build())
+        Timber.i("Enqueued download %s (priority=%s, policy=%s)", modelName, priority, policy)
+    }
+
+    /**
+     * Pauses an active download. The partial file is kept — resume re-validates
+     * it and continues with a Range request.
      */
     fun pauseDownload(modelId: String) {
         scope.launch {
@@ -101,10 +177,31 @@ class DownloadManager @Inject constructor(
     }
 
     /**
-     * Resumes a paused or failed download.
+     * Resumes a paused or failed download. KEEPS existing work when it is
+     * already queued/running so a resume never duplicates the chain.
      */
     fun resumeDownload(model: Model) {
-        startDownload(model)
+        scope.launch {
+            val targetPath = model.filePath ?: getTargetFilePath(model)
+            modelRepository.upsert(
+                model.copy(
+                    filePath = targetPath,
+                    isDownloaded = false,
+                    downloadStatus = DownloadStatus.DOWNLOADING
+                )
+            )
+            enqueueWorker(
+                modelId = model.id,
+                modelName = model.name,
+                downloadUrl = model.downloadUrl ?: return@launch,
+                targetPath = targetPath,
+                sha256 = model.sha256 ?: "",
+                expectedSize = model.fileSize,
+                companionUrl = model.companionUrl ?: "",
+                priority = DownloadPriority.NORMAL,
+                policy = ExistingWorkPolicy.KEEP,
+            )
+        }
     }
 
     /**
@@ -118,10 +215,11 @@ class DownloadManager @Inject constructor(
     }
 
     /**
-     * Retries a failed download.
+     * Retries a failed download with backoff (transient) — keeps the partial
+     * file so the retry resumes instead of restarting.
      */
-    fun retryDownload(model: Model) {
-        startDownload(model)
+    fun retryDownload(model: Model, priority: DownloadPriority = DownloadPriority.NORMAL) {
+        startDownload(model, priority)
     }
 
     /**

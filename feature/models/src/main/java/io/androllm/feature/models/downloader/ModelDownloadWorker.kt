@@ -11,6 +11,12 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import io.androllm.core.database.AppDatabase
 import io.androllm.core.models.DownloadStatus
+import io.androllm.core.models.download.FailureReason
+import io.androllm.core.models.download.FileCheck
+import io.androllm.core.models.download.PreflightInfo
+import io.androllm.core.models.download.RepairAction
+import io.androllm.core.models.download.ValidationFailure
+import io.androllm.core.models.download.formatBytes
 import io.androllm.engine.utils.LiteRtValidator
 import java.io.File
 import java.io.FileNotFoundException
@@ -24,9 +30,27 @@ import kotlinx.coroutines.CancellationException
 import timber.log.Timber
 
 /**
- * WorkManager worker executing background model download with Android notifications,
- * HTTP redirect handling, byte-range resume, real-time progress, GGUF validation,
- * and database status synchronization.
+ * Production-grade model download worker.
+ *
+ * Pipeline (every stage logs expected/actual/URL/headers/container/result):
+ *
+ * 1. PREFLIGHT — HEAD handshake (redirects, Content-Length, Accept-Ranges,
+ *    ETag/X-Linked-ETag LFS hash, Last-Modified, MIME). HEAD failures fall back
+ *    to a 1-byte Range probe, then to plain GET — recovery, never hard failure.
+ * 2. RESUME CHECK — partial file assessed before any byte is appended:
+ *    oversized or wrong-magic partials are deleted and restarted.
+ * 3. STREAM — GET with Range resume, redirect following, identity encoding
+ *    (no gzip lying about Content-Length), 416 repair, progress/speed/ETA.
+ * 4. VERIFY — network truth first: finished bytes vs server-declared size,
+ *    then SHA-256 (catalog, else LFS tag recovered from headers), then the
+ *    LiteRT container header. Catalog size is ADVISORY: when the server
+ *    disagrees, the server wins and the mismatch is logged, not fatal.
+ * 5. REPAIR — every failure maps to a RepairAction: resume the tail, restart
+ *    a corrupted resume, full re-download on hash mismatch (transient retry),
+ *    or a permanent, human-readable ❌ report for gated/unsupported artifacts.
+ *
+ * Partial files survive reboot, app restart, pause and network loss: the file
+ * lives at the deterministic target path and resume re-validates it.
  */
 class ModelDownloadWorker(
     private val context: Context,
@@ -51,8 +75,11 @@ class ModelDownloadWorker(
 
         private const val CHANNEL_ID = "download_channel"
         private const val NOTIFICATION_ID = 4001
+        /** HTTP 416 — no named constant on Android's HttpURLConnection. */
+        private const val HTTP_RANGE_NOT_SATISFIABLE = 416
         private const val SPEED_SMOOTHING_FACTOR = 0.3f
         private const val MIN_SPEED_UPDATE_MS = 500L
+        private const val MAX_REDIRECTS = 10
     }
 
     private val notificationManager =
@@ -90,21 +117,114 @@ class ModelDownloadWorker(
         }
 
         var downloadedBytes = if (targetFile.exists()) targetFile.length() else 0L
-        val expectedSize = inputData.getLong(KEY_EXPECTED_SIZE, 0L)
+        val catalogSize = inputData.getLong(KEY_EXPECTED_SIZE, 0L)
+
+        // ---- Stage 1: preflight HEAD (network truth; best-effort) ------------------
+        val preflight = performPreflight(downloadUrl, modelName)
+        val effectiveSha = expectedSha256?.takeIf { it.length == 64 }
+            ?: preflight?.recoveredSha256()?.also {
+                Timber.i("Preflight %s: recovered LFS sha256 %s… from headers", modelName, it.take(16))
+            }
+        val preflightSize = preflight?.authoritativeSize
+        if (preflightSize != null && catalogSize > 0 && preflightSize != catalogSize) {
+            // §8: never trust the hardcoded size — the server wins, the catalog
+            // mismatch is a warning for the next catalog refresh, not a failure.
+            Timber.w(
+                "Preflight %s: server declares %d bytes but catalog says %d — trusting server",
+                modelName, preflightSize, catalogSize
+            )
+        }
+        if (preflight != null) {
+            Timber.i(
+                "Preflight %s: status=%d final=%s length=%s ranges=%s etag=%s mime=%s gated=%s chunked=%s headers=%s",
+                modelName, preflight.httpStatus, preflight.finalUrl,
+                preflight.contentLength?.toString() ?: "unknown",
+                preflight.supportsRanges, preflight.eTag ?: "none",
+                preflight.mimeType ?: "unknown", preflight.gated, preflight.chunked,
+                preflight.responseHeaders
+            )
+        } else {
+            Timber.w("Preflight %s: HEAD unavailable — proceeding with GET recovery", modelName)
+        }
+        if (preflight?.gated == true) {
+            val failure = ValidationFailure(
+                reason = FailureReason.GATED_MODEL,
+                url = downloadUrl,
+                detail = "Gated model — HuggingFace answered 401/403. A user access " +
+                    "token is required to download this artifact.",
+                suggestedAction = "Sign in with a HuggingFace token that accepted the model's license, then retry.",
+                repairAction = RepairAction.REQUIRE_USER_ACTION,
+            )
+            return failPermanent(modelId, modelName, failure.formatReport(modelName))
+        }
+
+        // ---- Stage 2: assess the partial file before resuming ----------------------
+        // The server truth may still be unknown (preflight failed, chunked); use
+        // whatever size signal exists, or skip the oversize check until GET.
+        val resumeBudget = preflightSize ?: catalogSize.takeIf { it > 0 } ?: -1L
+        val partialProblem = if (downloadedBytes > 0) {
+            LiteRtValidator.assessPartial(targetPath, downloadedBytes, resumeBudget)
+        } else {
+            null
+        }
+        if (partialProblem != null) {
+            // Policy: model files are never deleted — the stale bytes are
+            // truncated in place and the model entry is kept.
+            Timber.w("Resume check %s: %s — truncating partial and restarting", modelName, partialProblem.detail)
+            truncateInPlace(targetFile)
+            downloadedBytes = 0L
+        }
+
+        // Self-healing metadata: when the server declares a different size than
+        // the catalog, update the model entry with the new file size instead of
+        // failing or deleting anything.
+        if (preflightSize != null && preflightSize > 0 && catalogSize > 0 && preflightSize != catalogSize) {
+            Timber.w(
+                "Size update %s: catalog=%d → server=%d; persisting new file size",
+                modelName, catalogSize, preflightSize
+            )
+            runCatching {
+                AppDatabase.getInstance(applicationContext).modelDao()
+                    .updateFileSize(modelId, preflightSize, System.currentTimeMillis())
+            }
+        }
+
+        // Fast path: the file is already complete (previous attempt finished
+        // writing but verification/import did not run, e.g. reboot mid-verify).
+        // Skip the network entirely and go straight to verification.
+        val completeSize = preflightSize ?: catalogSize.takeIf { it > 0 }
+        if (completeSize != null && downloadedBytes == completeSize) {
+            Timber.i("Fast path %s: file already complete (%d bytes) — verifying", modelName, downloadedBytes)
+            return verifyAndFinish(
+                modelId, modelName, targetFile,
+                networkSize = preflightSize,
+                catalogSize = preflightSize ?: catalogSize,
+                effectiveSha = effectiveSha,
+                companionUrl = companionUrl,
+            )
+        }
 
         // Reject the download up-front when the device clearly lacks space for it.
-        if (expectedSize > 0 && parentDir != null) {
-            val needed = (expectedSize - downloadedBytes).coerceAtLeast(0L)
+        val sizeHint = preflightSize ?: catalogSize.takeIf { it > 0 } ?: 0L
+        if (sizeHint > 0 && parentDir != null) {
+            val needed = (sizeHint - downloadedBytes).coerceAtLeast(0L)
             val usable = parentDir.usableSpace
             if (usable > 0 && usable < needed) {
-                val msg = "Insufficient storage space (need ${needed.formatSize()}, have ${usable.formatSize()})"
-                return failPermanent(modelId, modelName, msg)
+                val failure = ValidationFailure(
+                    reason = FailureReason.INSUFFICIENT_STORAGE,
+                    expectedBytes = needed,
+                    actualBytes = usable,
+                    detail = "Insufficient storage space.",
+                    suggestedAction = "Free ${needed.formatBytes()} and retry.",
+                    repairAction = RepairAction.REQUIRE_USER_ACTION,
+                )
+                return failPermanent(modelId, modelName, failure.formatReport(modelName))
             }
         }
 
         Timber.i(
-            "Download start: model=%s url=%s target=%s expectedSize=%d sha256=%s",
-            modelName, downloadUrl, targetPath, expectedSize, expectedSha256 ?: "none"
+            "Download start: model=%s url=%s target=%s resume=%d catalogSize=%d sha256=%s",
+            modelName, downloadUrl, targetPath, downloadedBytes, catalogSize, effectiveSha ?: "none"
         )
 
         return try {
@@ -114,24 +234,50 @@ class ModelDownloadWorker(
             val contentLength = connection.contentLengthLong
             val isPartial = responseCode == HttpURLConnection.HTTP_PARTIAL
             Timber.i(
-                "Response %d from %s (content-length=%d, resume-offset=%d)",
-                responseCode, connection.url, contentLength, downloadedBytes
+                "Response %d from %s (content-length=%d, resume-offset=%d, accept-ranges=%s, etag=%s, mime=%s)",
+                responseCode, connection.url, contentLength, downloadedBytes,
+                connection.getHeaderField("Accept-Ranges"),
+                connection.getHeaderField("ETag") ?: connection.getHeaderField("X-Linked-ETag"),
+                connection.contentType
             )
 
             when (responseCode) {
                 HttpURLConnection.HTTP_OK -> {
-                    // Server ignored our Range request: the file was truncated
-                    // above, so restart the byte counter from scratch.
+                    // Server ignored our Range request: restart the byte counter,
+                    // truncating in place — the model entry and file are kept.
                     if (downloadedBytes > 0) {
                         Timber.w("Server ignored Range request; restarting download from 0")
+                        truncateInPlace(targetFile)
                         downloadedBytes = 0
                     }
                 }
                 HttpURLConnection.HTTP_PARTIAL -> {
                     // Content-Length is the *remaining* bytes; total = offset + remaining.
                 }
+                HTTP_RANGE_NOT_SATISFIABLE -> {
+                    // Partial is universally stale (server file replaced/shorter):
+                    // corrupted resume → truncate in place and restart once, right here.
+                    Timber.w("HTTP 416 for %s — partial no longer matches server file; restarting", modelName)
+                    connection.disconnect()
+                    truncateInPlace(targetFile)
+                    return restartFromZero(
+                        modelId, modelName, downloadUrl, targetFile, catalogSize,
+                        effectiveSha, companionUrl, preflightSize
+                    )
+                }
                 else -> {
                     val msg = "HTTP Error $responseCode"
+                    if (responseCode == 401 || responseCode == 403) {
+                        val failure = ValidationFailure(
+                            reason = FailureReason.GATED_MODEL,
+                            url = downloadUrl,
+                            detail = "Gated model — server answered HTTP $responseCode. " +
+                                "A user access token is required.",
+                            suggestedAction = "Sign in with a HuggingFace token, then retry.",
+                            repairAction = RepairAction.REQUIRE_USER_ACTION,
+                        )
+                        return failPermanent(modelId, modelName, failure.formatReport(modelName))
+                    }
                     if (isHttpFailurePermanent(responseCode)) {
                         return failPermanent(modelId, modelName, msg)
                     }
@@ -139,16 +285,25 @@ class ModelDownloadWorker(
                 }
             }
 
-            // Total size: Content-Length when present, else the catalog size,
+            // Total size: GET truth first, then preflight, then catalog advisory,
             // else unknown (chunked transfer) → -1 (indeterminate progress).
-            val totalBytes = resolveTotalBytes(contentLength, isPartial, downloadedBytes, expectedSize)
-            Timber.i("Total download size: %d bytes", totalBytes)
+            val serverTotal = resolveTotalBytes(contentLength, isPartial, downloadedBytes, 0L)
+                .takeIf { it > 0 }
+            val totalBytes = serverTotal
+                ?: preflightSize?.let { if (isPartial) it else it }
+                ?: catalogSize.takeIf { it > 0 }
+                ?: -1L
+            Timber.i(
+                "Total %s: server=%s preflight=%s catalog=%d → %d bytes",
+                modelName, serverTotal?.toString() ?: "unknown",
+                preflightSize?.toString() ?: "unknown", catalogSize, totalBytes
+            )
 
             // Publish the first progress frame immediately so the UI never
             // shows "0 B / 0 B" while the connection is being established.
             publishProgress(modelName, downloadedBytes, totalBytes, 0f, 0L, 0)
 
-            val appendMode = isPartial
+            val appendMode = isPartial && downloadedBytes > 0
             val outputStream = FileOutputStream(targetFile, appendMode)
 
             val inputStream = connection.inputStream
@@ -203,72 +358,25 @@ class ModelDownloadWorker(
             outputStream.flush()
             outputStream.close()
             inputStream.close()
+            connection.disconnect()
 
-            Timber.i("Download complete for %s: %d bytes in %d ms", modelName, downloadedBytes, System.currentTimeMillis() - startTime)
-
-            // Size verification: a truncated transfer (server closed the body
-            // before Content-Length) or a size that contradicts the catalog is
-            // a corrupted artifact — fail before any checksum/header pass.
-            if (totalBytes > 0 && downloadedBytes != totalBytes) {
-                val msg = "Download truncated (${downloadedBytes.formatSize()} of ${totalBytes.formatSize()})"
-                return failPermanent(modelId, modelName, msg, deleteFile = true)
-            }
-            if (expectedSize > 0) {
-                val actualSize = targetFile.length()
-                if (actualSize != expectedSize) {
-                    return failPermanent(
-                        modelId, modelName,
-                        "File size mismatch (expected $expectedSize bytes, got $actualSize)",
-                        deleteFile = true
-                    )
-                }
-            }
-
-            // Optional SHA256 Verification if length == 64
-            if (!expectedSha256.isNullOrBlank() && expectedSha256.length == 64) {
-                val actualSha256 = LiteRtValidator.calculateSha256(targetFile.absolutePath)
-                if (actualSha256 != null && !actualSha256.equals(expectedSha256, ignoreCase = true)) {
-                    return failPermanent(modelId, modelName, "SHA256 checksum mismatch", deleteFile = true)
-                }
-            }
-
-            // LiteRT Artifact Header Validation (.litertlm container or .tflite)
-            val validation = LiteRtValidator.validateHeader(targetFile.absolutePath)
-            if (!validation.isValid) {
-                return failPermanent(modelId, modelName, validation.errorMessage, deleteFile = true)
-            }
-
-            Timber.i("Download verified for %s: size=%d bytes", modelName, targetFile.length())
-
-            // Auto-import into Database
-            AppDatabase.getInstance(applicationContext).modelDao().updateDownloadState(
-                id = modelId,
-                isDownloaded = true,
-                downloadStatus = DownloadStatus.DOWNLOADED.name,
-                filePath = targetFile.absolutePath,
-                updatedAt = System.currentTimeMillis()
+            Timber.i(
+                "Download complete %s: %d bytes in %d ms (server=%s catalog=%d sha=%s)",
+                modelName, downloadedBytes, System.currentTimeMillis() - startTime,
+                serverTotal?.toString() ?: "unknown", catalogSize, effectiveSha?.take(16) ?: "none"
             )
 
-            // LiteRT artifacts carry their tokenizer/chat template inside the
-            // container (or, for .tflite embedding models, next to the file) —
-            // there is no GGUF header to enrich the record with, so the model
-            // row keeps its catalog metadata as-is.
-
-            // Companion artifact (e.g. the Gemma 3 sentencepiece tokenizer for
-            // the EmbeddingGemma .tflite): downloaded next to the main file as
-            // `tokenizer.model` so the LiteRT embedding engine finds it.
-            if (companionUrl.isNotBlank()) {
-                val tokenizerFile = File(targetFile.parentFile, "tokenizer.model")
-                downloadCompanion(companionUrl, tokenizerFile, modelName)
-            }
-
-            showSuccessNotification(modelName)
-
-            Result.success(
-                workDataOf(
-                    KEY_TARGET_PATH to targetFile.absolutePath,
-                    KEY_PROGRESS_PERCENT to 100
-                )
+            // ---- Stage 4: structured verification -----------------------------------
+            // Network truth is binding; catalog size is advisory (§8). Hash and
+            // container checks are authoritative. Nothing is ever deleted: stale
+            // bytes are truncated in place and the model entry keeps the file.
+            val networkSize = serverTotal ?: preflightSize
+            return verifyAndFinish(
+                modelId, modelName, targetFile,
+                networkSize = networkSize,
+                catalogSize = preflightSize ?: catalogSize,
+                effectiveSha = effectiveSha,
+                companionUrl = companionUrl,
             )
         } catch (e: CancellationException) {
             // WorkManager cancelled us (pause/cancel/replace): never swallow
@@ -290,6 +398,285 @@ class ModelDownloadWorker(
         }
     }
 
+    /**
+     * Single self-repair path for HTTP 416: wipes the stale partial and runs
+     * one fresh GET pass inline (same verification tail as [doWork]).
+     */
+    private suspend fun restartFromZero(
+        modelId: String,
+        modelName: String,
+        downloadUrl: String,
+        targetFile: File,
+        catalogSize: Long,
+        effectiveSha: String?,
+        companionUrl: String,
+        preflightSize: Long?,
+    ): Result {
+        return try {
+            val connection = openConnectionWithRedirects(downloadUrl, 0L)
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                val code = connection.responseCode
+                connection.disconnect()
+                return if (isHttpFailurePermanent(code)) {
+                    failPermanent(modelId, modelName, "HTTP Error $code")
+                } else {
+                    failTransient(modelId, modelName, "HTTP Error $code")
+                }
+            }
+            val total = connection.contentLengthLong.takeIf { it > 0 }
+                ?: preflightSize ?: catalogSize.takeIf { it > 0 } ?: -1L
+            publishProgress(modelName, 0L, total, 0f, 0L, 0)
+            connection.inputStream.use { input ->
+                FileOutputStream(targetFile, false).use { output -> input.copyTo(output) }
+            }
+            connection.disconnect()
+            val networkSize = connection.contentLengthLong.takeIf { it > 0 } ?: preflightSize
+            return verifyAndFinish(
+                modelId, modelName, targetFile,
+                networkSize = networkSize,
+                catalogSize = preflightSize ?: catalogSize,
+                effectiveSha = effectiveSha,
+                companionUrl = companionUrl,
+            )
+        } catch (e: IOException) {
+            failTransient(modelId, modelName, e.message ?: "Network failure")
+        }
+    }
+
+    /**
+     * Stage-4 verification + import, shared by the streaming pass, the 416
+     * restart and the already-complete fast path.
+     *
+     * Policy: model files are never deleted. A stale catalog size is healed by
+     * persisting the verified real size ([updateFileSize]); bad bytes are
+     * truncated in place and refreshed by WorkManager retry; only truly
+     * unrunnable artifacts (wrong container, gated) fail permanently — with the
+     * file and the model entry kept for the user to inspect or replace.
+     */
+    private suspend fun verifyAndFinish(
+        modelId: String,
+        modelName: String,
+        targetFile: File,
+        networkSize: Long?,
+        catalogSize: Long,
+        effectiveSha: String?,
+        companionUrl: String,
+    ): Result {
+        when (val check = LiteRtValidator.validateFile(
+            path = targetFile.absolutePath,
+            authoritativeSize = networkSize,
+            catalogSize = catalogSize,
+            expectedSha256 = effectiveSha,
+            modelName = modelName,
+        )) {
+            is FileCheck.Valid -> {
+                if (networkSize == null && catalogSize > 0 && targetFile.length() != catalogSize) {
+                    Timber.w(
+                        "Verify %s: chunked transfer, no server size — catalog advisory " +
+                            "says %d but file is %d; accepting on hash/container verdict",
+                        modelName, catalogSize, targetFile.length()
+                    )
+                }
+            }
+            is FileCheck.Invalid -> {
+                val failure = check.failure
+                Timber.e("Verify %s failed: %s", modelName, failure.formatReport(modelName))
+                return when (failure.repairAction) {
+                    // Truncated tail → keep partial, let WorkManager retry the
+                    // Range resume with backoff.
+                    RepairAction.RESUME_MISSING_BYTES ->
+                        failTransient(modelId, modelName, failure.formatReport(modelName))
+                    // Hash mismatch on complete bytes → truncate in place and
+                    // retry the full download via WorkManager retry.
+                    RepairAction.DELETE_AND_FULL_REDOWNLOAD -> {
+                        truncateInPlace(targetFile)
+                        failTransient(modelId, modelName, failure.formatReport(modelName))
+                    }
+                    // Corrupted resume that slipped through → truncate, retry.
+                    RepairAction.DELETE_PARTIAL_AND_RESTART -> {
+                        truncateInPlace(targetFile)
+                        failTransient(modelId, modelName, failure.formatReport(modelName))
+                    }
+                    // Wrong container / gated / storage → permanent + report.
+                    // File and model entry are kept; nothing is deleted.
+                    else -> failPermanent(modelId, modelName, failure.formatReport(modelName))
+                }
+            }
+        }
+
+        val actualSize = targetFile.length()
+        Timber.i("Download verified for %s: size=%d bytes", modelName, actualSize)
+
+        // Auto-import into Database, persisting the verified real file size so
+        // a stale catalog size heals itself on the next read.
+        val dao = AppDatabase.getInstance(applicationContext).modelDao()
+        dao.updateDownloadState(
+            id = modelId,
+            isDownloaded = true,
+            downloadStatus = DownloadStatus.DOWNLOADED.name,
+            filePath = targetFile.absolutePath,
+            updatedAt = System.currentTimeMillis()
+        )
+        runCatching {
+            dao.updateFileSize(modelId, actualSize, System.currentTimeMillis())
+        }
+
+        // LiteRT artifacts carry their tokenizer/chat template inside the
+        // container (or, for .tflite embedding models, next to the file) —
+        // there is no GGUF header to enrich the record with, so the model
+        // row keeps its catalog metadata as-is.
+
+        // Companion artifact (e.g. the Gemma 3 sentencepiece tokenizer for
+        // the EmbeddingGemma .tflite): downloaded next to the main file as
+        // `tokenizer.model` so the LiteRT embedding engine finds it.
+        if (companionUrl.isNotBlank()) {
+            val tokenizerFile = File(targetFile.parentFile, "tokenizer.model")
+            downloadCompanion(companionUrl, tokenizerFile, modelName)
+        }
+
+        showSuccessNotification(modelName)
+
+        return Result.success(
+            workDataOf(
+                KEY_TARGET_PATH to targetFile.absolutePath,
+                KEY_PROGRESS_PERCENT to 100
+            )
+        )
+    }
+
+    /**
+     * Truncates a stale file in place (zero bytes, same path, same model
+     * entry). Used instead of deleting: the model is kept and its bytes are
+     * refreshed by the next pass.
+     */
+    private fun truncateInPlace(file: File) {
+        runCatching {
+            FileOutputStream(file, false).close()
+        }.onFailure { e ->
+            Timber.e(e, "Truncate failed for ${file.absolutePath} — keeping the file as-is")
+        }
+    }
+
+    /**
+     * Stage-1 preflight: HEAD handshake with manual redirect following so the
+     * FIRST response's headers (HuggingFace `X-Linked-ETag` LFS hash on the
+     * 302) are captured. Best-effort — any failure returns null (the GET pass
+     * recovers) except gated repos, which are reported as [PreflightInfo.gated].
+     */
+    private fun performPreflight(initialUrl: String, modelName: String): PreflightInfo? {
+        // Attempt 1: HEAD following redirects manually.
+        try {
+            var currentUrl = initialUrl
+            var hops = 0
+            var firstLinkedETag: String? = null
+            var firstStatus = 200
+            while (hops <= MAX_REDIRECTS) {
+                val connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
+                    connectTimeout = 15_000
+                    readTimeout = 15_000
+                    requestMethod = "HEAD"
+                    setRequestProperty("User-Agent", "AndroLLM/1.0 (Android)")
+                    setRequestProperty("Accept-Encoding", "identity")
+                }
+                connection.connect()
+                val code = connection.responseCode
+                if (hops == 0) {
+                    firstStatus = code
+                    firstLinkedETag = connection.getHeaderField("X-Linked-ETag")
+                }
+                if (code == 401 || code == 403) {
+                    connection.disconnect()
+                    return PreflightInfo(url = initialUrl, httpStatus = code, gated = true)
+                }
+                if (code == HttpURLConnection.HTTP_MOVED_PERM ||
+                    code == HttpURLConnection.HTTP_MOVED_TEMP ||
+                    code == HttpURLConnection.HTTP_SEE_OTHER ||
+                    code == 307 || code == 308
+                ) {
+                    val location = connection.getHeaderField("Location")
+                    connection.disconnect()
+                    if (location.isNullOrBlank()) break
+                    currentUrl = URL(URL(currentUrl), location).toString()
+                    hops++
+                    continue
+                }
+                // Final response.
+                val headers = linkedMapOf<String, String>()
+                for ((key, value) in connection.headerFields) {
+                    if (key != null && value != null && value.isNotEmpty()) headers[key] = value.first()
+                }
+                val length = connection.contentLengthLong.takeIf { it > 0 }
+                val info = PreflightInfo(
+                    url = initialUrl,
+                    finalUrl = currentUrl,
+                    httpStatus = code,
+                    contentLength = length,
+                    supportsRanges = (connection.getHeaderField("Accept-Ranges") ?: "")
+                        .equals("bytes", ignoreCase = true),
+                    eTag = connection.getHeaderField("ETag"),
+                    lfsSha256 = firstLinkedETag?.trim()?.trim('"')
+                        ?.takeIf { it.matches(Regex("[0-9a-fA-F]{64}")) }?.lowercase()
+                        ?: connection.getHeaderField("X-Linked-ETag")?.trim()?.trim('"')
+                            ?.takeIf { it.matches(Regex("[0-9a-fA-F]{64}")) }?.lowercase(),
+                    lastModified = connection.getHeaderField("Last-Modified"),
+                    mimeType = connection.contentType?.substringBefore(";")?.trim(),
+                    chunked = "chunked".equals(connection.getHeaderField("Transfer-Encoding"), ignoreCase = true),
+                    responseHeaders = headers,
+                )
+                connection.disconnect()
+                if (code in 200..299) return info
+                if (firstStatus == 401 || firstStatus == 403) {
+                    return info.copy(gated = true)
+                }
+                break
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Preflight HEAD failed for $modelName — trying Range probe")
+        }
+
+        // Attempt 2: 1-byte Range probe (servers that refuse HEAD, incl. some
+        // HF CDN edges). Content-Range: bytes 0-0/<total> reveals the size.
+        try {
+            val connection = (URL(initialUrl).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = true
+                connectTimeout = 15_000
+                readTimeout = 15_000
+                setRequestProperty("User-Agent", "AndroLLM/1.0 (Android)")
+                setRequestProperty("Accept-Encoding", "identity")
+                setRequestProperty("Range", "bytes=0-0")
+            }
+            connection.connect()
+            val code = connection.responseCode
+            if (code == 401 || code == 403) {
+                connection.disconnect()
+                return PreflightInfo(url = initialUrl, httpStatus = code, gated = true)
+            }
+            val total = parseContentRangeTotal(connection.getHeaderField("Content-Range"))
+                ?: connection.contentLengthLong.takeIf { it > 0 }
+            val headers = linkedMapOf<String, String>()
+            for ((key, value) in connection.headerFields) {
+                if (key != null && value != null && value.isNotEmpty()) headers[key] = value.first()
+            }
+            connection.disconnect()
+            if (code == HttpURLConnection.HTTP_PARTIAL || code == HttpURLConnection.HTTP_OK) {
+                return PreflightInfo(
+                    url = initialUrl,
+                    httpStatus = code,
+                    contentLength = total,
+                    supportsRanges = code == HttpURLConnection.HTTP_PARTIAL ||
+                        (connection.getHeaderField("Accept-Ranges") ?: "")
+                            .equals("bytes", ignoreCase = true),
+                    mimeType = connection.contentType?.substringBefore(";")?.trim(),
+                    responseHeaders = headers,
+                )
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Preflight Range probe failed for $modelName — GET will recover")
+        }
+        return null
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -300,6 +687,21 @@ class ModelDownloadWorker(
                 description = "Shows live LiteRT model download progress"
             }
             notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun getForegroundInfo(progress: Int, name: String): ForegroundInfo {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle("Downloading $name")
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setProgress(100, progress, false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(NOTIFICATION_ID, notification)
         }
     }
 
@@ -342,7 +744,7 @@ class ModelDownloadWorker(
     private fun showFailureNotification(name: String, error: String) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("⚠ Download Failed: $name")
-            .setContentText(error)
+            .setContentText(error.take(200))
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setAutoCancel(true)
             .build()
@@ -354,13 +756,16 @@ class ModelDownloadWorker(
         var redirectCount = 0
         var currentUrl = initialUrl
 
-        while (redirectCount < 10) {
+        while (redirectCount < MAX_REDIRECTS) {
             val url = URL(currentUrl)
             val connection = url.openConnection() as HttpURLConnection
             connection.instanceFollowRedirects = true
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
             connection.setRequestProperty("User-Agent", "AndroLLM/1.0 (Android)")
+            // Identity encoding: gzip/deflate would make Content-Length describe
+            // the COMPRESSED body and break every size check downstream.
+            connection.setRequestProperty("Accept-Encoding", "identity")
 
             if (downloadedBytes > 0) {
                 connection.setRequestProperty("Range", "bytes=$downloadedBytes-")
@@ -379,9 +784,10 @@ class ModelDownloadWorker(
                 if (newUrl.isNullOrBlank()) {
                     throw IllegalStateException("Redirected with empty Location header")
                 }
-                // Resolve relative Location headers (Location may be a path).
+                // Resolve relative Location headers (Location may be a path) and
+                // preserve signed-URL query strings on absolute redirects.
                 currentUrl = URL(url, newUrl).toString()
-                Timber.i("Redirect %d for %s → %s", redirectCount + 1, initialUrl, currentUrl)
+                Timber.i("Redirect %d → %s", redirectCount + 1, currentUrl)
                 redirectCount++
             } else {
                 return connection
@@ -405,6 +811,7 @@ class ModelDownloadWorker(
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
             connection.setRequestProperty("User-Agent", "AndroLLM/1.0 (Android)")
+            connection.setRequestProperty("Accept-Encoding", "identity")
             connection.connect()
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 Timber.w("Companion download for $modelName failed: HTTP ${connection.responseCode}")
@@ -472,19 +879,16 @@ class ModelDownloadWorker(
 
     /**
      * Permanent failure: the download can never succeed as-is (bad URL, HTTP
-     * 4xx, corrupt artifact, no space). The error reason is published both in
+     * 4xx, gated repo, corrupt artifact, no space). The error reason is published both in
      * the progress data and in the result output so the UI can display it.
+     * Model files are never deleted — the entry and its bytes are kept.
      */
     private suspend fun failPermanent(
         modelId: String,
         modelName: String,
-        message: String,
-        deleteFile: Boolean = false
+        message: String
     ): Result {
         Timber.e("Permanent download failure for $modelName: $message")
-        if (deleteFile) {
-            inputData.getString(KEY_TARGET_PATH)?.let { File(it).delete() }
-        }
         markDatabaseFailed(modelId)
         showFailureNotification(modelName, message)
         setProgress(workDataOf(KEY_ERROR_MESSAGE to message))
@@ -499,7 +903,7 @@ class ModelDownloadWorker(
     private suspend fun failTransient(modelId: String, modelName: String, message: String): Result {
         Timber.w("Transient download failure for $modelName: $message — will retry")
         markDatabaseFailed(modelId)
-        showFailureNotification(modelName, message)
+        showFailureNotification(modelName, message.take(200))
         setProgress(workDataOf(KEY_ERROR_MESSAGE to message))
         return Result.retry()
     }
@@ -539,6 +943,17 @@ class ModelDownloadWorker(
  */
 internal fun isHttpFailurePermanent(responseCode: Int): Boolean =
     responseCode in 400..499 && responseCode != 408 && responseCode != 429
+
+/**
+ * Parses the total size from a Content-Range header ("bytes 0-0/497664000").
+ * Null when absent or unparsable — the caller falls back to other signals.
+ */
+internal fun parseContentRangeTotal(contentRange: String?): Long? {
+    if (contentRange.isNullOrBlank()) return null
+    val total = contentRange.substringAfterLast('/', "").trim()
+    if (total == "*") return null
+    return total.toLongOrNull()?.takeIf { it > 0 }
+}
 
 /**
  * Resolves the total download size from the response and catalog metadata.

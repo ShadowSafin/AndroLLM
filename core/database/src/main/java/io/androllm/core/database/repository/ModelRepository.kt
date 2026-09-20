@@ -118,6 +118,15 @@ class ModelRepository @Inject constructor(
         modelDao.updateLastUsed(id, System.currentTimeMillis())
     }
 
+    /**
+     * Persists the verified real file size. The downloader calls this instead
+     * of deleting a model when the catalog size turns out stale — the model
+     * entry is updated with the new file size and kept.
+     */
+    suspend fun updateFileSize(id: String, fileSize: Long): Result<Unit> = io.androllm.core.common.runCatching {
+        modelDao.updateFileSize(id, fileSize, System.currentTimeMillis())
+    }
+
     fun searchModels(query: String): Flow<List<Model>> =
         modelDao.searchModels(query).map { entities -> entities.map { it.toDomain() } }
 }

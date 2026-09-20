@@ -91,4 +91,18 @@ class ModelDownloadWorkerLogicTest {
         assertFalse(isHttpFailurePermanent(301))
         assertFalse(isHttpFailurePermanent(307))
     }
+
+    // ---- parseContentRangeTotal -----------------------------------------------
+
+    @Test
+    fun `content-range reveals total size`() {
+        assertEquals(497664000L, parseContentRangeTotal("bytes 0-0/497664000"))
+    }
+
+    @Test
+    fun `content-range with unknown total is null`() {
+        assertEquals(null, parseContentRangeTotal("bytes 0-0/*"))
+        assertEquals(null, parseContentRangeTotal(null))
+        assertEquals(null, parseContentRangeTotal("garbage"))
+    }
 }

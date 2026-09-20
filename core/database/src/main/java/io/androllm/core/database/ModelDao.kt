@@ -83,6 +83,12 @@ interface ModelDao {
     suspend fun updateName(id: String, name: String, updatedAt: Long): Int
     @Query("UPDATE models SET last_used_date = :timestamp WHERE id = :id")
     suspend fun updateLastUsed(id: String, timestamp: Long): Int
+    /**
+     * Self-healing metadata: persists the real on-disk / on-server byte size.
+     * Used instead of deleting a model when the catalog size turns out stale.
+     */
+    @Query("UPDATE models SET file_size = :fileSize, updated_at = :updatedAt WHERE id = :id")
+    suspend fun updateFileSize(id: String, fileSize: Long, updatedAt: Long): Int
     @Query("SELECT * FROM models WHERE is_default = 1 LIMIT 1")
     suspend fun getDefaultModel(): ModelEntity?
 

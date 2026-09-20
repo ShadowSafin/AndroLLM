@@ -121,17 +121,22 @@ def main():
     llama32["downloads"], llama32["likes"] = repo_stats("litert-community/LFM2.5-1.2B-Instruct")
     by_id[llama32["id"]] = llama32
 
-    smollm = by_id.pop("litertlm-smollm-135m", None)
+    smollm = by_id.get("litertlm-smollm-135m", None)
     if smollm is not None:
-        print(f"Removed {smollm['id']} (repo ships only .tflite; no .litertlm variant)")
+        # Policy: never delete catalog entries — mark unrunnable ones ARCHIVED
+        # so the app can hide them while keeping the record.
+        smollm["status"] = "ARCHIVED"
+        smollm["notes"] = ("Repo ships only .tflite; no .litertlm chat container "
+                           "available. Kept for reference.")
+        print(f"Archived {smollm['id']} (repo ships only .tflite; no .litertlm variant)")
 
-    # ---- 1b. Remove gated models ----
-    # Gated repos cannot be downloaded or size/sha-verified without a token
-    # (401), so they are removed from the catalog entirely.
+    # ---- 1b. Gated models are kept, not removed ----
+    # Gated repos cannot be size/sha-probed without a token (401), so their
+    # sizes and hashes are left as-is and they stay downloadable for users
+    # with a token.
     gated = [mid for mid, m in by_id.items() if m.get("isGated")]
     for mid in gated:
-        print(f"Removed {mid} (gated; not downloadable)")
-        del by_id[mid]
+        print(f"Kept {mid} (gated; size/sha left as-is)")
 
     models = list(by_id.values())
     catalog["models"] = models
