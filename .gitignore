@@ -174,8 +174,19 @@ META-INF/
 skills-lock.json
 scratch/
 
-# Agent skills (never commit)
+# Agent skills (never commit). Installed per machine by the impeccable skill and
+# `npx skills add` — local tooling, not project source. The repo's own
+# .github/scripts and .github/workflows stay tracked.
 .agents/
+.github/skills/
+.github/agents/
+.github/hooks/
+
+# Product brief written by the impeccable skill at the repo root. It carries an
+# `impeccable:` schema marker and is read back on every run, so it is local state
+# rather than one of the repo's real docs (README, CONTRIBUTING, PRIVACY, …).
+# Anchored on purpose — documentation/PRODUCT.md is a real tracked doc.
+/PRODUCT.md
 
 # Bundled voice models (sherpa-onnx) — downloaded by downloadVoiceModels
 app/src/main/assets/voice/

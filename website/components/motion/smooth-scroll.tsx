@@ -40,16 +40,45 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
       if (target > max) target = max;
     };
 
-    const setBodyHeight = () => {
-      const h = content.getBoundingClientRect().height;
-      document.body.style.height = `${Math.ceil(h)}px`;
+    // Measuring and refreshing are two separate jobs, and keeping them apart is
+    // load-bearing: `measure` is what we register on ScrollTrigger's own
+    // "refresh" event, so it must never refresh again. GSAP dispatches that
+    // event synchronously at the tail of every refresh —
+    // `_refreshAll()` → `_dispatch("refresh")` → `listeners.map(f => f())` —
+    // and it has already cleared `ScrollTrigger.isRefreshing` by then. So a
+    // listener that refreshes recurses with nothing to stop it:
+    //
+    //   setBodyHeight → refresh → dispatch "refresh" → setBodyHeight → …
+    //
+    // which blows the call stack (RangeError: Maximum call stack size exceeded).
+    // Measured height is also cached so a no-op ResizeObserver callback (the
+    // common case, e.g. the scrollbar appearing) doesn't kick off a refresh at
+    // all — that feedback path is what made the recursion so easy to hit.
+    let measuredHeight = -1;
+    const measure = () => {
+      const h = Math.ceil(content.getBoundingClientRect().height);
+      if (h !== measuredHeight) {
+        measuredHeight = h;
+        document.body.style.height = `${h}px`;
+      }
       // wrapper holds the visual content fixed and translated — keep it full-width
       wrapper.style.position = "fixed";
       wrapper.style.top = "0";
       wrapper.style.left = "0";
       wrapper.style.width = "100%";
       wrapper.style.willChange = "transform";
-      ScrollTrigger.refresh();
+    };
+
+    let refreshing = false;
+    const setBodyHeight = () => {
+      measure();
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        ScrollTrigger.refresh();
+      } finally {
+        refreshing = false;
+      }
     };
 
     // initial
@@ -114,7 +143,8 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     document.addEventListener("click", onAnchorClick);
-    ScrollTrigger.addEventListener("refresh", setBodyHeight);
+    // `measure` — not `setBodyHeight` — or this event re-enters refresh forever.
+    ScrollTrigger.addEventListener("refresh", measure);
 
     // Use GSAP ticker for buttery sync with ScrollTrigger
     const gsapTick = () => {
@@ -152,7 +182,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
       window.removeEventListener("load", onLoad);
       window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("click", onAnchorClick);
-      ScrollTrigger.removeEventListener("refresh", setBodyHeight);
+      ScrollTrigger.removeEventListener("refresh", measure);
       ro.disconnect();
       document.documentElement.classList.remove("is-smooth");
       document.body.style.height = "";

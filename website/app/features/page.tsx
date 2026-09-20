@@ -5,11 +5,12 @@ import { SectionHeading } from "@/components/marketing/section-heading";
 import { FeatureGrid } from "@/components/marketing/feature-grid";
 import { DetailSections } from "@/components/marketing/detail-sections";
 import { Reveal } from "@/animations/reveal";
-import { HoverCard } from "@/components/motion/accordion";
 import { RevealStagger } from "@/components/motion/reveal";
 import { uiFeatures } from "@/lib/features";
 import { Button } from "@/components/ui/button";
+import { WobbleCard } from "@/components/ui/wobble-card";
 import { CtaBand } from "@/components/marketing/cta-band";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Features — AndroLLM",
@@ -40,27 +41,48 @@ export default function FeaturesPage() {
             title="The Parchment Ledger experience."
             description="The interface is a design system — adaptive navigation, streaming markdown, a model manager with a 21-model catalog, and security handled at the architecture level."
           />
-          <RevealStagger className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {uiFeatures.map((f, i) => (
-              <article key={f.id} className={i === 3 ? "lg:col-span-2 lg:grid-cols-subgrid" : ""}>
-                <HoverCard className="flex h-full flex-col p-6">
-                  <span className="flex size-11 items-center justify-center rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_8%,var(--surface))] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
-                    <f.icon className="size-5" aria-hidden />
-                  </span>
-                  <h3 className="mt-5 font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">{f.name}</h3>
-                  <p className="mt-1 font-geist text-sm tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.tagline}</p>
-                  <p className="mt-3 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">{f.description}</p>
-                  <ul className="mt-4 space-y-1.5 font-geist text-sm tracking-tight text-[var(--ink-dim)]">
-                    {f.bullets.map((b) => (
-                      <li key={b} className="flex items-start gap-2">
-                        <span className="mt-[0.45em] size-1 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                </HoverCard>
-              </article>
-            ))}
+          {/* Wobble cards — cursor-following tilt, adapted from the upstream
+              wobble-card demo to this project's tokens. The upstream demo's
+              wide/narrow rhythm is kept as 2+1 then 1+2; GSAP's reveal owns the
+              wrapper (it writes `transform: translateY`), and framer-motion owns
+              the card inside it, so the two never fight over the same element. */}
+          <RevealStagger className="mt-14 grid gap-5 lg:grid-cols-3" staggerChildren={0.08}>
+            {uiFeatures.map((f, i) => {
+              const wide = i === 0 || i === 3;
+              return (
+                <div key={f.id} className={cn("min-h-[320px]", wide && "lg:col-span-2")}>
+                  <WobbleCard
+                    containerClassName={cn(
+                      "h-full",
+                      i % 2 === 0
+                        ? "bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface))]"
+                        : "bg-[var(--deep)]"
+                    )}
+                    className="flex h-full flex-col justify-center"
+                  >
+                    <span className="flex size-11 items-center justify-center rounded-card border border-[color-mix(in_srgb,var(--accent)_30%,var(--line))] bg-[color-mix(in_srgb,var(--accent)_12%,var(--surface))] text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">
+                      <f.icon className="size-5" aria-hidden />
+                    </span>
+                    <h3 className="mt-5 font-geist text-balance text-xl font-semibold tracking-tight leading-tight text-[var(--ink)]">{f.name}</h3>
+                    <p className="mt-1 font-geist text-sm tracking-tight text-[var(--accent-deep)] dark:text-[var(--accent-soft)]">{f.tagline}</p>
+                    <p className="mt-3 max-w-xl font-geist text-sm tracking-tight leading-relaxed text-[var(--muted)]">{f.description}</p>
+                    <ul
+                      className={cn(
+                        "mt-4 font-geist text-sm tracking-tight text-[var(--ink-dim)]",
+                        wide ? "grid gap-1.5 sm:grid-cols-2 sm:gap-x-6" : "space-y-1.5"
+                      )}
+                    >
+                      {f.bullets.map((b) => (
+                        <li key={b} className="flex items-start gap-2">
+                          <span className="mt-[0.45em] size-1 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden />
+                          {b}
+                        </li>
+                      ))}
+                    </ul>
+                  </WobbleCard>
+                </div>
+              );
+            })}
           </RevealStagger>
         </div>
       </section>

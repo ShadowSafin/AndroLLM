@@ -498,14 +498,6 @@
     border-color: #404040;
   }
 
-  /* Sonar field — interactive surface cursor. Set by
-     components/motion/sonar-field.tsx while the dot field is interactive.
-     Author `cursor` on an element beats inheritance, so anchors and buttons
-     keep their own pointer affordance. */
-  body.sonar-cursor {
-    cursor: crosshair;
-  }
-
   .ledger {
     font-family: var(--font-jetbrains);
     font-size: 0.72rem;

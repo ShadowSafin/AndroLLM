@@ -5,6 +5,7 @@ import { Logo } from "@/components/logo";
 import { AnimatedUnderline } from "@/components/motion/animated-underline";
 import { Magnetic } from "@/components/motion/magnetic";
 import { LiveDot } from "@/components/motion/live-ticker";
+import { TextHoverEffect } from "@/components/ui/text-hover-effect";
 
 const columns = [
   {
@@ -145,6 +146,16 @@ export function Footer() {
           <p className="inline-flex items-center gap-1.5">
             Crafted with <Heart className="size-3 text-[var(--accent)]" aria-hidden /> by the AndroLLM community
           </p>
+        </div>
+
+        {/* Wordmark — the brand name as a giant, cursor-revealed plate at the
+            foot of every page. It is decorative rather than informational (the
+            name already appears in the logo above and the © line), so it stays
+            out of the accessibility tree; the wrapper carries the effect's
+            460×100 box aspect, which is what lets the art fill it exactly
+            instead of letterboxing inside it. */}
+        <div aria-hidden className="mt-14 aspect-[460/100] w-full">
+          <TextHoverEffect text="AndroLLM" />
         </div>
       </div>
     </footer>

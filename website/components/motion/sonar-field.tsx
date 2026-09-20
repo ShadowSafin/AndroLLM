@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { SonarGrid } from "@/components/ui/sonar-grid";
 
 // ── Sonar field — the site-wide backdrop ────────────────────────────────────
@@ -18,16 +17,17 @@ import { SonarGrid } from "@/components/ui/sonar-grid";
 // backdrop layer is monochrome throughout this design system, with the accent
 // reserved for CTAs and the single bloom, so a violet field would fight it.
 // Tuned well below the component's defaults — this is ambient ground, not a hero.
+//
+// The field deliberately leaves the pointer cursor alone. It used to add a
+// `sonar-cursor` class to <body> that set `cursor: crosshair` across the whole
+// site — and since the field is inert and never a hit target, that body rule was
+// the only way the class could ever apply (the component's own
+// `cursor-crosshair` sits behind `pointer-events-none`). An HUD crosshair over
+// every heading, paragraph and form field reads as a game overlay rather than a
+// documentation site, so the cursor is now the platform default. The pings are
+// unaffected: they still fire from the window-level pointer listener.
 
 export function SonarField({ className }: { className?: string }) {
-  // The crosshair has to live on the body: the field itself is not hit-testable,
-  // so the component's own `cursor-crosshair` class can never take effect. Author
-  // `cursor` on an element beats inheritance, so links and buttons keep `pointer`.
-  useEffect(() => {
-    document.body.classList.add("sonar-cursor");
-    return () => document.body.classList.remove("sonar-cursor");
-  }, []);
-
   return (
     <div
       aria-hidden
