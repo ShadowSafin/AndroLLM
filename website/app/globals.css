@@ -112,6 +112,9 @@
     --prm-radius-pill: 32px;   /* terracotta stamp */
     --prm-radius-full: 9999px;
 
+    /* Background grid — square veil behind the page */
+    --prm-grid-cell: 64px;
+
     /* Font variables â€” fallbacks if next/font hasn't injected yet (prevents hydration mismatch) */
     --font-geist: "Geist", "Geist Fallback", system-ui, sans-serif;
     --font-jetbrains: "JetBrains Mono", monospace;
@@ -184,6 +187,9 @@
     --nav-bg: color-mix(in srgb, var(--canvas) 72%, transparent);
     --toc-line: color-mix(in srgb, var(--ink) 8%, transparent);
 
+    /* Background grid hairlines — read against the black canvas */
+    --grid-line: color-mix(in srgb, var(--ink) 6%, transparent);
+
     /* System chrome â€” window traffic lights (theme-independent) */
     --dot-close: var(--prm-dot-close);
     --dot-minimize: var(--prm-dot-minimize);
@@ -243,6 +249,8 @@
     --glow: rgba(122,92,255,0.12);
     --nav-bg: rgba(0,0,0,0.66);
     --toc-line: rgba(255,255,255,0.08);
+
+    --grid-line: color-mix(in srgb, var(--ink) 6%, transparent);
 
     --card-shadow: 0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -12px rgba(0,0,0,0.55);
     --card-shadow-hover: 0 2px 4px rgba(0,0,0,0.4), 0 26px 52px -18px rgba(0,0,0,0.7);
@@ -507,6 +515,25 @@
 
   .hairline {
     border: 1px solid var(--line);
+  }
+
+  /* ── Grid veil — the square hairline grid behind the page ────────────────
+     Static replacement for the former WebGL field: same sense of depth, none
+     of the RAF/GPU cost. Anchored to the top of the viewport and masked so it
+     fades out before it competes with copy. Both masks use black/transparent
+     because they describe coverage, not paint. */
+  .grid-veil {
+    background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: var(--prm-grid-cell) var(--prm-grid-cell);
+    background-position: center top;
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 10%, transparent 80%);
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 10%, transparent 80%);
+  }
+
+  /* Accent bloom at the top edge — the light source the WebGL veil provided */
+  .grid-bloom {
+    background: radial-gradient(ellipse 60% 100% at 50% 0%, var(--glow) 0%, transparent 70%);
   }
 
   .grain::after {
