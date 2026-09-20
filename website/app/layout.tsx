@@ -8,7 +8,7 @@ import { PageTransition } from "@/components/page-transition";
 import { TextCascade } from "@/components/gsap/text-cascade";
 import { ScrollProgress } from "@/components/motion/parallax";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
-import { GridField } from "@/components/motion/grid-field";
+import { SonarField } from "@/components/motion/sonar-field";
 import { JsonLd } from "@/components/json-ld";
 
 import { Geist } from "next/font/google";
@@ -125,8 +125,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           `}
         </Script>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark" disableTransitionOnChange>
-          {/* Fixed grid veil — outside SmoothScroll so it never translates */}
-          <GridField />
+          {/* Fixed sonar field — outside SmoothScroll so it never translates */}
+          <SonarField />
           {/* Top progress + scroll hintting */}
           <ScrollProgress />
           <a
