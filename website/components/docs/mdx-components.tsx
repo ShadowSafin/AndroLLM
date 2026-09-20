@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import Link from "next/link";
 import type { MDXComponents } from "mdx/types";
 import { CodeBlock } from "@/components/docs/code-block";
@@ -19,7 +19,7 @@ function HeadingLink({ level, children }: { level: 1 | 2 | 3 | 4; children: Reac
         ? "text-xl font-geist font-semibold tracking-tight leading-tight mt-8 mb-3 text-balance"
         : "text-base font-geist font-semibold tracking-tight leading-tight mt-6 mb-2 text-balance";
   return (
-    <Tag id={id} className={`group flex items-center gap-2 scroll-mt-28 bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text text-transparent dark:from-white dark:to-white/40 ${size}`}>
+    <Tag id={id} className={`group flex items-center gap-2 scroll-mt-28 bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text text-transparent dark:from-white dark:to-aurora-lavender ${size}`}>
       <span className="no-anchor">{children}</span>
       <a
         href={`#${id}`}
@@ -50,7 +50,7 @@ function Pre({ children }: { children?: ReactNode }) {
 
 export const mdxComponents: MDXComponents = {
   h1: ({ children }: { children?: ReactNode }) => (
-    <h1 id="top" className="mt-0 bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">
+    <h1 id="top" className="mt-0 bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-aurora-lavender">
       {children}
     </h1>
   ),

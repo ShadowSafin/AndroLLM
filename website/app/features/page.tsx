@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Download } from "lucide-react";
 import { SectionHeading } from "@/components/marketing/section-heading";
@@ -71,7 +71,7 @@ export default function FeaturesPage() {
             <BookOpen className="size-3.5" aria-hidden />
             Under the hood
           </p>
-          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40">
+          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-aurora-lavender">
             The documentation covers every one of these features in depth.
           </h2>
           <p className="font-geist text-base tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
@@ -207,7 +207,7 @@ export function Hero() {
             <Button
               asChild
               size="lg"
-              className="rounded-full bg-white px-7 font-geist text-[13px] font-medium tracking-tight text-black hover:bg-zinc-100"
+              className="rounded-full bg-[var(--accent)] px-7 font-geist text-[13px] font-medium tracking-tight text-white shadow-ember hover:bg-[var(--accent-soft)]"
             >
               <Link href="/downloads">Get started</Link>
             </Button>

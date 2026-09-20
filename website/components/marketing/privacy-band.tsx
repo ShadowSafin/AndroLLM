@@ -1,4 +1,4 @@
-import { ShieldCheck, Radio, Lock, Eye, Cpu, Mic, BrainCircuit } from "lucide-react";
+﻿import { ShieldCheck, Radio, Lock, Eye, Cpu, Mic, BrainCircuit } from "lucide-react";
 import { Reveal } from "@/animations/reveal";
 
 const claims = [
@@ -24,7 +24,7 @@ export function PrivacyBand() {
             <ShieldCheck className="size-3.5" aria-hidden />
             The 0-telemetry promise
           </p>
-          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40">
+          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-aurora-lavender">
             Your intelligence is your business.
           </h2>
           <p className="mt-4 text-balance text-lg tracking-tight text-gray-600 dark:text-gray-400 md:text-xl">

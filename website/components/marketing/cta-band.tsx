@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Download, Github } from "lucide-react";
 import { Reveal } from "@/animations/reveal";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ export function CtaBand() {
             <span className="inline-block size-1.5 rounded-full bg-[var(--accent)] animate-pulse" aria-hidden />
             v{site.version} is here
           </p>
-          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent sm:text-5xl md:text-6xl dark:from-white dark:to-white/40">
+          <h2 className="text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent sm:text-5xl md:text-6xl dark:from-white dark:to-aurora-lavender">
             Your models. Your phone.
             <br />
             Your privacy.

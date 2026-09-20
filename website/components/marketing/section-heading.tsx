@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+﻿import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Reveal } from "@/animations/reveal";
 
@@ -36,7 +36,7 @@ export function SectionHeading({
       {/* Title — prompt typography: gradient clipped, tracking-tighter, leading-none, text-balance */}
       <h2
         className={cn(
-          "text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40",
+          "text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-3 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-aurora-lavender",
           align === "center" ? "mx-auto" : ""
         )}
       >

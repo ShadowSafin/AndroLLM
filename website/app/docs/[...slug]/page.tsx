@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import path from "path";
 import fs from "fs";
 import { notFound } from "next/navigation";
@@ -79,7 +79,7 @@ export default async function DocPage({ params }: { params: Promise<{ slug: stri
               <span className="inline-block size-1.5 rounded-full bg-[var(--accent)]" aria-hidden />
               {hit.group.label}
             </p>
-            <h1 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent sm:text-5xl dark:from-white dark:to-white/40">
+            <h1 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-4xl font-semibold leading-none tracking-tighter text-transparent sm:text-5xl dark:from-white dark:to-aurora-lavender">
               {sourceTitle}
             </h1>
             <p className="mt-4 max-w-2xl font-geist text-base tracking-tight leading-relaxed text-gray-600 dark:text-gray-400 md:text-lg">{hit.entry.description}</p>

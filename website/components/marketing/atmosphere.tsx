@@ -81,15 +81,24 @@ export function Particles({ count = 34 }: { count?: number }) {
 export function GradientBlobs() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      {/* Violet orb riding high — the app's aurora light */}
       <div
-        className="absolute -top-32 left-1/2 h-[34rem] w-[54rem] -translate-x-1/2 rounded-full opacity-60 blur-3xl"
+        className="absolute -top-32 left-1/2 h-[34rem] w-[54rem] -translate-x-1/2 rounded-full opacity-70 blur-3xl"
         style={{
           background:
-            "radial-gradient(closest-side, color-mix(in srgb, var(--accent) 28%, transparent), color-mix(in srgb, var(--accent) 10%, transparent) 45%, transparent 70%)",
+            "radial-gradient(closest-side, color-mix(in srgb, var(--accent) 42%, transparent), color-mix(in srgb, var(--accent) 14%, transparent) 45%, transparent 72%)",
         }}
       />
-      <div className="absolute -left-40 top-1/3 h-[26rem] w-[26rem] animate-blob-drift rounded-full blur-3xl" style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent-soft) 16%, transparent), transparent 70%)" }} />
-      <div className="absolute -right-40 top-1/4 h-[30rem] w-[30rem] animate-blob-drift rounded-full blur-3xl [animation-delay:-11s]" style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--muted) 12%, transparent), transparent 70%)" }} />
+      {/* Deep-lavender counter orb, drifting */}
+      <div
+        className="absolute -left-40 top-1/3 h-[26rem] w-[26rem] animate-blob-drift rounded-full blur-3xl"
+        style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent-soft) 26%, transparent), transparent 70%)" }}
+      />
+      {/* Magenta accent orb low on the right */}
+      <div
+        className="absolute -right-40 top-1/4 h-[30rem] w-[30rem] animate-blob-drift rounded-full blur-3xl [animation-delay:-11s]"
+        style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent-alt) 18%, transparent), transparent 70%)" }}
+      />
     </div>
   );
 }

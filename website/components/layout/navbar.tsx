@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import Link from "next/link";
@@ -97,7 +97,7 @@ export function Navbar() {
                       href="/features"
                       className="group relative flex min-h-[200px] flex-col justify-between overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-5 hover:border-white/15"
                     >
-                      <span className="flex size-9 items-center justify-center rounded-lg bg-white text-black">
+                      <span className="flex size-9 items-center justify-center rounded-lg bg-[var(--accent)] text-white">
                         <Cpu className="size-4" />
                       </span>
                       <span className="space-y-2">
@@ -122,7 +122,7 @@ export function Navbar() {
                           href={f.href}
                           className="group flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white/[0.04]"
                         >
-                          <span className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/80 group-hover:bg-white group-hover:text-black transition-colors">
+                          <span className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/80 group-hover:bg-[var(--accent)] group-hover:text-white transition-colors">
                             <f.icon className="size-4" />
                           </span>
                           <span className="space-y-0.5">
@@ -170,12 +170,12 @@ export function Navbar() {
                     </div>
                     <MotionNavigationMenuLink
                       href="/models"
-                      className="flex items-center justify-between rounded-xl bg-white text-black p-3 hover:bg-zinc-100"
+                      className="flex items-center justify-between rounded-xl bg-[var(--accent)] text-white p-3 hover:bg-[var(--accent-soft)]"
                     >
                       <span className="flex items-center gap-2 font-geist text-sm font-semibold tracking-tight">
                         <Database className="size-4" /> Model catalog
                       </span>
-                      <span className="font-geist text-xs tracking-tight text-black/60">Open →</span>
+                      <span className="font-geist text-xs tracking-tight text-white/70">Open →</span>
                     </MotionNavigationMenuLink>
                   </div>
                 </MotionNavigationMenuContent>
@@ -284,7 +284,7 @@ export function Navbar() {
           >
             <Github className="size-4" />
           </a>
-          <Button asChild size="sm" className="hidden sm:inline-flex rounded-full bg-white text-black hover:bg-zinc-100">
+          <Button asChild size="sm" className="hidden sm:inline-flex rounded-full bg-[var(--accent)] text-white hover:bg-[var(--accent-soft)] shadow-ember">
             <Link href="/downloads">
               <Download />
               Download
@@ -320,7 +320,7 @@ export function Navbar() {
                   className={cn(
                     "rounded-xl px-4 py-3 font-geist text-base font-medium tracking-tight transition-colors",
                     pathname.startsWith(item.href)
-                      ? "bg-white text-black"
+                      ? "bg-[var(--accent)] text-white shadow-ember"
                       : "text-white/60 hover:bg-white/10 hover:text-white"
                   )}
                 >
@@ -328,7 +328,7 @@ export function Navbar() {
                 </Link>
               ))}
               <div className="mt-3 flex gap-3">
-                <Button asChild className="flex-1 rounded-full bg-white text-black hover:bg-zinc-100">
+                <Button asChild className="flex-1 rounded-full bg-[var(--accent)] text-white hover:bg-[var(--accent-soft)] shadow-ember">
                   <Link href="/downloads">
                     <Download />
                     Download APK

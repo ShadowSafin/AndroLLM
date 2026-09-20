@@ -1,4 +1,4 @@
-import { Reveal } from "@/animations/reveal";
+﻿import { Reveal } from "@/animations/reveal";
 import { detailFeatures } from "@/lib/features";
 import { Pipeline } from "@/components/demos/pipeline-diagrams";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ export function DetailSections() {
                 <f.icon className="size-3.5" aria-hidden />
                 {f.eyebrow}
               </p>
-              <h2 className="mt-4 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40">
+              <h2 className="mt-4 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-aurora-lavender">
                 {f.title}
               </h2>
               <p className="mt-4 text-lg tracking-tight leading-relaxed text-gray-600 dark:text-gray-400 md:text-xl">{f.description}</p>

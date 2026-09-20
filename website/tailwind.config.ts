@@ -29,13 +29,19 @@ const config: Config = {
           faint: "#6B7280",
         },
         ember: {
-          DEFAULT: "#FFFFFF",
-          light: "#A3A3A3",
-          deep: "#FFFFFF",
-          halo: "#1AFFFFFF",
+          DEFAULT: "#7A5CFF",
+          light: "#9D85FF",
+          deep: "#CFC2FF",
+          halo: "#297A5CFF",
         },
         lamp: {
-          DEFAULT: "#FFFFFF",
+          DEFAULT: "#7A5CFF",
+        },
+        aurora: {
+          violet: "#7A5CFF",
+          lavender: "#CFC2FF",
+          deep: "#9D85FF",
+          magenta: "#F25DFF",
         },
         night: {
           canvas: "#000000",
@@ -75,9 +81,9 @@ const config: Config = {
         nav: "var(--nav-shadow)",
       },
       backgroundImage: {
-        "ember-glow": "radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.08), transparent 60%)",
+        "ember-glow": "radial-gradient(1200px 600px at 50% -10%, rgba(122,92,255,0.18), transparent 60%)",
         "grid-parchment":
-          "linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)",
+          "linear-gradient(to right, rgba(122,92,255,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(122,92,255,0.10) 1px, transparent 1px)",
       },
       keyframes: {
         "blob-drift": {

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
@@ -45,7 +45,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <Clock className="size-3" aria-hidden />
             {post.date} · {post.readMin} min read
           </p>
-          <h1 className="mt-4 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-white/40">
+          <h1 className="mt-4 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text py-1 font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent sm:text-4xl md:text-5xl dark:from-white dark:to-aurora-lavender">
             <WordByWord text={post.title} />
           </h1>
           <p className="mt-5 font-geist text-lg tracking-tight leading-relaxed text-gray-600 dark:text-gray-400 md:text-xl">{post.excerpt}</p>

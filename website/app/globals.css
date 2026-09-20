@@ -23,7 +23,7 @@
 
 @layer base {
   /* â”€â”€ LAYER 1 Â· PRIMITIVES â”€â”€ MONOCHROME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-     Only black / white / neutral grays. No terracotta, no color. */
+     Black / white / neutral grays plus the aurora violet accent. */
   :root {
     /* Parchment (light) palette â€” mapped to monochrome */
     --prm-parchment-050: #ffffff;
@@ -36,6 +36,12 @@
     --prm-parchment-700: #111111;
     --prm-white: #ffffff;
 
+    /* Aurora accents - the app violet light */
+    --prm-aurora-violet: #7a5cff;
+    --prm-aurora-lavender: #cfc2ff;
+    --prm-aurora-deep: #9d85ff;
+    --prm-aurora-magenta: #f25dff;
+
     /* Ink palette â€” grayscale */
     --prm-ink-900: #ffffff;
     --prm-ink-800: #e5e5e5;
@@ -43,13 +49,13 @@
     --prm-ink-600: #737373;
 
     /* Ember â€” remapped to white */
-    --prm-ember-700: #ffffff;
-    --prm-ember-600: #ffffff;
-    --prm-ember-500: #a3a3a3;
+    --prm-ember-700: #7a5cff;
+    --prm-ember-600: #7a5cff;
+    --prm-ember-500: #9d85ff;
 
     /* Lamp â€” remapped to white */
-    --prm-lamp-600: #ffffff;
-    --prm-lamp-500: #a3a3a3;
+    --prm-lamp-600: #7a5cff;
+    --prm-lamp-500: #9d85ff;
 
     /* Night (dark) palette â€” pure grayscale */
     --prm-night-950: #000000;
@@ -76,8 +82,8 @@
     --prm-warn-300: #737373;
     --prm-err-600: #ffffff;
     --prm-err-400: #d4d4d4;
-    --prm-info-500: #e5e5e5;
-    --prm-info-300: #a3a3a3;
+    --prm-info-500: #cfc2ff;
+    --prm-info-300: #9d85ff;
 
     /* System chrome â€” grayscale */
     --prm-dot-close: #404040;
@@ -147,10 +153,11 @@
     --faint: #6b7280;
 
     /* Accent â€” monochrome white */
-    --accent: #ffffff;
-    --accent-soft: #a3a3a3;
-    --accent-deep: #ffffff;
-    --accent-contrast: #000000;
+    --accent: #7a5cff;
+    --accent-soft: #9d85ff;
+    --accent-deep: #cfc2ff;
+    --accent-contrast: #ffffff;
+    --accent-alt: #f25dff;
 
     /* Lines & hairline â€” gray */
     --line: #262626;
@@ -210,10 +217,11 @@
     --muted: #9ca3af; /* gray-400 â€” image subtitle */
     --faint: #6b7280;
 
-    --accent: #ffffff;
-    --accent-soft: #a3a3a3;
-    --accent-deep: #ffffff;
-    --accent-contrast: #000000;
+    --accent: #7a5cff;
+    --accent-soft: #9d85ff;
+    --accent-deep: #cfc2ff;
+    --accent-contrast: #ffffff;
+    --accent-alt: #f25dff;
 
     --line: #262626;
     --line-soft: #171717;
@@ -231,16 +239,16 @@
     --code-border: #262626;
     --code-bar: #111111;
 
-    --ring: rgba(255,255,255,0.22);
-    --glow: rgba(255,255,255,0.06);
+    --ring: rgba(122,92,255,0.35);
+    --glow: rgba(122,92,255,0.12);
     --nav-bg: rgba(0,0,0,0.66);
     --toc-line: rgba(255,255,255,0.08);
 
     --card-shadow: 0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -12px rgba(0,0,0,0.55);
     --card-shadow-hover: 0 2px 4px rgba(0,0,0,0.4), 0 26px 52px -18px rgba(0,0,0,0.7);
-    --shadow-ember: 0 10px 40px -10px rgba(255,255,255,0.12);
-    --shadow-ember-float: 0 18px 40px -18px rgba(255,255,255,0.08);
-    --shadow-ember-float-soft: 0 18px 50px -22px rgba(255,255,255,0.06);
+    --shadow-ember: 0 10px 40px -10px rgba(122,92,255,0.35);
+    --shadow-ember-float: 0 18px 40px -18px rgba(122,92,255,0.28);
+    --shadow-ember-float-soft: 0 18px 50px -22px rgba(122,92,255,0.22);
     --nav-shadow: 0 8px 32px -16px rgba(0,0,0,0.55);
     --mockup-shadow: 0 40px 80px -24px rgba(0,0,0,0.8);
     --mockup-shadow-desktop: 0 44px 90px -28px rgba(0,0,0,0.85);
@@ -249,10 +257,10 @@
   /* â”€â”€ LAYER 3 Â· COMPONENT â”€â”€ MONOCHROME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   :root {
     /* Button â€” monochrome white on black */
-    --btn-primary-bg: #ffffff;
-    --btn-primary-bg-hover: #e5e5e5;
-    --btn-primary-text: #000000;
-    --btn-primary-shadow-hover: 0 14px 48px -12px rgba(255,255,255,0.18);
+    --btn-primary-bg: #7a5cff;
+    --btn-primary-bg-hover: #8b70ff;
+    --btn-primary-text: #ffffff;
+    --btn-primary-shadow-hover: 0 14px 48px -12px rgba(122,92,255,0.45);
     --btn-ghost-bg-hover: rgba(255,255,255,0.08);
     --btn-outline-bg-hover: rgba(255,255,255,0.08);
 
@@ -264,19 +272,19 @@
     --card-elevation-hover: var(--card-shadow-hover);
 
     /* Badge â€” monochrome pill */
-    --badge-accent-bg: rgba(255,255,255,0.08);
-    --badge-accent-text: #ffffff;
-    --badge-accent-text-dark: #e5e5e5;
-    --badge-accent-solid-text: #000000;
-    --badge-glow-shadow: 0 0 24px -6px rgba(255,255,255,0.12);
+    --badge-accent-bg: rgba(122,92,255,0.14);
+    --badge-accent-text: #cfc2ff;
+    --badge-accent-text-dark: #cfc2ff;
+    --badge-accent-solid-text: #ffffff;
+    --badge-glow-shadow: 0 0 24px -6px rgba(122,92,255,0.35);
 
     /* Feature icon chip â€” monochrome */
-    --feature-icon-bg: #171717;
+    --feature-icon-bg: rgba(122,92,255,0.12);
 
     /* Callout â€” monochrome */
-    --callout-note-border: #333333;
-    --callout-note-bg: rgba(255,255,255,0.06);
-    --callout-note-text: #e5e5e5;
+    --callout-note-border: color-mix(in srgb, var(--accent) 45%, transparent);
+    --callout-note-bg: rgba(122,92,255,0.10);
+    --callout-note-text: #cfc2ff;
     --callout-warning-border: #333333;
     --callout-warning-bg: rgba(255,255,255,0.06);
     --callout-warning-text: #e5e5e5;
@@ -297,11 +305,11 @@
   }
 
   .dark {
-    --btn-primary-bg: #ffffff;
-    --btn-primary-bg-hover: #e5e5e5;
-    --btn-primary-text: #000000;
-    --btn-primary-shadow-hover: 0 14px 48px -12px rgba(255,255,255,0.18);
-    --badge-accent-bg: rgba(255,255,255,0.08);
+    --btn-primary-bg: #7a5cff;
+    --btn-primary-bg-hover: #8b70ff;
+    --btn-primary-text: #ffffff;
+    --btn-primary-shadow-hover: 0 14px 48px -12px rgba(122,92,255,0.45);
+    --badge-accent-bg: rgba(122,92,255,0.14);
     --callout-note-border: color-mix(in srgb, var(--info) 45%, transparent);
     --callout-warning-border: color-mix(in srgb, var(--warning) 45%, transparent);
     --callout-danger-border: color-mix(in srgb, var(--error) 50%, transparent);
@@ -355,12 +363,12 @@
   }
 
   ::selection {
-    background-color: #ffffff;
-    color: #000000;
+    background-color: #7a5cff;
+    color: #ffffff;
   }
 
   :focus-visible {
-    outline: 2px solid #ffffff;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -414,7 +422,7 @@
   /* Dark gradient text for primary headings â€” image: white â†’ white/40
      Applied when heading has no explicit color class; respects text-transparent */
   .dark h1:not([class*="text-"]), .dark h2:not([class*="text-"]) {
-    background-image: linear-gradient(to bottom right, #fff 30%, rgba(255, 255, 255, 0.4));
+    background-image: linear-gradient(to bottom right, #ffffff 20%, #cfc2ff 92%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -527,7 +535,7 @@
   }
 
   .text-gradient-ember {
-    background: linear-gradient(100deg, #fff 0%, #a3a3a3 100%);
+    background: linear-gradient(100deg, #cfc2ff 0%, #7a5cff 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -541,7 +549,7 @@
     color: transparent;
   }
   .dark .text-gradient-prompt {
-    background-image: linear-gradient(to bottom right, #fff 30%, rgba(255, 255, 255, 0.4));
+    background-image: linear-gradient(to bottom right, #ffffff 20%, #cfc2ff 92%);
   }
 
   .font-geist {
@@ -582,7 +590,7 @@
 }
 .dark .prose-ledger {
   --tw-prose-links: var(--accent-soft);
-  --tw-prose-code: #f0efea;
+  --tw-prose-code: #cfc2ff;
 }
 
 .prose-ledger {
@@ -727,7 +735,7 @@
   transition: background-color 0.15s ease;
 }
 .prose-ledger tbody tr:hover {
-  background: rgba(255,255,255,0.04);
+  background: rgba(122,92,255,0.06);
 }
 
 @media (max-width: 640px) {
@@ -739,7 +747,7 @@
 
 /* â”€â”€ Radial Orbital Timeline â€” monochrome, black/white only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Adapted from prompt: gradients and pulses forced to grayscale to respect
-   site-wide monochrome (no purple/blue/teal). */
+   the aurora violet accent. */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -759,12 +767,12 @@
 .backdrop-blur-lg { backdrop-filter: blur(16px); }
 
 /* Monochrome orbital gradient â€” was #6366f1â†’#3b82f6â†’#14b8a6 */
-.bg-gradient-orbital { background: linear-gradient(to bottom right, #ffffff, #a3a3a3, #525252); }
+.bg-gradient-orbital { background: linear-gradient(to bottom right, #7a5cff, #9d85ff, #f25dff); }
 
 .z-10 { z-index: 10; }
 .z-50 { z-index: 50; }
 
-.shadow-orbital { box-shadow: 0 0 15px rgba(255,255,255,0.1); }
+.shadow-orbital { box-shadow: 0 0 15px rgba(122,92,255,0.35); }
 .scale-125 { transform: scale(1.25); }
 .scale-150 { transform: scale(1.5); }
 .opacity-70 { opacity: 0.7; }

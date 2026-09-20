@@ -146,9 +146,9 @@ export default function RadialOrbitalTimeline({
   const getStatusStyles = (status: TimelineItem["status"]): string => {
     switch (status) {
       case "completed":
-        return "text-white bg-white text-black border-white";
+        return "text-white bg-aurora-violet border-aurora-violet shadow-ember";
       case "in-progress":
-        return "text-black bg-white border-white";
+        return "text-white bg-aurora-deep border-aurora-deep";
       case "pending":
         return "text-white bg-white/10 border-white/20";
       default:
@@ -172,7 +172,7 @@ export default function RadialOrbitalTimeline({
           }}
         >
           {/* Center â€” monochrome: white â†’ gray gradient (was purpleâ†’blueâ†’teal) */}
-          <div className="absolute w-16 h-16 rounded-full bg-gradient-to-br from-white via-zinc-200 to-zinc-500 animate-pulse flex items-center justify-center z-10">
+          <div className="absolute w-16 h-16 rounded-full bg-gradient-to-br from-aurora-lavender via-aurora-violet to-aurora-deep animate-pulse flex items-center justify-center z-10">
             <div className="absolute w-20 h-20 rounded-full border border-white/20 animate-ping opacity-70"></div>
             <div
               className="absolute w-24 h-24 rounded-full border border-white/10 animate-ping opacity-50"
@@ -214,7 +214,7 @@ export default function RadialOrbitalTimeline({
                     isPulsing ? "animate-pulse duration-1000" : ""
                   }`}
                   style={{
-                    background: `radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)`,
+                    background: `radial-gradient(circle, rgba(122,92,255,0.35) 0%, rgba(122,92,255,0) 70%)`,
                     width: `${item.energy * 0.5 + 40}px`,
                     height: `${item.energy * 0.5 + 40}px`,
                     left: `-${(item.energy * 0.5 + 40 - 40) / 2}px`,
@@ -227,9 +227,9 @@ export default function RadialOrbitalTimeline({
                   w-10 h-10 rounded-full flex items-center justify-center
                   ${
                     isExpanded
-                      ? "bg-white text-black"
+                      ? "bg-aurora-violet text-white shadow-ember"
                       : isRelated
-                      ? "bg-white/50 text-black"
+                      ? "bg-aurora-violet/60 text-white"
                       : "bg-black text-white"
                   }
                   border-2 
@@ -296,7 +296,7 @@ export default function RadialOrbitalTimeline({
                         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                           {/* Monochrome progress â€” whiteâ†’gray (was blueâ†’purple) */}
                           <div
-                            className="h-full bg-gradient-to-r from-white to-zinc-400"
+                            className="h-full bg-gradient-to-r from-aurora-violet to-aurora-magenta"
                             style={{ width: `${item.energy}%` }}
                           ></div>
                         </div>

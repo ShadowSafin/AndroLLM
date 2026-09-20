@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { MessageSquareText, Bug, BookOpen, GitFork, Heart, HandHeart } from "lucide-react";
 import { SectionHeading } from "@/components/marketing/section-heading";
@@ -122,7 +122,7 @@ export default function CommunityPage() {
           <Reveal>
             <div>
               <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400">Contributing</p>
-              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">Start small. Ship real.</h2>
+              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-aurora-lavender">Start small. Ship real.</h2>
               <p className="mt-4 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 The contributing guide covers the whole loop: fork, clone, branch, build, and open a PR. Try an
                 &ldquo;engine&rdquo; issue first — nothing beats watching your first token stream out of surrounding

@@ -39,10 +39,10 @@ export function AuroraBackground({
   }, []);
 
   const palette = {
-    parchment: ["#ffffff", "#e5e5e5", "#a3a3a3", "#737373"],
-    midnight: ["#262626", "#404040", "#525252", "#ffffff"],
-    ember: ["#171717", "#262626", "#525252", "#ffffff"],
-    dawn: ["#d4d4d4", "#e5e5e5", "#a3a3a3", "#ffffff"],
+    parchment: ["#7a5cff", "#9d85ff", "#cfc2ff", "#f25dff"],
+    midnight: ["#7a5cff", "#5b3fd6", "#9d85ff", "#f25dff"],
+    ember: ["#7a5cff", "#9d85ff", "#cfc2ff", "#f25dff"],
+    dawn: ["#cfc2ff", "#9d85ff", "#7a5cff", "#f25dff"],
   }[variant];
 
   return (

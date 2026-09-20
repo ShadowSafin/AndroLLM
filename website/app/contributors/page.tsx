@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Handshake } from "lucide-react";
 import { SectionHeading } from "@/components/marketing/section-heading";
 import { Reveal } from "@/animations/reveal";
@@ -49,7 +49,7 @@ export default function ContributorsPage() {
           <Reveal>
             <div>
               <p className="font-geist inline-flex items-center justify-center gap-2 rounded-3xl border-[2px] border-gray-300/20 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent px-5 py-2 text-sm tracking-tight uppercase text-gray-600 dark:border-white/5 dark:text-gray-400"><ScrambleText text="Standing on shoulders" /></p>
-              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-white/40">Upstream thanks</h2>
+              <h2 className="mt-3 text-balance bg-gradient-to-br from-black from-30% to-black/40 bg-clip-text font-geist text-3xl font-semibold leading-none tracking-tighter text-transparent dark:from-white dark:to-aurora-lavender">Upstream thanks</h2>
               <p className="mt-4 font-geist text-sm tracking-tight leading-relaxed text-gray-600 dark:text-gray-400">
                 The app binds to a stack that hundreds of maintainers keep alive. AndroLLM could not exist without
                 their years of work — and every one of those projects remains fully credited in the repo.
