@@ -257,6 +257,15 @@ export function Navbar() {
                   Docs
                 </MotionNavigationMenuLink>
               </MotionNavigationMenuItem>
+
+              <MotionNavigationMenuItem>
+                <MotionNavigationMenuLink
+                  href="/dashboard"
+                  className="flex h-9 items-center rounded-full px-3.5 py-2 font-geist text-sm font-medium tracking-tight text-white/70 hover:text-white hover:bg-white/10 data-[active=true]:bg-white/10 data-[active=true]:text-white"
+                >
+                  Dashboard
+                </MotionNavigationMenuLink>
+              </MotionNavigationMenuItem>
             </MotionNavigationMenuList>
           </MotionNavigationMenu>
         </div>

@@ -225,3 +225,9 @@ tools/proot-fetch/
 #   set QAIRT_ROOT=C:\Qualcomm\AIStack\QAIRT
 #   ./gradlew :imagegen:syncQnnRuntimeLibs
 
+# ---------------------------------------------------------------------------
+# Env templates (placeholders only, no secrets) — keep tracked
+# ---------------------------------------------------------------------------
+!.env.example
+!**/.env.example
+

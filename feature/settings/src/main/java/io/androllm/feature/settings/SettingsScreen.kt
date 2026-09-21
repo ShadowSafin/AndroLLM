@@ -249,6 +249,9 @@ fun SettingsScreen(
                         user = user,
                         onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) }
                     )
+                    WebDashboardConnectorCard(
+                        onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) }
+                    )
                 }
 
                 settingsAccordionItem(
@@ -871,6 +874,153 @@ private fun FirebaseAuthCard(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+}
+
+/**
+ * Phase 2 — Web Dashboard connector.
+ *
+ * Explicit opt-in linking: the user taps "Connect Web Dashboard", confirms in
+ * a dialog, and only then does the app call POST /auth/connect for the
+ * verified Firebase UID. No usage data is uploaded by connecting — it only
+ * unlocks future analytics sync (Phase 3) and the website dashboard (Phase 4).
+ */
+@Composable
+private fun WebDashboardConnectorCard(
+    onSignIn: () -> Unit,
+    viewModel: WebDashboardViewModel = hiltViewModel()
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Web Dashboard",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.ledger.deskPaper
+                        )
+                    )
+                    Text(
+                        text = when {
+                            !state.backendConfigured -> "Web sync is not configured in this build"
+                            !state.signedIn -> "Sign in to link this device to the web dashboard"
+                            state.connected -> "This device is linked to your web dashboard"
+                            else -> "Link this device to see your stats on the web"
+                        },
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.ledger.deskInk
+                        ),
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                CloudChip(
+                    text = when {
+                        !state.backendConfigured -> "Unavailable"
+                        !state.signedIn -> "Sign-in required"
+                        state.connected -> "Connected"
+                        else -> "Not connected"
+                    },
+                    accentColor = if (state.connected) MaterialTheme.ledger.lampDeep
+                    else MaterialTheme.ledger.deskInk
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Connecting allows future uploads of usage totals " +
+                    "(chat counts, token usage, latency). Nothing is uploaded " +
+                    "until you connect — local and cloud AI work the same either way.",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.ledger.deskInk
+                )
+            )
+            if (state.connected) {
+                val connectedAt = state.connectedAt
+                if (connectedAt != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Connected since ${connectedAt.take(10)}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.ledger.deskInk
+                        )
+                    )
+                }
+            }
+            val connectorError = state.error
+            if (connectorError != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = connectorError,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.error
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            when {
+                !state.backendConfigured -> Unit // Note above is enough.
+                !state.signedIn -> CloudCapsuleButton(
+                    text = "Sign in to connect",
+                    onClick = onSignIn,
+                    icon = Icons.Filled.AccountCircle,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                state.connected -> TextButton(
+                    onClick = { viewModel.disconnect() },
+                    enabled = !state.busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (state.busy) "Working…" else "Disconnect web dashboard")
+                }
+                else -> CloudCapsuleButton(
+                    text = if (state.busy) "Working…" else "Connect Web Dashboard",
+                    onClick = { viewModel.requestConnect() },
+                    enabled = !state.busy,
+                    icon = Icons.Filled.Insights,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+
+    if (state.showConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissConfirm() },
+            title = {
+                Text(
+                    text = "Connect Web Dashboard?",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Text(
+                    text = "This links your Firebase account to the AndroLLM web dashboard. " +
+                        "In the future the app may upload usage totals (number of chats, " +
+                        "token counts, model and latency stats) so the website can show " +
+                        "your analytics. No chat content is ever uploaded, and you can " +
+                        "disconnect at any time from this screen.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmConnect() }) {
+                    Text("Connect")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissConfirm() }) {
+                    Text("Not now")
+                }
+            }
+        )
     }
 }
 

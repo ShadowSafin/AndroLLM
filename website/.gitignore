@@ -17,8 +17,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# env
+# env (never commit real values; only .env.example is tracked)
+.env
 .env*.local
+# Firebase Admin / service-account keys must never live in the public repo
+service-account*.json
+*serviceAccount*.json
+*-key.json
 
 # vercel
 .vercel

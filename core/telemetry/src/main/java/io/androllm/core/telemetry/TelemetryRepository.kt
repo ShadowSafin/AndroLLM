@@ -75,6 +75,13 @@ class TelemetryRepository @Inject constructor(
     private var tickCount = 0
     private var lastStorage: io.androllm.core.utils.StorageStats? = null
 
+    /**
+     * Fired (best-effort, never throwing) after every completed generation is
+     * recorded. The app's sync layer hooks this to enqueue a debounced upload
+     * so local generations reach the backend within seconds.
+     */
+    var onGenerationRecorded: (() -> Unit)? = null
+
     init {
         // Track the loaded model name for generation history entries.
         scope.launch {
@@ -117,6 +124,7 @@ class TelemetryRepository @Inject constructor(
                 max = MAX_GENERATION_STATS
             )
         }
+        runCatching { onGenerationRecorded?.invoke() }
     }
 
     /**

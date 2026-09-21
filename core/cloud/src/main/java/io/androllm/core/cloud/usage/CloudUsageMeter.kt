@@ -68,6 +68,14 @@ class CloudUsageMeter(
     private var saveJob: Job? = null
     private var dirty = false
 
+    /**
+     * Fired (best-effort, never throwing) after every successfully recorded
+     * request. The app's sync layer hooks this to enqueue a debounced upload
+     * so cloud usage reaches the backend within seconds — the dashboard reads
+     * [snapshots], which is untouched by this callback.
+     */
+    var onRecorded: (() -> Unit)? = null
+
     /** Loads persisted state and publishes the first snapshot. Idempotent. */
     suspend fun init() {
         if (loaded) return
@@ -111,6 +119,7 @@ class CloudUsageMeter(
         }.onFailure { e ->
             Timber.w(e, "CloudUsageMeter: record failed — usage counters may lag")
         }
+        runCatching { onRecorded?.invoke() }
     }
 
     /** Convenience factory: builds a record with cost already estimated. */

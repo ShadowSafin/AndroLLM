@@ -109,7 +109,8 @@ internal val SettingsGroup.title: String
 internal val SettingsGroup.keywords: List<String>
     get() = when (this) {
         SettingsGroup.Account -> listOf(
-            "sign in", "google", "sync", "profile", "guest", "account", "firebase", "email"
+            "sign in", "google", "sync", "profile", "guest", "account", "firebase", "email",
+            "web dashboard", "connect", "link", "analytics", "website"
         )
         SettingsGroup.Appearance -> listOf(
             "text size", "density", "blur",

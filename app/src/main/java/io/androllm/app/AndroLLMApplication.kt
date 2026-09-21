@@ -39,6 +39,12 @@ class AndroLLMApplication : Application(), WorkConfiguration.Provider {
     @Inject
     lateinit var memoryBackgroundScheduler: MemoryBackgroundScheduler
 
+    @Inject
+    lateinit var analyticsSyncScheduler: io.androllm.app.sync.AnalyticsSyncScheduler
+
+    @Inject
+    lateinit var analyticsSyncTrigger: io.androllm.app.sync.AnalyticsSyncTrigger
+
     override val workManagerConfiguration: WorkConfiguration
         get() = WorkConfiguration.Builder().setWorkerFactory(workerFactory).build()
 
@@ -66,6 +72,15 @@ class AndroLLMApplication : Application(), WorkConfiguration.Provider {
         // Memory housekeeping — LAZY: WorkManager init is deferred; schedule only after first memory write or on next foreground
         // memoryBackgroundScheduler.schedule() deferred to MemoryRepository first write
         // Keep NPU env seeding on critical path (must be before first dlopen) — already done above
+
+        // Analytics sync — cheap unique-work enqueue (KEEP); the worker itself
+        // no-ops unless signed in AND web-connected. No data leaves the device before approval.
+        runCatching { analyticsSyncScheduler.schedule() }
+            .onFailure { Timber.w("[AnalyticsSync] schedule failed: ${it.message}") }
+        // Near-real-time path: each recorded request/generation enqueues a
+        // debounced upload (~8s), so the dashboard reflects usage in <10s.
+        runCatching { analyticsSyncTrigger.bind() }
+            .onFailure { Timber.w("[AnalyticsSync] trigger bind failed: ${it.message}") }
 
         registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {

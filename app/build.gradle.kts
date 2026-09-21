@@ -58,6 +58,14 @@ android {
             useSupportLibrary = true
         }
 
+        // Phase 1 identity: private backend base URL (e.g. https://api.androllm.app).
+        // Fed by ANDROLLM_BACKEND_URL env / Gradle property; empty = no backend.
+        // Never put secrets here — only the public base URL.
+        val backendUrl = System.getenv("ANDROLLM_BACKEND_URL")
+            ?: project.findProperty("ANDROLLM_BACKEND_URL")?.toString()
+            ?: ""
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
+
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -132,6 +140,7 @@ dependencies {
     implementation(project(":core:models"))
     implementation(project(":core:network"))
     implementation(project(":core:cloud"))
+    implementation(project(":core:telemetry"))
     implementation(project(":core:memory"))
     implementation(project(":core:voice"))
     implementation(project(":core:tools"))
@@ -191,6 +200,10 @@ dependencies {
     ksp("com.google.dagger:hilt-android-compiler:2.57.1")
     implementation(libs.androidx.hilt)
     ksp("androidx.hilt:hilt-compiler:1.2.0")
+
+    // WorkManager (analytics sync worker; same artifacts as core:memory)
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
     
     // Room
     implementation(libs.room.runtime)
