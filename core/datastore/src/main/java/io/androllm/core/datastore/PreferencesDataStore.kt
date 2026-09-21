@@ -67,6 +67,9 @@ class PreferencesDataStore @Inject constructor(
         val SYNC_LAST_CLOUD_RECORD_ID = stringPreferencesKey("sync_last_cloud_record_id")
         val SYNC_LAST_GENERATION_KEY = stringPreferencesKey("sync_last_generation_key")
         val SYNC_LAST_SNAPSHOT_BUCKET = stringPreferencesKey("sync_last_snapshot_bucket")
+        // Phase 3 revised — one backend sync session per UTC day per device.
+        val SYNC_SESSION_ID = stringPreferencesKey("sync_session_id")
+        val SYNC_SESSION_DAY = stringPreferencesKey("sync_session_day")
         // Prompt Studio settings
         val STUDIO_DEFAULT_TEMPLATE = stringPreferencesKey("studio_default_template")
         val STUDIO_AUTO_PREVIEW = booleanPreferencesKey("studio_auto_preview")
@@ -541,5 +544,23 @@ class PreferencesDataStore @Inject constructor(
 
     suspend fun setLastSnapshotBucket(bucket: String) {
         dataStore.edit { preferences -> preferences[Keys.SYNC_LAST_SNAPSHOT_BUCKET] = bucket }
+    }
+
+    /** Phase 3 revised — today's backend sync session (null when none open). */
+    val syncSessionId: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.SYNC_SESSION_ID]
+    }
+
+    val syncSessionDay: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.SYNC_SESSION_DAY]
+    }
+
+    suspend fun setSyncSession(id: String?, day: String?) {
+        dataStore.edit { preferences ->
+            if (id != null) preferences[Keys.SYNC_SESSION_ID] = id
+            else preferences.remove(Keys.SYNC_SESSION_ID)
+            if (day != null) preferences[Keys.SYNC_SESSION_DAY] = day
+            else preferences.remove(Keys.SYNC_SESSION_DAY)
+        }
     }
 }

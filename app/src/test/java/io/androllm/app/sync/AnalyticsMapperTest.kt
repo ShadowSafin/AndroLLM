@@ -105,8 +105,7 @@ class AnalyticsMapperTest {
     }
 
     @Test
-    fun `snapshot buckets are hourly and stable within the hour`() {
-        val hourMs = 3_600_000L
+    fun `snapshot buckets are hourly and stable within the hour`() {        val hourMs = 3_600_000L
         val base = 1_720_000_000_000L / hourMs * hourMs
         assertEquals(
             snapshotBucket(SourcePage.CLOUD_USAGE_DASHBOARD, base),
@@ -153,5 +152,14 @@ class AnalyticsMapperTest {
         val encoded = payload.toString()
         assertTrue(encoded.contains("Test Device"))
         assertTrue(encoded.contains("qwen3-0.6b"))
+    }
+
+    @Test
+    fun `utc day keys group a day and roll at midnight`() {
+        // 2026-09-21T13:00:00Z and 23:00 share a day; +11h rolls to the 22nd.
+        val day = 1_789_995_600_000L // 2026-09-21T13:00:00Z
+        assertEquals("2026-09-21", utcDayKey(day))
+        assertEquals("2026-09-21", utcDayKey(day + 10 * 3_600_000L))
+        assertEquals("2026-09-22", utcDayKey(day + 11 * 3_600_000L))
     }
 }

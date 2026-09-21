@@ -90,6 +90,12 @@ class AnalyticsSyncWorker @AssistedInject constructor(
         cloudUsageMeter.init()
         val device = buildDevice()
 
+        // ── Backend session: one per UTC day per device. Events and snapshots
+        // attach to it, so the dashboard's session counts/durations are real.
+        // The previous day's session is closed best-effort on rollover; the
+        // current one stays open (shown as Active) until then.
+        val sessionId = resolveSession(device)
+
         // ── Events: cloud records + local generations since the watermarks ──
         val lastCloudId = preferencesDataStore.lastCloudRecordId.first()
         val cloudRecords = cloudUsageMeter.snapshot().recentRecords
@@ -101,7 +107,8 @@ class AnalyticsSyncWorker @AssistedInject constructor(
         val newGenerations = if (lastGenKey == null) generations
         else generations.takeLastWhile { generationKey(it) != lastGenKey }
 
-        val events = (newCloud.map { it.toSyncEvent() } + newGenerations.map { it.toSyncEvent() })
+        val events = (newCloud.map { it.toSyncEvent().copy(sessionId = sessionId) } +
+            newGenerations.map { it.toSyncEvent().copy(sessionId = sessionId) })
             .take(SyncApi.MAX_BATCH_SIZE)
         if (events.isNotEmpty()) {
             when (val batch = syncApi.postBatch(EventsBatchRequest(device, events))) {
@@ -132,6 +139,7 @@ class AnalyticsSyncWorker @AssistedInject constructor(
                 sourcePage = io.androllm.core.network.identity.SourcePage.CLOUD_USAGE_DASHBOARD,
                 snapshotType = "dashboard_rollup",
                 snapshotId = "snap-$cloudBucket",
+                sessionId = sessionId,
                 payload = buildCloudSnapshotPayload(cloudUsageMeter.snapshot()),
             )
             val devSent = postSnapshot(
@@ -139,6 +147,7 @@ class AnalyticsSyncWorker @AssistedInject constructor(
                 sourcePage = io.androllm.core.network.identity.SourcePage.DEVELOPER_PAGE,
                 snapshotType = "telemetry_summary",
                 snapshotId = "snap-$devBucket",
+                sessionId = sessionId,
                 payload = buildDeveloperSnapshotPayload(
                     generations = telemetryRepository.generationHistory.value,
                     deviceMetrics = telemetryRepository.deviceMetrics.value,
@@ -151,14 +160,47 @@ class AnalyticsSyncWorker @AssistedInject constructor(
         }
     }
 
+    /**
+     * Returns today's backend session id, creating it (and closing any stale
+     * one from a previous day) as needed. Returns null when sessions are
+     * unavailable — callers must still upload events/snapshots without one.
+     */
+    private suspend fun resolveSession(device: SyncDevice): String? {
+        val today = utcDayKey(System.currentTimeMillis())
+        val storedId = preferencesDataStore.syncSessionId.first()
+        val storedDay = preferencesDataStore.syncSessionDay.first()
+        if (storedId != null && storedDay == today) return storedId
+        if (storedId != null) {
+            // Best-effort close of yesterday's session; a 404 (or any failure)
+            // just means there is nothing to close.
+            runCatching { syncApi.endSession(storedId) }
+        }
+        return when (val started = syncApi.startSession(device)) {
+            is IdentityResult.Success -> {
+                preferencesDataStore.setSyncSession(started.value.id, today)
+                started.value.id
+            }
+            is IdentityResult.Unauthorized -> null
+            is IdentityResult.Failure -> {
+                if (started.message == SyncApi.NOT_CONNECTED) {
+                    preferencesDataStore.setWebConnection(false, null)
+                } else {
+                    Timber.w("[AnalyticsSync] session start failed: ${started.message}")
+                }
+                null
+            }
+        }
+    }
+
     private suspend fun postSnapshot(
         device: SyncDevice,
         sourcePage: String,
         snapshotType: String,
         snapshotId: String,
+        sessionId: String?,
         payload: JsonObject,
     ): Boolean {
-        when (val res = syncApi.postSnapshot(SnapshotRequest(device, sourcePage, snapshotType, snapshotId, null, payload))) {
+        when (val res = syncApi.postSnapshot(SnapshotRequest(device, sourcePage, snapshotType, snapshotId, sessionId, payload))) {
             is IdentityResult.Success -> return true
             is IdentityResult.Unauthorized -> return false
             is IdentityResult.Failure -> {

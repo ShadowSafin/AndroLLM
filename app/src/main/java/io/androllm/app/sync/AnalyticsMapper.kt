@@ -35,6 +35,10 @@ private val HOUR_BUCKET_FORMAT: DateTimeFormatter =
 fun snapshotBucket(sourcePage: String, nowMs: Long): String =
     "$sourcePage:${HOUR_BUCKET_FORMAT.format(Instant.ofEpochMilli(nowMs))}"
 
+/** UTC calendar day (`2026-09-21`) — groups backend sync sessions, one per day per device. */
+fun utcDayKey(nowMs: Long): String =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(nowMs))
+
 fun cloudEventType(kind: CloudRequestKind): String = when (kind) {
     CloudRequestKind.CHAT -> "chat_completed"
     CloudRequestKind.EMBEDDING -> "embedding_completed"

@@ -89,6 +89,28 @@ data class SnapshotResponse(
     @SerialName("device_id") val deviceId: String? = null,
 )
 
+@Serializable
+data class SessionStartRequest(
+    val device: SyncDevice,
+    @SerialName("engine_type") val engineType: String? = null,
+    @SerialName("app_version") val appVersion: String? = null,
+    val platform: String? = null,
+    val metadata: JsonObject = JsonObject(emptyMap()),
+)
+
+@Serializable
+data class SessionEndRequest(
+    @SerialName("session_id") val sessionId: String,
+)
+
+@Serializable
+data class BackendSession(
+    val id: String,
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("ended_at") val endedAt: String? = null,
+    @SerialName("engine_type") val engineType: String? = null,
+)
+
 /**
  * Phase 3 (revised) — usage + snapshot ingestion client.
  *
@@ -163,6 +185,55 @@ class SyncApi(
         } catch (e: Exception) {
             Timber.w(e, "[Sync] snapshot failed")
             IdentityResult.Failure("snapshot failed: ${e.message}", e)
+        }
+    }
+
+    /** Open a backend usage session (one per day per device). Idempotent by day on the caller side. */
+    suspend fun startSession(device: SyncDevice): IdentityResult<BackendSession> {
+        if (!isConfigured) return IdentityResult.Failure("backend not configured")
+        val token = tokenOrUnauthorized() ?: return IdentityResult.Unauthorized("no id token")
+        return try {
+            val response = httpClient.post {
+                url("${trimmedBase()}/sessions/start")
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(SessionStartRequest(device = device))
+            }
+            when (response.status.value) {
+                in 200..299 -> IdentityResult.Success(response.body())
+                401 -> IdentityResult.Unauthorized()
+                403 -> IdentityResult.Failure(NOT_CONNECTED)
+                400 -> IdentityResult.Failure("invalid payload")
+                else -> IdentityResult.Failure("session start failed: HTTP ${response.status.value}")
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "[Sync] session start failed")
+            IdentityResult.Failure("session start failed: ${e.message}", e)
+        }
+    }
+
+    /** Close a backend usage session. Idempotent server-side; 404 means nothing to close. */
+    suspend fun endSession(sessionId: String): IdentityResult<BackendSession> {
+        if (!isConfigured) return IdentityResult.Failure("backend not configured")
+        val token = tokenOrUnauthorized() ?: return IdentityResult.Unauthorized("no id token")
+        return try {
+            val response = httpClient.post {
+                url("${trimmedBase()}/sessions/end")
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(SessionEndRequest(sessionId))
+            }
+            when (response.status.value) {
+                in 200..299 -> IdentityResult.Success(response.body())
+                401 -> IdentityResult.Unauthorized()
+                403 -> IdentityResult.Failure(NOT_CONNECTED)
+                404 -> IdentityResult.Failure("session not found")
+                400 -> IdentityResult.Failure("invalid payload")
+                else -> IdentityResult.Failure("session end failed: HTTP ${response.status.value}")
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "[Sync] session end failed")
+            IdentityResult.Failure("session end failed: ${e.message}", e)
         }
     }
 }
