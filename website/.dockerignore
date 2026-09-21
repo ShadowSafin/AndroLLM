@@ -1,20 +1,15 @@
-# Dependencies
 node_modules
-
-# Next.js build output
 .next
 out
-tsconfig.tsbuildinfo
-
-# Logs and local env
-*.log
+dist
+coverage
 .env
 .env.*
-!.env.example
-
-# VCS and editor cruft
+*.local
+npm-debug.log*
+.vercel
 .git
 .gitignore
-.github
-.idea
-.vscode
+Dockerfile
+.dockerignore
+README.md

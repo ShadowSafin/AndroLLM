@@ -57,6 +57,16 @@ class PreferencesDataStore @Inject constructor(
         val UI_DENSITY = stringPreferencesKey("ui_density")
         val CHAT_WALLPAPER = stringPreferencesKey("chat_wallpaper")
         val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
+        // Phase 2 — web dashboard connector. Display cache of the
+        // backend-driven `web_connected` state (source of truth stays
+        // server-side on the verified Firebase UID). Never gates sync.
+        val WEB_CONNECTED = booleanPreferencesKey("web_connected")
+        val WEB_CONNECTED_AT = stringPreferencesKey("web_connected_at")
+        // Phase 3 — analytics sync watermarks (skip already-uploaded windows;
+        // server-side event_id/snapshot_id dedup is the real safety net).
+        val SYNC_LAST_CLOUD_RECORD_ID = stringPreferencesKey("sync_last_cloud_record_id")
+        val SYNC_LAST_GENERATION_KEY = stringPreferencesKey("sync_last_generation_key")
+        val SYNC_LAST_SNAPSHOT_BUCKET = stringPreferencesKey("sync_last_snapshot_bucket")
         // Prompt Studio settings
         val STUDIO_DEFAULT_TEMPLATE = stringPreferencesKey("studio_default_template")
         val STUDIO_AUTO_PREVIEW = booleanPreferencesKey("studio_auto_preview")
@@ -472,4 +482,64 @@ class PreferencesDataStore @Inject constructor(
      * Returns whether this is the first launch.
      */
     suspend fun isFirstLaunch(): Boolean = firstLaunch.first()
+
+    /**
+     * Phase 2 — last-known web-dashboard connection flag (display cache).
+     * The backend profile (`GET /me`) is the source of truth; this only lets
+     * the connector card render instantly/offline. Defaults to false so a
+     * fresh install can never look connected before explicit approval.
+     */
+    val webConnected: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[Keys.WEB_CONNECTED] ?: false
+    }
+
+    /** Phase 2 — ISO-8601 timestamp of the last-known connection, if any. */
+    val webConnectedAt: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.WEB_CONNECTED_AT]
+    }
+
+    /**
+     * Phase 2 — persists the last-known connection state after a backend
+     * round-trip (`POST /auth/connect`, `DELETE /auth/connect`, `GET /me`).
+     * Pass `connectedAt = null` when disconnecting.
+     */
+    suspend fun setWebConnection(connected: Boolean, connectedAt: String?) {
+        dataStore.edit { preferences ->
+            preferences[Keys.WEB_CONNECTED] = connected
+            if (connectedAt != null) {
+                preferences[Keys.WEB_CONNECTED_AT] = connectedAt
+            } else {
+                preferences.remove(Keys.WEB_CONNECTED_AT)
+            }
+        }
+    }
+
+    /**
+     * Phase 3 — analytics sync watermarks. Each records the newest item already
+     * handed to the backend so the next run uploads only what is new. Retries
+     * reuse the same stable ids, so server-side dedup catches anything sent twice.
+     */
+    val lastCloudRecordId: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.SYNC_LAST_CLOUD_RECORD_ID]
+    }
+
+    val lastGenerationKey: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.SYNC_LAST_GENERATION_KEY]
+    }
+
+    val lastSnapshotBucket: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[Keys.SYNC_LAST_SNAPSHOT_BUCKET]
+    }
+
+    suspend fun setLastCloudRecordId(id: String) {
+        dataStore.edit { preferences -> preferences[Keys.SYNC_LAST_CLOUD_RECORD_ID] = id }
+    }
+
+    suspend fun setLastGenerationKey(key: String) {
+        dataStore.edit { preferences -> preferences[Keys.SYNC_LAST_GENERATION_KEY] = key }
+    }
+
+    suspend fun setLastSnapshotBucket(bucket: String) {
+        dataStore.edit { preferences -> preferences[Keys.SYNC_LAST_SNAPSHOT_BUCKET] = bucket }
+    }
 }

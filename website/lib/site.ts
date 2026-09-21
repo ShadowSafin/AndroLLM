@@ -59,4 +59,5 @@ export const navigation = [
   { label: "Changelog", href: "/changelog" },
   { label: "Docs", href: "/docs" },
   { label: "Community", href: "/community" },
+  { label: "Dashboard", href: "/dashboard" },
 ];
