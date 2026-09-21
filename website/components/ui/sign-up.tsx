@@ -38,7 +38,7 @@ import type {
   Options as ConfettiOptions,
 } from "canvas-confetti";
 import confetti from "canvas-confetti";
-import { signInWithGitHub, signInWithGoogle } from "@/lib/firebase-client";
+import { signInWithGitHub, signInWithGoogle, signInWithRedirectFallback } from "@/lib/firebase-client";
 
 // --- CONFETTI ---
 type ConfettiApi = { fire: (options?: ConfettiOptions) => void };
@@ -348,6 +348,7 @@ export const AuthComponent = ({
 }: AuthComponentProps) => {
   const [status, setStatus] = useState<AuthStatus>("idle");
   const [provider, setProvider] = useState<"google" | "github" | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const confettiRef = useRef<ConfettiRef>(null);
 
@@ -372,6 +373,7 @@ export const AuthComponent = ({
   const signIn = async (which: "google" | "github") => {
     if (status === "working") return;
     setProvider(which);
+    setRedirecting(false);
     setErrorMessage("");
     setStatus("working");
     try {
@@ -379,6 +381,19 @@ export const AuthComponent = ({
       else await signInWithGitHub();
       finishSuccess();
     } catch (e) {
+      const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+      if (code === "auth/popup-blocked") {
+        // Brave / popup blockers: fall back to full-page redirect instead.
+        setRedirecting(true);
+        try {
+          await signInWithRedirectFallback(which);
+        } catch (redirectError) {
+          setRedirecting(false);
+          setErrorMessage(friendlyAuthError(redirectError));
+          setStatus("error");
+        }
+        return;
+      }
       setErrorMessage(friendlyAuthError(e));
       setStatus("error");
     }
@@ -387,6 +402,7 @@ export const AuthComponent = ({
   const reset = () => {
     setStatus("idle");
     setProvider(null);
+    setRedirecting(false);
     setErrorMessage("");
   };
 
@@ -468,7 +484,11 @@ export const AuthComponent = ({
             {status === "working" && (
               <p className="flex items-center gap-2 text-sm text-white/60">
                 <Loader className="h-4 w-4 animate-spin" />
-                {provider === "google" ? "Waiting for Google…" : "Waiting for GitHub…"}
+                {redirecting
+                  ? "Popup was blocked — redirecting to provider…"
+                  : provider === "google"
+                    ? "Waiting for Google…"
+                    : "Waiting for GitHub…"}
               </p>
             )}
             {status === "success" && (

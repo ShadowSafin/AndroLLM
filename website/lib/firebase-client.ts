@@ -10,9 +10,11 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
+  getRedirectResult,
   GoogleAuthProvider,
   GithubAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type Auth,
@@ -69,6 +71,33 @@ export async function signInWithGitHub(): Promise<User> {
   provider.addScope("user:email");
   const result = await signInWithPopup(firebaseAuth, provider);
   return result.user;
+}
+
+/**
+ * Redirect fallback for browsers that block popups (e.g. Brave Shields).
+ * Navigates away to the provider; Firebase restores the session on return —
+ * the auth-state subscriber picks the user up, no extra handling needed.
+ */
+export async function signInWithRedirectFallback(which: "google" | "github"): Promise<never> {
+  const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) throw new Error("Firebase is not configured (missing NEXT_PUBLIC_FIREBASE_* env).");
+  const provider =
+    which === "google" ? new GoogleAuthProvider() : (() => {
+      const p = new GithubAuthProvider();
+      p.addScope("read:user");
+      p.addScope("user:email");
+      return p;
+    })();
+  await signInWithRedirect(firebaseAuth, provider);
+  throw new Error("Redirecting to provider…");
+}
+
+/** Completes a redirect sign-in on return (lets auth errors surface). */
+export async function consumeRedirectResult(): Promise<User | null> {
+  const firebaseAuth = getFirebaseAuth();
+  if (!firebaseAuth) return null;
+  const result = await getRedirectResult(firebaseAuth).catch(() => null);
+  return result?.user ?? null;
 }
 
 export async function signOut(): Promise<void> {

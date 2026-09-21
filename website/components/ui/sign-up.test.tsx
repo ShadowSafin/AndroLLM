@@ -1,17 +1,20 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthComponent } from "./sign-up";
-import { signInWithGitHub, signInWithGoogle } from "@/lib/firebase-client";
+import { signInWithGitHub, signInWithGoogle, signInWithRedirectFallback } from "@/lib/firebase-client";
 
 vi.mock("@/lib/firebase-client", () => ({
   signInWithGoogle: vi.fn(),
   signInWithGitHub: vi.fn(),
+  signInWithRedirectFallback: vi.fn(),
+  consumeRedirectResult: vi.fn(),
 }));
 
 afterEach(() => cleanup());
 
 const googleMock = vi.mocked(signInWithGoogle);
 const githubMock = vi.mocked(signInWithGitHub);
+const redirectMock = vi.mocked(signInWithRedirectFallback);
 
 describe("AuthComponent (OAuth only)", () => {
   it("offers Google and GitHub with no manual email option", () => {
@@ -34,6 +37,21 @@ describe("AuthComponent (OAuth only)", () => {
       timeout: 3000,
     });
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledTimes(1), { timeout: 3000 });
+  });
+
+  it("falls back to redirect when the popup is blocked", async () => {
+    googleMock.mockRejectedValueOnce(Object.assign(new Error("blocked"), { code: "auth/popup-blocked" }));
+    redirectMock.mockImplementationOnce(() => new Promise(() => {}));
+    const onAuthenticated = vi.fn();
+    render(<AuthComponent onAuthenticated={onAuthenticated} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /google/i }));
+
+    await waitFor(() => expect(screen.getByText(/redirecting to provider/i)).toBeDefined(), {
+      timeout: 3000,
+    });
+    expect(redirectMock).toHaveBeenCalledWith("google");
+    expect(onAuthenticated).not.toHaveBeenCalled();
   });
 
   it("shows a friendly error when GitHub sign-in fails", async () => {
