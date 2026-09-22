@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AuthComponent } from "@/components/ui/sign-up";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Logo } from "@/components/logo";
 import { consumeRedirectResult, subscribeToAuthChanges } from "@/lib/firebase-client";
 
@@ -20,11 +21,13 @@ export function LoginScreen() {
   }, [router]);
 
   return (
-    <AuthComponent
-      logo={<Logo compact />}
-      brandName="AndroLLM"
-      redirectTo="/dashboard"
-      onAuthenticated={() => router.push("/dashboard")}
-    />
+    <ErrorBoundary>
+      <AuthComponent
+        logo={<Logo compact />}
+        brandName="AndroLLM"
+        redirectTo="/dashboard"
+        onAuthenticated={() => router.push("/dashboard")}
+      />
+    </ErrorBoundary>
   );
 }

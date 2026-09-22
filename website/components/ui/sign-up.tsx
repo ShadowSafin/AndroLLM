@@ -132,7 +132,7 @@ export function TextLoop({
   };
   return (
     <div className={cn("relative inline-block whitespace-nowrap", className)}>
-      <AnimatePresence mode="popLayout" initial={false}>
+      <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={currentIndex}
           initial="initial"
