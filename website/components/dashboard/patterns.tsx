@@ -256,19 +256,28 @@ export function AppVersionChart({ versions }: { versions: AppVersionRow[] }) {
 }
 
 export function SuccessRateChart({ perDay }: { perDay: DayRow[] }) {
-  const data = perDay.map((d) => ({
-    label: dayLabel(d.day),
-    rate: d.events > 0 ? (100 * d.successes) / d.events : null,
-  }));
+  const data = perDay
+    .filter((d) => d.events > 0)
+    .map((d) => ({
+      label: dayLabel(d.day),
+      rate: d.events > 0 ? (100 * d.successes) / d.events : null,
+    }));
+  if (data.length === 0) {
+    return (
+      <Panel title="Success rate" desc="Share of successful events per day">
+        <Empty what="measured days" />
+      </Panel>
+    );
+  }
   return (
-    <Panel title="Success rate" desc="Share of successful events per day">
+    <Panel title="Success rate" desc="Share of successful events per measured day">
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ left: -8, right: 8 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="label" tick={TICK} tickLine={false} axisLine={false} minTickGap={24} />
           <YAxis tick={TICK} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
           <Tooltip contentStyle={TOOLTIP} formatter={(v) => (v === null ? "—" : `${Number(v).toFixed(1)}%`)} />
-          <Line type="monotone" dataKey="rate" name="Success %" stroke={LOCAL} strokeWidth={2} dot={false} connectNulls />
+          <Line type="monotone" dataKey="rate" name="Success %" stroke={LOCAL} strokeWidth={2} dot={{ r: 3 }} connectNulls />
         </LineChart>
       </ResponsiveContainer>
     </Panel>
@@ -276,16 +285,25 @@ export function SuccessRateChart({ perDay }: { perDay: DayRow[] }) {
 }
 
 export function TtftChart({ perDay }: { perDay: DayRow[] }) {
-  const data = perDay.map((d) => ({ label: dayLabel(d.day), ttft: d.avg_ttft_ms }));
+  const data = perDay
+    .filter((d) => d.events > 0)
+    .map((d) => ({ label: dayLabel(d.day), ttft: d.avg_ttft_ms }));
+  if (data.length === 0) {
+    return (
+      <Panel title="First-token latency" desc="Average time to first token per day">
+        <Empty what="measured days" />
+      </Panel>
+    );
+  }
   return (
-    <Panel title="First-token latency" desc="Average time to first token per day">
+    <Panel title="First-token latency" desc="Average time to first token per measured day">
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ left: -8, right: 8 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="label" tick={TICK} tickLine={false} axisLine={false} minTickGap={24} />
           <YAxis tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(Number(v) / 100) / 10}k`} />
           <Tooltip contentStyle={TOOLTIP} formatter={(v) => (v === null ? "—" : `${Number(v).toLocaleString()} ms`)} />
-          <Line type="monotone" dataKey="ttft" name="First token (ms)" stroke={VIOLET} strokeWidth={2} dot={false} connectNulls />
+          <Line type="monotone" dataKey="ttft" name="First token (ms)" stroke={VIOLET} strokeWidth={2} dot={{ r: 3 }} connectNulls />
         </LineChart>
       </ResponsiveContainer>
     </Panel>

@@ -51,6 +51,10 @@ function Panel({ title, desc, children }: { title: string; desc: string; childre
   );
 }
 
+function Empty({ what }: { what: string }) {
+  return <p className="py-16 text-center text-sm text-gray-500">No {what} in this window.</p>;
+}
+
 export function DashboardChartsView({ charts }: { charts: { per_day: DayRow[]; models: ModelRow[] } }) {
   const perDay = charts.per_day.map((d) => ({
     ...d,
@@ -131,16 +135,25 @@ export function DashboardChartsView({ charts }: { charts: { per_day: DayRow[]; m
         )}
       </Panel>
 
-      <Panel title="Latency" desc="Average generation latency per day">
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={perDay} margin={{ left: -8, right: 8 }}>
-            <CartesianGrid stroke={GRID} vertical={false} />
-            <XAxis dataKey="label" tick={TICK} tickLine={false} axisLine={false} minTickGap={24} />
-            <YAxis tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(Number(v) / 100) / 10}k`} />
-            <Tooltip contentStyle={TOOLTIP} formatter={(v) => `${Number(v).toLocaleString()} ms`} />
-            <Line type="monotone" dataKey="avg_latency_ms" name="Avg latency (ms)" stroke={LOCAL} strokeWidth={2} dot={false} connectNulls />
-          </LineChart>
-        </ResponsiveContainer>
+      <Panel title="Latency" desc="Average generation latency per measured day">
+        {(() => {
+          // A line needs measured points: 89 null days + 1 value renders as
+          // nothing, so sparse histories show only days with events.
+          const measured = perDay.filter((d) => d.events > 0);
+          return measured.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={measured} margin={{ left: -8, right: 8 }}>
+                <CartesianGrid stroke={GRID} vertical={false} />
+                <XAxis dataKey="label" tick={TICK} tickLine={false} axisLine={false} minTickGap={24} />
+                <YAxis tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(Number(v) / 100) / 10}k`} />
+                <Tooltip contentStyle={TOOLTIP} formatter={(v) => `${Number(v).toLocaleString()} ms`} />
+                <Line type="monotone" dataKey="avg_latency_ms" name="Avg latency (ms)" stroke={LOCAL} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <Empty what="latency samples" />
+          );
+        })()}
       </Panel>
 
       <Panel title="Failures" desc="Failed generations per day">
