@@ -39,6 +39,15 @@ fun snapshotBucket(sourcePage: String, nowMs: Long): String =
 fun utcDayKey(nowMs: Long): String =
     DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(nowMs))
 
+/**
+ * True when a batch result shows the attached session is unknown to the
+ * backend (fresh database, wiped server state). The caller must drop the
+ * cached session id and retry once with a newly created session — already
+ * accepted events dedupe, so the retry is safe.
+ */
+fun hasSessionRejection(rejected: List<io.androllm.core.network.identity.BatchRejection>): Boolean =
+    rejected.any { (it.reason ?: "").contains("session_id") }
+
 fun cloudEventType(kind: CloudRequestKind): String = when (kind) {
     CloudRequestKind.CHAT -> "chat_completed"
     CloudRequestKind.EMBEDDING -> "embedding_completed"

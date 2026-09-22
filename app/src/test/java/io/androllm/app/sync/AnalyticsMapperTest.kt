@@ -155,11 +155,29 @@ class AnalyticsMapperTest {
     }
 
     @Test
-    fun `utc day keys group a day and roll at midnight`() {
-        // 2026-09-21T13:00:00Z and 23:00 share a day; +11h rolls to the 22nd.
+    fun `utc day keys group a day and roll at midnight`() {        // 2026-09-21T13:00:00Z and 23:00 share a day; +11h rolls to the 22nd.
         val day = 1_789_995_600_000L // 2026-09-21T13:00:00Z
         assertEquals("2026-09-21", utcDayKey(day))
         assertEquals("2026-09-21", utcDayKey(day + 10 * 3_600_000L))
         assertEquals("2026-09-22", utcDayKey(day + 11 * 3_600_000L))
+    }
+
+    @Test
+    fun `session rejections are detected for self-healing retry`() {
+        assertTrue(
+            hasSessionRejection(
+                listOf(
+                    io.androllm.core.network.identity.BatchRejection(0, "e1", "unknown or foreign session_id"),
+                )
+            )
+        )
+        assertFalse(
+            hasSessionRejection(
+                listOf(
+                    io.androllm.core.network.identity.BatchRejection(0, "e1", "tokens_input: too small"),
+                )
+            )
+        )
+        assertFalse(hasSessionRejection(emptyList()))
     }
 }

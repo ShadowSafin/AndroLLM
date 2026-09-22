@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthComponent } from "./sign-up";
 import { signInWithGitHub, signInWithGoogle, signInWithRedirectFallback } from "@/lib/firebase-client";
 
@@ -11,6 +11,10 @@ vi.mock("@/lib/firebase-client", () => ({
 }));
 
 afterEach(() => cleanup());
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 const googleMock = vi.mocked(signInWithGoogle);
 const githubMock = vi.mocked(signInWithGitHub);
@@ -63,5 +67,18 @@ describe("AuthComponent (OAuth only)", () => {
 
     await waitFor(() => expect(screen.getByText(/window was closed/i)).toBeDefined(), { timeout: 3000 });
     expect(onAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it("ignores rapid double-clicks so only one popup opens", async () => {
+    googleMock.mockImplementationOnce(() => new Promise(() => {}));
+    render(<AuthComponent onAuthenticated={() => {}} />);
+
+    const button = screen.getByRole("button", { name: /google/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(googleMock).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(googleMock).toHaveBeenCalledTimes(1);
   });
 });

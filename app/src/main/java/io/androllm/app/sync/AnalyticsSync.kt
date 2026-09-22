@@ -94,7 +94,7 @@ class AnalyticsSyncWorker @AssistedInject constructor(
         // attach to it, so the dashboard's session counts/durations are real.
         // The previous day's session is closed best-effort on rollover; the
         // current one stays open (shown as Active) until then.
-        val sessionId = resolveSession(device)
+        var sessionId = resolveSession(device)
 
         // ── Events: cloud records + local generations since the watermarks ──
         val lastCloudId = preferencesDataStore.lastCloudRecordId.first()
@@ -107,24 +107,30 @@ class AnalyticsSyncWorker @AssistedInject constructor(
         val newGenerations = if (lastGenKey == null) generations
         else generations.takeLastWhile { generationKey(it) != lastGenKey }
 
-        val events = (newCloud.map { it.toSyncEvent().copy(sessionId = sessionId) } +
-            newGenerations.map { it.toSyncEvent().copy(sessionId = sessionId) })
+        val baseEvents = (newCloud.map { it.toSyncEvent() } + newGenerations.map { it.toSyncEvent() })
             .take(SyncApi.MAX_BATCH_SIZE)
-        if (events.isNotEmpty()) {
-            when (val batch = syncApi.postBatch(EventsBatchRequest(device, events))) {
-                is IdentityResult.Success -> {
-                    Timber.d("[AnalyticsSync] batch accepted=${batch.value.accepted} dup=${batch.value.duplicates}")
+        if (baseEvents.isNotEmpty()) {
+            var outcome = postBatchEvents(device, baseEvents, sessionId)
+            if (outcome == BatchOutcome.SessionStale && sessionId != null) {
+                // The cached session is unknown to the backend (fresh/wiped
+                // database). Drop it, open a new one, and retry once — already
+                // accepted events dedupe by event_id, so this is safe.
+                Timber.w("[AnalyticsSync] cached session unknown to backend, retrying with a fresh one")
+                preferencesDataStore.setSyncSession(null, null)
+                sessionId = resolveSession(device)
+                outcome = postBatchEvents(device, baseEvents, sessionId)
+            }
+            when (outcome) {
+                BatchOutcome.Uploaded -> {
                     newCloud.firstOrNull()?.let { preferencesDataStore.setLastCloudRecordId(it.id) }
                     newGenerations.lastOrNull()?.let { preferencesDataStore.setLastGenerationKey(generationKey(it)) }
                 }
-                is IdentityResult.Unauthorized -> return
-                is IdentityResult.Failure -> {
-                    if (batch.message == SyncApi.NOT_CONNECTED) {
-                        preferencesDataStore.setWebConnection(false, null)
-                        return
-                    }
-                    throw IllegalStateException("batch upload failed: ${batch.message}")
-                }
+                BatchOutcome.Unauthorized, BatchOutcome.NotConnected -> return
+                // Still stale after a fresh session (shouldn't happen) or a
+                // plain failure: retry the whole run later with backoff.
+                is BatchOutcome.Failed -> throw IllegalStateException("batch upload failed: ${outcome.message}")
+                BatchOutcome.SessionStale ->
+                    throw IllegalStateException("batch upload failed: session still unknown after refresh")
             }
         }
 
@@ -156,6 +162,42 @@ class AnalyticsSyncWorker @AssistedInject constructor(
             )
             if (cloudSent && devSent) {
                 preferencesDataStore.setLastSnapshotBucket("$cloudBucket|$devBucket")
+            }
+        }
+    }
+
+    /**
+     * Outcome of one batch post, normalized so callers handle auth, gating,
+     * and stale sessions without re-reading HTTP semantics.
+     */
+    private sealed interface BatchOutcome {
+        data object Uploaded : BatchOutcome
+        data object Unauthorized : BatchOutcome
+        data object NotConnected : BatchOutcome
+        /** The attached session is unknown to the backend — refresh and retry once. */
+        data object SessionStale : BatchOutcome
+        data class Failed(val message: String) : BatchOutcome
+    }
+
+    private suspend fun postBatchEvents(
+        device: SyncDevice,
+        baseEvents: List<io.androllm.core.network.identity.SyncEvent>,
+        sessionId: String?,
+    ): BatchOutcome {
+        val events = if (sessionId == null) baseEvents else baseEvents.map { it.copy(sessionId = sessionId) }
+        return when (val batch = syncApi.postBatch(EventsBatchRequest(device, events))) {
+            is IdentityResult.Success -> {
+                Timber.d("[AnalyticsSync] batch accepted=${batch.value.accepted} dup=${batch.value.duplicates}")
+                if (hasSessionRejection(batch.value.rejected)) BatchOutcome.SessionStale
+                else BatchOutcome.Uploaded
+            }
+            is IdentityResult.Unauthorized -> BatchOutcome.Unauthorized
+            is IdentityResult.Failure -> when (batch.message) {
+                SyncApi.NOT_CONNECTED -> {
+                    preferencesDataStore.setWebConnection(false, null)
+                    BatchOutcome.NotConnected
+                }
+                else -> BatchOutcome.Failed(batch.message)
             }
         }
     }

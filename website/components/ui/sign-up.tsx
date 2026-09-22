@@ -219,22 +219,19 @@ export interface GlassButtonProps
 }
 const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
   ({ className, children, size, contentClassName, onClick, ...props }, ref) => {
-    const handleWrapperClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      const button = e.currentTarget.querySelector("button");
-      if (button && e.target !== button) button.click();
-    };
+    // Single native button: wrapper, control, and shadow all in one element
+    // so a click can never double-fire (the old div>button forwarder fired
+    // twice when the click landed on the icon/text spans).
     return (
-      <div className={cn("glass-button-wrap relative cursor-pointer rounded-full", className)} onClick={handleWrapperClick}>
-        <button
-          className={cn("glass-button relative z-10 w-full", glassButtonVariants({ size }))}
-          ref={ref}
-          onClick={onClick}
-          {...props}
-        >
-          <span className={cn(glassButtonTextVariants({ size }), contentClassName)}>{children}</span>
-        </button>
-        <div className="glass-button-shadow pointer-events-none rounded-full"></div>
-      </div>
+      <button
+        className={cn("glass-button-wrap", "glass-button", "relative z-10", glassButtonVariants({ size }), className)}
+        ref={ref}
+        onClick={onClick}
+        {...props}
+      >
+        <span className={cn(glassButtonTextVariants({ size }), contentClassName)}>{children}</span>
+        <span className="glass-button-shadow pointer-events-none rounded-full" aria-hidden />
+      </button>
     );
   },
 );
@@ -351,6 +348,9 @@ export const AuthComponent = ({
   const [redirecting, setRedirecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const confettiRef = useRef<ConfettiRef>(null);
+  // Synchronous in-flight guard: React state updates async, so two clicks in
+  // the same tick would otherwise both pass the status check → two popups.
+  const busyRef = useRef(false);
 
   const celebrate = () => {
     const fire = confettiRef.current?.fire;
@@ -371,7 +371,8 @@ export const AuthComponent = ({
   };
 
   const signIn = async (which: "google" | "github") => {
-    if (status === "working") return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setProvider(which);
     setRedirecting(false);
     setErrorMessage("");
@@ -381,6 +382,7 @@ export const AuthComponent = ({
       else await signInWithGitHub();
       finishSuccess();
     } catch (e) {
+      busyRef.current = false;
       const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
       if (code === "auth/popup-blocked") {
         // Brave / popup blockers: fall back to full-page redirect instead.
@@ -400,6 +402,7 @@ export const AuthComponent = ({
   };
 
   const reset = () => {
+    busyRef.current = false;
     setStatus("idle");
     setProvider(null);
     setRedirecting(false);
@@ -417,7 +420,7 @@ export const AuthComponent = ({
             .glass-button-text { color: oklch(from #fff l c h / 90%); text-shadow: 0em 0.25em 0.05em oklch(from #fff l c h / 10%); transition: all var(--anim-time) var(--anim-ease); }
             .glass-button:hover .glass-button-text { text-shadow: 0.025em 0.025em 0.025em oklch(from #fff l c h / 12%); }
             .glass-button::after { content: ""; position: absolute; z-index: 1; inset: 0; border-radius: 9999px; width: calc(100% + var(--border-width)); height: calc(100% + var(--border-width)); top: calc(0% - var(--border-width) / 2); left: calc(0% - var(--border-width) / 2); padding: var(--border-width); box-sizing: border-box; background: conic-gradient(from var(--angle-1, -75deg) at 50% 50%, oklch(from #fff l c h / 50%) 0%, transparent 5% 40%, oklch(from #fff l c h / 50%) 50%, transparent 60% 95%, oklch(from #fff l c h / 50%) 100%), linear-gradient(180deg, oklch(from #000 l c h / 50%), oklch(from #000 l c h / 50%)); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; transition: all var(--anim-time) var(--anim-ease); box-shadow: inset 0 0 0 calc(var(--border-width) / 2) oklch(from #000 l c h / 50%); pointer-events: none; }
-            .glass-button-wrap:has(.glass-button:active) .glass-button-text { text-shadow: 0.025em 0.25em 0.05em oklch(from #fff l c h / 12%); }
+            .glass-button-wrap:active .glass-button-text { text-shadow: 0.025em 0.25em 0.05em oklch(from #fff l c h / 12%); }
             @media (hover: none) and (pointer: coarse) { .glass-button::after { --angle-1: -75deg; } }
         `}</style>
 
