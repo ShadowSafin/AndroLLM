@@ -20,10 +20,20 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * The single, provider-independent public surface of the persistent memory
- * subsystem. The app (chat, settings, developer) depends ONLY on this
- * interface — nothing here knows about a chat model, an embedding model or a
- * provider. Memory is an application capability; inference providers and
- * embedding engines are interchangeable implementations behind it.
+ * subsystem — the unified memory layer every model adapter calls.
+ *
+ * Local LiteRT generation ([ChatViewModel] local path), cloud generation
+ * ([ChatViewModel] cloud path via [CloudGateway], [ChatManager] voice path
+ * for both providers) all use the same three calls:
+ * - [buildContext] before generation (retrieve + inject),
+ * - [processExchange] after the response (extract + persist/update),
+ * - [retrieve] for direct lookups.
+ *
+ * Nothing here knows about a chat model, an embedding model, or a provider.
+ * Memory is an application capability: facts are stored as plain natural
+ * language, so a memory written while chatting with one model is retrieved
+ * and injected identically for any other model, across sessions and restarts.
+ * All calls are best-effort — a memory failure never breaks chat.
  */
 interface MemoryManager {
 
@@ -46,7 +56,13 @@ interface MemoryManager {
         topK: Int? = null
     ): Result<List<MemorySearchResult>>
 
-    /** Memories + summaries formatted for injection into the system prompt. */
+    /**
+     * Memories + summaries formatted for injection into the system prompt.
+     * Call before EVERY generation (local and cloud) with the latest user
+     * message; inject [MemoryContext.systemText] as a `system` message ahead
+     * of history. Never throws — returns empty context when memory is
+     * disabled, empty, or unavailable so chat continues normally.
+     */
     suspend fun buildContext(
         userQuery: String,
         filters: MemorySearchFilters = MemorySearchFilters(),
@@ -54,9 +70,31 @@ interface MemoryManager {
         topK: Int? = null
     ): MemoryContext
 
+    /**
+     * Compact variant for token-constrained cloud models: identical retrieval,
+     * but [MemoryContext.systemText] is compressed to [maxChars].
+     * Local models use the full block; small-context cloud models pass ~1500.
+     */
+    suspend fun buildCompactContext(
+        userQuery: String,
+        filters: MemorySearchFilters = MemorySearchFilters(),
+        conversationId: String? = null,
+        topK: Int? = null,
+        maxChars: Int = 1500
+    ): MemoryContext {
+        val full = buildContext(userQuery, filters, conversationId, topK)
+        if (full.systemText.length <= maxChars) return full
+        return full.copy(systemText = full.systemText.take(maxChars))
+    }
+
     // ── Write pipeline ──
 
-    /** Post-response pipeline: extract → (embed) → update-or-insert → summarize. */
+    /**
+     * Post-response pipeline: extract → (embed) → update-or-insert → summarize.
+     * Call after EVERY response (local and cloud) with the finished exchange.
+     * Persists preferences, stable facts, project context, decisions, and
+     * tasks; ignores noise/filler; updates (never duplicates) on correction.
+     */
     suspend fun processExchange(exchange: MemoryExchange): Result<MemoryWriteSummary>
 
     /** Manually adds a memory (settings UI / pinning flows). */

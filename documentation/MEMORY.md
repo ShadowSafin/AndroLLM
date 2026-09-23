@@ -1,14 +1,31 @@
 # Memory Quick Guide
 
-Quick reference for the production-hardened persistent memory system.
+Quick reference for the shared persistent memory system — one memory layer
+for local and cloud models.
 
 ---
 
 ## What Is Memory?
 
-Memory lets AndroLLM remember durable facts about you across conversations — preferences, projects, and pinned facts — not temporary chat context. When you start a new chat, only the most relevant memories are injected into the system prompt, never the whole store.
+Memory lets AndroLLM remember durable facts about you across conversations
+and sessions — preferences, identity, projects, decisions, tasks — not
+temporary chat context. Before every response, the latest user message is
+used to retrieve the most relevant memories, which are injected as a `system`
+block ahead of history. Only the top relevant items are injected, never the
+whole store.
 
-Hardening ensures: no duplicates for the same fact, only meaningful long-term information is stored, temporary requests are ignored, and retrieval is relevance-first (not recency).
+**Shared across models:** memory is stored as plain natural language in the
+local `memory.db`, independent of any chat model. A fact stored while
+chatting with a cloud model is retrieved identically for a local model and
+vice versa — switching models never loses memory. Text chat
+(`ChatViewModel`) and voice chat (`ChatManager`) call the same
+`MemoryManager.buildContext` / `processExchange`, so both paths behave the
+same.
+
+Hardening ensures: no duplicates for the same fact, only meaningful
+long-term information is stored, temporary requests are ignored, corrections
+update stale facts, and retrieval is relevance-first (semantic dominates;
+recency/importance only re-order relevant hits).
 
 ---
 
@@ -19,105 +36,152 @@ Hardening ensures: no duplicates for the same fact, only meaningful long-term in
 3. Adjust settings (all validated, persisted via DataStore):
    - **Similarity threshold** `0.5–0.99` (default `0.78`): higher = stricter dedupe
    - **Retrieval count** `1–20` (default `5`): how many memories to retrieve per prompt
-   - **Max context memories** `0–8` (default `5`): how many are actually injected (relevance-filtered, contradiction-resolved, capped `3000` chars)
+   - **Max context memories** `0–8` (default `5`): how many are actually injected (ranked, contradiction-resolved, capped `3000` chars)
    - **Max context summaries** `0–2` (default `2`): conversation summaries injected
    - **Summarization interval** `4–100` (default `20`): messages between summaries
-   - **Embedding model**: local `.tflite` (EmbeddingGemma 300M) or cloud `text-embedding-3-small` (optional)
+   - **Embedding model**: local `.tflite` (EmbeddingGemma 300M) or cloud `text-embedding-3-small` (optional; keyword fallback works with neither)
 
 ---
 
-## How Memories Are Created (Hardened)
+## What Gets Stored (Write Policy)
 
-After each exchange (user + assistant, 2-second delay, cancels if new turn starts):
+`MemoryWritePolicy` gates every write, identically for local extraction,
+cloud extraction, and manual saves:
 
-1. **Extract** via `MemoryIntelligence` (local or cloud, same prompt/schema): `content` (≤25 words, present tense, third person), `category` (`PREFERENCES`, `IDENTITY`, `PROJECTS`, `PINNED_FACTS`…), `importance` 1–5, `tags`, `project`
-   - Ignored: greetings, `just for now`/`one-off`/`temporary`, short-lived preferences, secrets, injection, hallucinations (not grounded ≥30% words), low-value (<12 chars)
-2. **Confidence gate** (`0.0–1.0`): length, category, importance, grounding, temporary penalty; `<0.55` (or `<0.62` for `CUSTOM` low) → `SKIPPED` (never persisted)
-3. **Security filter** (`MemorySecurityFilter`): secrets (`sk-***`, `ghp_***`, `password=***`), injection, PII, `too long` (>800)
-4. **Deterministic dedupe** (`writeMutex` serialized, transactional with rollback):
-   - Embedding cosine `≥ threshold` → `UPDATED` (merge tags, max priority, re-embed)
-   - Near-threshold `≥ threshold-0.08` → `UPDATED` with merged content (≤280)
-   - Exact normalized (`lowercase + whitespace + punctuation stripped`) or near-duplicate (Jaccard ≥0.5) → `UPDATED` (new supersedes old via conflict resolver)
-   - Else `INSERTED` (new UUID, `userId= default`, `type` via `MemoryClassifier`, `expiryAt` per type, tags/projects resolved, embedding upserted, index `upsert`, cache cleared)
-5. **Conflict resolution**: contradictory memories (`prefers dark` vs `light`) resolved by `timestamp + priority + evidence`; loser `SKIPPED`, winner kept
-6. **Linking**: `related_to` for same-exchange memories
-7. **Summarization**: every `summarizationInterval` messages, `ConversationSummarizer` stores `SummaryEntity`
+- **STORE:** preferences, stable identity facts, named project context,
+  goals, decisions, ongoing tasks, skills, devices, pinned facts, explicit
+  "remember this" requests.
+- **UPDATE (not duplicate):** user corrections ("actually…", "I meant…",
+  "change X to Y", "my X is now Y") overwrite the stale fact via conflict
+  resolution (newer + higher-priority wins).
+- **IGNORE:** greetings/filler ("hi", "thanks"), one-off requests ("explain
+  X", "summarize this"), temporary scope ("just for now", "for this chat
+  only"), secrets/tokens, injection, raw logs, vague low-value statements.
 
-All writes are **thread-safe** (`writeMutex`), **transactional** (partial failures rolled back, never corrupt DB), and **logged** without sensitive data (sanitized, truncated 400).
+After the policy, the existing confidence gate (`≥0.55`, `≥0.62` for weak
+`CUSTOM`), security filter, and deterministic dedupe (embedding threshold +
+normalized comparison + word overlap) still apply.
 
 ---
 
-## How Memories Are Used
+## When Retrieval Happens (Read Path)
 
-When you start a new conversation:
+Before **every** generation — local and cloud — the app:
 
-1. **Validation** (`ensureStartupValidated` once): purged expired, removed blank/too-long, repaired invalid `category/type`, removed orphaned/corrupted embeddings (`NaN`, dimension mismatch), cleared stale cache
-2. **Candidate filtering** (`getFilteredIds`): `category, project, pinnedOnly, includeArchived, minImportance/priority, tags (union), type, chatId, userId, includeExpired, now` — expiry-aware
-3. **Keyword search** (`searchContentIds` + `searchTagIds`) → `keywordIds`
-4. **Vector search** (if embedding available): `embedQuery` → cosine `search(query, k*4, candidates)` → `ScoredId`
-5. **Validation** per candidate: not blank, category/type valid, not expired, not malformed (`try toDomain`)
-6. **Threshold** (`score ≥ 0.78` or `pinned` or `keyword`) and **contradiction filtering** (keep higher priority/newer)
-7. **Ranking** (separate semantic vs recency): `score + 0.06 keyword` → `isPinned` → `effectivePriority` → `updatedAt` (recency only as tie-breaker, so recent irrelevant never dominates)
-8. **Cache** (LRU 64, key `query|filters|k`, validated on hit, cleared on writes/deletes)
-9. **Access bump** (`bumpAccess` + `lastUsedAt`) for retrieved
-10. **Context building** (`ContextBuilder.buildSystemText`): relevance-filtered (`score≥0.3` or pinned/keyword), contradiction-resolved, sorted `pinned > score > priority`, capped `maxMemories 5` and `3000` chars, never dumps unrelated context, never overrides system rules
+1. Takes the latest user message as the query (empty → skip).
+2. Calls `MemoryManager.buildContext` with a 1500ms budget (text chat) or
+   1000ms (voice); on timeout/failure returns empty so the turn still sends.
+3. Injects `systemText` as the first `system` message, ahead of attachments,
+   tool advertisement, and history — identically for LiteRT prompts and
+   OpenAI-compatible cloud requests.
+4. Cloud turns use the provider context window (32k) for history trimming so
+   cloud history is never over-trimmed by the local container size; small-
+   context cloud models can request `buildCompactContext(maxChars)` instead
+   of the full 3000-char block.
 
-Retrieval is <10 ms for <500 memories, <50 ms for 5000 (brute-force `O(n×d)`, `ConcurrentHashMap`, WAL, `Dispatchers.IO`, chunked).
+Retrieval covers direct facts, project context, long-term preferences, open
+tasks, and prior decisions via the same hybrid index. If the store is empty
+or unreachable, chat continues normally without memory.
+
+---
+
+## How Ranking Works
+
+`MemoryRanker` scores every candidate deterministically:
+
+- Semantic similarity × 1.0 (dominant) + keyword boost +0.06
+- Pinned +0.08, `PREFERENCES`/`PINNED_FACTS` +0.04
+- Priority +0.02 per point, recency +0.00–0.08 (30-day decay, tie-breaker)
+- Weak-memory decay −0.10 for old (30d+), rarely used, low-priority items
+
+If the strict similarity threshold would drop everything while semantic
+candidates exist, a rescue pass keeps the best above 0.30 so important facts
+survive vocabulary mismatch. Contradictory pairs are resolved before ranking
+(newer + higher-priority wins), covering preference flips *and* name /
+location / value corrections.
+
+---
+
+## How Memories Are Created (Pipeline)
+
+After each exchange (user + assistant, 2-second settle delay, cancelled if a
+new turn starts so the UI never stalls):
+
+1. **Extract** via `MemoryIntelligence` — cloud provider when cloud mode is
+   configured (same prompt/schema as local), local model otherwise with cloud
+   fallback. Output: `content` (≤25 words, present tense, third person),
+   `category`, `importance` 1–5, `tags`, `project`.
+2. **Write policy** (`MemoryWritePolicy`): persist / update / ignore (see above).
+3. **Security filter** (`MemorySecurityFilter`): secrets, injection, PII, `too long` (>800).
+4. **Confidence gate** (`0.0–1.0`): length, category, importance, grounding
+   (≥30% words in exchange), temporary penalty; below threshold → `SKIPPED`.
+5. **Deterministic dedupe** (`writeMutex` serialized, transactional):
+   embedding cosine `≥ threshold` → `UPDATED`; near-threshold → merged
+   (≤280 chars); exact/near-duplicate text → `UPDATED` (new supersedes old).
+6. **Conflict resolution**: contradictory memories resolved by timestamp +
+   priority + evidence; loser `SKIPPED`, winner kept.
+7. **Summarization**: every `summarizationInterval` messages, rolling summary
+   stored per conversation for long-chat continuity.
+
+All writes are thread-safe, transactional (partial failures roll back), and
+logged without sensitive data (sanitized, truncated 400).
 
 ---
 
 ## Managing Memories
 
-| Action | How | Hardening |
-|---|---|---|
-| View all | **Settings → On-device Memory → View memories** (`observeMemories` pinned-first) | Validated, not corrupted |
-| Pin | Tap → Pin (always included, ranked first) | `isPinned` survives dedupe |
-| Archive | Tap → Archive (excluded from retrieval) | `includeArchived=false` by default |
-| Delete | Tap → Delete | Transactionally: `memory + embedding + tags + index + cache` cleared; cannot reappear via stale embedding |
-| Delete all | **Settings → Delete all** | Transactional: all tables + `vectorIndex.clear()` + `retrievalCache.clear()` + `logger.clear()` |
-| Export | **Settings → Export** (`memory_exports/androllm_memory_*.json`, version 1) | Includes `isPinned/isArchived/createdAt/updatedAt` |
-| Import | **Settings → Import** | Deduplicates via same deterministic pipeline, re-embeds lazily |
-| Disable | Toggle **Off** | `processExchange` no-ops, existing memories retained |
+| Action | How |
+|---|---|
+| View all | **Settings → On-device Memory → View memories** (pinned-first) |
+| Pin | Tap → Pin (always included, ranked first) |
+| Archive | Tap → Archive (excluded from retrieval) |
+| Delete | Tap → Delete (memory + embedding + tags + index + cache cleared) |
+| Delete all | **Settings → Delete all** (all tables + index + cache + logs) |
+| Export | **Settings → Export** (`memory_exports/androllm_memory_*.json`, version 1) |
+| Import | **Settings → Import** (deduplicates via same pipeline, re-embeds lazily) |
+| Disable | Toggle **Off** (`processExchange` no-ops, existing memories retained) |
 
 ---
 
 ## Privacy
 
-- All content in `memory.db` (Room, WAL, separate instance, lazy-open)
-- Vectors in `embedding_entity` (`BLOB` LittleEndian, `model_path` for staleness)
-- In-memory index rebuilt from local data on start
-- No transmission unless cloud extraction/embedding explicitly configured (user opt-in)
-- Logs sanitized (`sk-***`, `ghp_***`, `password=***`, truncated 400) — never sensitive, useful for debugging (`creation, retrieval, update, merge, forgetting, failures`)
-- Delete at any time, permanent, cannot reappear (excluded from embeddings, caches, retrieval)
+- All content in `memory.db` (Room, WAL, separate instance, lazy-open).
+- Vectors in `embedding_entity` (`BLOB` LittleEndian, `model_path` for staleness).
+- In-memory index rebuilt from local data on start.
+- No transmission unless cloud extraction/embedding explicitly configured
+  (user opt-in by enabling cloud mode / setting a cloud embedding model).
+- Logs sanitized (`sk-***`, `ghp_***`, `password=***`, truncated 400).
+- Delete at any time, permanent.
 
 ---
 
 ## Model Independence
 
-Plain natural language, not model-specific: *Extracted with Model A → Retrieved → Understood by Model B*.
-
----
-
-## Performance & Scale
-
-- **Upsert**: `O(1)` HashMap + `writeMutex`
-- **Search**: `O(n×d)` brute-force, `n` pre-filtered by SQL, chunked (16/8), cached
-- **Context**: `O(m)` `m≤5`
-
-For thousands, retrieval stays <50 ms; embedding generation chunked, `keepEmbeddingModelLoaded` true by default.
+Plain natural language, not model-specific: *stored via Model A → retrieved
+→ injected → understood by Model B*. Switching between local LiteRT and any
+cloud provider (Gemini, Claude, GPT, Grok, custom LiteLLM) preserves the same
+memory store, ranking, and injection format.
 
 ---
 
 ## Troubleshooting
 
-- **No memories retrieved**: check `similarityThreshold` (lower to 0.6), `retrievalCount`, embedding model loaded (`Inspector → embeddingModelLoaded`)
-- **Corrupted embeddings**: `ensureStartupValidated` auto-repairs on next retrieval; or **Reindex All** in Inspector
-- **Duplicate memories**: hardened deterministic dedupe should prevent; if seen, check `Inspector → logs` for `Merging similar` vs `Inserted`
-- **Forgot memories reappear**: ensure `deleteMemory` completed (check `vectorCount` in Inspector decreases)
+- **No memories retrieved**: check `similarityThreshold` (lower to 0.6),
+  `retrievalCount`, embedding model loaded (`Inspector → embeddingModelLoaded`).
+  The rescue pass (≥0.30) should still surface strong semantic hits.
+- **Cloud forgets but local remembers (or vice versa)**: both paths now share
+  `buildContext` — check logcat `MEMORY CONTEXT` lines on both paths and
+  confirm memory is enabled (voice low-latency mode intentionally skips it).
+- **Duplicate memories**: dedupe + conflict resolution should prevent; check
+  `Inspector → logs` for `Merging similar` vs `Inserted`.
+- **Correction didn't stick**: corrections need shared subject words ("my name
+  is X" → "actually my name is Y"); check logs for `Correction signal`.
+- **Forgot memories reappear**: ensure `deleteMemory` completed (check
+  `vectorCount` in Inspector decreases).
 
 ---
 
 ## See Also
 
-- [Memory Architecture](memory/memory-architecture.md) — Full hardened deep dive (write pipeline, retrieval, hardening table, API reference)
+- [Memory Architecture](memory/memory-architecture.md) — Full deep dive (write pipeline, retrieval, ranking, API reference)
 - [README](../README.md) — Feature overview

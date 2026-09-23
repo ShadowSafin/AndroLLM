@@ -10,9 +10,45 @@ The memory system gives AndroLLM the ability to retain facts, preferences, and c
 
 - **Structured**: Facts are categorized (`PREFERENCES`, `IDENTITY`, `PROJECTS`, `PINNED_FACTS`…), tagged, and linked via `related_to` relationships
 - **Compressed**: Raw exchanges become concise ≤25-word statements
-- **Retrievable**: Relevant memories are injected into the system prompt via hybrid semantic + keyword ranking
-- **Model-independent**: Memories extracted with one model work with any other model
-- **Production-hardened**: Deterministic dedupe, confidence gating, conflict resolution, transactional writes, and startup integrity checks ensure long-term consistency
+- **Retrievable**: Relevant memories are injected into the system prompt via hybrid semantic + keyword ranking (`MemoryRanker`: semantic first, then keyword/preference/priority/recency, weak-memory decay)
+- **Model-independent**: Memories extracted with one model work with any other model — text chat (`ChatViewModel` local + cloud paths) and voice chat (`ChatManager`) all call the same `MemoryManager.buildContext` / `processExchange`, so local LiteRT and every cloud provider share one store, one ranking, and one injection format
+- **Production-hardened**: Write policy + deterministic dedupe, confidence gating, correction-aware conflict resolution, rescue recall, transactional writes, and startup integrity checks ensure long-term consistency
+
+---
+
+## Shared Across Local and Cloud Models
+
+One memory layer, every provider. The contract:
+
+```
+ChatViewModel.generateFromHistory (text, local + cloud)
+  → buildMemoryContext (latest user message, 1500ms budget)
+    → MemoryManager.buildContext → retrieve (ranked) + summaries
+  → inject systemText as first `system` message (identical block)
+  → route to LiteRT engine OR CloudGateway.streamChat
+
+ChatManager.sendMessageStream (voice, local + cloud)
+  → same buildContext (1000ms budget, skipped only in low-latency mode)
+  → same first-`system`-message injection for both providers
+
+processExchange after EVERY response (local + cloud, text + voice)
+  → RoutingMemoryIntelligence (cloud when configured, else local)
+  → MemoryWritePolicy → dedupe → conflict-resolve → store
+```
+
+Consequences:
+
+- A preference stored during a Gemini turn is retrieved for a local Qwen
+  turn with the same score — storage is plain text, ranking is
+  provider-blind.
+- Cloud turns use a 32k provider window for history trimming (never the
+  local container's nCtx), so cloud history is not over-trimmed into
+  apparent forgetting. Small-context cloud models use
+  `buildCompactContext(maxChars)` / `ContextBuilder.compressForBudget`.
+- Retrieval failures, timeouts, and empty stores return empty context —
+  chat always continues normally.
+- `VoiceAssistantService` holds no direct memory reference; voice memory
+  flows only through `ChatManager`, so voice and text can never diverge.
 
 ---
 
@@ -21,7 +57,7 @@ The memory system gives AndroLLM the ability to retain facts, preferences, and c
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         MemoryManager                               │
-│                         (public API)                                │
+│                    (unified layer, all models)                      │
 └───────────────────────────┬─────────────────────────────────────────┘
                             │
             ┌───────────────┼───────────────┐
@@ -66,7 +102,7 @@ The memory system gives AndroLLM the ability to retain facts, preferences, and c
 └──────────┘          └─────────────────┘
 ```
 
-*Hardening layer (`hardening/MemoryHardeningHelper`, `MemorySecurityFilter`, `MemoryClassifier`) sits between extraction and repository, gating every write.*
+*Hardening layer (`hardening/MemoryHardeningHelper`, `MemorySecurityFilter`, `MemoryClassifier`, `policy/MemoryWritePolicy`, `ranking/MemoryRanker`) sits between extraction and repository, gating every write and ordering every read — identically for local and cloud callers.*
 
 ---
 
@@ -176,19 +212,19 @@ suspend fun retrieve(
    - Embed query with `queryPrefix`; brute-force cosine against `candidates` (or all)
    - Map `ScoredId` → `Memory` via `getByIds` + `getTagsForMemoryIds`
    - **Validate each still valid**: not blank, not corrupted, category/type valid, not expired, not malformed (try `toDomain`, catch)
-   - Filter `isPinned || matchedByKeyword || score ≥ similarityThreshold` (threshold = 0.78)
-   - **Contradiction detection** among candidates: for each contradictory pair, keep winner via `resolveConflict` (timestamp, priority)
-   - **Ranking**: **separate semantic from recency** — primary `score + HYBRID_KEYWORD_BOOST(0.06)`; then `isPinned`, `effectivePriority`, `updatedAt` (recency only as tie-breaker, not mixed into score, so recent irrelevant never dominates)
+   - Filter `isPinned || matchedByKeyword || score ≥ similarityThreshold` (threshold = 0.78); **rescue**: if the strict filter empties a non-empty candidate set, keep the best above 0.30 so vocabulary mismatch does not cause forgetting
+   - **Contradiction detection** among candidates (now correction-aware: preference flips *and* name/location/value corrections): for each contradictory pair, keep winner via `resolveConflict` (timestamp, priority, evidence)
+   - **Ranking** via `ranking/MemoryRanker` (shared by all models): semantic × 1.0 + keyword +0.06 + pinned +0.08 / preference +0.04 + priority +0.02/pt + recency +0.00–0.08 (30-day decay) − weak-memory decay 0.10; stable sort by ranked score → pinned → priority → recency → id, so recent irrelevant never dominates
    - Take `k` (coerced `RETRIEVAL_MIN 1 .. MAX 20`)
-6. **Fallback** (`keywordFallback`) when no vector: same validation, sorted by `keywordMatch` → `isPinned` → `priority` → `updatedAt` + `recencyBoost*1_000_000` tie-breaker
+6. **Fallback** (`keywordFallback`) when no vector: same validation, ranked by `keywordMatch` → `isPinned` → `priority` → `updatedAt` + recency tie-breaker
 7. **Cache put**: `retrievalCache[cacheKey] = results` (validated, contradiction-free)
 8. **Access bump**: `bumpAccess` + `lastUsedAt/lastAccessedAt = now` (thread-safe, transactional, cache updated)
 
-**Separation of concerns**: semantic relevance (`score`) dominates; recency (`updatedAt`) only decides between equally relevant memories. Irrelevant but recent memories are filtered by threshold and never injected.
+**Separation of concerns**: semantic relevance dominates; recency/importance/preference only re-order already-relevant memories. Irrelevant memories are filtered by threshold and never injected.
 
 ### Fallback Behavior
 
-If embeddings unavailable: vector search skipped, keyword + recency used; results still useful but less precise.
+If embeddings unavailable: vector search skipped, keyword + recency used; results still useful but less precise. If retrieval throws or times out (1500ms text / 1000ms voice budgets), `buildContext` returns empty context and generation continues without memory — chat never breaks on memory failure.
 
 ---
 

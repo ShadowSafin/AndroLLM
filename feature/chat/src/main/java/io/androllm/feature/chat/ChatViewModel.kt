@@ -695,10 +695,17 @@ class ChatViewModel @Inject constructor(
             // starts / gibberish on later prompts". Slide the window over the
             // tail (oldest dropped first, current prompt always kept) so the
             // rendered prompt + reserved output always fit nCtx.
-            val contextLength =
+            // Provider-aware window: local uses the container's real nCtx;
+            // cloud uses the provider window so history is never over-trimmed
+            // in cloud mode. Memory injection below is identical for both.
+            val isCloudTurn = _cloudMode.value && cloudGateway.resolveChatTarget() != null
+            val contextLength = if (isCloudTurn) {
+                CLOUD_CONTEXT_LENGTH
+            } else {
                 (engineRepository.engineState.value as? EngineState.Ready)
                     ?.model?.contextLength
                     ?: AppConstants.Model.DEFAULT_CONTEXT_LENGTH
+            }
 
             // Prompt Builder: advertise the available tools so the model
             // NEVER claims it lacks access ("I don't have a web search
@@ -1796,8 +1803,25 @@ class ChatViewModel @Inject constructor(
          */
         private const val UNLIMITED_MAX_TOKENS_SENTINEL = 65536
 
-        /** Budget for memory retrieval on the send path (retrieval is <20ms when warm). */
-        private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 400L
+        /**
+         * Budget for memory retrieval on the send path (retrieval is <20ms
+         * when the embedding source is warm). The first retrieval after
+         * enabling memory — or a cloud-embedding round-trip — can take an
+         * order of magnitude longer; the old 400ms cap timed out exactly
+         * then and cloud turns silently lost their memory block. 1500ms
+         * keeps the send path responsive while letting cold retrieval
+         * finish; on timeout we still send the turn, just without memory.
+         */
+        private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 1500L
+
+        /**
+         * Effective context window for cloud generation. Cloud providers
+         * serve 32k+ windows; using the *local* container's nCtx here (as
+         * before) over-trimmed history in cloud mode and dropped recent
+         * turns, which looked like forgetting. Local generation still uses
+         * the container's real nCtx below.
+         */
+        private const val CLOUD_CONTEXT_LENGTH = 32768
 
         /**
          * Per-file cap for attachment text injected into the prompt. A huge
@@ -1896,21 +1920,33 @@ class ChatViewModel @Inject constructor(
 
     /**
      * Retrieves memories + summaries for the current conversation and formats
-     * the system prompt block to inject. No-op when memory is disabled.
+     * the system prompt block to inject. Shared by local and cloud turns:
+     * [generateFromHistory] calls this BEFORE routing, so both providers
+     * receive the identical memory block as the first `system` message.
+     * No-op when memory is disabled; on timeout/failure returns empty so the
+     * turn still sends (the assistant answers without memory rather than
+     * failing).
      */
     private suspend fun buildMemoryContext(history: List<ChatMessage>): MemoryContext {
-        val settings = memoryManager.currentSettings()
+        val settings = runCatching { memoryManager.currentSettings() }.getOrNull()
+            ?: return MemoryContext()
         if (!settings.enabled) return MemoryContext()
         val query = history.lastOrNull { it.role == MessageRole.USER }?.content ?: return MemoryContext()
+        if (query.isBlank()) return MemoryContext()
         // The send path must never stall on memory work: when the embedding
-        // source is still warming up (first use), retrieval can take longer.
-        // Cap it so the prompt always builds promptly.
-        return withTimeoutOrNull(MEMORY_RETRIEVAL_TIMEOUT_MS) {
+        // source is still warming up (first use) or a cloud embedding
+        // round-trip is slow, retrieval can exceed a second. Cap it so the
+        // prompt always builds promptly.
+        val context = withTimeoutOrNull(MEMORY_RETRIEVAL_TIMEOUT_MS) {
             memoryManager.buildContext(
                 userQuery = query,
                 conversationId = _currentConversationId.value.takeIf { it.isNotBlank() }
             )
         } ?: MemoryContext()
+        if (context.systemText.isBlank() && query.isNotBlank()) {
+            android.util.Log.d(TAG, "Memory retrieval empty/timed-out — continuing without memory")
+        }
+        return context
     }
 
     private fun appendAssistantMessage(text: String) {

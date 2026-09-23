@@ -490,28 +490,29 @@ API keys are encrypted with **AES-256/GCM via Android Keystore** — they never 
 
 ## 🧠 Memory System
 
-Memories extracted from conversations are stored locally and injected into future contexts:
+One shared memory layer for local and cloud models — stored locally, injected into every future context:
 
 ```
-Conversation exchange
+Conversation exchange (any model: local LiteRT or any cloud provider)
         │
-        ├──▶ Extract facts & preferences
+        ├──▶ Extract facts & preferences (write policy: persist / update / ignore)
         │       (JSON schema: category, content, importance, tags)
         │
         ├──▶ Embed content
         │       ├── Cloud path: LiteLLM embeddings API
         │       └── Local path: LiteRT embedding engine (CompiledModel API)
         │
-        ├──▶ Store in SQLite + CosineVectorIndex
+        ├──▶ Store in SQLite + CosineVectorIndex (plain text, model-independent)
         │
-        └──▶ Future conversation:
-                Hybrid search (vector + keyword)
-                → Inject into system prompt
+        └──▶ Before every response (local AND cloud):
+                Hybrid search (vector + keyword) → MemoryRanker
+                (semantic + preference + priority + recency, weak-memory decay)
+                → Inject identical system block into local or cloud prompt
 ```
 
-Works fully offline. Falls back to keyword/recency sorting when embeddings are unavailable.
+Works fully offline. Falls back to keyword/recency sorting when embeddings are unavailable. Corrections update stale facts instead of duplicating; retrieval failures degrade to empty context so chat never breaks. Small-context cloud models receive a compressed block.
 
-📖 [Memory Architecture](documentation/memory/memory-architecture.md)
+📖 [Memory Architecture](documentation/memory/memory-architecture.md) · [Memory Quick Guide](documentation/MEMORY.md)
 
 ---
 

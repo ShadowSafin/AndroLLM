@@ -8,8 +8,13 @@ import kotlin.math.roundToInt
 
 /**
  * Formats retrieved memories and conversation summaries into a compact system
- * prompt block. Only the most relevant items are ever injected — never the
- * whole store.
+ * prompt block shared by local and cloud generation.
+ *
+ * Only the most relevant items are ever injected — never the whole store.
+ * Output is plain system-prompt text (no provider-specific markup) so the
+ * identical block rides with local LiteRT prompts and cloud
+ * OpenAI-compatible chat requests. Callers on token-constrained cloud models
+ * pass a smaller [maxChars] to compress before sending.
  */
 @Singleton
 class ContextBuilder @Inject constructor() {
@@ -18,7 +23,8 @@ class ContextBuilder @Inject constructor() {
         memories: List<MemorySearchResult>,
         summaries: List<MemorySummary>,
         maxMemories: Int,
-        maxSummaries: Int
+        maxSummaries: Int,
+        maxChars: Int = DEFAULT_MAX_CHARS
     ): String {
         // Hardened: only relevant memories, never dump unrelated, prevent prompt pollution, detect contradictions, validate still valid
         val now = System.currentTimeMillis()
@@ -86,6 +92,38 @@ class ContextBuilder @Inject constructor() {
                 sb.append("- ").append(s.summary.trim().take(400)).append('\n')
             }
         }
-        return sb.toString().trim().take(3000) // hard cap to keep context compact
+        return compressForBudget(sb.toString().trim(), maxChars)
+    }
+
+    /**
+     * Compresses an already-built memory block to [maxChars] for
+     * token-constrained cloud models: drops whole summary lines first, then
+     * truncates. Local models use the full [DEFAULT_MAX_CHARS]; cloud callers
+     * pass a smaller budget derived from the provider's context window.
+     */
+    fun compressForBudget(text: String, maxChars: Int): String {
+        val budget = maxChars.coerceAtLeast(200)
+        if (text.length <= budget) return text
+        val lines = text.lines()
+        // Prefer memory lines over summary lines when compressing.
+        val memoryLines = lines.filter { !it.startsWith("Conversation summaries") && !it.startsWith("- ") || it.startsWith("- [") }
+        val summaryLines = lines.filter { it.startsWith("- ") && !it.startsWith("- [") }
+        val header = lines.firstOrNull().orEmpty()
+        val sb = StringBuilder(header).append('\n')
+        for (line in memoryLines) {
+            if (sb.length + line.length + 1 > budget) break
+            sb.append('\n').append(line)
+        }
+        for (line in summaryLines) {
+            if (sb.length + line.length + 1 > budget) break
+            sb.append('\n').append(line)
+        }
+        return sb.toString().trim().take(budget)
+    }
+
+    companion object {
+        const val DEFAULT_MAX_CHARS = 3000
+        /** Compact budget for small-context cloud models. */
+        const val COMPACT_MAX_CHARS = 1500
     }
 }

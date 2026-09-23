@@ -116,11 +116,27 @@ class MemoryHardeningHelper @Inject constructor() {
     }
 
     // ── Contradiction detection ──────────────────────────────────────────────
+    // Shared by every model path so a correction made while chatting with a
+    // cloud model overwrites the stale fact for local models too (and vice
+    // versa). Detection is intentionally broad: same subject + different
+    // value means UPDATE, not duplicate.
     private val contradictionPairs = listOf(
         Pair("prefers dark mode", "prefers light mode"),
         Pair("prefers light mode", "prefers dark mode"),
         Pair("likes", "dislikes"),
-        Pair("enables", "disables")
+        Pair("enables", "disables"),
+        Pair("short", "long"),
+        Pair("dark", "light"),
+        Pair("english", "japanese"),
+        Pair("true", "false")
+    )
+
+    /** Subjects whose value change always means "update the old fact". */
+    private val correctionSubjects = listOf(
+        "name is", "named", "lives in", "located in", "works at",
+        "works for", "prefers", "likes", "dislikes", "uses",
+        "project", "goal is", "deadline", "device", "phone",
+        "email", "language", "theme", "mode"
     )
 
     fun isContradictory(a: String, b: String): Boolean {
@@ -129,13 +145,29 @@ class MemoryHardeningHelper @Inject constructor() {
         // Exact opposite preferences with same subject
         for ((p1, p2) in contradictionPairs) {
             if ((p1 in al && p2 in bl) || (p2 in al && p1 in bl)) {
-                // Check subject overlap: share at least 2 significant words
+                // Check subject overlap: share at least 1 significant word
                 val aWords = al.split(Regex("""\W+""")).filter { it.length > 3 }.toSet()
                 val bWords = bl.split(Regex("""\W+""")).filter { it.length > 3 }.toSet()
                 if (aWords.intersect(bWords).size >= 1) return true
             }
         }
-        // Generic: same 3+ word prefix but opposite trailing adjective
+        // Correction subjects: same subject anchor, different full text.
+        // e.g. "User name is Alice" vs "User name is Bob" — same fact slot,
+        // different value, so the newer one must overwrite the older one.
+        for (subject in correctionSubjects) {
+            if (subject in al && subject in bl && al.trim() != bl.trim()) {
+                val aWords = al.split(Regex("""\W+""")).filter { it.length > 3 }.toSet()
+                val bWords = bl.split(Regex("""\W+""")).filter { it.length > 3 }.toSet()
+                // Same subject with meaningful overlap but different content.
+                if (aWords.intersect(bWords).size >= 2) return true
+                // Name/location corrections often share only the anchor.
+                if (subject in listOf("name is", "named", "lives in", "located in") &&
+                    aWords.intersect(bWords).size >= 1
+                ) return true
+            }
+        }
+        // Generic: same 4-word prefix but different trailing value
+        // e.g., "User prefers short prompts" vs "User prefers long prompts"
         if (al.length > 20 && bl.length > 20) {
             val aPrefix = al.split(" ").take(4).joinToString(" ")
             val bPrefix = bl.split(" ").take(4).joinToString(" ")
@@ -143,10 +175,18 @@ class MemoryHardeningHelper @Inject constructor() {
                 val aSuffix = al.substringAfter(aPrefix).trim()
                 val bSuffix = bl.substringAfter(bPrefix).trim()
                 if (aSuffix.isNotEmpty() && bSuffix.isNotEmpty() && aSuffix != bSuffix) {
-                    // e.g., "User prefers short prompts" vs "User prefers long prompts"
-                    if ((aSuffix.contains("short") && bSuffix.contains("long")) || (aSuffix.contains("dark") && bSuffix.contains("light"))) {
+                    if ((aSuffix.contains("short") && bSuffix.contains("long")) ||
+                        (aSuffix.contains("long") && bSuffix.contains("short")) ||
+                        (aSuffix.contains("dark") && bSuffix.contains("light")) ||
+                        (aSuffix.contains("light") && bSuffix.contains("dark"))
+                    ) {
                         return true
                     }
+                    // Any differing value on an identity/preference anchor.
+                    if (aPrefix.contains("user") &&
+                        (aPrefix.contains("name") || aPrefix.contains("prefer") ||
+                            aPrefix.contains("likes") || aPrefix.contains("uses"))
+                    ) return true
                 }
             }
         }

@@ -25,6 +25,8 @@ import io.androllm.core.memory.db.entity.TagEntity
 import io.androllm.core.memory.embedding.EmbeddingProvider
 import io.androllm.core.memory.filter.MemorySecurityFilter
 import io.androllm.core.memory.intelligence.MemoryIntelligence
+import io.androllm.core.memory.policy.MemoryWritePolicy
+import io.androllm.core.memory.ranking.MemoryRanker
 import io.androllm.core.memory.model.ExtractedMemory
 import io.androllm.core.memory.model.Memory
 import io.androllm.core.memory.model.MemoryContext
@@ -59,20 +61,24 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Orchestrates the on-device memory system:
+ * Orchestrates the shared on-device memory system used by EVERY model path.
  *
  * ```
  * exchange → extract → embed? → similarity search → update-or-insert
- * prompt   → retrieve (vector + keyword hybrid) → context builder
+ * prompt   → retrieve (vector + keyword hybrid, ranked) → context builder
  * ```
  *
- * Everything is local for storage (Room) and vector search (in-memory cosine
- * index). Extraction/summarization run through [MemoryIntelligence] — the
- * ACTIVE provider (cloud or local llama.cpp), never tied to a specific chat
- * model. Embeddings are an optional optimization via [EmbeddingProvider];
- * when no vector source is available, retrieval uses keyword/recency ranking
- * and memory still persists. This repository implements [MemoryManager], the
- * only surface the rest of the app sees.
+ * Storage is local (Room) and model-independent: a fact stored while
+ * chatting with a cloud model is plain natural language, retrieved and
+ * injected identically for local models and vice versa. Extraction /
+ * summarization run through [MemoryIntelligence] — the ACTIVE provider
+ * (cloud when a cloud provider is configured, local otherwise) — so memory
+ * never depends on one specific chat model. Embeddings are an optional
+ * optimization via [EmbeddingProvider]; without vectors retrieval falls back
+ * to keyword/recency ranking and memory still persists. Ranking runs through
+ * [MemoryRanker] and writes are gated by [MemoryWritePolicy], both shared by
+ * all callers. This repository implements [MemoryManager], the only surface
+ * the rest of the app sees (add/retrieve/update/summarize/inject).
  */
 @Singleton
 class MemoryRepository @Inject constructor(
@@ -90,7 +96,9 @@ class MemoryRepository @Inject constructor(
     private val logger: MemoryLogger,
     private val securityFilter: MemorySecurityFilter = MemorySecurityFilter(),
     private val classifier: MemoryClassifier = MemoryClassifier(),
-    private val hardeningHelper: io.androllm.core.memory.hardening.MemoryHardeningHelper = io.androllm.core.memory.hardening.MemoryHardeningHelper()
+    private val hardeningHelper: io.androllm.core.memory.hardening.MemoryHardeningHelper = io.androllm.core.memory.hardening.MemoryHardeningHelper(),
+    private val ranker: MemoryRanker = MemoryRanker(),
+    private val writePolicy: MemoryWritePolicy = MemoryWritePolicy()
 ) : MemoryManager {
 
     private val json = Json {
@@ -234,13 +242,17 @@ class MemoryRepository @Inject constructor(
 
     /**
      * Retrieves the top-K memories relevant to [query], honoring [filters].
-     * Hardened: expiry-aware, type-scoped, relevance+recency ranking, threshold filtering,
-     * and never dumps unrelated context.
+     * Shared by local and cloud generation alike: both chat paths call
+     * [buildContext], which calls this method with the latest user message,
+     * so the same stored fact surfaces no matter which model answers.
      *
-     * Vector scores from cosine index; keyword matches get hybrid boost;
-     * recency boost for recently updated; pinned & high priority boosted.
-     * Falls back to keyword/recency when no embedding model is available.
-     * Only top relevant memories are returned — avoids dumping unrelated old context.
+     * Ranking runs through [MemoryRanker] (semantic first, then keyword,
+     * preference, priority, recency, weak-memory decay). When the strict
+     * similarity threshold would drop everything, a rescue pass keeps the
+     * best semantic candidates above [RESCUE_THRESHOLD] so important facts
+     * are not forgotten on vocabulary mismatch. Falls back to
+     * keyword/recency when no embedding source is available, and never
+     * throws — failures return an empty list so chat continues normally.
      */
     override suspend fun retrieve(
         query: String,
@@ -317,9 +329,23 @@ class MemoryRepository @Inject constructor(
                         // Detect contradictory memories before use: will be filtered later, but mark
                         MemorySearchResult(domain, score, id in keywordIds)
                     }
-                    // Threshold: drop low-relevance unrelated memories unless pinned/keyword
-                    .filter { r ->
-                        r.memory.isPinned || r.matchedByKeyword || r.score >= settings.similarityThreshold
+                    // Threshold: drop low-relevance unrelated memories unless pinned/keyword.
+                    // Rescue pass: if the strict threshold empties the result while
+                    // semantic candidates exist, keep the best above RESCUE_THRESHOLD
+                    // so important facts survive vocabulary mismatch instead of
+                    // being forgotten.
+                    .let { validated ->
+                        val strict = validated.filter { r ->
+                            r.memory.isPinned || r.matchedByKeyword || r.score >= settings.similarityThreshold
+                        }
+                        if (strict.isNotEmpty() || validated.isEmpty()) strict
+                        else {
+                            val rescued = validated.filter { it.score >= RESCUE_THRESHOLD }
+                            if (rescued.isNotEmpty()) {
+                                logger.info("Memory rescue: strict threshold emptied results; kept ${rescued.size} above $RESCUE_THRESHOLD")
+                            }
+                            rescued
+                        }
                     }
                     // Detect contradictory memories among candidates: keep higher confidence (priority + recency)
                     .let { filtered ->
@@ -339,16 +365,7 @@ class MemoryRepository @Inject constructor(
                         }
                         if (toRemove.isNotEmpty()) filtered.filter { it.memory.id !in toRemove } else filtered
                     }
-                    .sortedWith(
-                        // Separate semantic relevance from recency: semantic (score + keyword) dominates, recency only tie-breaks when scores close
-                        compareByDescending<MemorySearchResult> { it.score + (if (it.matchedByKeyword) HYBRID_KEYWORD_BOOST else 0f) }
-                            .thenByDescending { it.memory.isPinned }
-                            .thenByDescending { it.memory.effectivePriority }
-                            .thenByDescending { 
-                                // Recency only as final tie-breaker, not mixed into score
-                                it.memory.updatedAt
-                            }
-                    )
+                    .let { ranker.rank(it, now) }
                     .take(k)
             } else {
                 keywordFallback(candidates, keywordIds, k, now)
@@ -386,7 +403,10 @@ class MemoryRepository @Inject constructor(
 
     /**
      * Builds the context block injected into the system prompt: relevant
-     * memories + recent conversation summaries. Never dumps the database.
+     * memories + recent conversation summaries. Identical for local and cloud
+     * callers — both inject the returned [MemoryContext.systemText] as a
+     * `system` message ahead of history. Never dumps the database, never
+     * throws: any failure returns an empty context so generation continues.
      */
     override suspend fun buildContext(
         userQuery: String,
@@ -394,31 +414,68 @@ class MemoryRepository @Inject constructor(
         conversationId: String?,
         topK: Int?
     ): MemoryContext {
-        val settings = settingsStore.current()
         val t0 = System.currentTimeMillis()
-        val memories = retrieve(userQuery, filters, topK).getOrDefault(emptyList())
+        return try {
+            val settings = settingsStore.current()
+            if (!settings.enabled) return MemoryContext()
+            if (userQuery.isBlank()) return MemoryContext()
+            val memories = retrieve(userQuery, filters, topK).getOrDefault(emptyList())
 
-        val summaries = if (settings.maxContextSummaries > 0) {
-            val all = summaryDao.getAll().map { it.toDomain() }.take(settings.maxContextSummaries)
-            val current = conversationId?.let { summaryDao.getLatestForConversation(it)?.toDomain() }
-            (listOfNotNull(current) + all.filter { it.id != current?.id })
-                .take(settings.maxContextSummaries)
-        } else {
-            emptyList()
+            val summaries = if (settings.maxContextSummaries > 0) {
+                try {
+                    val all = summaryDao.getAll().map { it.toDomain() }.take(settings.maxContextSummaries)
+                    val current = conversationId?.let { summaryDao.getLatestForConversation(it)?.toDomain() }
+                    (listOfNotNull(current) + all.filter { it.id != current?.id })
+                        .take(settings.maxContextSummaries)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+
+            val text = try {
+                contextBuilder.buildSystemText(
+                    memories = memories,
+                    summaries = summaries,
+                    maxMemories = settings.maxContextMemories,
+                    maxSummaries = settings.maxContextSummaries
+                )
+            } catch (_: Exception) {
+                ""
+            }
+            MemoryContext(
+                memories = memories,
+                summaries = summaries,
+                retrievalMs = System.currentTimeMillis() - t0,
+                systemText = text
+            )
+        } catch (_: Exception) {
+            MemoryContext(retrievalMs = System.currentTimeMillis() - t0)
         }
+    }
 
-        val text = contextBuilder.buildSystemText(
-            memories = memories,
-            summaries = summaries,
-            maxMemories = settings.maxContextMemories,
-            maxSummaries = settings.maxContextSummaries
-        )
-        return MemoryContext(
-            memories = memories,
-            summaries = summaries,
-            retrievalMs = System.currentTimeMillis() - t0,
-            systemText = text
-        )
+    /**
+     * Compact variant for token-constrained cloud models. Same retrieval as
+     * [buildContext]; the system block is compressed via
+     * [ContextBuilder.compressForBudget] so small-context providers receive a
+     * short summary instead of a dropped block.
+     */
+    override suspend fun buildCompactContext(
+        userQuery: String,
+        filters: MemorySearchFilters,
+        conversationId: String?,
+        topK: Int?,
+        maxChars: Int
+    ): MemoryContext {
+        val full = buildContext(userQuery, filters, conversationId, topK)
+        if (full.systemText.length <= maxChars) return full
+        val compressed = try {
+            contextBuilder.compressForBudget(full.systemText, maxChars)
+        } catch (_: Exception) {
+            full.systemText.take(maxChars)
+        }
+        return full.copy(systemText = compressed)
     }
 
     // ── Update pipeline ──
@@ -911,10 +968,14 @@ class MemoryRepository @Inject constructor(
         withContext(Dispatchers.IO) { block() }
 
     /**
-     * Core update-or-insert step. Production-hardened: deterministic dedupe, confidence gating,
-     * temporary-context filtering, type-classified expiry, security, merging, conflict resolution.
-     * Never creates duplicates: embedding threshold + deterministic normalized comparison + word-overlap.
-     * Thread-safe via [writeMutex], transactional with rollback, ensures cache invalidation.
+     * Core update-or-insert step. Shared by all model paths (local, cloud,
+     * manual): write policy → security → confidence → classify → dedupe →
+     * conflict-resolve → insert-or-update.
+     *
+     * Never creates duplicates: embedding threshold + deterministic normalized
+     * comparison + word-overlap. Corrections update the stale fact instead of
+     * appending a second one. Thread-safe via [writeMutex], transactional with
+     * rollback, cache invalidated on every write.
      */
     private suspend fun writeMemory(
         item: ExtractedMemory,
@@ -933,6 +994,19 @@ class MemoryRepository @Inject constructor(
             val truncated = content.take(280).trim()
             val lastSpace = truncated.lastIndexOf(' ')
             content = if (lastSpace > 200) truncated.substring(0, lastSpace) else truncated
+        }
+
+        // Write policy: store only durable value (preferences, facts, projects,
+        // decisions, tasks); ignore noise/filler; flag corrections as updates.
+        when (val decision = writePolicy.decideExtracted(item.copy(content = content), exchange)) {
+            is MemoryWritePolicy.Decision.Ignore -> {
+                logger.debug("Skipped by write policy (${decision.reason}): '${content.take(50)}'")
+                return@withLock MemoryWriteResult("", MemoryWriteAction.SKIPPED)
+            }
+            is MemoryWritePolicy.Decision.Update -> {
+                logger.info("Correction signal (${decision.targetHint}): '${content.take(50)}' — will update matching fact")
+            }
+            is MemoryWritePolicy.Decision.Persist -> Unit
         }
 
         // Security: validate every entry before saving — never store secrets, injection, hallucinations
@@ -1304,6 +1378,8 @@ class MemoryRepository @Inject constructor(
         private const val EXPORT_VERSION = 1
         private const val MAX_MEMORY_LENGTH = 800
         private const val HYBRID_KEYWORD_BOOST = 0.06f
+        /** Rescue floor: best semantic hits below the strict threshold but above this are kept. */
+        private const val RESCUE_THRESHOLD = 0.30f
         private val WHITESPACE = Regex("\\s+")
     }
 }

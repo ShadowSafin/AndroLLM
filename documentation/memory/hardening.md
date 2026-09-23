@@ -88,17 +88,20 @@ Used **before** `updateExisting` (embedding and exact paths) and **during** `ret
 
 ## Retrieval Ranking (Relevance vs Recency Separated)
 
+`ranking/MemoryRanker` — one ranker for local and cloud reads:
+
 ```kotlin
-// 1. Validated, thresholded, contradiction-resolved candidates
-// 2. Sorted:
-compareByDescending { score + HYBRID_KEYWORD_BOOST(0.06) } // semantic relevance dominates
-  .thenByDescending { isPinned }                           // pinned first
-  .thenByDescending { effectivePriority }                  // 1..5
-  .thenByDescending { updatedAt }                          // recency ONLY as tie-breaker
+// 1. Validated, thresholded (+rescue ≥0.30), contradiction-resolved candidates
+// 2. Ranked score = semantic + keyword(0.06) + pinned(0.08)/preference(0.04)
+//      + priority(0.02/pt) + recency(0.00–0.08, 30d decay) − weak-decay(0.10)
+// 3. Stable sort: ranked score → pinned → priority → recency → id
 ```
 
-- `recencyBoost` (`0.08` max) is **not** mixed into `score`; recent irrelevant (low score, not pinned, not keyword) is always after relevant old, never dominates
-- `keywordFallback` when no vector: `keywordMatch` → `isPinned` → `priority` → `updatedAt + recencyBoost*1_000_000` (tie-breaker)
+- Semantic relevance dominates; recency/importance/preference only re-order
+  already-relevant hits — recent irrelevant never outranks relevant old.
+- Weak-memory decay (−0.10 for 30d+, rarely used, priority ≤2) sinks stale
+  hints without deleting them.
+- `keywordFallback` when no vector: `keywordMatch` → `isPinned` → `priority` → recency tie-breaker.
 
 ---
 

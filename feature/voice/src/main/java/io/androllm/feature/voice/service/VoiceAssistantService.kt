@@ -18,8 +18,6 @@ import io.androllm.core.common.getOrNull
 import io.androllm.core.database.repository.ConversationRepository
 import io.androllm.core.database.repository.MessageRepository
 import io.androllm.core.database.repository.SettingsRepository
-import io.androllm.core.memory.MemoryManager
-import io.androllm.core.memory.model.MemoryExchange
 import io.androllm.core.models.Conversation
 import io.androllm.core.models.Message
 import io.androllm.core.models.MessageOrigin
@@ -87,7 +85,9 @@ class VoiceAssistantService : Service() {
     @Inject lateinit var ttsEngine: OfflineTtsEngine
     @Inject lateinit var textNormalization: io.androllm.core.voice.tts.normalize.TextNormalizationEngine
     @Inject lateinit var chatManager: io.androllm.feature.voice.chat.ChatManager
-    @Inject lateinit var memoryManager: MemoryManager
+    // Memory for voice turns flows through ChatManager (the unified memory
+    // layer) — no direct MemoryManager access here, so voice and text chat
+    // can never diverge.
     @Inject lateinit var conversationRepository: ConversationRepository
     @Inject lateinit var messageRepository: MessageRepository
     @Inject lateinit var toolConfirmationManager: ToolConfirmationManager

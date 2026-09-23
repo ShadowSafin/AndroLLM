@@ -150,13 +150,21 @@ class ChatManager @Inject constructor(
         )
         messageRepository.upsert(userMessage)
 
-        // Build memory & prompt context
+        // Build memory & prompt context — shared by local and cloud turns:
+        // the identical block is prepended as the first `system` message for
+        // both providers below, so memories survive model switching.
+        // Low-latency voice skips retrieval for speed (documented trade-off).
         val memoryContext = if (lowLatencyMode) {
             io.androllm.core.memory.model.MemoryContext()
         } else {
-            withTimeoutOrNull(400) {
+            withTimeoutOrNull(MEMORY_RETRIEVAL_TIMEOUT_MS) {
                 memoryManager.buildContext(userQuery = trimmed)
             } ?: io.androllm.core.memory.model.MemoryContext()
+        }
+        if (memoryContext.systemText.isNotBlank()) {
+            Timber.tag("CHAT").i(
+                "MEMORY CONTEXT voice (${memoryContext.memories.size} memories, ${memoryContext.summaries.size} summaries)"
+            )
         }
 
         // Build prompt message list from DB history
@@ -451,6 +459,14 @@ class ChatManager @Inject constructor(
      * produced no text, ground the spoken reply in the last real tool result.
      */
     private fun buildToolFallbackText(): String = traceStore.lastTurnSummary()
+
+    companion object {
+        /**
+         * Budget for memory retrieval on the voice send path. Voice turns
+         * stay snappy; on timeout the turn still speaks, just without memory.
+         */
+        private const val MEMORY_RETRIEVAL_TIMEOUT_MS = 1000L
+    }
 }
 
 /** Accumulates a streaming cloud `tool_calls` fragment by index. */
