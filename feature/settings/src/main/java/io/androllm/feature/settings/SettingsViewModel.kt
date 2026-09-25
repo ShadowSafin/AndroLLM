@@ -28,6 +28,11 @@ import io.androllm.core.mcp.McpConnectionManager
 import io.androllm.core.mcp.McpServer
 import io.androllm.core.mcp.McpSettingsStore
 import io.androllm.core.voice.stt.WhisperModel
+import io.androllm.core.database.repository.ModelRepository
+import io.androllm.engine.api.EngineRepository
+import io.androllm.engine.api.EngineState
+import io.androllm.engine.backend.BackendSelector
+import io.androllm.engine.models.BackendType
 import io.androllm.core.tools.registry.ToolRegistry
 import io.androllm.core.tools.settings.AutomationSettings
 import io.androllm.core.tools.settings.AutomationSettingsStore
@@ -49,6 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -81,7 +87,9 @@ class SettingsViewModel @Inject constructor(
     private val accessibilitySettingsStore: AccessibilitySettingsStore,
     private val accessibilityController: AccessibilityController,
     private val mcpSettingsStore: McpSettingsStore,
-    private val mcpConnectionManager: McpConnectionManager
+    private val mcpConnectionManager: McpConnectionManager,
+    private val modelRepository: ModelRepository,
+    private val engineRepository: EngineRepository
 ) : BaseViewModel() {
 
     private val _uiState = MutableStateFlow<UiState<SettingsData>>(UiState.Loading())
@@ -120,6 +128,20 @@ class SettingsViewModel @Inject constructor(
 
     private val _storageStats = MutableStateFlow<io.androllm.core.utils.StorageStats?>(null)
     val storageStats: StateFlow<io.androllm.core.utils.StorageStats?> = _storageStats.asStateFlow()
+
+    /**
+     * Centralized Settings summary state (single source for the header cards).
+     *
+     * - `null` means loading — the UI shows a "…" placeholder, never a stale
+     *   hardcoded value.
+     * - Failures keep the previous value (or "Unknown" in the UI when nothing
+     *   was ever loaded) and never crash the screen.
+     */
+    private val _downloadedModelCount = MutableStateFlow<Int?>(null)
+    val downloadedModelCount: StateFlow<Int?> = _downloadedModelCount.asStateFlow()
+
+    private val _backendLabel = MutableStateFlow<String?>(null)
+    val backendLabel: StateFlow<String?> = _backendLabel.asStateFlow()
 
     // ── Voice assistant ──
 
@@ -347,14 +369,32 @@ class SettingsViewModel @Inject constructor(
 
     val overlayGranted: Boolean get() = OverlayPermission.isGranted(context)
 
-    /** Firebase is optional â€” the settings header must still work offline as a guest. */
-    private val auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+    /** Firebase is optional — the settings header must still work offline as a guest. */
+    private var auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
 
     private val _user = MutableStateFlow(auth?.currentUser?.toSettingsUser())
     val user: StateFlow<SettingsIdentity?> = _user.asStateFlow()
 
     private val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
         _user.value = firebaseAuth.currentUser?.toSettingsUser()
+    }
+
+    /**
+     * Re-reads the Firebase identity. Covers ViewModels created before Firebase
+     * finished initializing (auth was null at init) and screens returning from
+     * the Auth flow — the AuthStateListener normally handles this, but this
+     * makes the header self-healing. Never throws.
+     */
+    fun refreshAuthState() {
+        if (auth == null) {
+            auth = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+            auth?.addAuthStateListener(authListener)
+        }
+        runCatching {
+            _user.value = auth?.currentUser?.toSettingsUser()
+        }.onFailure { e ->
+            Timber.w(e, "[Auth] refreshAuthState failed")
+        }
     }
 
     init {
@@ -375,12 +415,126 @@ class SettingsViewModel @Inject constructor(
         observeMemorySettings()
         refreshMemoryStats()
         refreshStorageStats()
+        observeDownloadedModels()
+        observeBackendLabel()
         observeVoiceSettings()
         observeAutomationSettings()
         observeAccessibilitySettings()
         observeMcp()
         refreshWhisperFromInit()
         observeAttachmentSettings()
+        refreshAttachmentCacheBytes()
+    }
+
+    /**
+     * Observes the real downloaded-model list. The count updates immediately
+     * on install/uninstall and survives restarts (Room is the source of
+     * truth). Storage is re-read on every change so the header never goes
+     * stale.
+     */
+    private fun observeDownloadedModels() {
+        viewModelScope.launch {
+            runCatching {
+                modelRepository.observeDownloaded()
+                    .catch { e ->
+                        Timber.w(e, "[Settings] downloaded-models observe failed")
+                    }
+                    .collect { downloaded ->
+                        _downloadedModelCount.value = downloaded.size
+                        refreshStorageStats()
+                    }
+            }.onFailure { e ->
+                Timber.w(e, "[Settings] downloaded-models observe failed")
+            }
+        }
+    }
+
+    /**
+     * Resolves the execution-backend label from real runtime state:
+     *
+     * 1. Active engine backend wins ([EngineState.Ready]/[Generating]).
+     * 2. Else the persisted user preference (NPU/GPU/CPU).
+     * 3. Else AUTO resolves via the startup hardware probe
+     *    ("Auto · GPU" etc.).
+     *
+     * Never throws and never returns a hardcoded stale value — "Unknown" is
+     * the only fallback.
+     */
+    private fun observeBackendLabel() {
+        viewModelScope.launch {
+            runCatching {
+                combine(
+                    preferencesDataStore.backendPreference,
+                    engineRepository.engineState,
+                    engineRepository.backendCapabilities
+                ) { prefStr, engineState, caps ->
+                    Triple(prefStr, engineState, caps)
+                }
+                    .catch { e ->
+                        Timber.w(e, "[Settings] backend observe failed")
+                    }
+                    .collect { (prefStr, engineState, caps) ->
+                        _backendLabel.value = runCatching {
+                            resolveBackendLabel(prefStr, engineState, caps)
+                        }.getOrDefault("Unknown")
+                    }
+            }.onFailure { e ->
+                Timber.w(e, "[Settings] backend observe failed")
+                if (_backendLabel.value == null) _backendLabel.value = "Unknown"
+            }
+        }
+    }
+
+    private fun resolveBackendLabel(
+        prefStr: String,
+        engineState: EngineState,
+        caps: io.androllm.engine.backend.BackendCapabilities
+    ): String {
+        val active: BackendType? = when (engineState) {
+            is EngineState.Ready -> engineState.model.backend
+            is EngineState.Generating -> engineState.model.backend
+            else -> null
+        }
+        if (active != null) return active.toSettingsDisplay()
+        val pref = runCatching { BackendType.valueOf(prefStr) }.getOrDefault(BackendType.AUTO)
+        val normalized = BackendSelector.normalizePreference(pref)
+        if (normalized != BackendType.AUTO) return normalized.toSettingsDisplay()
+        return "Auto · " + BackendSelector.bestAvailable(caps).toSettingsDisplay()
+    }
+
+    private fun BackendType.toSettingsDisplay(): String = when (this) {
+        BackendType.CPU -> "CPU"
+        BackendType.GPU -> "GPU"
+        BackendType.NPU -> "NPU"
+        BackendType.AUTO -> "Auto"
+        BackendType.VULKAN, BackendType.LLAMA_CPP_VULKAN -> "Vulkan"
+        BackendType.QUALCOMM_QNN -> "NPU"
+        BackendType.ONNX_RUNTIME -> "CPU"
+    }
+
+    /**
+     * Signs out of Firebase. The [authListener] fires immediately and clears
+     * [user], so the Settings UI flips to "Sign in with Google" without an
+     * app restart. `_user` is also cleared synchronously for instant feedback.
+     * Offline-safe: never throws.
+     */
+    fun signOut() {
+        viewModelScope.launch {
+            Timber.i("[Auth] Logout — Firebase signOut requested")
+            runCatching { auth?.signOut() }
+                .onFailure { e -> Timber.w(e, "[Auth] signOut failed") }
+            _user.value = null
+        }
+    }
+
+    /**
+     * Re-reads the header summary (storage + whisper state). Model count and
+     * backend update automatically via their flows; this covers storage that
+     * changed outside the model table (cache clears, whisper installs).
+     */
+    fun refreshSettingsSummary() {
+        refreshStorageStats()
+        refreshWhisperModels()
         refreshAttachmentCacheBytes()
     }
 
@@ -795,15 +949,33 @@ data class SettingsData(
 
 /**
  * UI snapshot of the Firebase identity for the settings header (null-safe).
+ *
+ * `null` user = guest/signed-out. A non-null identity always means signed-in
+ * (keyed off the Firebase UID, never the email — GitHub/private emails can be
+ * null even when fully authenticated).
  */
 data class SettingsIdentity(
+    val uid: String,
     val displayName: String?,
-    val email: String?
+    val email: String?,
+    val providerId: String = ""
 ) {
-    val isGuest: Boolean get() = email.isNullOrBlank()
+    val isGuest: Boolean get() = uid.isBlank()
+    /** Friendly account-type label, e.g. "Google account". Never the display name. */
+    val providerLabel: String
+        get() = when {
+            providerId.contains("google", ignoreCase = true) -> "Google account"
+            providerId.contains("github", ignoreCase = true) -> "GitHub account"
+            providerId.contains("password", ignoreCase = true) -> "Email account"
+            providerId.contains("phone", ignoreCase = true) -> "Phone account"
+            email?.isNotBlank() == true -> "Synced account"
+            else -> "AndroLLM device account"
+        }
 }
 
 private fun FirebaseUser.toSettingsUser(): SettingsIdentity = SettingsIdentity(
+    uid = uid,
     displayName = displayName,
-    email = email
+    email = email,
+    providerId = providerData.firstOrNull { it.providerId.isNotBlank() && it.providerId != "firebase" }?.providerId.orEmpty()
 )

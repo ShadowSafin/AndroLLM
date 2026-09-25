@@ -62,6 +62,7 @@ dependencies {
     implementation(project(":core:mcp"))
     implementation(project(":feature:voice"))
     implementation(project(":core:utils"))
+    implementation(project(":engine"))
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")

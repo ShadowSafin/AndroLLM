@@ -70,12 +70,16 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -126,6 +130,8 @@ fun SettingsScreen(
     val attachmentCacheBytes by viewModel.attachmentCacheBytes.collectAsStateWithLifecycle()
     val attachmentsSupported by viewModel.attachmentsSupported.collectAsStateWithLifecycle()
     val storageStats by viewModel.storageStats.collectAsStateWithLifecycle()
+    val downloadedModelCount by viewModel.downloadedModelCount.collectAsStateWithLifecycle()
+    val backendLabel by viewModel.backendLabel.collectAsStateWithLifecycle()
     val voiceSettings by viewModel.voiceSettings.collectAsStateWithLifecycle()
     val voiceState by viewModel.voiceState.collectAsStateWithLifecycle()
     val automationSettings by viewModel.automationSettings.collectAsStateWithLifecycle()
@@ -138,6 +144,10 @@ fun SettingsScreen(
     val whisperMessage by viewModel.whisperMessage.collectAsStateWithLifecycle()
     val whisperStorageBytes = viewModel.whisperStorageBytes
     val overlayGranted = viewModel.overlayGranted
+    // Shared dashboard link state so the profile header and the connector card
+    // always agree (single WebDashboardViewModel instance for this screen).
+    val webDashboardViewModel: WebDashboardViewModel = hiltViewModel()
+    val dashboardState by webDashboardViewModel.state.collectAsStateWithLifecycle()
     val settings = (uiState as? UiState.Success)?.data ?: SettingsData()
 
     var showModelPathDialog by remember { mutableStateOf(false) }
@@ -174,6 +184,31 @@ fun SettingsScreen(
             kotlinx.coroutines.delay(4000)
             viewModel.clearMemoryMessage()
         }
+    }
+
+    // Self-heal auth + summary every time Settings opens (e.g. returning from
+    // the Auth flow): the AuthStateListener is the live source, this covers a
+    // ViewModel created before Firebase init.
+    LaunchedEffect(Unit) {
+        viewModel.refreshAuthState()
+        webDashboardViewModel.refreshAuthState()
+        viewModel.refreshSettingsSummary()
+    }
+
+    // Returning from Auth via back-stack pop does NOT rerun LaunchedEffect(Unit),
+    // so re-check identity on every resume — this is what flips Google AND GitHub
+    // sign-ins to "Sign out" without a restart.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel, webDashboardViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshAuthState()
+                webDashboardViewModel.refreshAuthState()
+                viewModel.refreshSettingsSummary()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     CloudAtmosphericBackground(reduceMotion = settings.reduceMotion) {
@@ -240,17 +275,32 @@ fun SettingsScreen(
                     expanded = expandedGroup == SettingsGroup.Account.name,
                     onToggle = { toggleGroup(SettingsGroup.Account) },
                     visible = SettingsGroup.Account.matches(searchQuery),
-                    subtitle = if (user?.isGuest == false) "Signed in" else "Guest · optional sync",
+                    subtitle = if (user != null) "Signed in" else "Guest · optional sync",
                     reduceMotion = settings.reduceMotion
                 ) {
-                    UserProfileCard(user = user)
-                    UserStatsRow()
+                    UserProfileCard(
+                        user = user,
+                        dashboardConnected = dashboardState.connected
+                    )
+                    UserStatsRow(
+                        downloadedModelCount = downloadedModelCount,
+                        storageStats = storageStats,
+                        backendLabel = backendLabel
+                    )
                     FirebaseAuthCard(
                         user = user,
-                        onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) }
+                        onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) },
+                        onSignOut = {
+                            viewModel.signOut()
+                            navController.navigate(io.androllm.core.navigation.Routes.AUTH) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                     WebDashboardConnectorCard(
-                        onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) }
+                        onSignIn = { navController.navigate(io.androllm.core.navigation.Routes.AUTH) },
+                        viewModel = webDashboardViewModel
                     )
                 }
 
@@ -749,9 +799,33 @@ fun SettingsScreen(
 
 /**
  * Large Floating User Profile Header Card.
+ *
+ * Three distinct lines (never the same value twice):
+ * - Line 1: display name (once only).
+ * - Line 2: account email, or the provider label fallback ("Google account").
+ * - Line 3: sync/device/dashboard status ("Web dashboard linked",
+ *   "Synced on this device", or "Guest · 100% on-device").
  */
 @Composable
-private fun UserProfileCard(user: SettingsIdentity?) {
+private fun UserProfileCard(
+    user: SettingsIdentity?,
+    dashboardConnected: Boolean
+) {
+    // Line 1 — display name, shown exactly once.
+    val nameLine = user?.displayName?.takeIf { it.isNotBlank() }
+        ?: if (user != null) "Signed-in user" else "AndroLLM User"
+    // Line 2 — email or provider label; falls back to a label, never the name.
+    val accountLine = if (user != null) {
+        user.email?.takeIf { it.isNotBlank() } ?: user.providerLabel
+    } else {
+        "Local account"
+    }
+    // Line 3 — sync/device status; always distinct from the two lines above.
+    val statusLine = when {
+        user == null -> "Guest · 100% on-device"
+        dashboardConnected -> "Web dashboard linked"
+        else -> "Synced on this device"
+    }
     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -761,7 +835,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
             Spacer(modifier = Modifier.width(18.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = user?.displayName?.takeIf { it.isNotBlank() } ?: "AndroLLM User",
+                    text = nameLine,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.ledger.deskPaper
@@ -771,7 +845,7 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = user?.displayName?.takeIf { it.isNotBlank() } ?: "",
+                    text = accountLine,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.ledger.deskInk
                     ),
@@ -779,13 +853,9 @@ private fun UserProfileCard(user: SettingsIdentity?) {
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (user?.isGuest == false) {
-                        user?.email ?: ""
-                    } else {
-                        "Guest • 100% on-device"
-                    },
+                    text = statusLine,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        color = if (user?.isGuest == false) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
+                        color = if (user != null) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                     ),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -796,10 +866,23 @@ private fun UserProfileCard(user: SettingsIdentity?) {
 }
 
 /**
- * User Statistics Row.
+ * User Statistics Row — synced from real app/device state (single source:
+ * [SettingsViewModel]).
+ *
+ * - Downloaded: [ModelRepository.observeDownloaded] count (null = loading).
+ * - Storage: [StorageUtils.getStorageStats] used bytes (null = loading).
+ * - Execution: active engine backend, else persisted preference, else the
+ *   AUTO-resolved probe backend (null = loading).
+ *
+ * Loading shows "…" and unreadable values fall back to "Unknown" upstream —
+ * never hardcoded fake numbers.
  */
 @Composable
-private fun UserStatsRow() {
+private fun UserStatsRow(
+    downloadedModelCount: Int?,
+    storageStats: io.androllm.core.utils.StorageStats?,
+    backendLabel: String?
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -807,19 +890,30 @@ private fun UserStatsRow() {
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Downloaded", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
-                Text("3 Models", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper))
+                Text(
+                    downloadedModelCount?.let { count ->
+                        "$count Model${if (count == 1) "" else "s"}"
+                    } ?: "…",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
+                )
             }
         }
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Storage", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
-                Text("4.2 GB", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper))
+                Text(
+                    storageStats?.let { StorageUtils.formatBytes(it.usedBytes) } ?: "…",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.deskPaper)
+                )
             }
         }
         CloudGlassCard(modifier = Modifier.weight(1f)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Execution", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.ledger.deskInk))
-                Text("Vulkan", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.lampDeep))
+                Text(
+                    backendLabel ?: "…",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.ledger.lampDeep)
+                )
             }
         }
     }
@@ -827,12 +921,21 @@ private fun UserStatsRow() {
 
 /**
  * Account & Sync Section.
+ *
+ * Source of truth is FirebaseAuth (via [SettingsViewModel.user], kept fresh
+ * by an AuthStateListener): signed-in shows "Sign out" + identity, signed-out
+ * shows "Sign in with Google". The button flips immediately on login/logout
+ * with no restart; the Google auth flow itself is unchanged.
  */
 @Composable
 private fun FirebaseAuthCard(
     user: SettingsIdentity?,
-    onSignIn: () -> Unit
+    onSignIn: () -> Unit,
+    onSignOut: () -> Unit
 ) {
+    // Non-null user = signed in (Firebase UID present). Never gate on email —
+    // GitHub/private emails can be null while fully authenticated.
+    val signedIn = user != null
     CloudGlassCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(
@@ -849,8 +952,11 @@ private fun FirebaseAuthCard(
                         )
                     )
                     Text(
-                        text = if (user?.isGuest == false) {
-                            "Synced as ${user?.email ?: "your account"}"
+                        text = if (signedIn) {
+                            val identity = user?.email?.takeIf { it.isNotBlank() }
+                                ?: user?.displayName?.takeIf { it.isNotBlank() }
+                                ?: "your account"
+                            "Synced as $identity"
                         } else {
                             "Syncing is optional — offline AI never requires a login"
                         },
@@ -862,14 +968,14 @@ private fun FirebaseAuthCard(
                     )
                 }
                 CloudChip(
-                    text = if (user?.isGuest == false) "Signed In" else "Optional",
-                    accentColor = if (user?.isGuest == false) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
+                    text = if (signedIn) "Signed In" else "Optional",
+                    accentColor = if (signedIn) MaterialTheme.ledger.lampDeep else MaterialTheme.ledger.deskInk
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
             CloudCapsuleButton(
-                text = if (user?.isGuest == false) "Manage Account" else "Sign in with Google",
-                onClick = onSignIn,
+                text = if (signedIn) "Sign out" else "Sign in with Google",
+                onClick = if (signedIn) onSignOut else onSignIn,
                 icon = Icons.Filled.AccountCircle,
                 modifier = Modifier.fillMaxWidth()
             )

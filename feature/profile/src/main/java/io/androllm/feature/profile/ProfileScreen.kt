@@ -216,7 +216,13 @@ fun ProfileScreen(
                                         title = "Sign Out",
                                         subtitle = "Return to local-only mode",
                                         accent = MaterialTheme.ledger.lampDeep,
-                                        onClick = { viewModel.signOut() }
+                                        onClick = {
+                                            viewModel.signOut()
+                                            navController.navigate(Routes.AUTH) {
+                                                popUpTo(navController.graph.id) { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        }
                                     )
                                     ActionRow(
                                         icon = Icons.Filled.Delete,

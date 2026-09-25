@@ -46,6 +46,30 @@ Firebase Authentication is optional. You can use AndroLLM fully as a guest witho
 - Sign out from Settings → Account → Sign Out
 - Account deletion removes all Firebase data
 
+## Settings Page Auth & Sync Status
+
+`feature/settings` (`SettingsViewModel` + `SettingsScreen`) is the single
+reader for the Account & Sync header — FirebaseAuth stays the source of truth:
+
+- Auth state: `FirebaseAuth.AuthStateListener` → `SettingsViewModel.user`.
+  Signed-in shows the identity + **Sign out**; signed-out shows
+  **Sign in with Google**. The button flips immediately via the listener (plus
+  a synchronous clear on logout) — no restart, Google flow unchanged.
+  Tapping **Sign out** calls `SettingsViewModel.signOut()` then navigates to
+  `Routes.AUTH` clearing the back stack, so the user lands on the
+  login/signup page (same behavior in Profile → Sign Out).
+- Downloaded models: `ModelRepository.observeDownloaded()` count (`null` =
+  loading → "…" placeholder).
+- Storage: `StorageUtils.getStorageStats()` used bytes, re-read on every
+  model-list change and on `refreshSettingsSummary()`.
+- Execution backend: active `EngineRepository.engineState` backend wins;
+  otherwise the persisted `backendPreference` (NPU/GPU/CPU); otherwise AUTO
+  resolves via `BackendSelector.bestAvailable(backendCapabilities)`
+  ("Auto · GPU"). Failures fall back to "Unknown", never hardcoded values.
+- Web Dashboard: `WebDashboardViewModel` reconciles `GET /me`
+  (`web_connected`) with the `PreferencesDataStore` display cache, so the
+  Connected / Not connected / Sign-in required states are always real.
+
 ---
 
 ## Troubleshooting

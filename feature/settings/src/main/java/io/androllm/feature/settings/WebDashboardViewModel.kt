@@ -44,7 +44,23 @@ class WebDashboardViewModel @Inject constructor(
     private val preferencesDataStore: PreferencesDataStore,
 ) : ViewModel() {
 
-    private val auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+    private var auth: FirebaseAuth? = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+
+    /**
+     * Re-reads Firebase sign-in state. Covers ViewModels created before Firebase
+     * finished initializing and screens returning from the Auth flow (GitHub or
+     * Google) via back-stack pop, where init-time listeners may have missed the
+     * change. Safe to call on every resume.
+     */
+    fun refreshAuthState() {
+        if (auth == null) {
+            auth = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+            auth?.addAuthStateListener(authListener)
+        }
+        val signedIn = runCatching { auth?.currentUser != null }.getOrDefault(false)
+        _state.update { it.copy(signedIn = signedIn, error = null, isFresh = false) }
+        if (signedIn) refresh()
+    }
 
     private val _state = MutableStateFlow(
         WebDashboardState(backendConfigured = identityApi.isConfigured)
